@@ -816,6 +816,9 @@ export default function TowerDefenseGame({ onBack }: { onBack: () => void }) {
     gs.totalWaves = mode==='campaign'?5 : mode==='challenge'?10 : 999;
     gs.challengeStartTime = mode==='challenge'?performance.now():0;
     gs.idCounter=1;
+    // Recalculate path cells for chosen map
+    const cs=cellSizeRef.current;
+    pathCellsRef.current=buildPathCells(MAP_PATHS[map], GRID_COLS, GRID_ROWS, cs);
     setHud(h=>({...h,wave:0,gold:INITIAL_GOLD,lives:INITIAL_LIVES,score:0,phase:'prep',speedMult:1,bossActive:false}));
     setPlacingType(null); setSelectedTowerId(null); setStoryMsg('');
   }
@@ -1179,67 +1182,60 @@ export default function TowerDefenseGame({ onBack }: { onBack: () => void }) {
   }
 
   const selectedTower = gsRef.current.towers.find(t=>t.id===selectedTowerId);
-
-  // ─── Menu Screen ─────────────────────────────────────────────────────────────
-  if(hud.phase==='menu') {
-    return (
-      <div style={{width:'100%',height:'100%',background:'linear-gradient(135deg,#0a1628,#1a0a2e)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:24,padding:20,fontFamily:'system-ui,sans-serif'}}>
-        <div style={{textAlign:'center'}}>
-          <div style={{fontSize:42,fontWeight:900,color:'#ffd700',textShadow:'0 0 30px rgba(255,215,0,0.6)',letterSpacing:2}}>⚔️ TOWER DEFENSE</div>
-          <div style={{fontSize:15,color:'#aaa',marginTop:4}}>La Forteresse des Cristaux</div>
-        </div>
-        <div style={{display:'flex',gap:12,flexWrap:'wrap',justifyContent:'center'}}>
-          {([0,1,2] as MapId[]).map(i=>(
-            <button key={i} onClick={()=>setSelectedMap(i)} style={{
-              padding:'14px 20px', borderRadius:12, cursor:'pointer',
-              background:selectedMap===i?'linear-gradient(135deg,#1a3a5c,#2a5a8c)':'rgba(255,255,255,0.07)',
-              border:selectedMap===i?'2px solid #5be8ff':'2px solid rgba(255,255,255,0.1)',
-              color:'#fff', minWidth:160, transition:'all 0.2s',
-            }}>
-              <div style={{fontSize:22}}>{MAP_NAMES[i].split(' ')[0]}</div>
-              <div style={{fontWeight:700,fontSize:14,margin:'4px 0'}}>{MAP_NAMES[i].substring(2)}</div>
-              <div style={{fontSize:12,color:'#aaa'}}>{MAP_DESCS[i]}</div>
-            </button>
-          ))}
-        </div>
-        <div style={{display:'flex',gap:12,flexWrap:'wrap',justifyContent:'center'}}>
-          {(['campaign','endless','challenge'] as ModeId[]).map(m=>(
-            <button key={m} onClick={()=>setSelectedMode(m)} style={{
-              padding:'12px 18px', borderRadius:12, cursor:'pointer',
-              background:selectedMode===m?'linear-gradient(135deg,#2a1a4a,#4a2a6a)':'rgba(255,255,255,0.07)',
-              border:selectedMode===m?'2px solid #aa55ff':'2px solid rgba(255,255,255,0.1)',
-              color:'#fff', minWidth:150, transition:'all 0.2s',
-            }}>
-              <div style={{fontWeight:700,fontSize:14}}>{MODE_NAMES[['campaign','endless','challenge'].indexOf(m)]}</div>
-              <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{MODE_DESCS[['campaign','endless','challenge'].indexOf(m)]}</div>
-            </button>
-          ))}
-        </div>
-        {gsRef.current.highScores.length>0 && (
-          <div style={{color:'#ffd700',fontSize:13,textAlign:'center'}}>
-            🏆 Records: {gsRef.current.highScores.map((s,i)=>`#${i+1} ${s.toLocaleString()}`).join('  |  ')}
-          </div>
-        )}
-        <button onClick={()=>{ startGame(selectedMap,selectedMode); }} style={{
-          padding:'16px 48px', fontSize:18, fontWeight:800, borderRadius:14, cursor:'pointer',
-          background:'linear-gradient(135deg,#f0a020,#e06010)',
-          border:'none', color:'#fff', letterSpacing:1,
-          boxShadow:'0 4px 20px rgba(240,160,32,0.5)', transition:'transform 0.1s',
-        }} onMouseDown={e=>(e.currentTarget.style.transform='scale(0.97)')} onMouseUp={e=>(e.currentTarget.style.transform='scale(1)')}>
-          ▶ JOUER
-        </button>
-        <button onClick={onBack} style={{background:'none',border:'1px solid rgba(255,255,255,0.2)',color:'#aaa',padding:'8px 20px',borderRadius:8,cursor:'pointer',fontSize:13}}>← Retour</button>
-      </div>
-    );
-  }
-
-  // ─── Gameover / Victory overlay helper ───────────────────────────────────────
   const showOverlay = hud.phase==='gameover'||hud.phase==='victory';
 
   return (
     <div style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',background:'#0a0a14',fontFamily:'system-ui,sans-serif',overflow:'hidden'}}>
-      {/* HUD */}
-      <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',background:'rgba(0,0,0,0.7)',borderBottom:'1px solid rgba(255,255,255,0.1)',flexShrink:0,flexWrap:'wrap'}}>
+    {/* ─── Menu overlay (always keep canvas mounted beneath) ─── */}
+    {hud.phase==='menu' && (
+      <div style={{position:'absolute',inset:0,zIndex:10,background:'linear-gradient(135deg,rgba(10,22,40,0.97),rgba(26,10,46,0.97))',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:20,padding:20,overflowY:'auto'}}>
+        <div style={{textAlign:'center'}}>
+          <div style={{fontSize:38,fontWeight:900,color:'#ffd700',textShadow:'0 0 30px rgba(255,215,0,0.6)',letterSpacing:2}}>⚔️ TOWER DEFENSE</div>
+          <div style={{fontSize:14,color:'#aaa',marginTop:4}}>La Forteresse des Cristaux</div>
+        </div>
+        <div style={{display:'flex',gap:10,flexWrap:'wrap',justifyContent:'center'}}>
+          {([0,1,2] as MapId[]).map(i=>(
+            <button key={i} onClick={()=>setSelectedMap(i)} style={{
+              padding:'12px 16px', borderRadius:12, cursor:'pointer',
+              background:selectedMap===i?'linear-gradient(135deg,#1a3a5c,#2a5a8c)':'rgba(255,255,255,0.07)',
+              border:selectedMap===i?'2px solid #5be8ff':'2px solid rgba(255,255,255,0.1)',
+              color:'#fff', minWidth:150, transition:'all 0.2s',
+            }}>
+              <div style={{fontSize:20}}>{MAP_NAMES[i].split(' ')[0]}</div>
+              <div style={{fontWeight:700,fontSize:13,margin:'3px 0'}}>{MAP_NAMES[i].substring(2)}</div>
+              <div style={{fontSize:11,color:'#aaa'}}>{MAP_DESCS[i]}</div>
+            </button>
+          ))}
+        </div>
+        <div style={{display:'flex',gap:10,flexWrap:'wrap',justifyContent:'center'}}>
+          {(['campaign','endless','challenge'] as ModeId[]).map(m=>(
+            <button key={m} onClick={()=>setSelectedMode(m)} style={{
+              padding:'10px 16px', borderRadius:12, cursor:'pointer',
+              background:selectedMode===m?'linear-gradient(135deg,#2a1a4a,#4a2a6a)':'rgba(255,255,255,0.07)',
+              border:selectedMode===m?'2px solid #aa55ff':'2px solid rgba(255,255,255,0.1)',
+              color:'#fff', minWidth:140, transition:'all 0.2s',
+            }}>
+              <div style={{fontWeight:700,fontSize:13}}>{MODE_NAMES[['campaign','endless','challenge'].indexOf(m)]}</div>
+              <div style={{fontSize:11,color:'#aaa',marginTop:3}}>{MODE_DESCS[['campaign','endless','challenge'].indexOf(m)]}</div>
+            </button>
+          ))}
+        </div>
+        {gsRef.current.highScores.length>0 && (
+          <div style={{color:'#ffd700',fontSize:12,textAlign:'center'}}>
+            🏆 {gsRef.current.highScores.map((s,i)=>`#${i+1} ${s.toLocaleString()}`).join('  |  ')}
+          </div>
+        )}
+        <button onClick={()=>{ startGame(selectedMap,selectedMode); }} style={{
+          padding:'14px 44px', fontSize:17, fontWeight:800, borderRadius:14, cursor:'pointer',
+          background:'linear-gradient(135deg,#f0a020,#e06010)',
+          border:'none', color:'#fff', letterSpacing:1,
+          boxShadow:'0 4px 20px rgba(240,160,32,0.5)',
+        }}>▶ JOUER</button>
+        <button onClick={onBack} style={{background:'none',border:'1px solid rgba(255,255,255,0.2)',color:'#aaa',padding:'7px 18px',borderRadius:8,cursor:'pointer',fontSize:12}}>← Retour</button>
+      </div>
+    )}
+      {/* HUD — hidden in menu */}
+      {hud.phase!=='menu' && <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',background:'rgba(0,0,0,0.7)',borderBottom:'1px solid rgba(255,255,255,0.1)',flexShrink:0,flexWrap:'wrap'}}>
         <button onClick={()=>{cancelAnimationFrame(rafRef.current);gsRef.current.phase='menu';setHud(h=>({...h,phase:'menu'}));}} style={{background:'rgba(255,255,255,0.1)',border:'none',color:'#fff',padding:'4px 10px',borderRadius:6,cursor:'pointer',fontSize:13}}>← Retour</button>
         <span style={{color:'#aaa',fontSize:13}}>Vague <span style={{color:'#fff',fontWeight:700}}>{hud.wave}</span>{gsRef.current.mode!=='endless'&&`/${gsRef.current.totalWaves}`}</span>
         <span style={{fontSize:13}}>❤️ <span style={{color:hud.lives<=5?'#ff4444':'#fff',fontWeight:700}}>{hud.lives}</span></span>
@@ -1250,7 +1246,7 @@ export default function TowerDefenseGame({ onBack }: { onBack: () => void }) {
             {hud.speedMult===1?'1×':'2×'}
           </button>
         </div>
-      </div>
+      </div>}
 
       <div style={{flex:1,display:'flex',overflow:'hidden',position:'relative'}}>
         {/* Canvas */}
