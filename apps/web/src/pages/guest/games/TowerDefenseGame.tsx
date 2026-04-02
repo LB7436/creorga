@@ -1184,9 +1184,14 @@ export default function TowerDefenseGame({ onBack }: { onBack: () => void }) {
   const selectedTower = gsRef.current.towers.find(t=>t.id===selectedTowerId);
   const showOverlay = hud.phase==='gameover'||hud.phase==='victory';
 
+  // Tower icon helper
+  const towerIcon = (type: TowerType) =>
+    type==='archer'?'🏹':type==='mage'?'🔮':type==='cannon'?'⚙️':type==='catapult'?'🪨':type==='ice'?'❄️':'⚡';
+
   return (
     <div style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',background:'#0a0a14',fontFamily:'system-ui,sans-serif',overflow:'hidden'}}>
-    {/* ─── Menu overlay (always keep canvas mounted beneath) ─── */}
+
+    {/* ─── Menu overlay ─── */}
     {hud.phase==='menu' && (
       <div style={{position:'absolute',inset:0,zIndex:10,background:'linear-gradient(135deg,rgba(10,22,40,0.97),rgba(26,10,46,0.97))',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:20,padding:20,overflowY:'auto'}}>
         <div style={{textAlign:'center'}}>
@@ -1234,28 +1239,75 @@ export default function TowerDefenseGame({ onBack }: { onBack: () => void }) {
         <button onClick={onBack} style={{background:'none',border:'1px solid rgba(255,255,255,0.2)',color:'#aaa',padding:'7px 18px',borderRadius:8,cursor:'pointer',fontSize:12}}>← Retour</button>
       </div>
     )}
-      {/* HUD — hidden in menu */}
-      {hud.phase!=='menu' && <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',background:'rgba(0,0,0,0.7)',borderBottom:'1px solid rgba(255,255,255,0.1)',flexShrink:0,flexWrap:'wrap'}}>
-        <button onClick={()=>{cancelAnimationFrame(rafRef.current);gsRef.current.phase='menu';setHud(h=>({...h,phase:'menu'}));}} style={{background:'rgba(255,255,255,0.1)',border:'none',color:'#fff',padding:'4px 10px',borderRadius:6,cursor:'pointer',fontSize:13}}>← Retour</button>
-        <span style={{color:'#aaa',fontSize:13}}>Vague <span style={{color:'#fff',fontWeight:700}}>{hud.wave}</span>{gsRef.current.mode!=='endless'&&`/${gsRef.current.totalWaves}`}</span>
-        <span style={{fontSize:13}}>❤️ <span style={{color:hud.lives<=5?'#ff4444':'#fff',fontWeight:700}}>{hud.lives}</span></span>
-        <span style={{fontSize:13}}>🪙 <span style={{color:'#ffd700',fontWeight:700}}>{hud.gold}</span></span>
-        <span style={{fontSize:13}}>⭐ <span style={{color:'#aaffaa',fontWeight:700}}>{hud.score.toLocaleString()}</span></span>
-        <div style={{marginLeft:'auto',display:'flex',gap:6}}>
-          <button onClick={()=>{const gs=gsRef.current;gs.speedMult=gs.speedMult===1?2:1;}} style={{background:hud.speedMult===2?'#f0a020':'rgba(255,255,255,0.15)',border:'none',color:'#fff',padding:'4px 10px',borderRadius:6,cursor:'pointer',fontSize:12,fontWeight:700}}>
+
+    {/* ─── Compact top HUD ─── */}
+    {hud.phase!=='menu' && (
+      <div style={{
+        display:'flex',alignItems:'center',gap:6,padding:'0 10px',
+        background:'rgba(0,0,0,0.85)',borderBottom:'1px solid rgba(255,255,255,0.08)',
+        flexShrink:0,height:44,boxSizing:'border-box',
+      }}>
+        {/* Back */}
+        <button onClick={()=>{cancelAnimationFrame(rafRef.current);gsRef.current.phase='menu';setHud(h=>({...h,phase:'menu'}));}}
+          style={{background:'rgba(255,255,255,0.1)',border:'none',color:'#fff',padding:'3px 9px',borderRadius:6,cursor:'pointer',fontSize:12,flexShrink:0}}>
+          ← Retour
+        </button>
+        {/* Map name */}
+        <span style={{fontSize:12,color:'#aaa',flexShrink:0}}>🗺️{MAP_NAMES[gsRef.current.map].split(' ').slice(1).join(' ')}</span>
+        {/* Wave */}
+        <span style={{fontSize:12,color:'#ccc',flexShrink:0}}>
+          Vague <span style={{color:'#fff',fontWeight:700}}>{hud.wave}</span>
+          {gsRef.current.mode!=='endless'&&<span style={{color:'#888'}}>/{gsRef.current.totalWaves}</span>}
+        </span>
+        {/* Divider */}
+        <span style={{color:'rgba(255,255,255,0.15)',flexShrink:0}}>|</span>
+        {/* Lives */}
+        <span style={{fontSize:13,flexShrink:0}}>❤️ <span style={{color:hud.lives<=5?'#ff4444':'#fff',fontWeight:700}}>{hud.lives}</span></span>
+        {/* Gold */}
+        <span style={{fontSize:13,flexShrink:0}}>🪙 <span style={{color:'#ffd700',fontWeight:700}}>{hud.gold}</span></span>
+        {/* Score */}
+        <span style={{fontSize:12,flexShrink:0}}>⭐ <span style={{color:'#aaffaa',fontWeight:700}}>{hud.score.toLocaleString()}</span></span>
+
+        {/* Right-side controls */}
+        <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+          {/* Speed toggle */}
+          <button onClick={()=>{const gs=gsRef.current;gs.speedMult=gs.speedMult===1?2:1;}}
+            style={{
+              background:hud.speedMult===2?'#f0a020':'rgba(255,255,255,0.12)',
+              border:'none',color:'#fff',padding:'3px 9px',borderRadius:6,cursor:'pointer',fontSize:12,fontWeight:700,
+            }}>
             {hud.speedMult===1?'1×':'2×'}
           </button>
+          {/* Wave launch / status */}
+          {hud.phase==='prep' && (
+            <button onClick={launchWave} style={{
+              padding:'4px 14px',fontWeight:800,fontSize:12,borderRadius:8,cursor:'pointer',
+              background:'linear-gradient(135deg,#e05010,#f07020)',border:'none',color:'#fff',
+              boxShadow:'0 2px 8px rgba(240,112,32,0.45)',
+            }}>
+              ▶ Vague {gsRef.current.wave+1}
+            </button>
+          )}
+          {hud.phase==='wave' && (
+            <span style={{fontSize:12,color:'#f0a060',fontWeight:700,padding:'4px 8px',background:'rgba(240,160,32,0.1)',borderRadius:6,border:'1px solid rgba(240,160,32,0.2)'}}>
+              ⚔️ En cours...
+            </span>
+          )}
         </div>
-      </div>}
+      </div>
+    )}
 
-      <div style={{flex:1,display:'flex',overflow:'hidden',position:'relative'}}>
-        {/* Canvas */}
-        <div ref={containerRef} style={{flex:1,position:'relative',cursor:placingType?'crosshair':'default'}}>
+    {/* ─── Canvas area ─── always mounted so ResizeObserver fires */}
+    <div style={{flex:1,display:hud.phase==='menu'?'none':'flex',flexDirection:'column',overflow:'hidden',position:'relative'}}>
+        {/* Canvas fills remaining height */}
+        <div ref={containerRef} style={{flex:1,position:'relative',cursor:placingType?'crosshair':'default',overflow:'hidden'}}>
           <canvas ref={canvasRef} onClick={handleCanvasClick} onMouseMove={handleCanvasMouseMove}
             onMouseLeave={()=>{gsRef.current.hoveredCell=null;}}
             style={{display:'block',width:'100%',height:'100%'}} />
+
+          {/* Game over / victory overlay */}
           {showOverlay && (
-            <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16}}>
+            <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,zIndex:5}}>
               <div style={{fontSize:36,fontWeight:900,color:hud.phase==='victory'?'#ffd700':'#ff4444'}}>
                 {hud.phase==='victory'?'🏆 VICTOIRE !':'💀 DÉFAITE'}
               </div>
@@ -1264,82 +1316,138 @@ export default function TowerDefenseGame({ onBack }: { onBack: () => void }) {
               <button onClick={()=>{gsRef.current.phase='menu';setHud(h=>({...h,phase:'menu'}));}} style={{padding:'10px 24px',fontSize:14,fontWeight:600,borderRadius:10,cursor:'pointer',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',color:'#fff'}}>🗺️ Changer de carte</button>
             </div>
           )}
+
+          {/* Story message */}
           {storyMsg && (
-            <div style={{position:'absolute',top:8,left:'50%',transform:'translateX(-50%)',background:'rgba(0,0,0,0.8)',color:'#ffe0a0',padding:'8px 18px',borderRadius:8,fontSize:13,maxWidth:'80%',textAlign:'center',border:'1px solid rgba(255,200,80,0.3)',pointerEvents:'none'}}>
+            <div style={{position:'absolute',top:8,left:'50%',transform:'translateX(-50%)',background:'rgba(0,0,0,0.82)',color:'#ffe0a0',padding:'7px 16px',borderRadius:8,fontSize:13,maxWidth:'80%',textAlign:'center',border:'1px solid rgba(255,200,80,0.3)',pointerEvents:'none',zIndex:4}}>
               {storyMsg}
+            </div>
+          )}
+
+          {/* Selected tower popup — floats above the tower on the canvas */}
+          {selectedTower && !placingType && (
+            <div style={{
+              position:'absolute',
+              // position near the tower cell in canvas coords
+              left: selectedTower.col * cellSizeRef.current + cellSizeRef.current / 2,
+              top: selectedTower.row * cellSizeRef.current,
+              transform: 'translate(-50%, calc(-100% - 6px))',
+              background:'rgba(10,10,30,0.95)',
+              border:'1px solid rgba(100,180,255,0.45)',
+              borderRadius:10,padding:'8px 12px',
+              color:'#fff',fontSize:12,
+              zIndex:6,
+              minWidth:180,
+              boxShadow:'0 4px 16px rgba(0,0,0,0.6)',
+              pointerEvents:'auto',
+            }}>
+              {/* Title + close */}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+                <span style={{fontWeight:700,fontSize:13}}>
+                  {towerIcon(selectedTower.type)} {TOWER_DEFS[selectedTower.type].name} <span style={{color:'#5be8ff'}}>Lv{selectedTower.level}</span>
+                </span>
+                <button onClick={()=>{gsRef.current.selectedTowerId=null;setSelectedTowerId(null);}}
+                  style={{background:'none',border:'none',color:'#888',cursor:'pointer',fontSize:14,padding:'0 2px',lineHeight:1}}>✕</button>
+              </div>
+              {/* Stats row */}
+              <div style={{display:'flex',gap:8,fontSize:11,color:'#ccc',marginBottom:8,flexWrap:'wrap'}}>
+                <span>⚔️ {Math.round(selectedTower.damage*UPGRADE_DMG[selectedTower.level-1])}</span>
+                <span>🎯 {(selectedTower.range*UPGRADE_RNG[selectedTower.level-1]).toFixed(1)}</span>
+                <span>⏱ {selectedTower.fireRate.toFixed(1)}/s</span>
+                {selectedTower.aoe>0 && <span>💥 AOE</span>}
+                {selectedTower.slow>0 && <span>🧊 Slow</span>}
+              </div>
+              {/* Action buttons */}
+              <div style={{display:'flex',gap:6}}>
+                {selectedTower.level<3 ? (
+                  <button onClick={()=>upgradeTower(selectedTower.id)} style={{
+                    flex:1,padding:'5px 0',borderRadius:6,cursor:'pointer',
+                    background:'linear-gradient(135deg,#1a5ca0,#2a8cd0)',border:'none',color:'#fff',fontSize:11,fontWeight:700,
+                    opacity:hud.gold>=Math.floor(TOWER_DEFS[selectedTower.type].cost*UPGRADE_COSTS[selectedTower.level])?1:0.45,
+                  }}>
+                    ⬆ Lv{selectedTower.level+1} ({Math.floor(TOWER_DEFS[selectedTower.type].cost*UPGRADE_COSTS[selectedTower.level])}🪙)
+                  </button>
+                ) : (
+                  <span style={{flex:1,textAlign:'center',fontSize:11,color:'#ffd700',padding:'5px 0'}}>⭐ Max</span>
+                )}
+                <button onClick={()=>sellTower(selectedTower.id)} style={{
+                  flex:1,padding:'5px 0',borderRadius:6,cursor:'pointer',
+                  background:'rgba(200,50,50,0.4)',border:'1px solid rgba(200,80,80,0.35)',color:'#ffaaaa',fontSize:11,fontWeight:700,
+                }}>
+                  💰 Vendre ({Math.floor(selectedTower.cost*0.5)}🪙)
+                </button>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Right panel */}
-        <div style={{width:170,background:'rgba(0,0,0,0.8)',borderLeft:'1px solid rgba(255,255,255,0.1)',display:'flex',flexDirection:'column',gap:0,overflowY:'auto',flexShrink:0}}>
-          {/* Tower shop */}
-          <div style={{padding:'8px 8px 4px',color:'#888',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>Tours</div>
-          {(Object.entries(TOWER_DEFS) as [TowerType, typeof TOWER_DEFS[TowerType]][]).map(([type,def])=>(
-            <button key={type} onClick={()=>{const gs=gsRef.current;gs.placingType=gs.placingType===type?null:type;gs.selectedTowerId=null;setPlacingType(gs.placingType);setSelectedTowerId(null);}}
-              style={{
-                display:'flex',alignItems:'center',gap:6,padding:'7px 8px',
-                background:placingType===type?'rgba(100,180,255,0.2)':'transparent',
-                border:placingType===type?'1px solid rgba(100,180,255,0.5)':'1px solid transparent',
-                color:'#fff',cursor:hud.gold>=def.cost?'pointer':'not-allowed',
-                opacity:hud.gold>=def.cost?1:0.45,
-                transition:'background 0.15s',textAlign:'left',
-              }}>
-              <div style={{width:28,height:28,borderRadius:6,background:def.color,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>
-                {type==='archer'?'🏹':type==='mage'?'🔮':type==='cannon'?'⚙️':type==='catapult'?'🪨':type==='ice'?'❄️':'⚡'}
-              </div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:12,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{def.name}</div>
-                <div style={{fontSize:11,color:'#ffd700'}}>{def.cost}🪙</div>
-              </div>
-            </button>
-          ))}
-
-          {/* Selected tower info */}
-          {selectedTower && (
-            <div style={{margin:8,padding:10,background:'rgba(255,255,255,0.07)',borderRadius:10,border:'1px solid rgba(255,255,255,0.15)'}}>
-              <div style={{fontWeight:700,fontSize:13,color:'#fff',marginBottom:6}}>
-                {TOWER_DEFS[selectedTower.type].name} Lv{selectedTower.level}
-              </div>
-              <div style={{fontSize:11,color:'#ccc',lineHeight:1.8}}>
-                ⚔️ {Math.round(selectedTower.damage*UPGRADE_DMG[selectedTower.level-1])}<br/>
-                🎯 {(selectedTower.range*UPGRADE_RNG[selectedTower.level-1]).toFixed(1)} cells
-              </div>
-              {selectedTower.level<3 && (
-                <button onClick={()=>upgradeTower(selectedTower.id)} style={{
-                  marginTop:6,width:'100%',padding:'5px 0',borderRadius:6,cursor:'pointer',
-                  background:'linear-gradient(135deg,#1a5ca0,#2a8cd0)',border:'none',color:'#fff',fontSize:11,fontWeight:700,
-                  opacity:hud.gold>=Math.floor(TOWER_DEFS[selectedTower.type].cost*UPGRADE_COSTS[selectedTower.level])?1:0.5,
-                }}>
-                  ⬆ Lv{selectedTower.level+1} — {Math.floor(TOWER_DEFS[selectedTower.type].cost*UPGRADE_COSTS[selectedTower.level])}🪙
-                </button>
-              )}
-              <button onClick={()=>sellTower(selectedTower.id)} style={{
-                marginTop:4,width:'100%',padding:'5px 0',borderRadius:6,cursor:'pointer',
-                background:'rgba(200,50,50,0.4)',border:'1px solid rgba(200,80,80,0.4)',color:'#ffaaaa',fontSize:11,fontWeight:700,
-              }}>
-                💰 Vendre ({Math.floor(selectedTower.cost*0.5)}🪙)
+        {/* ─── Bottom tower bar ─── */}
+        <div style={{
+          background:'rgba(0,0,0,0.9)',borderTop:'1px solid rgba(255,255,255,0.08)',
+          flexShrink:0,height:68,boxSizing:'border-box',
+          display:'flex',alignItems:'center',
+          position:'relative',
+        }}>
+          {placingType ? (
+            /* Placing mode message */
+            <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:14,padding:'0 16px'}}>
+              <span style={{color:'#5be8ff',fontSize:13,fontWeight:600}}>
+                {towerIcon(placingType)} Cliquez sur la carte pour placer {TOWER_DEFS[placingType].name}
+              </span>
+              <button onClick={()=>{gsRef.current.placingType=null;gsRef.current.hoveredCell=null;setPlacingType(null);}}
+                style={{background:'rgba(255,60,60,0.2)',border:'1px solid rgba(255,80,80,0.4)',color:'#ff9090',padding:'4px 14px',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:700,flexShrink:0}}>
+                Annuler
               </button>
             </div>
+          ) : (
+            /* Tower pills */
+            <div style={{
+              display:'flex',gap:6,overflowX:'auto',padding:'0 10px',alignItems:'center',
+              flex:1,scrollbarWidth:'thin',
+            }}>
+              {(Object.entries(TOWER_DEFS) as [TowerType, typeof TOWER_DEFS[TowerType]][]).map(([type,def])=>{
+                const canAfford = hud.gold >= def.cost;
+                const isSelected = placingType === type;
+                return (
+                  <button key={type}
+                    onClick={()=>{
+                      const gs=gsRef.current;
+                      gs.placingType=gs.placingType===type?null:type;
+                      gs.selectedTowerId=null;
+                      setPlacingType(gs.placingType);
+                      setSelectedTowerId(null);
+                    }}
+                    style={{
+                      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+                      gap:2,padding:'4px 10px',flexShrink:0,
+                      background: isSelected
+                        ? 'rgba(100,180,255,0.25)'
+                        : canAfford ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)',
+                      border: isSelected
+                        ? '1px solid rgba(100,180,255,0.6)'
+                        : '1px solid rgba(255,255,255,0.1)',
+                      borderRadius:10,cursor:canAfford?'pointer':'not-allowed',
+                      opacity:canAfford?1:0.4,
+                      color:'#fff',
+                      minWidth:58,height:52,
+                      transition:'background 0.15s,border 0.15s',
+                      position:'relative',
+                    }}>
+                    {/* Color dot */}
+                    <div style={{
+                      width:8,height:8,borderRadius:'50%',
+                      background:def.color,
+                      position:'absolute',top:4,right:4,
+                      boxShadow:`0 0 6px ${def.color}`,
+                    }}/>
+                    <span style={{fontSize:16,lineHeight:1}}>{towerIcon(type)}</span>
+                    <span style={{fontSize:9,fontWeight:600,whiteSpace:'nowrap',color:'#ddd'}}>{def.name}</span>
+                    <span style={{fontSize:9,color:'#ffd700',fontWeight:700}}>{def.cost}🪙</span>
+                  </button>
+                );
+              })}
+            </div>
           )}
-
-          {/* Launch wave button */}
-          <div style={{marginTop:'auto',padding:8}}>
-            {hud.phase==='prep' && (
-              <button onClick={launchWave} style={{
-                width:'100%',padding:'10px 0',fontWeight:800,fontSize:13,borderRadius:10,cursor:'pointer',
-                background:'linear-gradient(135deg,#e05010,#f07020)',border:'none',color:'#fff',
-                boxShadow:'0 2px 12px rgba(240,112,32,0.4)',
-              }}>
-                ▶ Vague {(gsRef.current.wave+1)}
-              </button>
-            )}
-            {hud.phase==='wave' && (
-              <div style={{color:'#aaa',fontSize:12,textAlign:'center',padding:'8px 0'}}>
-                ⚔️ Vague en cours...
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>

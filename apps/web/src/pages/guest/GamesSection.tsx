@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Trophy, Wifi, User, ChevronLeft, Lock, Star, Gamepad2 } from 'lucide-react'
 import { ACCENT, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './games/theme'
@@ -126,32 +126,216 @@ function MemoryGame({ onBack }: { onBack:()=>void }) {
   )
 }
 
+// ─── TicTacToe AI helpers (defined outside component to avoid recreation) ──────
+function tttCheckWinner(board: (string|null)[]): string|null {
+  const wins=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]]
+  for(const [a,b,c] of wins){if(board[a]&&board[a]===board[b]&&board[b]===board[c])return board[a] as string}
+  return null
+}
+function tttMinimax(board: (string|null)[], isMax: boolean): number {
+  const w=tttCheckWinner(board)
+  if(w==='O') return 10
+  if(w==='X') return -10
+  if(board.every(Boolean)) return 0
+  const moves=board.map((_,i)=>i).filter(i=>!board[i])
+  if(isMax){return Math.max(...moves.map(i=>{const b=[...board];b[i]='O';return tttMinimax(b,false)}))}
+  else{return Math.min(...moves.map(i=>{const b=[...board];b[i]='X';return tttMinimax(b,true)}))}
+}
+function tttBestMove(board: (string|null)[], easy: boolean): number {
+  const empty=board.map((_,i)=>i).filter(i=>!board[i])
+  if(easy) return empty[Math.floor(Math.random()*empty.length)]
+  let best=-Infinity,idx=empty[0]
+  for(const i of empty){const b=[...board];b[i]='O';const s=tttMinimax(b,false);if(s>best){best=s;idx=i}}
+  return idx
+}
+
 function TicTacToe({ onBack }: { onBack:()=>void }) {
-  const [board,setBoard]=useState(Array(9).fill(null));const [xTurn,setXTurn]=useState(true);const wins=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];const winner=wins.find(([a,b,c])=>board[a]&&board[a]===board[b]&&board[b]===board[c]);const full=board.every(Boolean)
-  const click=(i:number)=>{if(board[i]||winner)return;const b=[...board];b[i]=xTurn?'X':'O';setBoard(b);setXTurn(t=>!t)}
+  const [board,setBoard]=useState<(string|null)[]>(Array(9).fill(null))
+  const [easy,setEasy]=useState(false)
+  const [cpuThinking,setCpuThinking]=useState(false)
+  const timerRef=useRef<ReturnType<typeof setTimeout>|null>(null)
+
+  const wins=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]]
+  const winLine=wins.find(([a,b,c])=>board[a]&&board[a]===board[b]&&board[b]===board[c])
+  const winner=winLine?board[winLine[0]]:null
+  const full=board.every(Boolean)
+  const gameOver=!!(winner||full)
+  // Player is X; it's player's turn when no winner, not full, and CPU not thinking
+  const playerTurn=!gameOver&&!cpuThinking
+
+  // Trigger CPU move after player places X
+  useEffect(()=>{
+    // Count X's and O's — if more X than O and no winner, CPU should move
+    const xs=board.filter(v=>v==='X').length
+    const os=board.filter(v=>v==='O').length
+    if(xs>os&&!gameOver){
+      setCpuThinking(true)
+      timerRef.current=setTimeout(()=>{
+        setBoard(prev=>{
+          if(tttCheckWinner(prev)||prev.every(Boolean))return prev
+          const move=tttBestMove(prev,easy)
+          const next=[...prev];next[move]='O';return next
+        })
+        setCpuThinking(false)
+      },400)
+    }
+    return ()=>{if(timerRef.current)clearTimeout(timerRef.current)}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[board])
+
+  const click=(i:number)=>{
+    if(board[i]||gameOver||!playerTurn)return
+    const b=[...board];b[i]='X';setBoard(b)
+  }
+
+  const reset=()=>{
+    if(timerRef.current)clearTimeout(timerRef.current)
+    setBoard(Array(9).fill(null));setCpuThinking(false)
+  }
+
+  const statusText=winner?`${winner==='X'?'Vous gagnez':'CPU gagne'} !`:full?'Égalité':cpuThinking?'CPU réfléchit...':'Votre tour'
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2"><button onClick={onBack} className="p-1.5 rounded-lg hover:opacity-70" style={{color:MUTED}}><ChevronLeft size={18}/></button><span className="text-base font-bold" style={{color:TEXT}}>✖️ Morpion</span><span className="ml-auto text-xs" style={{color:MUTED}}>{winner?`Gagne : ${winner?board[winner[0]]:''}`:full?'Égalité':`Tour : ${xTurn?'X':'O'}`}</span></div>
-      {(winner||full)&&<div className="rounded-xl p-2.5 text-center font-bold text-sm" style={{background:'rgba(168,85,247,0.1)',border:`1px solid ${BORDER}`,color:ACCENT}}>{winner?`${board[winner[0]]} gagne ! 🎉`:'Égalité !'}</div>}
-      <div className="grid grid-cols-3 gap-2 max-w-[200px] mx-auto">{board.map((v,i)=><button key={i} onClick={()=>click(i)} className="aspect-square rounded-xl text-2xl font-black flex items-center justify-center" style={{background:winner&&winner.includes(i)?'rgba(168,85,247,0.2)':SURFACE2,border:`1px solid ${BORDER}`,color:v==='X'?ACCENT:'#06b6d4'}}>{v}</button>)}</div>
-      <button onClick={()=>{setBoard(Array(9).fill(null));setXTurn(true)}} className="w-full py-2.5 rounded-xl font-bold text-sm" style={{background:ACCENT,color:'#fff'}}>Rejouer</button>
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="p-1.5 rounded-lg hover:opacity-70" style={{color:MUTED}}><ChevronLeft size={18}/></button>
+        <span className="text-base font-bold" style={{color:TEXT}}>✖️ Morpion</span>
+        <span className="ml-auto text-xs" style={{color:MUTED}}>{statusText}</span>
+      </div>
+      {/* Difficulty toggle */}
+      <div className="flex gap-2">
+        {(['Facile','Difficile'] as const).map(d=>(
+          <button key={d} onClick={()=>{setEasy(d==='Facile');reset()}} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{background:(easy&&d==='Facile')||(!easy&&d==='Difficile')?ACCENT:'transparent',border:`1px solid ${(easy&&d==='Facile')||(!easy&&d==='Difficile')?ACCENT:BORDER}`,color:(easy&&d==='Facile')||(!easy&&d==='Difficile')?'#fff':MUTED}}>{d}</button>
+        ))}
+      </div>
+      {gameOver&&<div className="rounded-xl p-2.5 text-center font-bold text-sm" style={{background:'rgba(168,85,247,0.1)',border:`1px solid ${BORDER}`,color:ACCENT}}>{winner?`${winner==='X'?'Vous gagnez':'CPU gagne'} ! 🎉`:'Égalité !'}</div>}
+      <div className="grid grid-cols-3 gap-2 max-w-[200px] mx-auto">
+        {board.map((v,i)=>(
+          <button key={i} onClick={()=>click(i)} className="aspect-square rounded-xl text-2xl font-black flex items-center justify-center" style={{background:winLine&&winLine.includes(i)?'rgba(168,85,247,0.2)':SURFACE2,border:`1px solid ${BORDER}`,color:v==='X'?ACCENT:'#06b6d4',cursor:playerTurn&&!v?'pointer':'default'}}>{v}</button>
+        ))}
+      </div>
+      <button onClick={reset} className="w-full py-2.5 rounded-xl font-bold text-sm" style={{background:ACCENT,color:'#fff'}}>Rejouer</button>
     </div>
   )
 }
 
+// ─── ConnectFour AI helpers ────────────────────────────────────────────────────
+const C4_ROWS=6,C4_COLS=7
+function c4Check(g:number[][],r:number,c:number,p:number):boolean{
+  const dirs=[[0,1],[1,0],[1,1],[1,-1]]
+  return dirs.some(([dr,dc])=>{
+    let cnt=1
+    for(let d=1;d<4;d++){const nr=r+dr*d,nc=c+dc*d;if(nr>=0&&nr<C4_ROWS&&nc>=0&&nc<C4_COLS&&g[nr][nc]===p)cnt++;else break}
+    for(let d=1;d<4;d++){const nr=r-dr*d,nc=c-dc*d;if(nr>=0&&nr<C4_ROWS&&nc>=0&&nc<C4_COLS&&g[nr][nc]===p)cnt++;else break}
+    return cnt>=4
+  })
+}
+function c4DropRow(g:number[][],col:number):number{
+  let r=C4_ROWS-1;while(r>=0&&g[r][col])r--;return r
+}
+// Try to find a winning column for player p; returns -1 if none
+function c4WinCol(g:number[][],p:number):number{
+  for(let c=0;c<C4_COLS;c++){
+    const r=c4DropRow(g,c);if(r<0)continue
+    const tmp=g.map(row=>[...row]);tmp[r][c]=p
+    if(c4Check(tmp,r,c,p))return c
+  }
+  return -1
+}
+// 2-move lookahead score for difficile
+function c4ScoreCol(g:number[][],col:number):number{
+  const r=c4DropRow(g,col);if(r<0)return -999
+  const g2=g.map(row=>[...row]);g2[r][col]=2
+  if(c4Check(g2,r,col,2))return 100
+  // block player win
+  if(c4WinCol(g2,1)!==-1)return -50
+  // count open 3s for cpu after this move
+  let score=col===Math.floor(C4_COLS/2)?3:0
+  return score
+}
+function c4BestMove(g:number[][],easy:boolean):number{
+  const cols=Array.from({length:C4_COLS},(_,i)=>i).filter(c=>c4DropRow(g,c)>=0)
+  if(easy){return cols[Math.floor(Math.random()*cols.length)]}
+  // 1. win immediately
+  const win=c4WinCol(g,2);if(win!==-1)return win
+  // 2. block player
+  const blk=c4WinCol(g,1);if(blk!==-1)return blk
+  // 3. score each column
+  let best=-Infinity,chosen=cols[Math.floor(Math.random()*cols.length)]
+  for(const c of cols){const s=c4ScoreCol(g,c);if(s>best){best=s;chosen=c}}
+  return chosen
+}
+
 function ConnectFour({ onBack }: { onBack:()=>void }) {
-  const ROWS=6,COLS=7;const empty=()=>Array.from({length:ROWS},()=>Array(COLS).fill(0))
-  const [grid,setGrid]=useState(empty);const [turn,setTurn]=useState(1);const [winner,setWinner]=useState(0)
-  const check=(g:number[][],r:number,c:number,p:number)=>{const dirs=[[0,1],[1,0],[1,1],[1,-1]];return dirs.some(([dr,dc])=>{let cnt=1;for(let d=1;d<4;d++){const nr=r+dr*d,nc=c+dc*d;if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&g[nr][nc]===p)cnt++;else break};for(let d=1;d<4;d++){const nr=r-dr*d,nc=c-dc*d;if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&g[nr][nc]===p)cnt++;else break};return cnt>=4})}
-  const drop=(c:number)=>{if(winner)return;const g=grid.map(r=>[...r]);let r=ROWS-1;while(r>=0&&g[r][c])r--;if(r<0)return;g[r][c]=turn;setGrid(g);if(check(g,r,c,turn))setWinner(turn);else setTurn(t=>t===1?2:1)}
+  const empty=():number[][]=>Array.from({length:C4_ROWS},()=>Array(C4_COLS).fill(0))
+  const [grid,setGrid]=useState<number[][]>(empty)
+  const [winner,setWinner]=useState(0)
+  const [easy,setEasy]=useState(false)
+  const [cpuThinking,setCpuThinking]=useState(false)
+  const timerRef=useRef<ReturnType<typeof setTimeout>|null>(null)
+
+  // Track whose turn: 1=player(red), 2=cpu(yellow)
+  // Derive from grid cell counts
+  const reds=grid.flat().filter(v=>v===1).length
+  const yellows=grid.flat().filter(v=>v===2).length
+
+  useEffect(()=>{
+    // Depend on grid/winner only — not cpuThinking, to avoid cancelling the timer
+    if(reds<=yellows||winner)return
+    setCpuThinking(true)
+    const t=setTimeout(()=>{
+      setGrid(prev=>{
+        const col=c4BestMove(prev,easy)
+        const r=c4DropRow(prev,col);if(r<0)return prev
+        const g=prev.map(row=>[...row]);g[r][col]=2
+        if(c4Check(g,r,col,2))setWinner(2)
+        return g
+      })
+      setCpuThinking(false)
+    },600)
+    return ()=>clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[grid,winner])
+
+  const drop=(col:number)=>{
+    if(winner||cpuThinking)return
+    const r=c4DropRow(grid,col);if(r<0)return
+    const g=grid.map(row=>[...row]);g[r][col]=1
+    setGrid(g)
+    if(c4Check(g,r,col,1))setWinner(1)
+  }
+
+  const reset=()=>{
+    if(timerRef.current)clearTimeout(timerRef.current)
+    setGrid(empty());setWinner(0);setCpuThinking(false)
+  }
+
+  const statusText=winner?(winner===1?'Vous gagnez !':'CPU gagne !'):cpuThinking?'CPU joue...':'Votre tour'
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2"><button onClick={onBack} className="p-1.5 rounded-lg hover:opacity-70" style={{color:MUTED}}><ChevronLeft size={18}/></button><span className="text-base font-bold" style={{color:TEXT}}>🔴 Puissance 4</span><span className="ml-auto text-xs" style={{color:MUTED}}>{winner?`Joueur ${winner} gagne !`:`Tour J${turn}`}</span></div>
-      {winner>0&&<div className="rounded-xl p-2.5 text-center font-bold text-sm" style={{background:'rgba(168,85,247,0.1)',border:`1px solid ${BORDER}`,color:ACCENT}}>Joueur {winner} gagne ! 🎉</div>}
-      <div className="rounded-2xl p-2 overflow-hidden mx-auto" style={{background:'#1a3a7c',border:'2px solid #1e40af',display:'table'}}>
-        {grid.map((row,r)=><div key={r} className="flex">{row.map((v,c)=><button key={c} onClick={()=>drop(c)} className="m-0.5 rounded-full flex items-center justify-center" style={{width:36,height:36,background:v===0?'rgba(255,255,255,0.1)':v===1?'#ef4444':'#eab308',cursor:winner?'default':'pointer',transition:'background 0.15s'}}/>)}</div>)}
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="p-1.5 rounded-lg hover:opacity-70" style={{color:MUTED}}><ChevronLeft size={18}/></button>
+        <span className="text-base font-bold" style={{color:TEXT}}>🔴 Puissance 4</span>
+        <span className="ml-auto text-xs" style={{color:MUTED}}>{statusText}</span>
       </div>
-      <button onClick={()=>{setGrid(empty());setTurn(1);setWinner(0)}} className="w-full py-2.5 rounded-xl font-bold text-sm" style={{background:ACCENT,color:'#fff'}}>Rejouer</button>
+      {/* Difficulty toggle */}
+      <div className="flex gap-2">
+        {(['Facile','Difficile'] as const).map(d=>(
+          <button key={d} onClick={()=>{setEasy(d==='Facile');reset()}} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{background:(easy&&d==='Facile')||(!easy&&d==='Difficile')?ACCENT:'transparent',border:`1px solid ${(easy&&d==='Facile')||(!easy&&d==='Difficile')?ACCENT:BORDER}`,color:(easy&&d==='Facile')||(!easy&&d==='Difficile')?'#fff':MUTED}}>{d}</button>
+        ))}
+      </div>
+      {winner>0&&<div className="rounded-xl p-2.5 text-center font-bold text-sm" style={{background:'rgba(168,85,247,0.1)',border:`1px solid ${BORDER}`,color:ACCENT}}>{winner===1?'Vous gagnez':'CPU gagne'} ! 🎉</div>}
+      <div className="rounded-2xl p-2 overflow-hidden mx-auto" style={{background:'#1a3a7c',border:'2px solid #1e40af',display:'table'}}>
+        {grid.map((row,r)=>(
+          <div key={r} className="flex">
+            {row.map((v,c)=>(
+              <button key={c} onClick={()=>drop(c)} className="m-0.5 rounded-full flex items-center justify-center" style={{width:36,height:36,background:v===0?'rgba(255,255,255,0.1)':v===1?'#ef4444':'#eab308',cursor:(winner||cpuThinking)?'default':'pointer',transition:'background 0.15s'}}/>
+            ))}
+          </div>
+        ))}
+      </div>
+      <button onClick={reset} className="w-full py-2.5 rounded-xl font-bold text-sm" style={{background:ACCENT,color:'#fff'}}>Rejouer</button>
     </div>
   )
 }
@@ -343,16 +527,18 @@ export default function GamesSection() {
       wordscramble: <WordScrambleGame onBack={back}/>,
     }
     return (
-      <AnimatePresence mode="wait">
-        <motion.div key={activeGame} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.18 }}>
-          {GAME_MAP[activeGame] ?? (
-            <div className="space-y-4">
-              <button onClick={back} className="flex items-center gap-2 text-sm" style={{ color: MUTED }}><ChevronLeft size={16}/>Retour</button>
-              <div className="text-center py-12" style={{ color: MUTED }}>Ce jeu arrive bientôt !</div>
-            </div>
-          )}
-        </motion.div>
-      </AnimatePresence>
+      <div style={{position:'fixed',inset:0,zIndex:50,background:'#05050f',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+        <AnimatePresence mode="wait">
+          <motion.div key={activeGame} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minHeight:0}}>
+            {GAME_MAP[activeGame] ?? (
+              <div className="space-y-4 p-4">
+                <button onClick={back} className="flex items-center gap-2 text-sm" style={{ color: MUTED }}><ChevronLeft size={16}/>Retour</button>
+                <div className="text-center py-12" style={{ color: MUTED }}>Ce jeu arrive bientôt !</div>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
     )
   }
 

@@ -6,6 +6,21 @@ const SUITS = ['♠','♥','♦','♣'] as const
 const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'] as const
 type Card = { rank: typeof RANKS[number]; suit: typeof SUITS[number] }
 
+interface PokerTableDef {
+  name: string
+  smallBlind: number
+  bigBlind: number
+  startChips: number
+  highStakes: boolean
+}
+
+const POKER_TABLES: PokerTableDef[] = [
+  { name: '1€/2€',     smallBlind: 1,   bigBlind: 2,   startChips: 200,   highStakes: false },
+  { name: '5€/10€',    smallBlind: 5,   bigBlind: 10,  startChips: 1000,  highStakes: false },
+  { name: '25€/50€',   smallBlind: 25,  bigBlind: 50,  startChips: 5000,  highStakes: true  },
+  { name: '100€/200€', smallBlind: 100, bigBlind: 200, startChips: 20000, highStakes: true  },
+]
+
 const isRed = (s: string) => s === '♥' || s === '♦'
 const rankVal = (r: string) => RANKS.indexOf(r as typeof RANKS[number])
 
@@ -77,7 +92,7 @@ interface State {
   cpuFolded: boolean
 }
 
-function newGame(chips: number): State {
+function newGame(chips: number, bigBlind: number): State {
   const deck = shuffle()
   return {
     deck,
@@ -86,14 +101,22 @@ function newGame(chips: number): State {
     community: [],
     phase: 'deal',
     chips,
-    pot: 20,
+    pot: bigBlind * 2,
     result: '',
     cpuFolded: false,
   }
 }
 
 export default function PokerGame({ onBack }: { onBack: () => void }) {
-  const [state, setState] = useState<State>(() => newGame(500))
+  const [selectedTable, setSelectedTable] = useState<PokerTableDef | null>(null)
+  const [state, setState] = useState<State>(() => newGame(200, 2))
+
+  function selectTable(table: PokerTableDef) {
+    setSelectedTable(table)
+    setState(newGame(table.startChips, table.bigBlind))
+  }
+
+  const bigBlind = selectedTable?.bigBlind ?? 2
 
   const next = () => {
     setState(s => {
@@ -103,23 +126,24 @@ export default function PokerGame({ onBack }: { onBack: () => void }) {
       let pot = s.pot
       let result = ''
       let cpuFolded = s.cpuFolded
+      const bb = bigBlind
 
       if (phase === 'deal') {
         // Flop — deal 3 community
         community.push(deck[4], deck[5], deck[6])
         phase = 'flop'
-        pot += 20
+        pot += bb * 2
         // CPU may fold on weak hand
         const cpuHand = evalHand([...s.cpu, ...community])
         if (cpuHand.score < 1_000_000 && Math.random() < 0.35) cpuFolded = true
       } else if (phase === 'flop') {
         community.push(deck[7])
         phase = 'turn'
-        pot += 20
+        pot += bb * 2
       } else if (phase === 'turn') {
         community.push(deck[8])
         phase = 'river'
-        pot += 20
+        pot += bb * 2
       } else if (phase === 'river') {
         phase = 'showdown'
         if (cpuFolded) {
@@ -138,8 +162,8 @@ export default function PokerGame({ onBack }: { onBack: () => void }) {
 
       const won = result.includes('gagnez')
       const chips = phase === 'showdown'
-        ? (won ? s.chips + pot : result.includes('Égalité') ? s.chips : s.chips - 20)
-        : s.chips - 20
+        ? (won ? s.chips + pot : result.includes('Égalité') ? s.chips : s.chips - bb * 2)
+        : s.chips - bb * 2
 
       return { ...s, deck, community, phase, pot, result, cpuFolded, chips }
     })
@@ -148,10 +172,10 @@ export default function PokerGame({ onBack }: { onBack: () => void }) {
   const fold = () => setState(s => ({
     ...s, phase: 'showdown',
     result: `Vous vous couchez. CPU gagne ${s.pot} jetons 😞`,
-    chips: s.chips - 20,
+    chips: s.chips - bigBlind * 2,
   }))
 
-  const reset = () => setState(s => newGame(s.chips))
+  const reset = () => setState(s => newGame(s.chips, bigBlind))
 
   const CardEl = ({ c, hidden }: { c: Card; hidden?: boolean }) => (
     <div className="w-11 h-15 rounded-lg border text-xs font-bold flex flex-col items-center justify-center gap-0.5 select-none"
@@ -166,22 +190,100 @@ export default function PokerGame({ onBack }: { onBack: () => void }) {
     deal: 'Pré-flop', flop: 'Flop', turn: 'Turn', river: 'River', showdown: 'Abattage'
   }
 
+  // ── Table selection screen ────────────────────────────────────────────────
+  if (!selectedTable) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button onClick={onBack} className="p-1.5 rounded-lg hover:opacity-70" style={{ color: MUTED }}><ChevronLeft size={18}/></button>
+            <span className="font-bold text-base" style={{ color: TEXT }}>🃏 Poker Texas Hold'em</span>
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
+          <div style={{ fontSize: 13, color: MUTED }}>Choisissez votre table pour commencer</div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {POKER_TABLES.map((table, idx) => (
+            <button
+              key={table.name}
+              onClick={() => selectTable(table)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                width: '100%',
+                background: table.highStakes
+                  ? 'linear-gradient(135deg, rgba(180,83,9,0.18) 0%, rgba(120,53,15,0.10) 100%)'
+                  : 'linear-gradient(135deg, rgba(22,101,52,0.18) 0%, rgba(13,51,24,0.10) 100%)',
+                border: table.highStakes
+                  ? `1.5px solid rgba(251,191,36,0.3)`
+                  : `1.5px solid rgba(34,197,94,0.18)`,
+                borderRadius: idx === 0 ? '12px 12px 4px 4px' : idx === POKER_TABLES.length - 1 ? '4px 4px 12px 12px' : '4px',
+                padding: '14px 16px',
+                cursor: 'pointer',
+                color: TEXT,
+                textAlign: 'left',
+                transition: 'background 0.15s, transform 0.1s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateX(3px)' }}
+              onMouseLeave={e => { e.currentTarget.style.transform = '' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 8, flexShrink: 0,
+                  background: table.highStakes ? 'linear-gradient(135deg,#b45309,#92400e)' : 'linear-gradient(135deg,#16a34a,#15803d)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 16, color: '#fff', fontWeight: 900,
+                }}>
+                  {table.highStakes ? '★' : '♠'}
+                </div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: TEXT }}>
+                    Blindes {table.name}
+                    {table.highStakes && (
+                      <span style={{ marginLeft: 8, fontSize: 10, background: 'rgba(251,191,36,0.18)', color: '#fbbf24', borderRadius: 4, padding: '1px 5px', fontWeight: 600 }}>
+                        HIGH STAKES
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>
+                    SB/BB : <span style={{ color: table.highStakes ? '#fbbf24' : '#4ade80', fontWeight: 600 }}>{table.smallBlind}€ / {table.bigBlind}€</span>
+                    <span style={{ marginLeft: 10 }}>
+                      Départ : <span style={{ color: TEXT, fontWeight: 600 }}>{table.startChips.toLocaleString('fr-FR')}€</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 18, color: MUTED, opacity: 0.5 }}>›</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <button onClick={onBack} className="p-1.5 rounded-lg hover:opacity-70" style={{ color: MUTED }}><ChevronLeft size={18}/></button>
-          <span className="font-bold text-base" style={{ color: TEXT }}>🃏 Poker Texas Hold'em</span>
+          <button onClick={() => setSelectedTable(null)} className="p-1.5 rounded-lg hover:opacity-70" style={{ color: MUTED }}><ChevronLeft size={18}/></button>
+          <div>
+            <span className="font-bold text-base" style={{ color: TEXT }}>🃏 Poker Texas Hold'em</span>
+            <div style={{ fontSize: 11, color: selectedTable.highStakes ? '#fbbf24' : '#4ade80', fontWeight: 600, marginTop: 1 }}>
+              Blindes {selectedTable.name}
+            </div>
+          </div>
         </div>
         <div className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: 'rgba(168,85,247,0.15)', color: ACCENT }}>
-          {state.chips} jetons
+          {state.chips.toLocaleString('fr-FR')} jetons
         </div>
       </div>
 
       {/* Phase + Pot */}
       <div className="flex items-center justify-between text-xs" style={{ color: MUTED }}>
         <span>{phaseLabel[state.phase]}</span>
-        <span className="font-bold" style={{ color: '#f59e0b' }}>Pot : {state.pot} 🪙</span>
+        <span className="font-bold" style={{ color: '#f59e0b' }}>Pot : {state.pot.toLocaleString('fr-FR')} 🪙</span>
       </div>
 
       {/* CPU hand */}
@@ -231,8 +333,12 @@ export default function PokerGame({ onBack }: { onBack: () => void }) {
       {/* Actions */}
       <div className="flex gap-2">
         {state.phase === 'showdown' ? (
-          <button onClick={reset} className="flex-1 py-2.5 rounded-xl font-bold text-sm"
-            style={{ background: ACCENT, color: '#fff' }}>Nouvelle main</button>
+          <>
+            <button onClick={reset} className="flex-1 py-2.5 rounded-xl font-bold text-sm"
+              style={{ background: ACCENT, color: '#fff' }}>Nouvelle main</button>
+            <button onClick={() => setSelectedTable(null)} className="px-4 py-2.5 rounded-xl font-bold text-sm"
+              style={{ background: SURFACE2, border: `1px solid ${BORDER}`, color: MUTED }}>Tables</button>
+          </>
         ) : (
           <>
             <button onClick={next} className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all hover:opacity-80"

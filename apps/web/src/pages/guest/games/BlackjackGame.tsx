@@ -33,13 +33,79 @@ interface ChipDef {
 const SUITS: Suit[] = ['♠', '♣', '♥', '♦'];
 const RANKS: Rank[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
-const CHIPS: ChipDef[] = [
-  { value: 5,   color: '#dc2626', label: '5€',   textColor: '#fff' },
-  { value: 10,  color: '#2563eb', label: '10€',  textColor: '#fff' },
-  { value: 25,  color: '#16a34a', label: '25€',  textColor: '#fff' },
-  { value: 50,  color: '#1c1917', label: '50€',  textColor: '#fff' },
-  { value: 100, color: '#b45309', label: '100€', textColor: '#fde68a' },
+interface TableDef {
+  name: string;
+  minBet: number;
+  bankroll: number;
+  chips: ChipDef[];
+  highStakes: boolean;
+}
+
+const TABLES: TableDef[] = [
+  {
+    name: '1€', minBet: 1, bankroll: 200, highStakes: false,
+    chips: [
+      { value: 1,  color: '#94a3b8', label: '1€',  textColor: '#111' },
+      { value: 2,  color: '#dc2626', label: '2€',  textColor: '#fff' },
+      { value: 5,  color: '#2563eb', label: '5€',  textColor: '#fff' },
+      { value: 10, color: '#16a34a', label: '10€', textColor: '#fff' },
+      { value: 25, color: '#1c1917', label: '25€', textColor: '#fff' },
+    ],
+  },
+  {
+    name: '5€', minBet: 5, bankroll: 1000, highStakes: false,
+    chips: [
+      { value: 5,   color: '#dc2626', label: '5€',   textColor: '#fff' },
+      { value: 10,  color: '#2563eb', label: '10€',  textColor: '#fff' },
+      { value: 25,  color: '#16a34a', label: '25€',  textColor: '#fff' },
+      { value: 50,  color: '#1c1917', label: '50€',  textColor: '#fff' },
+      { value: 100, color: '#b45309', label: '100€', textColor: '#fde68a' },
+    ],
+  },
+  {
+    name: '10€', minBet: 10, bankroll: 2000, highStakes: false,
+    chips: [
+      { value: 10,  color: '#dc2626', label: '10€',  textColor: '#fff' },
+      { value: 25,  color: '#2563eb', label: '25€',  textColor: '#fff' },
+      { value: 50,  color: '#16a34a', label: '50€',  textColor: '#fff' },
+      { value: 100, color: '#1c1917', label: '100€', textColor: '#fff' },
+      { value: 250, color: '#b45309', label: '250€', textColor: '#fde68a' },
+    ],
+  },
+  {
+    name: '25€', minBet: 25, bankroll: 5000, highStakes: true,
+    chips: [
+      { value: 25,  color: '#dc2626', label: '25€',  textColor: '#fff' },
+      { value: 50,  color: '#2563eb', label: '50€',  textColor: '#fff' },
+      { value: 100, color: '#16a34a', label: '100€', textColor: '#fff' },
+      { value: 250, color: '#1c1917', label: '250€', textColor: '#fff' },
+      { value: 500, color: '#b45309', label: '500€', textColor: '#fde68a' },
+    ],
+  },
+  {
+    name: '50€', minBet: 50, bankroll: 10000, highStakes: true,
+    chips: [
+      { value: 50,   color: '#dc2626', label: '50€',   textColor: '#fff' },
+      { value: 100,  color: '#2563eb', label: '100€',  textColor: '#fff' },
+      { value: 250,  color: '#16a34a', label: '250€',  textColor: '#fff' },
+      { value: 500,  color: '#1c1917', label: '500€',  textColor: '#fff' },
+      { value: 1000, color: '#b45309', label: '1000€', textColor: '#fde68a' },
+    ],
+  },
+  {
+    name: '100€', minBet: 100, bankroll: 20000, highStakes: true,
+    chips: [
+      { value: 100,  color: '#dc2626', label: '100€',  textColor: '#fff' },
+      { value: 200,  color: '#2563eb', label: '200€',  textColor: '#fff' },
+      { value: 500,  color: '#16a34a', label: '500€',  textColor: '#fff' },
+      { value: 1000, color: '#1c1917', label: '1k€',   textColor: '#fff' },
+      { value: 2500, color: '#b45309', label: '2.5k€', textColor: '#fde68a' },
+    ],
+  },
 ];
+
+// Legacy default used only as fallback type reference
+const CHIPS: ChipDef[] = TABLES[1].chips;
 
 // Hoisted — stable reference, never recreated on render
 const RESULT_COLORS: Record<NonNullable<Result>, string> = {
@@ -367,13 +433,14 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
     document.head.appendChild(el);
   }, []);
 
+  const [selectedTable, setSelectedTable] = useState<TableDef | null>(null);
   const [dealerHand, setDealerHand] = useState<Card[]>([]);
   const [playerHand, setPlayerHand] = useState<Card[]>([]);
   const [splitHand, setSplitHand] = useState<Card[]>([]);
   const [activeSplit, setActiveSplit] = useState<'main' | 'split'>('main');
   const [phase, setPhase] = useState<Phase>('betting');
   const [bet, setBet] = useState<number>(0);
-  const [bankroll, setBankroll] = useState<number>(500);
+  const [bankroll, setBankroll] = useState<number>(0);
   const [result, setResult] = useState<Result>(null);
   const [splitResult, setSplitResult] = useState<Result>(null);
   const [isFlippingDealer, setIsFlippingDealer] = useState(false);
@@ -391,6 +458,21 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
     return { ...raw, hidden, dealt: true };
   };
 
+  // ── Table selection ────────────────────────────────────────────────────────
+  function selectTable(table: TableDef) {
+    setSelectedTable(table);
+    setBankroll(table.bankroll);
+    setBet(0);
+    setDealerHand([]);
+    setPlayerHand([]);
+    setSplitHand([]);
+    setResult(null);
+    setSplitResult(null);
+    setMessage('');
+    setPhase('betting');
+    setActiveSplit('main');
+  }
+
   // ── Betting ────────────────────────────────────────────────────────────────
   function addChip(value: number) {
     if (bet + value > bankroll) return;
@@ -405,7 +487,8 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
 
   // ── Deal ──────────────────────────────────────────────────────────────────
   function deal() {
-    if (bet < 5 || bet > bankroll) return;
+    const minBet = selectedTable?.minBet ?? 1;
+    if (bet < minBet || bet > bankroll) return;
     setBankroll(b => b - bet);
     setSplitHand([]);
     setActiveSplit('main');
@@ -564,9 +647,16 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
   }
 
   function recharge() {
-    setBankroll(500);
-    setMessage('Bonne chance !');
-    nextRound();
+    setSelectedTable(null);
+    setDealerHand([]);
+    setPlayerHand([]);
+    setSplitHand([]);
+    setBet(0);
+    setResult(null);
+    setSplitResult(null);
+    setMessage('');
+    setPhase('betting');
+    setActiveSplit('main');
   }
 
   // ── Derived values (never useState-mirrored) ───────────────────────────────
@@ -587,6 +677,127 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
     && bankroll >= bet;
 
   // ─── Render ────────────────────────────────────────────────────────────────
+  const minBet = selectedTable?.minBet ?? 1;
+  const activeChips = selectedTable?.chips ?? CHIPS;
+
+  // ── Table selection screen ────────────────────────────────────────────────
+  if (!selectedTable) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: SURFACE,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        color: TEXT,
+      }}>
+        {/* Header */}
+        <div style={{
+          width: '100%', maxWidth: 900,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 20px',
+          borderBottom: `1px solid ${BORDER}`,
+          background: SURFACE2,
+        }}>
+          <button
+            onClick={onBack}
+            style={{
+              background: 'rgba(168,85,247,0.12)', border: `1px solid ${BORDER}`,
+              color: ACCENT, borderRadius: 8, padding: '8px 16px',
+              cursor: 'pointer', fontSize: 14, fontWeight: 600,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(168,85,247,0.22)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(168,85,247,0.12)')}
+          >
+            ← Retour
+          </button>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1, color: TEXT }}>♠ Blackjack</div>
+          <div style={{ width: 80 }} />
+        </div>
+
+        {/* Table list */}
+        <div style={{
+          width: '100%', maxWidth: 520,
+          padding: '32px 20px',
+          display: 'flex', flexDirection: 'column', gap: 0,
+        }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div style={{ fontSize: 28, marginBottom: 6 }}>🃏</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: TEXT, letterSpacing: 1 }}>Choisir une table</div>
+            <div style={{ fontSize: 13, color: MUTED, marginTop: 4 }}>Sélectionnez vos enjeux pour commencer</div>
+          </div>
+
+          {TABLES.map((table, idx) => (
+            <button
+              key={table.name}
+              onClick={() => selectTable(table)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                width: '100%',
+                background: table.highStakes
+                  ? 'linear-gradient(135deg, rgba(180,83,9,0.18) 0%, rgba(120,53,15,0.10) 100%)'
+                  : 'linear-gradient(135deg, rgba(22,101,52,0.22) 0%, rgba(13,51,24,0.14) 100%)',
+                border: table.highStakes
+                  ? '1.5px solid rgba(251,191,36,0.35)'
+                  : '1.5px solid rgba(34,197,94,0.2)',
+                borderRadius: idx === 0 ? '14px 14px 4px 4px' : idx === TABLES.length - 1 ? '4px 4px 14px 14px' : '4px',
+                padding: '16px 20px',
+                cursor: 'pointer',
+                marginBottom: idx === TABLES.length - 1 ? 0 : 2,
+                transition: 'background 0.15s, transform 0.1s, box-shadow 0.15s',
+                color: TEXT,
+                textAlign: 'left',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'translateX(4px)';
+                e.currentTarget.style.boxShadow = table.highStakes
+                  ? '0 4px 20px rgba(251,191,36,0.15)'
+                  : '0 4px 20px rgba(34,197,94,0.12)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = '';
+                e.currentTarget.style.boxShadow = '';
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 10,
+                  background: table.highStakes
+                    ? 'linear-gradient(135deg, #b45309, #92400e)'
+                    : 'linear-gradient(135deg, #16a34a, #15803d)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 18, fontWeight: 900, color: '#fff',
+                  boxShadow: table.highStakes ? '0 2px 8px rgba(180,83,9,0.4)' : '0 2px 8px rgba(22,163,74,0.4)',
+                  flexShrink: 0,
+                }}>
+                  {table.highStakes ? '★' : '♠'}
+                </div>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: TEXT }}>
+                    Table {table.name}
+                    {table.highStakes && (
+                      <span style={{ marginLeft: 8, fontSize: 11, background: 'rgba(251,191,36,0.18)', color: '#fbbf24', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>
+                        HIGH STAKES
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: MUTED, marginTop: 1 }}>
+                    Mise min. : <span style={{ color: table.highStakes ? '#fbbf24' : '#4ade80', fontWeight: 600 }}>{table.minBet}€</span>
+                    <span style={{ marginLeft: 12 }}>
+                      Départ : <span style={{ color: TEXT, fontWeight: 600 }}>{table.bankroll.toLocaleString('fr-FR')}€</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 20, color: MUTED, opacity: 0.5 }}>›</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -609,7 +820,7 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
         position: 'relative', zIndex: 2,
       }}>
         <button
-          onClick={onBack}
+          onClick={recharge}
           style={{
             background: 'rgba(168,85,247,0.12)', border: `1px solid ${BORDER}`,
             color: ACCENT, borderRadius: 8, padding: '8px 16px',
@@ -619,17 +830,20 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
           onMouseEnter={e => (e.currentTarget.style.background = 'rgba(168,85,247,0.22)')}
           onMouseLeave={e => (e.currentTarget.style.background = 'rgba(168,85,247,0.12)')}
         >
-          ← Retour
+          ← Tables
         </button>
-        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1, color: TEXT }}>
-          ♠ Blackjack
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1, color: TEXT }}>♠ Blackjack</div>
+          <div style={{ fontSize: 11, color: selectedTable.highStakes ? '#fbbf24' : '#4ade80', fontWeight: 600, letterSpacing: 1 }}>
+            Table {selectedTable.name} — mise min. {selectedTable.minBet}€
+          </div>
         </div>
         <div style={{
           background: 'rgba(168,85,247,0.12)', border: `1px solid ${BORDER}`,
           borderRadius: 10, padding: '8px 18px', fontSize: 16, fontWeight: 700,
         }}>
           <span style={{ color: MUTED, fontSize: 12, display: 'block', lineHeight: 1 }}>Solde</span>
-          <span style={{ color: bankroll < 10 ? '#ef4444' : '#fbbf24' }}>{bankroll.toFixed(0)}€</span>
+          <span style={{ color: bankroll < minBet * 2 ? '#ef4444' : '#fbbf24' }}>{bankroll.toLocaleString('fr-FR')}€</span>
         </div>
       </div>
 
@@ -815,7 +1029,7 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
         {phase === 'betting' && (
           <>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center' }}>
-              {CHIPS.map(chip => (
+              {activeChips.map(chip => (
                 <button
                   key={chip.value}
                   onClick={() => addChip(chip.value)}
@@ -873,23 +1087,23 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
 
               <button
                 onClick={deal}
-                disabled={bet < 5}
+                disabled={bet < minBet}
                 style={{
-                  background: bet >= 5 ? `linear-gradient(135deg, ${ACCENT}, #7c3aed)` : 'rgba(168,85,247,0.2)',
+                  background: bet >= minBet ? `linear-gradient(135deg, ${ACCENT}, #7c3aed)` : 'rgba(168,85,247,0.2)',
                   border: 'none', color: '#fff', borderRadius: 10,
                   padding: '12px 32px', fontSize: 16, fontWeight: 700,
-                  cursor: bet < 5 ? 'not-allowed' : 'pointer',
-                  opacity: bet < 5 ? 0.5 : 1,
-                  boxShadow: bet >= 5 ? '0 4px 16px rgba(168,85,247,0.4)' : undefined,
+                  cursor: bet < minBet ? 'not-allowed' : 'pointer',
+                  opacity: bet < minBet ? 0.5 : 1,
+                  boxShadow: bet >= minBet ? '0 4px 16px rgba(168,85,247,0.4)' : undefined,
                   transition: 'transform 0.1s, box-shadow 0.1s',
                 }}
-                onMouseEnter={e => { if (bet >= 5) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                onMouseEnter={e => { if (bet >= minBet) e.currentTarget.style.transform = 'translateY(-2px)'; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = ''; }}
               >
                 🃏 Distribuer
               </button>
 
-              {bankroll < 5 && bet === 0 && (
+              {bankroll < minBet && bet === 0 && (
                 <button
                   onClick={recharge}
                   style={{
@@ -899,7 +1113,7 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
                     cursor: 'pointer', boxShadow: '0 4px 16px rgba(245,158,11,0.4)',
                   }}
                 >
-                  🔄 Rechargement (500€)
+                  🔄 Changer de table
                 </button>
               )}
             </div>
@@ -946,7 +1160,7 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
             >
               Nouvelle partie
             </button>
-            {bankroll < 5 && (
+            {bankroll < minBet && (
               <button
                 onClick={recharge}
                 style={{
@@ -956,7 +1170,7 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
                   cursor: 'pointer', boxShadow: '0 4px 16px rgba(245,158,11,0.4)',
                 }}
               >
-                🔄 Rechargement (500€)
+                🔄 Changer de table
               </button>
             )}
           </div>
