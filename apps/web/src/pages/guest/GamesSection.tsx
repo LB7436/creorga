@@ -24,6 +24,7 @@ import BingoGame from './games/BingoGame'
 import ReactionGame from './games/ReactionGame'
 import NumberMemoryGame from './games/NumberMemoryGame'
 import WordScrambleGame from './games/WordScrambleGame'
+import BlackjackGame from './games/BlackjackGame'
 import ChessGame from './games/ChessGame'
 import TowerDefenseGame from './games/TowerDefenseGame'
 import SolitaireGame from './games/SolitaireGame'
@@ -105,48 +106,7 @@ const CAT_COLOR: Record<Category, string> = {
   des: '#ef4444', arcade: '#22c55e', quiz: '#ec4899',
 }
 
-// ─── Inline games (small, kept inline for simplicity) ──────────────────────────
 
-const SUITS = ['♠','♥','♦','♣']
-const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K']
-function makeDeck() { return SUITS.flatMap(s=>RANKS.map(r=>({suit:s,rank:r,red:s==='♥'||s==='♦'}))) }
-function cardValue(rank: string) { if(['J','Q','K'].includes(rank)) return 10; if(rank==='A') return 11; return parseInt(rank) }
-function handScore(hand: {rank:string}[]) { let t=hand.reduce((s,c)=>s+cardValue(c.rank),0),a=hand.filter(c=>c.rank==='A').length; while(t>21&&a>0){t-=10;a--}; return t }
-
-function BlackjackGame({ onBack }: { onBack:()=>void }) {
-  type BjState = { deck:{suit:string;rank:string;red:boolean}[]; player:{suit:string;rank:string;red:boolean}[]; dealer:{suit:string;rank:string;red:boolean}[]; deckIdx:number; state:'playing'|'bust'|'win'|'lose'|'push' }
-  const newGame = (): BjState => { const d=makeDeck().sort(()=>Math.random()-0.5); return {deck:d,player:[d[0],d[2]],dealer:[d[1],d[3]],deckIdx:4,state:'playing'} }
-  const [game, setGame] = useState(newGame)
-  const score=handScore(game.player), ds=handScore(game.dealer)
-  const status = game.state==='playing'?null:game.state==='bust'?'Bust ! Vous avez perdu 💸':game.state==='win'?'Vous gagnez ! 🎉':game.state==='lose'?'Croupier gagne 😞':'Égalité 🤝'
-  const hit = () => { const c=game.deck[game.deckIdx],p=[...game.player,c],s=handScore(p); setGame(g=>({...g,player:p,deckIdx:g.deckIdx+1,state:s>21?'bust':'playing'})) }
-  const stand = () => { let d=[...game.dealer],i=game.deckIdx; while(handScore(d)<17){d.push(game.deck[i++])}; const ps=handScore(game.player),dsc=handScore(d); const state=dsc>21||ps>dsc?'win':ps<dsc?'lose':'push'; setGame(g=>({...g,dealer:d,deckIdx:i,state})) }
-  const CardFace = ({rank,suit,red}:{rank:string;suit:string;red:boolean}) => (
-    <div className="w-12 h-16 rounded-lg flex flex-col items-center justify-center text-sm font-bold border" style={{background:'#fff',borderColor:'#ddd',color:red?'#dc2626':'#111'}}>
-      <span className="text-xs leading-none">{rank}</span><span className="text-xl leading-tight">{suit}</span>
-    </div>
-  )
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-2 mb-2">
-        <button onClick={onBack} className="p-1.5 rounded-lg hover:opacity-70" style={{color:MUTED}}><ChevronLeft size={18}/></button>
-        <span className="text-base font-bold" style={{color:TEXT}}>🃏 Blackjack</span>
-      </div>
-      <div className="rounded-2xl p-4 space-y-4" style={{background:'#1a4a2a',border:'2px solid #2d6a3f'}}>
-        <div><p className="text-xs mb-2 font-semibold" style={{color:'rgba(255,255,255,0.6)'}}>Croupier — {game.state!=='playing'?ds:'?'}</p><div className="flex gap-2">{game.dealer.map((c,i)=>i===1&&game.state==='playing'?<div key={i} className="w-12 h-16 rounded-lg border-2 flex items-center justify-center text-2xl" style={{background:'#0d3320',borderColor:'#2d6a3f'}}>🂠</div>:<CardFace key={i} {...c}/>)}</div></div>
-        <div className="h-px" style={{background:'rgba(255,255,255,0.1)'}}/>
-        <div><p className="text-xs mb-2 font-semibold" style={{color:'rgba(255,255,255,0.6)'}}>Vous — {score}</p><div className="flex flex-wrap gap-2">{game.player.map((c,i)=><CardFace key={i} {...c}/>)}</div></div>
-      </div>
-      {status&&<div className="rounded-xl p-3 text-center font-bold text-sm" style={{background:'rgba(168,85,247,0.1)',border:`1px solid ${BORDER}`,color:ACCENT}}>{status}</div>}
-      <div className="flex gap-2">
-        {game.state==='playing'
-          ?<><button onClick={hit} className="flex-1 py-2.5 rounded-xl font-bold text-sm" style={{background:ACCENT,color:'#fff'}}>Tirer</button><button onClick={stand} className="flex-1 py-2.5 rounded-xl font-bold text-sm" style={{background:SURFACE2,border:`1px solid ${BORDER}`,color:TEXT}}>Rester</button></>
-          :<button onClick={()=>setGame(newGame())} className="flex-1 py-2.5 rounded-xl font-bold text-sm" style={{background:ACCENT,color:'#fff'}}>Nouvelle partie</button>
-        }
-      </div>
-    </div>
-  )
-}
 
 const EMOJI_POOL=['🎮','🎯','🎲','🎪','🎨','🎭','🎬','🎤','🎸','🎺','🎻','🥁','🎹','🎠','🎡','🎢','🎰','🃏']
 function MemoryGame({ onBack }: { onBack:()=>void }) {
@@ -224,14 +184,11 @@ function GameCard({ game, onPlay }: { game: GameDef; onPlay: () => void }) {
       className="relative text-left w-full"
       style={{ cursor: game.available ? 'pointer' : 'default' }}
     >
-      {/* Card with felt-style border */}
       <div
         className="relative rounded-2xl overflow-hidden"
         style={{
-          background: game.available
-            ? 'linear-gradient(145deg, #1a3a2a 0%, #142d1f 100%)'
-            : 'rgba(10,20,15,0.6)',
-          border: `1px solid ${game.available ? 'rgba(45,106,63,0.6)' : 'rgba(45,106,63,0.2)'}`,
+          background: game.available ? SURFACE2 : 'rgba(14,13,32,0.7)',
+          border: `1px solid ${game.available ? BORDER : 'rgba(168,85,247,0.08)'}`,
           opacity: game.available ? 1 : 0.55,
         }}
       >
@@ -306,8 +263,8 @@ function CasinoHero({ gameCount }: { gameCount: number }) {
     <div
       className="relative rounded-2xl overflow-hidden mb-5 px-5 py-6"
       style={{
-        background: 'linear-gradient(135deg, #0d2b1a 0%, #1a4a2a 50%, #0d2b1a 100%)',
-        border: '2px solid rgba(45,106,63,0.5)',
+        background: 'linear-gradient(135deg, #0e0d20 0%, #1a1535 50%, #0e0d20 100%)',
+        border: `2px solid ${BORDER}`,
       }}
     >
       {/* Felt texture dots */}

@@ -1,1014 +1,1128 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
-import { ACCENT, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TowerType = 'archer' | 'mage' | 'cannon'
-type EnemyType = 'goblin' | 'orc' | 'troll' | 'giant'
-type Phase = 'prepare' | 'wave' | 'gameover' | 'victory'
+interface Vec2 { x: number; y: number; }
 
-interface TowerDef {
-  type: TowerType
-  label: string
-  emoji: string
-  cost: number
-  range: number
-  damage: number
-  cooldownMs: number
-  splash: boolean
-  splashRadius: number
-  slow: number
-  color: string
-}
+type EnemyType = 'goblin' | 'orc' | 'boss';
+type TowerType = 'archer' | 'mage' | 'cannon' | 'catapulte';
+type Phase = 'prep' | 'wave' | 'gameover' | 'victory';
 
-interface EnemyDef {
-  type: EnemyType
-  hp: number
-  speed: number
-  reward: number
-  color: string
-  emoji: string
+interface Enemy {
+  id: number;
+  type: EnemyType;
+  hp: number;
+  maxHp: number;
+  speed: number;        // cells/sec
+  pathIndex: number;    // current segment index
+  progress: number;     // 0..1 along current segment
+  x: number;
+  y: number;
+  reward: number;
+  slowUntil: number;   // timestamp ms
+  dead: boolean;
+  reachedEnd: boolean;
 }
 
 interface Tower {
-  col: number
-  row: number
-  type: TowerType
-  cooldownRemaining: number
-}
-
-interface Enemy {
-  id: string
-  type: EnemyType
-  pathIdx: number
-  progress: number
-  hp: number
-  maxHp: number
-  speed: number
-  reward: number
-  color: string
-  emoji: string
-  slowed: number
+  id: number;
+  type: TowerType;
+  col: number;
+  row: number;
+  damage: number;
+  range: number;        // cells
+  fireRate: number;     // shots/sec
+  cooldown: number;     // ms until next shot
+  kills: number;
+  level: number;
+  cost: number;
 }
 
 interface Projectile {
-  id: string
-  fromX: number
-  fromY: number
-  toX: number
-  toY: number
-  progress: number
-  damage: number
-  targetId: string
-  splash: boolean
-  splashRadius: number
-  slow: number
-  color: string
+  id: number;
+  type: TowerType;
+  x: number;
+  y: number;
+  tx: number;
+  ty: number;
+  speed: number;        // cells/sec
+  damage: number;
+  aoe: number;          // radius in cells (0 = single)
+  slowDuration: number; // ms
+  targetId: number;
+  dead: boolean;
+  trail: Vec2[];
 }
 
-interface SpawnEntry {
-  type: EnemyType
-  delay: number
+interface GoldPopup {
+  id: number;
+  x: number;
+  y: number;
+  amount: number;
+  age: number;          // ms
+  maxAge: number;
 }
 
 interface GameState {
-  towers: Tower[]
-  enemies: Enemy[]
-  projectiles: Projectile[]
-  tick: number
-  gold: number
-  lives: number
-  wave: number
-  phase: Phase
-  score: number
-  spawnQueue: SpawnEntry[]
-  spawnTimer: number
-  speedMultiplier: number
-}
+  phase: Phase;
+  wave: number;
+  gold: number;
+  lives: number;
+  score: number;
+  speed: number;        // 1 or 2
+  frameCount: number;
 
-interface UiState {
-  gold: number
-  lives: number
-  wave: number
-  score: number
-  phase: Phase
-}
+  enemies: Enemy[];
+  towers: Tower[];
+  projectiles: Projectile[];
+  popups: GoldPopup[];
 
-// Draw-time visual state (passed into draw each frame, never causes React re-renders)
-interface DrawMeta {
-  hoverCell: { col: number; row: number } | null
-  selectedCell: { col: number; row: number } | null
-  cellSize: number
+  placingType: TowerType | null;
+  selectedTowerId: number | null;
+  hoveredCell: Vec2 | null;
+
+  enemyIdSeq: number;
+  towerIdSeq: number;
+  projectileIdSeq: number;
+  popupIdSeq: number;
+
+  spawnQueue: Array<{ type: EnemyType; delay: number }>;
+  spawnTimer: number;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const COLS = 18
-const ROWS = 11
+const COLS = 20;
+const ROWS = 12;
 
-const PATH_NODES: [number, number][] = [
-  [0, 5], [3, 5], [3, 2], [7, 2], [7, 7], [12, 7], [12, 3], [17, 3],
-]
+const PATH_WAYPOINTS: Vec2[] = [
+  { x: 0, y: 3 },
+  { x: 4, y: 3 },
+  { x: 4, y: 8 },
+  { x: 10, y: 8 },
+  { x: 10, y: 2 },
+  { x: 16, y: 2 },
+  { x: 16, y: 9 },
+  { x: 19, y: 9 },
+];
 
-function buildPath(): [number, number][] {
-  const cells: [number, number][] = []
-  const seen = new Set<string>()
-  for (let i = 0; i < PATH_NODES.length - 1; i++) {
-    const [c1, r1] = PATH_NODES[i]
-    const [c2, r2] = PATH_NODES[i + 1]
-    const dc = Math.sign(c2 - c1)
-    const dr = Math.sign(r2 - r1)
-    let c = c1
-    let r = r1
-    while (c !== c2 || r !== r2) {
-      const key = `${c},${r}`
-      if (!seen.has(key)) { seen.add(key); cells.push([c, r]) }
-      c += dc
-      r += dr
-    }
-    // Add endpoint of segment
-    const endKey = `${c2},${r2}`
-    if (!seen.has(endKey)) { seen.add(endKey); cells.push([c2, r2]) }
-  }
-  return cells
-}
-
-const PATH: [number, number][] = buildPath()
-const PATH_SET = new Set(PATH.map(([c, r]) => `${c},${r}`))
-
-const TOWER_DEFS: Record<TowerType, TowerDef> = {
-  archer: {
-    type: 'archer', label: 'Archer', emoji: '🏹',
-    cost: 50, range: 3.0, damage: 15, cooldownMs: 1000,
-    splash: false, splashRadius: 0, slow: 0, color: '#22c55e',
-  },
-  mage: {
-    type: 'mage', label: 'Mage', emoji: '🔮',
-    cost: 100, range: 2.5, damage: 35, cooldownMs: 1500,
-    splash: true, splashRadius: 0.8, slow: 0, color: '#a855f7',
-  },
-  cannon: {
-    type: 'cannon', label: 'Cannon', emoji: '💣',
-    cost: 175, range: 4.0, damage: 80, cooldownMs: 2000,
-    splash: false, splashRadius: 0, slow: 600, color: '#f97316',
-  },
-}
-
-const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
-  goblin: { type: 'goblin', hp: 80,   speed: 0.028, reward: 10, color: '#4ade80', emoji: '👺' },
-  orc:    { type: 'orc',    hp: 220,  speed: 0.020, reward: 20, color: '#facc15', emoji: '🧟' },
-  troll:  { type: 'troll',  hp: 600,  speed: 0.012, reward: 40, color: '#fb923c', emoji: '👹' },
-  giant:  { type: 'giant',  hp: 1500, speed: 0.008, reward: 80, color: '#f87171', emoji: '🐉' },
-}
-
-type WaveEntry = { type: EnemyType; count: number }
-const WAVES: WaveEntry[][] = [
-  [{ type: 'goblin', count: 12 }],
-  [{ type: 'goblin', count: 10 }, { type: 'orc', count: 6 }],
-  [{ type: 'goblin', count: 8 }, { type: 'orc', count: 8 }, { type: 'troll', count: 3 }],
-  [{ type: 'orc', count: 12 }, { type: 'troll', count: 6 }, { type: 'giant', count: 2 }],
-  [{ type: 'orc', count: 20 }, { type: 'troll', count: 8 }, { type: 'giant', count: 3 }],
-]
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-let _eid = 0
-let _pid = 0
-
-function getEnemyPos(enemy: Enemy, cs: number): { x: number; y: number } {
-  const idx = Math.min(enemy.pathIdx, PATH.length - 1)
-  if (idx >= PATH.length - 1) {
-    const [c, r] = PATH[PATH.length - 1]
-    return { x: (c + 0.5) * cs, y: (r + 0.5) * cs }
-  }
-  const [c1, r1] = PATH[idx]
-  const [c2, r2] = PATH[idx + 1]
-  const t = enemy.progress
-  return {
-    x: (c1 + (c2 - c1) * t + 0.5) * cs,
-    y: (r1 + (r2 - r1) * t + 0.5) * cs,
+// Build a set of grid cells that the path passes through
+const PATH_CELLS = new Set<string>();
+for (let i = 0; i < PATH_WAYPOINTS.length - 1; i++) {
+  const a = PATH_WAYPOINTS[i];
+  const b = PATH_WAYPOINTS[i + 1];
+  if (a.x === b.x) {
+    const mn = Math.min(a.y, b.y);
+    const mx = Math.max(a.y, b.y);
+    for (let r = mn; r <= mx; r++) PATH_CELLS.add(`${a.x},${r}`);
+  } else {
+    const mn = Math.min(a.x, b.x);
+    const mx = Math.max(a.x, b.x);
+    for (let c = mn; c <= mx; c++) PATH_CELLS.add(`${c},${a.y}`);
   }
 }
 
-function getTowerCenter(tower: Tower, cs: number): { x: number; y: number } {
-  return { x: (tower.col + 0.5) * cs, y: (tower.row + 0.5) * cs }
-}
+const TOWER_DEFS: Record<TowerType, {
+  name: string; cost: number; damage: number;
+  range: number; fireRate: number; aoe: number; slowDuration: number;
+}> = {
+  archer:    { name: 'Archer',    cost: 100, damage: 15,  range: 3.5, fireRate: 1.5, aoe: 0,   slowDuration: 0    },
+  mage:      { name: 'Mage',      cost: 150, damage: 30,  range: 4.0, fireRate: 0.8, aoe: 0,   slowDuration: 0    },
+  cannon:    { name: 'Canon',     cost: 200, damage: 60,  range: 3.0, fireRate: 0.4, aoe: 1.0, slowDuration: 0    },
+  catapulte: { name: 'Catapulte', cost: 250, damage: 20,  range: 4.5, fireRate: 0.5, aoe: 1.5, slowDuration: 2000 },
+};
 
-function dist(ax: number, ay: number, bx: number, by: number) {
-  return Math.sqrt((ax - bx) ** 2 + (ay - by) ** 2)
-}
+const ENEMY_DEFS: Record<EnemyType, {
+  hp: number; speed: number; reward: number; size: number;
+}> = {
+  goblin: { hp: 80,  speed: 0.40, reward: 10, size: 0.35 },
+  orc:    { hp: 220, speed: 0.25, reward: 20, size: 0.45 },
+  boss:   { hp: 900, speed: 0.15, reward: 75, size: 0.65 },
+};
 
-function buildSpawnQueue(waveIndex: number): SpawnEntry[] {
-  const entries = WAVES[waveIndex]
-  const allEnemies: EnemyType[] = []
-  for (const entry of entries) {
-    for (let i = 0; i < entry.count; i++) allEnemies.push(entry.type)
-  }
-  // Interleave by cycling through types
-  const byType: Record<string, EnemyType[]> = {}
-  for (const e of allEnemies) {
-    if (!byType[e]) byType[e] = []
-    byType[e].push(e)
-  }
-  const interleaved: EnemyType[] = []
-  const queues = Object.values(byType)
-  let remaining = allEnemies.length
-  while (remaining > 0) {
-    for (const q of queues) {
-      if (q.length > 0) { interleaved.push(q.shift()!); remaining-- }
-    }
-  }
-  return interleaved.map((type, i) => ({ type, delay: i === 0 ? 0 : 700 }))
-}
+const WAVES: Array<Array<{ type: EnemyType; count: number; interval: number }>> = [
+  [{ type: 'goblin', count: 6,  interval: 1200 }],
+  [{ type: 'goblin', count: 10, interval: 1000 }],
+  [{ type: 'goblin', count: 8,  interval: 900  }, { type: 'orc', count: 2, interval: 1500 }],
+  [{ type: 'orc',    count: 6,  interval: 1200 }],
+  [{ type: 'goblin', count: 12, interval: 700  }, { type: 'orc', count: 4, interval: 1200 }],
+  [{ type: 'orc',    count: 8,  interval: 1000 }, { type: 'boss', count: 1, interval: 3000 }],
+  [{ type: 'goblin', count: 15, interval: 600  }, { type: 'orc', count: 6, interval: 1000 }],
+  [{ type: 'orc',    count: 10, interval: 800  }, { type: 'boss', count: 2, interval: 2500 }],
+];
 
-function spawnEnemy(type: EnemyType): Enemy {
-  const def = ENEMY_DEFS[type]
-  return {
-    id: `e_${++_eid}`,
-    type,
-    pathIdx: 0,
-    progress: 0,
-    hp: def.hp,
-    maxHp: def.hp,
-    speed: def.speed,
-    reward: def.reward,
-    color: def.color,
-    emoji: def.emoji,
-    slowed: 0,
-  }
-}
+const UPGRADE_COST_RATIO = 0.75;
 
-function makeInitialState(): GameState {
-  return {
-    towers: [],
-    enemies: [],
-    projectiles: [],
-    tick: 0,
-    gold: 200,
-    lives: 20,
-    wave: 0,
-    phase: 'prepare',
-    score: 0,
-    spawnQueue: [],
-    spawnTimer: 0,
-    speedMultiplier: 1,
-  }
-}
+// ─── Canvas drawing helpers ───────────────────────────────────────────────────
 
-// ─── Draw ─────────────────────────────────────────────────────────────────────
-
-function drawGame(
+function drawHealthBar(
   ctx: CanvasRenderingContext2D,
-  gs: GameState,
-  meta: DrawMeta,
-): void {
-  const { cellSize: cs, hoverCell, selectedCell } = meta
-  const W = ctx.canvas.width
-  const H = ctx.canvas.height
+  cx: number, cy: number, width: number,
+  hp: number, maxHp: number,
+) {
+  const h = 4;
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(cx - width / 2, cy, width, h);
+  const ratio = Math.max(0, hp / maxHp);
+  ctx.fillStyle = ratio > 0.5 ? '#22cc22' : ratio > 0.25 ? '#ddcc00' : '#cc2222';
+  ctx.fillRect(cx - width / 2, cy, width * ratio, h);
+}
 
-  // Background
-  ctx.fillStyle = '#1a2510'
-  ctx.fillRect(0, 0, W, H)
+function drawGoblin(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, r: number,
+  legPhase: number, hp: number, maxHp: number,
+) {
+  const lo = Math.sin(legPhase * Math.PI * 2) * r * 0.4;
 
-  // Grid cells
-  for (let row = 0; row < ROWS; row++) {
-    for (let col = 0; col < COLS; col++) {
-      const key = `${col},${row}`
-      const isPath = PATH_SET.has(key)
-      const x = col * cs
-      const y = row * cs
+  // legs
+  ctx.strokeStyle = '#2d6b2d';
+  ctx.lineWidth = r * 0.18;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x - r * 0.2, y + r * 0.5); ctx.lineTo(x - r * 0.2, y + r * 0.9 + lo);  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + r * 0.2, y + r * 0.5); ctx.lineTo(x + r * 0.2, y + r * 0.9 - lo);  ctx.stroke();
 
-      if (isPath) {
-        ctx.fillStyle = '#7c5c30'
-        ctx.fillRect(x, y, cs, cs)
-        // Subtle texture lines
-        ctx.strokeStyle = 'rgba(0,0,0,0.2)'
-        ctx.lineWidth = 0.5
-        ctx.strokeRect(x + 0.5, y + 0.5, cs - 1, cs - 1)
-      } else {
-        // Grass pattern alternating
-        const shade = (col + row) % 2 === 0 ? '#1e2a14' : '#1a2610'
-        ctx.fillStyle = shade
-        ctx.fillRect(x, y, cs, cs)
-        ctx.strokeStyle = 'rgba(255,255,255,0.03)'
-        ctx.lineWidth = 0.5
-        ctx.strokeRect(x + 0.5, y + 0.5, cs - 1, cs - 1)
-      }
-    }
+  // body
+  ctx.fillStyle = '#3a8a3a';
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.25, r * 0.55, r * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+
+  // head
+  ctx.fillStyle = '#4dab4d';
+  ctx.beginPath(); ctx.arc(x, y - r * 0.15, r * 0.4, 0, Math.PI * 2); ctx.fill();
+
+  // horns
+  ctx.fillStyle = '#2a5a2a';
+  ctx.beginPath(); ctx.moveTo(x - r * 0.25, y - r * 0.5); ctx.lineTo(x - r * 0.1, y - r * 0.58); ctx.lineTo(x - r * 0.18, y - r * 0.35); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x + r * 0.25, y - r * 0.5); ctx.lineTo(x + r * 0.1, y - r * 0.58); ctx.lineTo(x + r * 0.18, y - r * 0.35); ctx.closePath(); ctx.fill();
+
+  // eyes
+  ctx.fillStyle = 'white';
+  ctx.beginPath(); ctx.arc(x - r * 0.15, y - r * 0.18, r * 0.1,  0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + r * 0.15, y - r * 0.18, r * 0.1,  0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.arc(x - r * 0.13, y - r * 0.16, r * 0.05, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + r * 0.17, y - r * 0.16, r * 0.05, 0, Math.PI * 2); ctx.fill();
+
+  drawHealthBar(ctx, x, y - r * 0.65, r * 1.2, hp, maxHp);
+}
+
+function drawOrc(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, r: number,
+  legPhase: number, hp: number, maxHp: number,
+) {
+  const lo = Math.sin(legPhase * Math.PI * 2) * r * 0.35;
+
+  // legs
+  ctx.strokeStyle = '#b04000';
+  ctx.lineWidth = r * 0.22;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x - r * 0.25, y + r * 0.55); ctx.lineTo(x - r * 0.25, y + r * 1.0 + lo); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + r * 0.25, y + r * 0.55); ctx.lineTo(x + r * 0.25, y + r * 1.0 - lo); ctx.stroke();
+
+  // shoulders
+  ctx.fillStyle = '#cc5500';
+  ctx.beginPath(); ctx.arc(x - r * 0.6, y + r * 0.1, r * 0.28, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + r * 0.6, y + r * 0.1, r * 0.28, 0, Math.PI * 2); ctx.fill();
+
+  // body
+  ctx.fillStyle = '#e05500';
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.15, r * 0.65, r * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+
+  // head
+  ctx.fillStyle = '#d04800';
+  ctx.beginPath(); ctx.arc(x, y - r * 0.2, r * 0.48, 0, Math.PI * 2); ctx.fill();
+
+  // angry eyebrows
+  ctx.strokeStyle = '#6b1a00';
+  ctx.lineWidth = r * 0.1;
+  ctx.beginPath(); ctx.moveTo(x - r * 0.38, y - r * 0.35); ctx.lineTo(x - r * 0.1, y - r * 0.25); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + r * 0.38, y - r * 0.35); ctx.lineTo(x + r * 0.1, y - r * 0.25); ctx.stroke();
+
+  // eyes
+  ctx.fillStyle = '#ffdd00';
+  ctx.beginPath(); ctx.arc(x - r * 0.18, y - r * 0.18, r * 0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + r * 0.18, y - r * 0.18, r * 0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.arc(x - r * 0.17, y - r * 0.17, r * 0.05, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + r * 0.19, y - r * 0.17, r * 0.05, 0, Math.PI * 2); ctx.fill();
+
+  drawHealthBar(ctx, x, y - r * 0.82, r * 1.4, hp, maxHp);
+}
+
+function drawBoss(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, r: number,
+  legPhase: number, now: number, hp: number, maxHp: number,
+) {
+  const lo = Math.sin(legPhase * Math.PI * 2) * r * 0.3;
+  const pulse = 0.7 + 0.3 * Math.sin(now / 300);
+
+  // glow aura
+  const grd = ctx.createRadialGradient(x, y, r * 0.2, x, y, r * 1.5);
+  grd.addColorStop(0, `rgba(120,0,200,${0.3 * pulse})`);
+  grd.addColorStop(1, 'rgba(120,0,200,0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(x, y, r * 1.5, 0, Math.PI * 2); ctx.fill();
+
+  // legs
+  ctx.strokeStyle = '#2d0060';
+  ctx.lineWidth = r * 0.28;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x - r * 0.3, y + r * 0.7); ctx.lineTo(x - r * 0.3, y + r * 0.7 + r * 0.55 + lo); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + r * 0.3, y + r * 0.7); ctx.lineTo(x + r * 0.3, y + r * 0.7 + r * 0.55 - lo); ctx.stroke();
+
+  // body
+  ctx.fillStyle = '#3d0080';
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.2, r * 0.8, r * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+
+  // head
+  ctx.fillStyle = '#4a0099';
+  ctx.beginPath(); ctx.arc(x, y - r * 0.3, r * 0.6, 0, Math.PI * 2); ctx.fill();
+
+  // crown
+  ctx.fillStyle = '#ffd700';
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.5,  y - r * 0.85);
+  ctx.lineTo(x - r * 0.5,  y - r * 1.15);
+  ctx.lineTo(x - r * 0.25, y - r * 1.0);
+  ctx.lineTo(x,             y - r * 1.22);
+  ctx.lineTo(x + r * 0.25, y - r * 1.0);
+  ctx.lineTo(x + r * 0.5,  y - r * 1.15);
+  ctx.lineTo(x + r * 0.5,  y - r * 0.85);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#cc8800';
+  ctx.lineWidth = r * 0.05;
+  ctx.stroke();
+
+  // glowing red eyes
+  const eyeAlpha = 0.8 + 0.2 * Math.sin(now / 200);
+  ctx.shadowColor = 'red';
+  ctx.shadowBlur = r * 0.35;
+  ctx.fillStyle = `rgba(255,0,0,${eyeAlpha})`;
+  ctx.beginPath(); ctx.arc(x - r * 0.2, y - r * 0.35, r * 0.13, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + r * 0.2, y - r * 0.35, r * 0.13, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  drawHealthBar(ctx, x, y - r * 1.38, r * 1.9, hp, maxHp);
+}
+
+function drawArcherTower(ctx: CanvasRenderingContext2D, cx: number, cy: number, cw: number) {
+  const r = cw * 0.42;
+  const bg = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+  bg.addColorStop(0, '#aaa'); bg.addColorStop(1, '#777');
+  ctx.fillStyle = bg;
+  ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(cx - r, cy - r * 0.6, r * 2, r * 1.6, 4); ctx.fill(); ctx.stroke();
+  // battlements
+  ctx.fillStyle = '#999';
+  for (let i = 0; i < 3; i++) ctx.fillRect(cx - r + i * r * 0.7, cy - r * 0.6 - 6, r * 0.45, 7);
+  // platform
+  ctx.fillStyle = '#8B5E3C';
+  ctx.fillRect(cx - r * 0.6, cy - r * 0.5, r * 1.2, 4);
+  // archer figure head
+  ctx.fillStyle = '#ffcc99';
+  ctx.beginPath(); ctx.arc(cx, cy - r * 0.3, 4, 0, Math.PI * 2); ctx.fill();
+  // body
+  ctx.strokeStyle = '#eee'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx, cy - r * 0.3 + 4); ctx.lineTo(cx, cy + r * 0.1); ctx.stroke();
+  // bow
+  ctx.strokeStyle = '#8B5E3C'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx + 6, cy - r * 0.1, 6, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+  // arrow
+  ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx - 4, cy - r * 0.1); ctx.lineTo(cx + 6, cy - r * 0.1); ctx.stroke();
+}
+
+function drawMageTower(ctx: CanvasRenderingContext2D, cx: number, cy: number, cw: number, now: number) {
+  const r = cw * 0.4;
+  const pulse = 0.7 + 0.3 * Math.sin(now / 400);
+  // aura
+  const aura = ctx.createRadialGradient(cx, cy, r * 0.3, cx, cy, r * 1.5);
+  aura.addColorStop(0, `rgba(100,0,220,${0.2 * pulse})`);
+  aura.addColorStop(1, 'rgba(100,0,220,0)');
+  ctx.fillStyle = aura;
+  ctx.beginPath(); ctx.arc(cx, cy, r * 1.5, 0, Math.PI * 2); ctx.fill();
+  // tower body
+  const tg = ctx.createLinearGradient(cx - r * 0.7, cy, cx + r * 0.7, cy);
+  tg.addColorStop(0, '#4a0099'); tg.addColorStop(0.5, '#7700ee'); tg.addColorStop(1, '#3a0077');
+  ctx.fillStyle = tg; ctx.strokeStyle = '#9933ff'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(cx - r * 0.55, cy - r * 1.1, r * 1.1, r * 2, [r * 0.3, r * 0.3, 4, 4]); ctx.fill(); ctx.stroke();
+  // spire
+  ctx.fillStyle = '#5500bb';
+  ctx.beginPath(); ctx.moveTo(cx - r * 0.55, cy - r * 1.1); ctx.lineTo(cx, cy - r * 1.7); ctx.lineTo(cx + r * 0.55, cy - r * 1.1); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // star
+  ctx.fillStyle = `rgba(200,150,255,${pulse})`;
+  ctx.shadowColor = '#cc88ff'; ctx.shadowBlur = 8;
+  drawStar(ctx, cx, cy - r * 1.62, 4, 5);
+  ctx.shadowBlur = 0;
+  // window
+  ctx.fillStyle = `rgba(180,100,255,${0.5 * pulse})`;
+  ctx.beginPath(); ctx.arc(cx, cy - r * 0.3, r * 0.22, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawCannonTower(ctx: CanvasRenderingContext2D, cx: number, cy: number, cw: number) {
+  const r = cw * 0.42;
+  const bg = ctx.createLinearGradient(cx - r, cy - r * 0.5, cx + r, cy + r);
+  bg.addColorStop(0, '#666'); bg.addColorStop(1, '#333');
+  ctx.fillStyle = bg; ctx.strokeStyle = '#222'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(cx - r, cy - r * 0.5, r * 2, r * 1.5, 5); ctx.fill(); ctx.stroke();
+  // mount
+  ctx.fillStyle = '#444'; ctx.strokeStyle = '#222';
+  ctx.beginPath(); ctx.arc(cx, cy + r * 0.1, r * 0.55, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // barrel
+  ctx.save(); ctx.translate(cx + r * 0.15, cy + r * 0.05); ctx.rotate(-0.2);
+  ctx.fillStyle = '#111'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(-r * 0.12, -r * 0.08, r * 0.7, r * 0.16, 3); ctx.fill(); ctx.stroke();
+  ctx.restore();
+  // wheels
+  ctx.fillStyle = '#5a3a1a'; ctx.strokeStyle = '#2a1a00'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx - r * 0.35, cy + r * 0.55, r * 0.22, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx + r * 0.35, cy + r * 0.55, r * 0.22, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+}
+
+function drawCatapulteTower(ctx: CanvasRenderingContext2D, cx: number, cy: number, cw: number) {
+  const r = cw * 0.42;
+  ctx.fillStyle = '#6B3A2A'; ctx.strokeStyle = '#3a1a00'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(cx - r, cy - r * 0.3, r * 2, r * 1.3, 4); ctx.fill(); ctx.stroke();
+  // frame
+  ctx.strokeStyle = '#4a2010'; ctx.lineWidth = r * 0.12; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx - r * 0.5, cy); ctx.lineTo(cx - r * 0.3, cy - r * 0.9); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + r * 0.5, cy); ctx.lineTo(cx + r * 0.3, cy - r * 0.9); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - r * 0.3, cy - r * 0.9); ctx.lineTo(cx + r * 0.3, cy - r * 0.9); ctx.stroke();
+  // arm
+  ctx.strokeStyle = '#7a4a30'; ctx.lineWidth = r * 0.1;
+  ctx.beginPath(); ctx.moveTo(cx - r * 0.05, cy - r * 0.9); ctx.lineTo(cx + r * 0.55, cy - r * 0.4); ctx.stroke();
+  // sling rock
+  ctx.fillStyle = '#cc6600';
+  ctx.beginPath(); ctx.arc(cx + r * 0.6, cy - r * 0.35, r * 0.15, 0, Math.PI * 2); ctx.fill();
+  // wheels
+  ctx.fillStyle = '#5a3a1a'; ctx.strokeStyle = '#2a1a00'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx - r * 0.4, cy + r * 0.6, r * 0.25, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx + r * 0.4, cy + r * 0.6, r * 0.25, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+}
+
+function drawStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, points: number) {
+  ctx.beginPath();
+  for (let i = 0; i < points * 2; i++) {
+    const angle = (i * Math.PI) / points - Math.PI / 2;
+    const radius = i % 2 === 0 ? r : r * 0.45;
+    ctx.lineTo(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius);
   }
+  ctx.closePath();
+  ctx.fill();
+}
 
-  // Path direction arrows (subtle)
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  for (let i = 0; i < PATH.length - 1; i++) {
-    const [pc, pr] = PATH[i]
-    const [nc, nr] = PATH[i + 1]
-    let arrow = '·'
-    if (nc > pc) arrow = '›'
-    else if (nc < pc) arrow = '‹'
-    else if (nr > pr) arrow = 'v'
-    else arrow = '^'
-    ctx.fillStyle = 'rgba(255,255,255,0.1)'
-    ctx.font = `${Math.round(cs * 0.28)}px monospace`
-    ctx.fillText(arrow, (pc + 0.5) * cs, (pr + 0.5) * cs)
+// ─── Geometry helpers ─────────────────────────────────────────────────────────
+
+function dist(ax: number, ay: number, bx: number, by: number): number {
+  return Math.sqrt((ax - bx) ** 2 + (ay - by) ** 2);
+}
+
+function segmentLength(idx: number): number {
+  if (idx >= PATH_WAYPOINTS.length - 1) return 0;
+  const a = PATH_WAYPOINTS[idx];
+  const b = PATH_WAYPOINTS[idx + 1];
+  return Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
+}
+
+function posOnPath(pathIndex: number, progress: number, cw: number, ch: number): Vec2 {
+  if (pathIndex >= PATH_WAYPOINTS.length - 1) {
+    const last = PATH_WAYPOINTS[PATH_WAYPOINTS.length - 1];
+    return { x: (last.x + 0.5) * cw, y: (last.y + 0.5) * ch };
   }
+  const a = PATH_WAYPOINTS[pathIndex];
+  const b = PATH_WAYPOINTS[pathIndex + 1];
+  return {
+    x: (a.x + (b.x - a.x) * progress + 0.5) * cw,
+    y: (a.y + (b.y - a.y) * progress + 0.5) * ch,
+  };
+}
 
-  // Entry highlight
-  const [ec, er] = PATH[0]
-  ctx.fillStyle = 'rgba(34,197,94,0.35)'
-  ctx.fillRect(ec * cs, er * cs, cs, cs)
-  ctx.font = `${Math.round(cs * 0.6)}px sans-serif`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText('▶', (ec + 0.5) * cs, (er + 0.5) * cs)
+// ─── Wave queue builder ───────────────────────────────────────────────────────
 
-  // Exit highlight
-  const [xc, xr] = PATH[PATH.length - 1]
-  ctx.fillStyle = 'rgba(248,113,113,0.35)'
-  ctx.fillRect(xc * cs, xr * cs, cs, cs)
-  ctx.font = `${Math.round(cs * 0.55)}px sans-serif`
-  ctx.fillText('🏁', (xc + 0.5) * cs, (xr + 0.5) * cs)
-
-  // Hover highlight for tower placement
-  if (hoverCell) {
-    const key = `${hoverCell.col},${hoverCell.row}`
-    if (!PATH_SET.has(key)) {
-      const hasTower = gs.towers.some(t => t.col === hoverCell.col && t.row === hoverCell.row)
-      ctx.fillStyle = hasTower ? 'rgba(248,113,113,0.2)' : 'rgba(255,255,255,0.13)'
-      ctx.fillRect(hoverCell.col * cs, hoverCell.row * cs, cs, cs)
-      ctx.strokeStyle = hasTower ? 'rgba(248,113,113,0.7)' : 'rgba(255,255,255,0.55)'
-      ctx.lineWidth = 1.5
-      ctx.strokeRect(hoverCell.col * cs + 1, hoverCell.row * cs + 1, cs - 2, cs - 2)
-    }
+function buildSpawnQueue(waveIndex: number): Array<{ type: EnemyType; delay: number }> {
+  const def = WAVES[waveIndex] ?? WAVES[WAVES.length - 1];
+  const queue: Array<{ type: EnemyType; delay: number }> = [];
+  for (const group of def) {
+    for (let i = 0; i < group.count; i++) queue.push({ type: group.type, delay: group.interval });
   }
-
-  // Towers — range rings (behind tower sprites)
-  for (const tower of gs.towers) {
-    const def = TOWER_DEFS[tower.type]
-    const tc = getTowerCenter(tower, cs)
-    const showRange = (hoverCell && hoverCell.col === tower.col && hoverCell.row === tower.row) ||
-      (selectedCell && selectedCell.col === tower.col && selectedCell.row === tower.row)
-    if (showRange) {
-      ctx.save()
-      ctx.globalAlpha = 0.15
-      ctx.beginPath()
-      ctx.arc(tc.x, tc.y, def.range * cs, 0, Math.PI * 2)
-      ctx.fillStyle = def.color
-      ctx.fill()
-      ctx.restore()
-      ctx.save()
-      ctx.globalAlpha = 0.55
-      ctx.beginPath()
-      ctx.arc(tc.x, tc.y, def.range * cs, 0, Math.PI * 2)
-      ctx.strokeStyle = def.color
-      ctx.lineWidth = 1.5
-      ctx.setLineDash([5, 4])
-      ctx.stroke()
-      ctx.setLineDash([])
-      ctx.restore()
-    }
-  }
-
-  // Tower sprites
-  for (const tower of gs.towers) {
-    const def = TOWER_DEFS[tower.type]
-    const tc = getTowerCenter(tower, cs)
-
-    // Glow behind
-    ctx.save()
-    ctx.globalAlpha = 0.38
-    ctx.beginPath()
-    ctx.arc(tc.x, tc.y, cs * 0.44, 0, Math.PI * 2)
-    ctx.fillStyle = def.color
-    ctx.fill()
-    ctx.restore()
-
-    // Cooldown dark overlay arc
-    if (tower.cooldownRemaining > 0) {
-      const cdRatio = Math.min(1, tower.cooldownRemaining / def.cooldownMs)
-      ctx.save()
-      ctx.globalAlpha = 0.45
-      ctx.beginPath()
-      ctx.moveTo(tc.x, tc.y)
-      ctx.arc(tc.x, tc.y, cs * 0.44, -Math.PI / 2, -Math.PI / 2 + cdRatio * Math.PI * 2)
-      ctx.closePath()
-      ctx.fillStyle = 'rgba(0,0,0,0.6)'
-      ctx.fill()
-      ctx.restore()
-    }
-
-    // Emoji
-    ctx.font = `${Math.round(cs * 0.56)}px sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(def.emoji, tc.x, tc.y + 1)
-  }
-
-  // Projectiles
-  for (const proj of gs.projectiles) {
-    const px = proj.fromX + (proj.toX - proj.fromX) * proj.progress
-    const py = proj.fromY + (proj.toY - proj.fromY) * proj.progress
-    const radius = Math.max(3, cs * 0.11)
-
-    // Trail
-    const trailT = Math.max(0, proj.progress - 0.15)
-    const trailX = proj.fromX + (proj.toX - proj.fromX) * trailT
-    const trailY = proj.fromY + (proj.toY - proj.fromY) * trailT
-    ctx.save()
-    const grad = ctx.createLinearGradient(trailX, trailY, px, py)
-    grad.addColorStop(0, 'transparent')
-    grad.addColorStop(1, proj.color)
-    ctx.beginPath()
-    ctx.moveTo(trailX, trailY)
-    ctx.lineTo(px, py)
-    ctx.strokeStyle = grad
-    ctx.lineWidth = radius * 1.4
-    ctx.lineCap = 'round'
-    ctx.globalAlpha = 0.6
-    ctx.stroke()
-    ctx.restore()
-
-    // Dot
-    ctx.save()
-    ctx.shadowColor = proj.color
-    ctx.shadowBlur = 10
-    ctx.beginPath()
-    ctx.arc(px, py, radius, 0, Math.PI * 2)
-    ctx.fillStyle = proj.color
-    ctx.fill()
-    ctx.restore()
-  }
-
-  // Enemies
-  for (const enemy of gs.enemies) {
-    const ep = getEnemyPos(enemy, cs)
-    const hpRatio = Math.max(0, enemy.hp / enemy.maxHp)
-    const baseR = cs * 0.37
-    const radius = baseR * (0.65 + 0.35 * hpRatio)
-
-    // Drop shadow
-    ctx.save()
-    ctx.globalAlpha = 0.35
-    ctx.beginPath()
-    ctx.ellipse(ep.x, ep.y + radius * 0.55, radius * 0.75, radius * 0.22, 0, 0, Math.PI * 2)
-    ctx.fillStyle = '#000'
-    ctx.fill()
-    ctx.restore()
-
-    // Slow frost ring
-    if (enemy.slowed > 0) {
-      ctx.save()
-      ctx.globalAlpha = 0.5
-      ctx.beginPath()
-      ctx.arc(ep.x, ep.y, radius + cs * 0.07, 0, Math.PI * 2)
-      ctx.strokeStyle = '#93c5fd'
-      ctx.lineWidth = 2
-      ctx.stroke()
-      ctx.restore()
-    }
-
-    // Body
-    ctx.beginPath()
-    ctx.arc(ep.x, ep.y, radius, 0, Math.PI * 2)
-    ctx.fillStyle = enemy.color
-    ctx.fill()
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)'
-    ctx.lineWidth = 1.5
-    ctx.stroke()
-
-    // Emoji
-    ctx.font = `${Math.round(radius * 1.45)}px sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(enemy.emoji, ep.x, ep.y + 1)
-
-    // HP bar
-    const barW = cs * 0.82
-    const barH = Math.max(3, cs * 0.07)
-    const barX = ep.x - barW / 2
-    const barY = ep.y - radius - barH - 4
-
-    ctx.fillStyle = 'rgba(0,0,0,0.65)'
-    if (ctx.roundRect) {
-      ctx.beginPath()
-      ctx.roundRect(barX - 1, barY - 1, barW + 2, barH + 2, 2)
-      ctx.fill()
-    } else {
-      ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2)
-    }
-
-    const hpColor = hpRatio > 0.6 ? '#22c55e' : hpRatio > 0.3 ? '#facc15' : '#ef4444'
-    ctx.fillStyle = hpColor
-    if (ctx.roundRect && barW * hpRatio > 0) {
-      ctx.beginPath()
-      ctx.roundRect(barX, barY, Math.max(1, barW * hpRatio), barH, 1)
-      ctx.fill()
-    } else {
-      ctx.fillRect(barX, barY, Math.max(1, barW * hpRatio), barH)
-    }
-  }
-
-  // Prepare phase banner
-  if (gs.phase === 'prepare' && gs.wave < WAVES.length) {
-    const bW = Math.min(W * 0.72, cs * 12)
-    const bH = cs * 1.3
-    const bX = W / 2 - bW / 2
-    const bY = H / 2 - bH / 2
-
-    ctx.save()
-    ctx.globalAlpha = 0.82
-    ctx.fillStyle = '#0f1f08'
-    if (ctx.roundRect) {
-      ctx.beginPath()
-      ctx.roundRect(bX, bY, bW, bH, 10)
-      ctx.fill()
-    } else {
-      ctx.fillRect(bX, bY, bW, bH)
-    }
-    ctx.strokeStyle = '#22c55e'
-    ctx.lineWidth = 1.5
-    if (ctx.roundRect) {
-      ctx.beginPath()
-      ctx.roundRect(bX, bY, bW, bH, 10)
-      ctx.stroke()
-    } else {
-      ctx.strokeRect(bX, bY, bW, bH)
-    }
-    ctx.restore()
-
-    ctx.fillStyle = '#22c55e'
-    ctx.font = `bold ${Math.round(cs * 0.52)}px system-ui, sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(`⚔️  Vague ${gs.wave + 1} — Placez vos tours !`, W / 2, H / 2)
-  }
+  return queue;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function TowerDefenseGame({ onBack }: { onBack: () => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+interface Props { onBack: () => void; }
 
-  // All mutable game state lives here — never triggers React re-renders
-  const gsRef = useRef<GameState>(makeInitialState())
-  // Visual-only state for the draw call, also in a ref
-  const drawMetaRef = useRef<DrawMeta>({ hoverCell: null, selectedCell: null, cellSize: 40 })
+export default function TowerDefenseGame({ onBack }: Props) {
+  const canvasRef    = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cellRef      = useRef({ w: 64, h: 48 });
+  const rafRef       = useRef<number>(0);
 
-  const rafRef = useRef<number>(0)
-  const lastTimeRef = useRef<number>(0)
+  const gs = useRef<GameState>({
+    phase: 'prep', wave: 0, gold: 150, lives: 30, score: 0, speed: 1, frameCount: 0,
+    enemies: [], towers: [], projectiles: [], popups: [],
+    placingType: null, selectedTowerId: null, hoveredCell: null,
+    enemyIdSeq: 0, towerIdSeq: 0, projectileIdSeq: 0, popupIdSeq: 0,
+    spawnQueue: [], spawnTimer: 0,
+  });
 
-  // Minimal React state — only what the UI layer needs
-  const [uiState, setUiState] = useState<UiState>({
-    gold: 200, lives: 20, wave: 0, score: 0, phase: 'prepare',
-  })
-  const [selectedTower, setSelectedTower] = useState<TowerType>('archer')
-  const [speed2x, setSpeed2x] = useState(false)
+  const [hud, setHud] = useState({
+    gold: 150, lives: 30, wave: 0, score: 0,
+    phase: 'prep' as Phase, speed: 1,
+    placingType: null as TowerType | null,
+    selectedTowerId: null as number | null,
+  });
 
-  // Keep selected tower accessible from the RAF loop without stale closure
-  const selectedTowerRef = useRef<TowerType>('archer')
-  useEffect(() => { selectedTowerRef.current = selectedTower }, [selectedTower])
+  const syncHud = useCallback(() => {
+    const g = gs.current;
+    setHud({ gold: g.gold, lives: g.lives, wave: g.wave, score: g.score, phase: g.phase, speed: g.speed, placingType: g.placingType, selectedTowerId: g.selectedTowerId });
+  }, []);
 
-  // ─── Resize ─────────────────────────────────────────────────────────────
-
-  const resize = useCallback(() => {
-    const container = containerRef.current
-    const canvas = canvasRef.current
-    if (!container || !canvas) return
-    const w = container.clientWidth
-    const cs = Math.max(28, Math.floor(w / COLS))
-    drawMetaRef.current.cellSize = cs
-    canvas.width = cs * COLS
-    canvas.height = cs * ROWS
-  }, [])
+  // ─── RAF loop ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    resize()
-    const ro = new ResizeObserver(resize)
-    if (containerRef.current) ro.observe(containerRef.current)
-    return () => ro.disconnect()
-  }, [resize])
+    const canvas    = canvasRef.current!;
+    const container = containerRef.current!;
+    const ctx       = canvas.getContext('2d')!;
 
-  // ─── Game loop ───────────────────────────────────────────────────────────
+    const resize = () => {
+      const r = container.getBoundingClientRect();
+      canvas.width  = r.width;
+      canvas.height = r.height;
+      cellRef.current = { w: r.width / COLS, h: r.height / ROWS };
+    };
+    const ro = new ResizeObserver(resize);
+    ro.observe(container);
+    resize();
 
-  useEffect(() => {
-    let rafId: number
+    let prev = performance.now();
 
-    const loop = (timestamp: number) => {
-      const rawDt = timestamp - (lastTimeRef.current || timestamp)
-      lastTimeRef.current = timestamp
-      const dt = Math.min(rawDt, 50) // cap at 50ms to avoid spiral of death
+    const loop = (now: number) => {
+      const g = gs.current;
+      const rawDt = Math.min((now - prev) / 1000, 0.05);
+      prev = now;
+      const dt = rawDt * g.speed;
+      const { w: cw, h: ch } = cellRef.current;
+      const W = canvas.width, H = canvas.height;
 
-      const gs = gsRef.current
-      const cs = drawMetaRef.current.cellSize
+      // ── UPDATE ────────────────────────────────────────────────────────────
 
-      if (gs.phase === 'wave') {
-        // ── Spawn ──────────────────────────────────────────────────────
-        if (gs.spawnQueue.length > 0) {
-          gs.spawnTimer -= dt * gs.speedMultiplier
-          if (gs.spawnTimer <= 0) {
-            const next = gs.spawnQueue.shift()!
-            gs.enemies.push(spawnEnemy(next.type))
-            gs.spawnTimer = gs.spawnQueue.length > 0 ? gs.spawnQueue[0].delay : 0
+      if (g.phase === 'wave') {
+        // spawn
+        if (g.spawnQueue.length > 0) {
+          g.spawnTimer -= dt * 1000;
+          if (g.spawnTimer <= 0) {
+            const next = g.spawnQueue.shift()!;
+            const def  = ENEMY_DEFS[next.type];
+            const scl  = 1 + g.wave * 0.15;
+            g.enemies.push({
+              id: ++g.enemyIdSeq, type: next.type,
+              hp: def.hp * scl, maxHp: def.hp * scl,
+              speed: def.speed, pathIndex: 0, progress: 0,
+              x: (PATH_WAYPOINTS[0].x + 0.5) * cw,
+              y: (PATH_WAYPOINTS[0].y + 0.5) * ch,
+              reward: def.reward, slowUntil: 0, dead: false, reachedEnd: false,
+            });
+            g.spawnTimer = g.spawnQueue.length > 0 ? g.spawnQueue[0].delay : 0;
           }
         }
 
-        // ── Move enemies ───────────────────────────────────────────────
-        const reachedEnd = new Set<string>()
-        for (const enemy of gs.enemies) {
-          if (enemy.slowed > 0) enemy.slowed = Math.max(0, enemy.slowed - dt * gs.speedMultiplier)
-          const slowFactor = enemy.slowed > 0 ? 0.4 : 1
-          enemy.progress += enemy.speed * dt * slowFactor * gs.speedMultiplier
+        // move enemies
+        for (const e of g.enemies) {
+          if (e.dead || e.reachedEnd) continue;
+          const slowed   = now < e.slowUntil;
+          const spd      = e.speed * (slowed ? 0.4 : 1);
+          let remaining  = spd * dt;
 
-          while (enemy.progress >= 1) {
-            enemy.progress -= 1
-            enemy.pathIdx++
-            if (enemy.pathIdx >= PATH.length - 1) {
-              gs.lives = Math.max(0, gs.lives - 1)
-              reachedEnd.add(enemy.id)
-              break
-            }
-          }
-        }
-        gs.enemies = gs.enemies.filter(e => !reachedEnd.has(e.id))
-
-        // ── Tower fire ─────────────────────────────────────────────────
-        for (const tower of gs.towers) {
-          const def = TOWER_DEFS[tower.type]
-          tower.cooldownRemaining = Math.max(0, tower.cooldownRemaining - dt * gs.speedMultiplier)
-          if (tower.cooldownRemaining > 0) continue
-
-          const tc = getTowerCenter(tower, cs)
-          const rangePixels = def.range * cs
-
-          // Target: furthest along the path within range
-          let target: Enemy | null = null
-          let bestProgress = -1
-          for (const enemy of gs.enemies) {
-            const ep = getEnemyPos(enemy, cs)
-            if (dist(tc.x, tc.y, ep.x, ep.y) <= rangePixels) {
-              const tot = enemy.pathIdx + enemy.progress
-              if (tot > bestProgress) { bestProgress = tot; target = enemy }
+          while (remaining > 0 && e.pathIndex < PATH_WAYPOINTS.length - 1) {
+            const seg = segmentLength(e.pathIndex);
+            const avail = seg * (1 - e.progress);
+            if (remaining >= avail) {
+              remaining -= avail;
+              e.pathIndex++;
+              e.progress = 0;
+            } else {
+              e.progress += remaining / seg;
+              remaining = 0;
             }
           }
 
-          if (target) {
-            const ep = getEnemyPos(target, cs)
-            gs.projectiles.push({
-              id: `p_${++_pid}`,
-              fromX: tc.x, fromY: tc.y,
-              toX: ep.x, toY: ep.y,
-              progress: 0,
-              damage: def.damage,
-              targetId: target.id,
-              splash: def.splash,
-              splashRadius: def.splashRadius * cs,
-              slow: def.slow,
-              color: def.color,
-            })
-            tower.cooldownRemaining = def.cooldownMs
+          const pos = posOnPath(e.pathIndex, e.progress, cw, ch);
+          e.x = pos.x; e.y = pos.y;
+
+          if (e.pathIndex >= PATH_WAYPOINTS.length - 1) {
+            e.reachedEnd = true;
+            g.lives = Math.max(0, g.lives - 1);
+            if (g.lives <= 0) g.phase = 'gameover';
           }
         }
 
-        // ── Move + resolve projectiles ─────────────────────────────────
-        const hitSet = new Set<string>()
-        for (const proj of gs.projectiles) {
-          proj.progress += 0.08 * gs.speedMultiplier
-          if (proj.progress >= 1) {
-            hitSet.add(proj.id)
-            if (proj.splash) {
-              for (const enemy of gs.enemies) {
-                const ep = getEnemyPos(enemy, cs)
-                if (dist(proj.toX, proj.toY, ep.x, ep.y) <= proj.splashRadius) {
-                  enemy.hp -= proj.damage
-                  if (proj.slow > 0) enemy.slowed = proj.slow
+        // tower shooting
+        for (const t of g.towers) {
+          t.cooldown -= dt * 1000;
+          if (t.cooldown > 0) continue;
+          const rPx = t.range * cw;
+          const tx  = (t.col + 0.5) * cw;
+          const ty  = (t.row + 0.5) * ch;
+
+          // target furthest along path within range
+          let target: Enemy | null = null;
+          let bestScore = -Infinity;
+          for (const e of g.enemies) {
+            if (e.dead || e.reachedEnd) continue;
+            if (dist(tx, ty, e.x, e.y) > rPx) continue;
+            const score = e.pathIndex * 1000 + e.progress;
+            if (score > bestScore) { bestScore = score; target = e; }
+          }
+          if (!target) continue;
+
+          t.cooldown = 1000 / t.fireRate;
+          const def = TOWER_DEFS[t.type];
+          g.projectiles.push({
+            id: ++g.projectileIdSeq, type: t.type,
+            x: tx, y: ty, tx: target.x, ty: target.y,
+            speed: t.type === 'cannon' ? 5 : t.type === 'catapulte' ? 3.5 : 8,
+            damage: t.damage, aoe: def.aoe, slowDuration: def.slowDuration,
+            targetId: target.id, dead: false, trail: [],
+          });
+        }
+
+        // move projectiles
+        for (const p of g.projectiles) {
+          if (p.dead) continue;
+          p.trail.push({ x: p.x, y: p.y });
+          if (p.trail.length > 6) p.trail.shift();
+          const dx = p.tx - p.x, dy = p.ty - p.y;
+          const d  = Math.sqrt(dx * dx + dy * dy);
+          const step = p.speed * cw * dt;
+
+          if (d <= step + 2) {
+            p.dead = true;
+            if (p.aoe > 0) {
+              const aoeR = p.aoe * cw;
+              for (const e of g.enemies) {
+                if (e.dead || e.reachedEnd) continue;
+                if (dist(p.tx, p.ty, e.x, e.y) <= aoeR) {
+                  e.hp -= p.damage;
+                  if (p.slowDuration > 0) e.slowUntil = now + p.slowDuration;
+                  if (e.hp <= 0) killEnemy(g, e, now, cw, ch);
                 }
               }
             } else {
-              const target = gs.enemies.find(e => e.id === proj.targetId)
-              if (target) {
-                target.hp -= proj.damage
-                if (proj.slow > 0) target.slowed = proj.slow
+              const tgt = g.enemies.find(e => e.id === p.targetId);
+              if (tgt && !tgt.dead) {
+                tgt.hp -= p.damage;
+                if (p.slowDuration > 0) tgt.slowUntil = now + p.slowDuration;
+                if (tgt.hp <= 0) killEnemy(g, tgt, now, cw, ch);
               }
             }
+          } else {
+            p.x += (dx / d) * step;
+            p.y += (dy / d) * step;
           }
         }
-        gs.projectiles = gs.projectiles.filter(p => !hitSet.has(p.id))
 
-        // ── Kill dead enemies ──────────────────────────────────────────
-        let goldGained = 0
-        let scoreGained = 0
-        gs.enemies = gs.enemies.filter(e => {
-          if (e.hp <= 0) {
-            goldGained += e.reward
-            scoreGained += e.reward * 10
-            return false
-          }
-          return true
-        })
-        gs.gold += goldGained
-        gs.score += scoreGained
+        // age popups
+        for (const pop of g.popups) pop.age += dt * 1000;
 
-        // ── Check wave/game end ────────────────────────────────────────
-        if (gs.lives <= 0) {
-          gs.phase = 'gameover'
-        } else if (gs.spawnQueue.length === 0 && gs.enemies.length === 0) {
-          gs.phase = gs.wave >= WAVES.length ? 'victory' : 'prepare'
+        // cleanup
+        g.enemies     = g.enemies.filter(e => !e.dead && !e.reachedEnd);
+        g.projectiles = g.projectiles.filter(p => !p.dead);
+        g.popups      = g.popups.filter(p => p.age < p.maxAge);
+
+        // wave complete?
+        if (g.spawnQueue.length === 0 && g.enemies.length === 0 && g.phase === 'wave') {
+          g.phase = g.wave >= WAVES.length ? 'victory' : 'prep';
+          if (g.phase === 'prep') g.score += 100 * g.wave;
         }
       }
 
-      // ── Draw ───────────────────────────────────────────────────────────
-      const canvas = canvasRef.current
-      if (canvas) {
-        const ctx = canvas.getContext('2d')
-        if (ctx) drawGame(ctx, gs, drawMetaRef.current)
+      // ── DRAW ──────────────────────────────────────────────────────────────
+
+      ctx.clearRect(0, 0, W, H);
+
+      // grass
+      ctx.fillStyle = '#2d5a1b';
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+      ctx.lineWidth = 0.5;
+      for (let c = 0; c <= COLS; c++) { ctx.beginPath(); ctx.moveTo(c * cw, 0); ctx.lineTo(c * cw, H); ctx.stroke(); }
+      for (let r = 0; r <= ROWS; r++) { ctx.beginPath(); ctx.moveTo(0, r * ch); ctx.lineTo(W, r * ch); ctx.stroke(); }
+
+      // path (dirt road)
+      for (const key of PATH_CELLS) {
+        const [c, r] = key.split(',').map(Number);
+        ctx.fillStyle = '#c8a96e';
+        ctx.fillRect(c * cw + 0.5, r * ch + 0.5, cw - 1, ch - 1);
+        ctx.strokeStyle = 'rgba(150,100,50,0.3)'; ctx.lineWidth = 1;
+        for (let i = 1; i < 3; i++) {
+          ctx.beginPath(); ctx.moveTo(c * cw + (cw * i) / 3, r * ch); ctx.lineTo(c * cw + (cw * i) / 3, (r + 1) * ch); ctx.stroke();
+        }
+        ctx.strokeStyle = 'rgba(100,70,30,0.25)'; ctx.lineWidth = 1.5;
+        ctx.strokeRect(c * cw + 0.5, r * ch + 0.5, cw - 1, ch - 1);
       }
 
-      // ── Sync UI every 6 ticks ──────────────────────────────────────────
-      gs.tick++
-      if (gs.tick % 6 === 0) {
-        setUiState({ gold: gs.gold, lives: gs.lives, wave: gs.wave, score: gs.score, phase: gs.phase })
+      // placement hover highlight + range preview
+      if (g.placingType && g.hoveredCell) {
+        const { x: hc, y: hr } = g.hoveredCell;
+        const valid = !PATH_CELLS.has(`${hc},${hr}`) && !g.towers.some(t => t.col === hc && t.row === hr);
+        ctx.fillStyle = valid ? 'rgba(0,255,100,0.22)' : 'rgba(255,50,50,0.22)';
+        ctx.fillRect(hc * cw, hr * ch, cw, ch);
+        const rPx = TOWER_DEFS[g.placingType].range * cw;
+        ctx.strokeStyle = valid ? 'rgba(0,255,100,0.5)' : 'rgba(255,50,50,0.5)';
+        ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+        ctx.beginPath(); ctx.arc((hc + 0.5) * cw, (hr + 0.5) * ch, rPx, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]);
       }
 
-      rafId = requestAnimationFrame(loop)
+      // selected tower range ring
+      if (g.selectedTowerId !== null && !g.placingType) {
+        const st = g.towers.find(t => t.id === g.selectedTowerId);
+        if (st) {
+          const rPx = st.range * cw;
+          ctx.fillStyle = 'rgba(255,220,50,0.05)';
+          ctx.beginPath(); ctx.arc((st.col + 0.5) * cw, (st.row + 0.5) * ch, rPx, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = 'rgba(255,220,50,0.55)'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+          ctx.beginPath(); ctx.arc((st.col + 0.5) * cw, (st.row + 0.5) * ch, rPx, 0, Math.PI * 2); ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+
+      // towers
+      for (const t of g.towers) {
+        const cx2 = (t.col + 0.5) * cw, cy2 = (t.row + 0.5) * ch;
+        ctx.save();
+        switch (t.type) {
+          case 'archer':    drawArcherTower(ctx, cx2, cy2, cw);       break;
+          case 'mage':      drawMageTower(ctx, cx2, cy2, cw, now);    break;
+          case 'cannon':    drawCannonTower(ctx, cx2, cy2, cw);       break;
+          case 'catapulte': drawCatapulteTower(ctx, cx2, cy2, cw);    break;
+        }
+        if (t.level > 1) {
+          ctx.fillStyle = '#ffd700';
+          ctx.font = `bold ${Math.max(9, cw * 0.18)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.fillText(`★${t.level}`, cx2, cy2 + ch * 0.4);
+        }
+        if (t.id === g.selectedTowerId) {
+          ctx.strokeStyle = 'rgba(255,220,50,0.9)'; ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.roundRect(t.col * cw + 2, t.row * ch + 2, cw - 4, ch - 4, 4); ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      // projectiles
+      for (const p of g.projectiles) {
+        ctx.save();
+        if (p.type === 'archer') {
+          if (p.trail.length > 1) {
+            const prev2 = p.trail[p.trail.length - 1];
+            const angle = Math.atan2(p.y - prev2.y, p.x - prev2.x);
+            ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(p.x - Math.cos(angle) * 8, p.y - Math.sin(angle) * 8); ctx.lineTo(p.x, p.y); ctx.stroke();
+            ctx.fillStyle = '#ffd700';
+            ctx.beginPath(); ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p.x - Math.cos(angle - 0.4) * 5, p.y - Math.sin(angle - 0.4) * 5);
+            ctx.lineTo(p.x - Math.cos(angle + 0.4) * 5, p.y - Math.sin(angle + 0.4) * 5);
+            ctx.closePath(); ctx.fill();
+          }
+        } else if (p.type === 'mage') {
+          for (let i = 0; i < p.trail.length; i++) {
+            const t2 = p.trail[i];
+            ctx.fillStyle = `rgba(180,50,255,${(i / p.trail.length) * 0.5})`;
+            ctx.beginPath(); ctx.arc(t2.x, t2.y, 3 + i * 0.5, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.shadowColor = '#cc00ff'; ctx.shadowBlur = 12;
+          const g2 = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 6);
+          g2.addColorStop(0, '#ff88ff'); g2.addColorStop(1, '#8800cc');
+          ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); ctx.fill();
+          ctx.shadowBlur = 0;
+        } else {
+          for (let i = 0; i < p.trail.length; i++) {
+            const t2 = p.trail[i];
+            ctx.fillStyle = `rgba(80,80,80,${(i / p.trail.length) * 0.3})`;
+            ctx.beginPath(); ctx.arc(t2.x, t2.y, 4, 0, Math.PI * 2); ctx.fill();
+          }
+          const bg2 = ctx.createRadialGradient(p.x - 2, p.y - 2, 0, p.x, p.y, p.type === 'catapulte' ? 6 : 5);
+          bg2.addColorStop(0, '#999'); bg2.addColorStop(1, '#222');
+          ctx.fillStyle = bg2;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.type === 'catapulte' ? 6 : 5, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      // enemies
+      for (const e of g.enemies) {
+        if (e.dead || e.reachedEnd) continue;
+        const r = ENEMY_DEFS[e.type].size * cw;
+        const legPhase = ((e.pathIndex + e.progress) * 3 + now * 0.004) % 1;
+        ctx.save();
+        switch (e.type) {
+          case 'goblin': drawGoblin(ctx, e.x, e.y, r, legPhase, e.hp, e.maxHp); break;
+          case 'orc':    drawOrc(ctx, e.x, e.y, r, legPhase, e.hp, e.maxHp);    break;
+          case 'boss':   drawBoss(ctx, e.x, e.y, r, legPhase, now, e.hp, e.maxHp); break;
+        }
+        ctx.restore();
+      }
+
+      // gold popups
+      for (const pop of g.popups) {
+        const t = pop.age / pop.maxAge;
+        ctx.save();
+        ctx.globalAlpha = 1 - t;
+        ctx.font = `bold ${Math.max(12, cw * 0.22)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 2.5;
+        ctx.strokeText(`+${pop.amount}`, pop.x, pop.y - 30 * t);
+        ctx.fillStyle = '#ffd700';
+        ctx.fillText(`+${pop.amount}`, pop.x, pop.y - 30 * t);
+        ctx.restore();
+      }
+
+      // HUD sync every 8 frames
+      g.frameCount++;
+      if (g.frameCount % 8 === 0) syncHud();
+
+      rafRef.current = requestAnimationFrame(loop);
+    };
+
+    rafRef.current = requestAnimationFrame(loop);
+    return () => { cancelAnimationFrame(rafRef.current); ro.disconnect(); };
+  }, [syncHud]);
+
+  // ─── Enemy kill helper ────────────────────────────────────────────────────
+
+  function killEnemy(g: GameState, e: Enemy, _now: number, cw: number, _ch: number) {
+    e.dead = true;
+    e.hp = 0;
+    g.gold += e.reward;
+    g.score += e.reward * 2;
+    // credit a kill to nearest tower that could have shot it
+    const nearest = g.towers.reduce<Tower | null>((best, t) => {
+      const d2 = dist((t.col + 0.5) * cw, (t.row + 0.5) * cw, e.x, e.y);
+      if (d2 > t.range * cw) return best;
+      if (!best) return t;
+      return d2 < dist((best.col + 0.5) * cw, (best.row + 0.5) * cw, e.x, e.y) ? t : best;
+    }, null);
+    if (nearest) nearest.kills++;
+    g.popups.push({ id: ++g.popupIdSeq, x: e.x, y: e.y, amount: e.reward, age: 0, maxAge: 1000 });
+  }
+
+  // ─── Canvas event handlers ────────────────────────────────────────────────
+
+  const handleClick = useCallback((ev: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current!;
+    const rect   = canvas.getBoundingClientRect();
+    const mx = ev.clientX - rect.left;
+    const my = ev.clientY - rect.top;
+    const { w: cw, h: ch } = cellRef.current;
+    const col = Math.floor(mx / cw);
+    const row = Math.floor(my / ch);
+    const g   = gs.current;
+
+    if (g.placingType) {
+      const valid = !PATH_CELLS.has(`${col},${row}`) && !g.towers.some(t => t.col === col && t.row === row);
+      if (valid && g.gold >= TOWER_DEFS[g.placingType].cost) {
+        const def = TOWER_DEFS[g.placingType];
+        g.gold -= def.cost;
+        g.towers.push({
+          id: ++g.towerIdSeq, type: g.placingType, col, row,
+          damage: def.damage, range: def.range, fireRate: def.fireRate,
+          cooldown: 0, kills: 0, level: 1, cost: def.cost,
+        });
+        g.placingType = null;
+        syncHud();
+      }
+    } else {
+      const clicked = g.towers.find(t => t.col === col && t.row === row);
+      g.selectedTowerId = clicked ? clicked.id : null;
+      syncHud();
     }
+  }, [syncHud]);
 
-    rafId = requestAnimationFrame(loop)
-    rafRef.current = rafId
-    return () => cancelAnimationFrame(rafId)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // empty deps — intentional: game loop is self-contained via refs
+  const handleMouseMove = useCallback((ev: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current!;
+    const rect   = canvas.getBoundingClientRect();
+    const { w: cw, h: ch } = cellRef.current;
+    gs.current.hoveredCell = {
+      x: Math.floor((ev.clientX - rect.left) / cw),
+      y: Math.floor((ev.clientY - rect.top) / ch),
+    };
+  }, []);
 
-  // ─── Input helpers ───────────────────────────────────────────────────────
+  const handleMouseLeave = useCallback(() => { gs.current.hoveredCell = null; }, []);
 
-  const getCellFromEvent = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return null
-    const rect = canvas.getBoundingClientRect()
-    const cs = drawMetaRef.current.cellSize
-    const col = Math.floor((e.clientX - rect.left) / cs)
-    const row = Math.floor((e.clientY - rect.top) / cs)
-    if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return null
-    return { col, row }
-  }, [])
+  // ─── Control handlers ──────────────────────────────────────────────────────
 
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    drawMetaRef.current.hoverCell = getCellFromEvent(e)
-  }, [getCellFromEvent])
+  const startWave = useCallback(() => {
+    const g = gs.current;
+    if (g.phase !== 'prep' || g.wave >= WAVES.length) return;
+    const queue  = buildSpawnQueue(g.wave);
+    g.spawnQueue = queue;
+    g.spawnTimer = queue[0]?.delay ?? 0;
+    g.phase = 'wave';
+    g.wave++;
+    syncHud();
+  }, [syncHud]);
 
-  const handleMouseLeave = useCallback(() => {
-    drawMetaRef.current.hoverCell = null
-  }, [])
+  const selectTower = useCallback((type: TowerType) => {
+    const g = gs.current;
+    g.placingType     = g.placingType === type ? null : type;
+    g.selectedTowerId = null;
+    syncHud();
+  }, [syncHud]);
 
-  const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const cell = getCellFromEvent(e)
-    if (!cell) return
-    const gs = gsRef.current
-    if (gs.phase === 'gameover' || gs.phase === 'victory') return
+  const setSpeed = useCallback((s: number) => { gs.current.speed = s; syncHud(); }, [syncHud]);
 
-    const { col, row } = cell
-    const key = `${col},${row}`
+  const upgradeTower = useCallback(() => {
+    const g = gs.current;
+    if (g.selectedTowerId === null) return;
+    const t = g.towers.find(t2 => t2.id === g.selectedTowerId);
+    if (!t) return;
+    const cost = Math.floor(t.cost * UPGRADE_COST_RATIO);
+    if (g.gold < cost) return;
+    g.gold   -= cost;
+    t.damage  = Math.floor(t.damage * 1.3);
+    t.range   = Math.round(t.range * 1.1 * 10) / 10;
+    t.level++;
+    syncHud();
+  }, [syncHud]);
 
-    if (PATH_SET.has(key)) return
-
-    const existing = gs.towers.find(t => t.col === col && t.row === row)
-    if (existing) {
-      // Click on existing tower: toggle selection to show range
-      const cur = drawMetaRef.current.selectedCell
-      drawMetaRef.current.selectedCell =
-        cur && cur.col === col && cur.row === row ? null : { col, row }
-      return
-    }
-
-    const def = TOWER_DEFS[selectedTowerRef.current]
-    if (gs.gold < def.cost) return
-
-    gs.gold -= def.cost
-    gs.towers.push({ col, row, type: selectedTowerRef.current, cooldownRemaining: 0 })
-    drawMetaRef.current.selectedCell = null
-    // Immediate UI sync for gold
-    setUiState(u => ({ ...u, gold: gs.gold }))
-  }, [getCellFromEvent])
-
-  // ─── Actions ─────────────────────────────────────────────────────────────
-
-  const launchWave = useCallback(() => {
-    const gs = gsRef.current
-    if (gs.phase !== 'prepare' || gs.wave >= WAVES.length) return
-    gs.spawnQueue = buildSpawnQueue(gs.wave)
-    gs.spawnTimer = 0
-    gs.wave++
-    gs.phase = 'wave'
-    setUiState(u => ({ ...u, wave: gs.wave, phase: 'wave' }))
-  }, [])
-
-  const toggleSpeed = useCallback(() => {
-    const gs = gsRef.current
-    gs.speedMultiplier = gs.speedMultiplier === 1 ? 2 : 1
-    setSpeed2x(gs.speedMultiplier === 2)
-  }, [])
+  const sellTower = useCallback(() => {
+    const g = gs.current;
+    if (g.selectedTowerId === null) return;
+    const idx = g.towers.findIndex(t => t.id === g.selectedTowerId);
+    if (idx === -1) return;
+    g.gold += Math.floor(g.towers[idx].cost * 0.5);
+    g.towers.splice(idx, 1);
+    g.selectedTowerId = null;
+    syncHud();
+  }, [syncHud]);
 
   const restart = useCallback(() => {
-    const fresh = makeInitialState()
-    Object.assign(gsRef.current, fresh)
-    drawMetaRef.current.hoverCell = null
-    drawMetaRef.current.selectedCell = null
-    setSpeed2x(false)
-    setUiState({ gold: 200, lives: 20, wave: 0, score: 0, phase: 'prepare' })
-  }, [])
+    Object.assign(gs.current, {
+      phase: 'prep', wave: 0, gold: 150, lives: 30, score: 0, speed: 1,
+      enemies: [], towers: [], projectiles: [], popups: [],
+      placingType: null, selectedTowerId: null,
+      spawnQueue: [], spawnTimer: 0,
+    } satisfies Partial<GameState>);
+    syncHud();
+  }, [syncHud]);
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // ─── Escape key ───────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      gs.current.placingType     = null;
+      gs.current.selectedTowerId = null;
+      syncHud();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [syncHud]);
+
+  // ─── Derived UI ───────────────────────────────────────────────────────────
+
+  const selectedTower = hud.selectedTowerId !== null
+    ? gs.current.towers.find(t => t.id === hud.selectedTowerId)
+    : null;
+
+  const nextWavePreview = WAVES[hud.wave]
+    ? WAVES[hud.wave].map(g => `${g.count}× ${g.type}`).join('  ')
+    : null;
+
+  // ─── JSX ──────────────────────────────────────────────────────────────────
 
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', height: '100%',
-      background: '#0a0f06', color: TEXT, fontFamily: 'system-ui, sans-serif',
-      overflow: 'hidden', userSelect: 'none',
+      width: '100%', height: '100vh',
+      background: '#0d0d15',
+      display: 'flex', flexDirection: 'column',
+      fontFamily: 'system-ui, sans-serif',
+      userSelect: 'none', overflow: 'hidden',
     }}>
-      {/* ── Header ── */}
+      {/* ── Top HUD ── */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
-        background: SURFACE, borderBottom: `1px solid ${BORDER}`, flexShrink: 0,
-        flexWrap: 'wrap', rowGap: 6,
+        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+        padding: '6px 12px',
+        background: 'linear-gradient(to bottom, #1a1a2e, #12121e)',
+        borderBottom: '2px solid #2a2a4a',
+        flexShrink: 0,
       }}>
-        <button onClick={onBack} style={{
-          background: 'transparent', border: `1px solid ${BORDER}`, color: MUTED,
-          cursor: 'pointer', borderRadius: 8, padding: '4px 12px', fontSize: 13,
-          transition: 'border-color 0.15s',
-        }}>← Retour</button>
+        <button onClick={onBack} style={btn('#334')}>← Retour</button>
 
-        <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: 0.5 }}>⚔️ Tower Defense</span>
+        <Badge label="Vague"  value={`${hud.wave} / ${WAVES.length}`} color="#7799ff" />
+        <Badge label="Or"     value={`${hud.gold} 🪙`}              color="#ffd700" />
+        <Badge label="Vies"   value={`${hud.lives} ❤️`}              color={hud.lives <= 5 ? '#ff4444' : '#ff8888'} />
+        <Badge label="Score"  value={String(hud.score)}              color="#aaffaa" />
 
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-          <StatPill label="Or"    value={`💰 ${uiState.gold}`}          color="#facc15" />
-          <StatPill label="Vies"  value={`❤️ ${uiState.lives}`}         color="#f87171" />
-          <StatPill label="Vague" value={`🌊 ${uiState.wave}/${WAVES.length}`} color="#60a5fa" />
-          <StatPill label="Score" value={`⭐ ${uiState.score}`}          color={ACCENT} />
-        </div>
-      </div>
+        <div style={{ flex: 1 }} />
 
-      {/* ── Canvas area ── */}
-      <div
-        ref={containerRef}
-        style={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0 }}
-      >
-        <canvas
-          ref={canvasRef}
-          style={{ display: 'block', cursor: 'crosshair', maxWidth: '100%' }}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-          onClick={handleClick}
-        />
+        <span style={{ color: '#666', fontSize: 11 }}>Vitesse:</span>
+        {[1, 2].map(s => (
+          <button key={s} onClick={() => setSpeed(s)}
+            style={{ ...btn(hud.speed === s ? '#446' : '#223'), padding: '3px 8px', fontSize: 12 }}>
+            {s}×
+          </button>
+        ))}
 
-        {/* Game-over / victory overlay */}
-        {(uiState.phase === 'gameover' || uiState.phase === 'victory') && (
-          <div style={{
-            position: 'absolute', inset: 0, display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(0,0,0,0.72)',
-          }}>
-            <div style={{
-              background: SURFACE2, border: `2px solid ${BORDER}`,
-              borderRadius: 18, padding: '40px 52px', textAlign: 'center',
-              maxWidth: 360, boxShadow: '0 8px 40px rgba(0,0,0,0.7)',
-            }}>
-              <div style={{ fontSize: 52, lineHeight: 1 }}>
-                {uiState.phase === 'victory' ? '🏆' : '💀'}
-              </div>
-              <div style={{ fontSize: 28, fontWeight: 800, marginTop: 14 }}>
-                {uiState.phase === 'victory' ? 'Victoire !' : 'Défaite !'}
-              </div>
-              <div style={{ color: MUTED, marginTop: 8, fontSize: 14 }}>
-                Score final :{' '}
-                <span style={{ color: ACCENT, fontWeight: 700, fontSize: 16 }}>
-                  {uiState.score}
-                </span>
-              </div>
-              <div style={{ color: MUTED, fontSize: 13, marginTop: 4 }}>
-                Vague {uiState.wave} / {WAVES.length}
-              </div>
-              <button
-                onClick={restart}
-                style={{
-                  marginTop: 26, padding: '11px 32px', borderRadius: 10,
-                  border: 'none', background: ACCENT, color: '#fff',
-                  fontWeight: 700, fontSize: 15, cursor: 'pointer',
-                  boxShadow: `0 0 20px ${ACCENT}66`,
-                }}
-              >
-                Rejouer
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Controls bar ── */}
-      <div style={{
-        padding: '10px 14px', background: SURFACE, borderTop: `1px solid ${BORDER}`,
-        display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap',
-        flexShrink: 0, rowGap: 6,
-      }}>
-        {/* Tower selector */}
-        {(Object.keys(TOWER_DEFS) as TowerType[]).map(type => {
-          const def = TOWER_DEFS[type]
-          const isSelected = selectedTower === type
-          const cantAfford = uiState.gold < def.cost
-          return (
-            <button
-              key={type}
-              onClick={() => setSelectedTower(type)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '6px 13px', borderRadius: 9, fontSize: 13, fontWeight: 600,
-                cursor: 'pointer',
-                border: isSelected ? `2px solid ${def.color}` : `2px solid ${BORDER}`,
-                background: isSelected ? `${def.color}1e` : SURFACE2,
-                color: cantAfford ? MUTED : TEXT,
-                opacity: cantAfford ? 0.65 : 1,
-                transition: 'all 0.13s',
-                position: 'relative',
-              }}
-              title={cantAfford ? "Pas assez d'or" : `Placer un ${def.label}`}
-            >
-              <span style={{ fontSize: 16 }}>{def.emoji}</span>
-              <span>{def.label}</span>
-              <span style={{
-                fontSize: 11, background: 'rgba(250,204,21,0.15)', color: '#facc15',
-                borderRadius: 5, padding: '1px 6px', fontWeight: 700,
-              }}>
-                {def.cost}💰
-              </span>
-              {cantAfford && (
-                <span style={{
-                  fontSize: 10, color: '#f87171', position: 'absolute',
-                  bottom: -14, left: '50%', transform: 'translateX(-50%)',
-                  whiteSpace: 'nowrap',
-                }}>
-                  Manque d'or
-                </span>
-              )}
-            </button>
-          )
-        })}
-
-        <div style={{ width: 1, height: 30, background: BORDER, margin: '0 2px' }} />
-
-        {/* Launch wave */}
-        {uiState.phase === 'prepare' && uiState.wave < WAVES.length && (
-          <button
-            onClick={launchWave}
-            style={{
-              padding: '7px 18px', borderRadius: 9, border: 'none',
-              background: 'linear-gradient(135deg,#16a34a,#15803d)',
-              color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
-              boxShadow: '0 0 12px rgba(22,163,74,0.45)',
-            }}
-          >
-            ▶ Lancer vague {uiState.wave + 1}
+        {hud.phase === 'prep' && (
+          <button onClick={startWave} disabled={hud.wave >= WAVES.length}
+            style={{ ...btn('#1a5c1a'), fontWeight: 700, fontSize: 13 }}>
+            {hud.wave >= WAVES.length ? 'Victoire !' : `Lancer vague ${hud.wave + 1} →`}
           </button>
         )}
-
-        {/* Speed toggle */}
-        <button
-          onClick={toggleSpeed}
-          style={{
-            padding: '7px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600,
-            cursor: 'pointer',
-            border: speed2x ? '2px solid #f97316' : `2px solid ${BORDER}`,
-            background: speed2x ? 'rgba(249,115,22,0.15)' : SURFACE2,
-            color: speed2x ? '#f97316' : TEXT,
-            transition: 'all 0.13s',
-          }}
-        >
-          {speed2x ? '⏩ 2×' : '▶ 1×'}
-        </button>
-
-        {/* Status hint */}
-        {uiState.phase === 'wave' && (
-          <span style={{ fontSize: 12, color: MUTED, marginLeft: 4 }}>
-            Vague en cours…
-          </span>
-        )}
-        {uiState.phase === 'prepare' && uiState.wave === 0 && (
-          <span style={{ fontSize: 12, color: MUTED, marginLeft: 4 }}>
-            Cliquez sur la grille pour placer des tours
-          </span>
+        {hud.phase === 'wave' && (
+          <span style={{ color: '#ffaa44', fontWeight: 700, fontSize: 13 }}>Vague en cours…</span>
         )}
       </div>
+
+      {/* ── Main area ── */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Canvas */}
+        <div ref={containerRef} style={{ flex: 1, position: 'relative' }}>
+          <canvas
+            ref={canvasRef}
+            style={{ display: 'block', width: '100%', height: '100%', cursor: hud.placingType ? 'crosshair' : 'pointer' }}
+            onClick={handleClick}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+          />
+
+          {/* Game-over / victory overlay */}
+          {(hud.phase === 'gameover' || hud.phase === 'victory') && (
+            <div style={{
+              position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.77)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
+            }}>
+              <div style={{
+                fontSize: 44, fontWeight: 900,
+                color: hud.phase === 'victory' ? '#ffd700' : '#ff4444',
+                textShadow: '0 0 30px currentColor',
+              }}>
+                {hud.phase === 'victory' ? 'VICTOIRE !' : 'DÉFAITE'}
+              </div>
+              <div style={{ color: '#ccc', fontSize: 20 }}>Score : {hud.score}</div>
+              <button onClick={restart} style={{ ...btn('#446'), fontSize: 16, padding: '10px 28px' }}>Recommencer</button>
+              <button onClick={onBack}  style={{ ...btn('#334'), fontSize: 14 }}>Retour au menu</button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Right panel ── */}
+        <div style={{
+          width: 205, background: '#111827', borderLeft: '2px solid #1e293b',
+          display: 'flex', flexDirection: 'column', overflowY: 'auto',
+        }}>
+          {/* Tower shop */}
+          <section style={{ padding: '10px 8px', borderBottom: '1px solid #1e293b' }}>
+            <div style={sectionTitle}>TOURELLES</div>
+            {(Object.keys(TOWER_DEFS) as TowerType[]).map(type => {
+              const def       = TOWER_DEFS[type];
+              const canAfford = hud.gold >= def.cost;
+              const active    = hud.placingType === type;
+              return (
+                <button key={type} onClick={() => selectTower(type)}
+                  disabled={!canAfford && !active}
+                  style={{
+                    ...btn(active ? '#264d26' : canAfford ? '#1e293b' : '#151f2e'),
+                    width: '100%', marginBottom: 4, textAlign: 'left',
+                    display: 'flex', flexDirection: 'column', gap: 2,
+                    padding: '6px 8px',
+                    border: active ? '1px solid #4ade80' : '1px solid #2a3a4a',
+                    opacity: !canAfford && !active ? 0.5 : 1,
+                    cursor: !canAfford && !active ? 'not-allowed' : 'pointer',
+                  }}>
+                  <span style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600 }}>{def.name}</span>
+                  <span style={{ color: '#ffd700', fontSize: 11 }}>{def.cost} 🪙</span>
+                  <span style={{ color: '#64748b', fontSize: 10 }}>
+                    DMG {def.damage} | Portée {def.range}
+                    {def.aoe > 0 && ` | AOE ${def.aoe}`}
+                    {def.slowDuration > 0 && ' | Ralenti'}
+                  </span>
+                </button>
+              );
+            })}
+          </section>
+
+          {/* Selected tower info */}
+          {selectedTower && (
+            <section style={{ padding: '10px 8px', borderBottom: '1px solid #1e293b' }}>
+              <div style={sectionTitle}>TOURELLE SÉLEC.</div>
+              <div style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                {TOWER_DEFS[selectedTower.type].name} Niv.{selectedTower.level}
+              </div>
+              <div style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.8 }}>
+                <div>Dégâts : {selectedTower.damage}</div>
+                <div>Portée : {selectedTower.range.toFixed(1)}</div>
+                <div>Cadence : {selectedTower.fireRate}/s</div>
+                <div>Kills : {selectedTower.kills}</div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+                {(() => {
+                  const cost = Math.floor(selectedTower.cost * UPGRADE_COST_RATIO);
+                  return (
+                    <button onClick={upgradeTower} disabled={hud.gold < cost}
+                      style={{ ...btn('#1e3a5f'), width: '100%', fontSize: 11, opacity: hud.gold < cost ? 0.5 : 1, cursor: hud.gold < cost ? 'not-allowed' : 'pointer' }}>
+                      Améliorer ({cost} 🪙)
+                    </button>
+                  );
+                })()}
+                <button onClick={sellTower} style={{ ...btn('#3f1515'), width: '100%', fontSize: 11 }}>
+                  Vendre ({Math.floor(selectedTower.cost * 0.5)} 🪙)
+                </button>
+              </div>
+            </section>
+          )}
+
+          {/* Next wave preview */}
+          {hud.phase === 'prep' && nextWavePreview && (
+            <section style={{ padding: '10px 8px', borderBottom: '1px solid #1e293b' }}>
+              <div style={sectionTitle}>PROCHAINE VAGUE</div>
+              <div style={{ color: '#fbbf24', fontSize: 11, lineHeight: 1.7 }}>{nextWavePreview}</div>
+            </section>
+          )}
+
+          {/* Help */}
+          <section style={{ padding: '10px 8px', marginTop: 'auto' }}>
+            <div style={{ ...sectionTitle, color: '#475569' }}>AIDE</div>
+            <div style={{ color: '#475569', fontSize: 10, lineHeight: 1.8 }}>
+              <div>Clic canvas → poser</div>
+              <div>Clic tourelle → sélec.</div>
+              <div>Echap → annuler</div>
+            </div>
+          </section>
+        </div>
+      </div>
     </div>
-  )
+  );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Tiny shared UI helpers ───────────────────────────────────────────────────
 
-function StatPill({ label, value, color }: { label: string; value: string; color: string }) {
+function Badge({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-      <span style={{ fontSize: 9, color: MUTED, textTransform: 'uppercase', letterSpacing: 1 }}>
-        {label}
-      </span>
-      <span style={{ fontSize: 13, fontWeight: 700, color, lineHeight: 1 }}>{value}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <span style={{ color: '#64748b', fontSize: 10, letterSpacing: 0.4 }}>{label}</span>
+      <span style={{ color, fontSize: 14, fontWeight: 700 }}>{value}</span>
     </div>
-  )
+  );
 }
+
+function btn(bg: string): React.CSSProperties {
+  return {
+    background: bg, color: '#e2e8f0',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 6, padding: '5px 12px',
+    cursor: 'pointer', fontSize: 12,
+  };
+}
+
+const sectionTitle: React.CSSProperties = {
+  color: '#94a3b8', fontSize: 11, fontWeight: 700,
+  marginBottom: 6, letterSpacing: 1,
+};

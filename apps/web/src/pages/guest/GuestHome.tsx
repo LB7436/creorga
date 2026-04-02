@@ -205,7 +205,30 @@ function GuestMenu() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!companyId) return
+    if (!companyId) {
+      // Demo menu for guests without a company session
+      const demo = [
+        { id: 'boissons', name: '🍹 Boissons', products: [
+          { id: 'b1', name: 'Eau minérale', price: 2.50 },
+          { id: 'b2', name: 'Coca-Cola', price: 3.00 },
+          { id: 'b3', name: 'Jus d\'orange', price: 3.50 },
+          { id: 'b4', name: 'Bière pression', price: 4.00 },
+        ]},
+        { id: 'snacks', name: '🍟 Snacks', products: [
+          { id: 's1', name: 'Chips maison', price: 4.50 },
+          { id: 's2', name: 'Nachos & guacamole', price: 6.00 },
+          { id: 's3', name: 'Mini sandwichs (×3)', price: 7.50 },
+        ]},
+        { id: 'desserts', name: '🍰 Desserts', products: [
+          { id: 'd1', name: 'Brownie chocolat', price: 4.00 },
+          { id: 'd2', name: 'Glace 2 boules', price: 5.00 },
+        ]},
+      ]
+      setCategories(demo)
+      setActiveCategory('boissons')
+      setLoading(false)
+      return
+    }
     const headers = { 'x-company-id': companyId }
     Promise.all([
       api.get('/categories', { headers }).then((r) => r.data),
