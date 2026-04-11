@@ -3,9 +3,11 @@ import FloorPlanPage from './pages/FloorPlanPage'
 import OrderPage from './pages/OrderPage'
 import PaymentPage from './pages/PaymentPage'
 import ConfigPage from './pages/ConfigPage'
+import PinLoginPage from './pages/PinLoginPage'
+import KioskPage from './pages/KioskPage'
 import { usePOS } from './store/posStore'
 
-export type AppView = 'floor' | 'order' | 'payment' | 'config'
+export type AppView = 'pin_login' | 'floor' | 'order' | 'payment' | 'config' | 'kiosk'
 
 const S = {
   app: {
@@ -65,10 +67,19 @@ const btn = (active = false, danger = false) => ({
 })
 
 export default function App() {
-  const [view, setView] = useState<AppView>('floor')
+  const [view, setView] = useState<AppView>('pin_login')
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
   const tables = usePOS(s => s.tables)
   const settings = usePOS(s => s.settings)
+  const currentStaff = usePOS(s => s.currentStaff)
+  const logoutStaff = usePOS(s => s.logoutStaff)
+  const kioskMode = usePOS(s => s.kioskMode)
+  const setKioskMode = usePOS(s => s.setKioskMode)
+
+  // Auto-transition when staff logs in
+  if (view === 'pin_login' && currentStaff) {
+    setView('floor')
+  }
 
   const activeTable = activeTableId ? tables.find(t => t.id === activeTableId) : null
 
@@ -90,7 +101,20 @@ export default function App() {
       setView('floor')
     } else if (view === 'config') {
       setView('floor')
+    } else if (view === 'kiosk') {
+      setKioskMode(false)
+      setView('floor')
     }
+  }
+
+  // PIN login screen
+  if (view === 'pin_login' || !currentStaff) {
+    return <PinLoginPage />
+  }
+
+  // Kiosk mode
+  if (view === 'kiosk' || kioskMode) {
+    return <KioskPage onExit={() => { setKioskMode(false); setView('floor') }} />
   }
 
   const occupiedCount = tables.filter(t => t.status === 'occupied').length
@@ -137,6 +161,13 @@ export default function App() {
             </button>
           )}
 
+          {/* Kiosk button */}
+          {view === 'floor' && (
+            <button onClick={() => { setKioskMode(true); setView('kiosk') }} style={btn(false)}>
+              Kiosque
+            </button>
+          )}
+
           {/* Config button */}
           {view !== 'config' && (
             <button onClick={() => setView('config')} style={btn(false)}>
@@ -144,6 +175,14 @@ export default function App() {
                 <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
               </svg>
               Config
+            </button>
+          )}
+
+          {/* Staff indicator + logout */}
+          {currentStaff && (
+            <button onClick={() => { logoutStaff(); setView('pin_login') }} style={btn(false, true)} title="Déconnexion">
+              <div style={{ width: 6, height: 6, borderRadius: 3, background: currentStaff.color }} />
+              {currentStaff.name} ✕
             </button>
           )}
         </div>

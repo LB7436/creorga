@@ -11,6 +11,12 @@ export type ModuleId =
   | 'contracts'
   | 'hr'
   | 'accounting'
+  | 'marketing'
+  | 'reservations'
+  | 'inventory'
+  | 'haccp'
+  | 'events'
+  | 'reputation'
 
 export interface ModuleDef {
   id: ModuleId
@@ -30,7 +36,7 @@ export const MODULES: ModuleDef[] = [
     tagline: 'Tables, commandes & paiements',
     color: '#1E3A5F',
     colorLight: '#dbeafe',
-    path: '/pos',
+    path: '/pos/dashboard',
     available: true,
     category: 'core',
   },
@@ -51,7 +57,7 @@ export const MODULES: ModuleDef[] = [
     color: '#065F46',
     colorLight: '#d1fae5',
     path: '/invoices',
-    available: false,
+    available: true,
     category: 'business',
   },
   {
@@ -61,7 +67,7 @@ export const MODULES: ModuleDef[] = [
     color: '#7C3AED',
     colorLight: '#ede9fe',
     path: '/qrmenu',
-    available: false,
+    available: true,
     category: 'digital',
   },
   {
@@ -70,8 +76,8 @@ export const MODULES: ModuleDef[] = [
     tagline: 'Programme de récompenses',
     color: '#9D174D',
     colorLight: '#fce7f3',
-    path: '/loyalty',
-    available: false,
+    path: '/crm/fidelite',
+    available: true,
     category: 'digital',
   },
   {
@@ -80,8 +86,8 @@ export const MODULES: ModuleDef[] = [
     tagline: 'Horaires & disponibilités',
     color: '#92400E',
     colorLight: '#fef3c7',
-    path: '/planning',
-    available: false,
+    path: '/hr/planning',
+    available: true,
     category: 'admin',
   },
   {
@@ -90,8 +96,8 @@ export const MODULES: ModuleDef[] = [
     tagline: 'Clients & fournisseurs',
     color: '#0E7490',
     colorLight: '#cffafe',
-    path: '/contracts',
-    available: false,
+    path: '/invoices/devis',
+    available: true,
     category: 'business',
   },
   {
@@ -101,7 +107,7 @@ export const MODULES: ModuleDef[] = [
     color: '#991B1B',
     colorLight: '#fee2e2',
     path: '/hr',
-    available: false,
+    available: true,
     category: 'admin',
   },
   {
@@ -111,8 +117,68 @@ export const MODULES: ModuleDef[] = [
     color: '#1F2937',
     colorLight: '#f3f4f6',
     path: '/accounting',
-    available: false,
+    available: true,
     category: 'business',
+  },
+  {
+    id: 'marketing',
+    name: 'Marketing',
+    tagline: 'Campagnes & codes promo',
+    color: '#BE185D',
+    colorLight: '#fce7f3',
+    path: '/marketing',
+    available: true,
+    category: 'business',
+  },
+  {
+    id: 'reservations',
+    name: 'Réservations',
+    tagline: 'Gestion des réservations',
+    color: '#0E7490',
+    colorLight: '#cffafe',
+    path: '/reservations',
+    available: true,
+    category: 'core',
+  },
+  {
+    id: 'inventory',
+    name: 'Inventaire',
+    tagline: 'Stock, recettes & fournisseurs',
+    color: '#92400E',
+    colorLight: '#fef3c7',
+    path: '/inventory',
+    available: true,
+    category: 'core',
+  },
+  {
+    id: 'haccp',
+    name: 'HACCP',
+    tagline: 'Traçabilité & hygiène alimentaire',
+    color: '#B45309',
+    colorLight: '#fef3c7',
+    path: '/haccp',
+    available: true,
+    category: 'admin',
+  },
+  {
+    id: 'events',
+    name: 'Événements',
+    tagline: 'Devis & gestion événementielle',
+    color: '#6D28D9',
+    colorLight: '#ede9fe',
+    path: '/events',
+    available: true,
+    category: 'business',
+  },
+  {
+    id: 'reputation',
+    name: 'Réputation',
+    tagline: 'Avis clients & e-réputation',
+    color: '#0369A1',
+    colorLight: '#e0f2fe',
+    path: '/reputation',
+    available: true,
+    category: 'digital',
   },
 ]
 

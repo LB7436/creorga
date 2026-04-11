@@ -57,7 +57,7 @@ router.put('/:id', validate(updateSchema), async (req: AuthRequest, res, next) =
 
     // Check role
     const uc = await prisma.userCompany.findUnique({
-      where: { userId_companyId: { userId: req.user!.id, companyId } },
+      where: { userId_companyId: { userId: req.user!.userId, companyId } },
     })
     if (!uc || (uc.role !== 'OWNER' && uc.role !== 'MANAGER')) {
       return res.status(403).json({ message: 'Accès réservé aux admins' })

@@ -15,6 +15,12 @@ import {
   Smartphone,
   ChevronRight,
   Sparkles,
+  Megaphone,
+  CalendarCheck,
+  Package,
+  ClipboardCheck,
+  MessageSquare,
+  Star,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
@@ -33,6 +39,12 @@ const MODULE_ICONS: Record<ModuleId, LucideIcon> = {
   contracts: ScrollText,
   hr: Users,
   accounting: BarChart3,
+  marketing: Megaphone,
+  reservations: CalendarCheck,
+  inventory: Package,
+  haccp: ClipboardCheck,
+  events: Star,
+  reputation: MessageSquare,
 }
 
 // Framer variants

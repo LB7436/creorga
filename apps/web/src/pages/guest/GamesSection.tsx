@@ -1,9 +1,12 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Trophy, Wifi, User, ChevronLeft, Lock, Star, Gamepad2 } from 'lucide-react'
-import { ACCENT, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './games/theme'
+import { ACCENT, SURFACE2, BORDER, TEXT, MUTED } from './games/theme'
 
 // ─── Game imports ──────────────────────────────────────────────────────────────
+import MemoryGame from './games/MemoryGame'
+import TicTacToeGame from './games/TicTacToeGame'
+import ConnectFourGame from './games/ConnectFourGame'
 import PokerGame from './games/PokerGame'
 import Game2048 from './games/Game2048'
 import SnakeGame from './games/SnakeGame'
@@ -28,6 +31,7 @@ import BlackjackGame from './games/BlackjackGame'
 import ChessGame from './games/ChessGame'
 import TowerDefenseGame from './games/TowerDefenseGame'
 import SolitaireGame from './games/SolitaireGame'
+import HangmanGame from './games/Hangman'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -108,253 +112,6 @@ const CAT_COLOR: Record<Category, string> = {
 
 
 
-const EMOJI_POOL=['🎮','🎯','🎲','🎪','🎨','🎭','🎬','🎤','🎸','🎺','🎻','🥁','🎹','🎠','🎡','🎢','🎰','🃏']
-function MemoryGame({ onBack }: { onBack:()=>void }) {
-  const make=()=>{const p=EMOJI_POOL.slice(0,8).flatMap(e=>[e,e]);return p.sort(()=>Math.random()-0.5).map((emoji,i)=>({id:i,emoji,flipped:false,matched:false}))}
-  const [cards,setCards]=useState(make);const [flipped,setFlipped]=useState<number[]>([]);const [moves,setMoves]=useState(0);const matched=cards.filter(c=>c.matched).length/2
-  const flip=(id:number)=>{if(flipped.length===2)return;const card=cards.find(c=>c.id===id);if(!card||card.flipped||card.matched)return;const nf=[...flipped,id];setCards(cs=>cs.map(c=>c.id===id?{...c,flipped:true}:c));if(nf.length===2){setMoves(m=>m+1);const[a,b]=nf.map(fid=>cards.find(c=>c.id===fid)!);if(a.emoji===b.emoji){setTimeout(()=>{setCards(cs=>cs.map(c=>nf.includes(c.id)?{...c,matched:true}:c));setFlipped([])},400)}else{setTimeout(()=>{setCards(cs=>cs.map(c=>nf.includes(c.id)?{...c,flipped:false}:c));setFlipped([])},800)}}else{setFlipped(nf)}}
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2"><button onClick={onBack} className="p-1.5 rounded-lg hover:opacity-70" style={{color:MUTED}}><ChevronLeft size={18}/></button><span className="text-base font-bold" style={{color:TEXT}}>🔮 Memory</span></div>
-        <div className="flex gap-3 text-xs" style={{color:MUTED}}><span>Paires:{matched}/8</span><span>Coups:{moves}</span></div>
-      </div>
-      {matched===8&&<div className="rounded-xl p-3 text-center font-bold text-sm" style={{background:'rgba(34,197,94,0.1)',border:'1px solid rgba(34,197,94,0.3)',color:'#22c55e'}}>Bravo ! {moves} coups 🎉</div>}
-      <div className="grid grid-cols-4 gap-2">{cards.map(card=><button key={card.id} onClick={()=>flip(card.id)} className="aspect-square rounded-xl text-2xl flex items-center justify-center transition-all" style={{background:card.matched?'rgba(34,197,94,0.15)':card.flipped?SURFACE2:SURFACE,border:card.matched?'1px solid rgba(34,197,94,0.3)':`1px solid ${BORDER}`}}>{(card.flipped||card.matched)?card.emoji:'?'}</button>)}</div>
-      {matched===8&&<button onClick={()=>{setCards(make());setFlipped([]);setMoves(0)}} className="w-full py-2.5 rounded-xl font-bold text-sm" style={{background:ACCENT,color:'#fff'}}>Rejouer</button>}
-    </div>
-  )
-}
-
-// ─── TicTacToe AI helpers (defined outside component to avoid recreation) ──────
-function tttCheckWinner(board: (string|null)[]): string|null {
-  const wins=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]]
-  for(const [a,b,c] of wins){if(board[a]&&board[a]===board[b]&&board[b]===board[c])return board[a] as string}
-  return null
-}
-function tttMinimax(board: (string|null)[], isMax: boolean): number {
-  const w=tttCheckWinner(board)
-  if(w==='O') return 10
-  if(w==='X') return -10
-  if(board.every(Boolean)) return 0
-  const moves=board.map((_,i)=>i).filter(i=>!board[i])
-  if(isMax){return Math.max(...moves.map(i=>{const b=[...board];b[i]='O';return tttMinimax(b,false)}))}
-  else{return Math.min(...moves.map(i=>{const b=[...board];b[i]='X';return tttMinimax(b,true)}))}
-}
-function tttBestMove(board: (string|null)[], easy: boolean): number {
-  const empty=board.map((_,i)=>i).filter(i=>!board[i])
-  if(easy) return empty[Math.floor(Math.random()*empty.length)]
-  let best=-Infinity,idx=empty[0]
-  for(const i of empty){const b=[...board];b[i]='O';const s=tttMinimax(b,false);if(s>best){best=s;idx=i}}
-  return idx
-}
-
-function TicTacToe({ onBack }: { onBack:()=>void }) {
-  const [board,setBoard]=useState<(string|null)[]>(Array(9).fill(null))
-  const [easy,setEasy]=useState(false)
-  const [cpuThinking,setCpuThinking]=useState(false)
-  const timerRef=useRef<ReturnType<typeof setTimeout>|null>(null)
-
-  const wins=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]]
-  const winLine=wins.find(([a,b,c])=>board[a]&&board[a]===board[b]&&board[b]===board[c])
-  const winner=winLine?board[winLine[0]]:null
-  const full=board.every(Boolean)
-  const gameOver=!!(winner||full)
-  // Player is X; it's player's turn when no winner, not full, and CPU not thinking
-  const playerTurn=!gameOver&&!cpuThinking
-
-  // Trigger CPU move after player places X
-  useEffect(()=>{
-    // Count X's and O's — if more X than O and no winner, CPU should move
-    const xs=board.filter(v=>v==='X').length
-    const os=board.filter(v=>v==='O').length
-    if(xs>os&&!gameOver){
-      setCpuThinking(true)
-      timerRef.current=setTimeout(()=>{
-        setBoard(prev=>{
-          if(tttCheckWinner(prev)||prev.every(Boolean))return prev
-          const move=tttBestMove(prev,easy)
-          const next=[...prev];next[move]='O';return next
-        })
-        setCpuThinking(false)
-      },400)
-    }
-    return ()=>{if(timerRef.current)clearTimeout(timerRef.current)}
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[board])
-
-  const click=(i:number)=>{
-    if(board[i]||gameOver||!playerTurn)return
-    const b=[...board];b[i]='X';setBoard(b)
-  }
-
-  const reset=()=>{
-    if(timerRef.current)clearTimeout(timerRef.current)
-    setBoard(Array(9).fill(null));setCpuThinking(false)
-  }
-
-  const statusText=winner?`${winner==='X'?'Vous gagnez':'CPU gagne'} !`:full?'Égalité':cpuThinking?'CPU réfléchit...':'Votre tour'
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="p-1.5 rounded-lg hover:opacity-70" style={{color:MUTED}}><ChevronLeft size={18}/></button>
-        <span className="text-base font-bold" style={{color:TEXT}}>✖️ Morpion</span>
-        <span className="ml-auto text-xs" style={{color:MUTED}}>{statusText}</span>
-      </div>
-      {/* Difficulty toggle */}
-      <div className="flex gap-2">
-        {(['Facile','Difficile'] as const).map(d=>(
-          <button key={d} onClick={()=>{setEasy(d==='Facile');reset()}} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{background:(easy&&d==='Facile')||(!easy&&d==='Difficile')?ACCENT:'transparent',border:`1px solid ${(easy&&d==='Facile')||(!easy&&d==='Difficile')?ACCENT:BORDER}`,color:(easy&&d==='Facile')||(!easy&&d==='Difficile')?'#fff':MUTED}}>{d}</button>
-        ))}
-      </div>
-      {gameOver&&<div className="rounded-xl p-2.5 text-center font-bold text-sm" style={{background:'rgba(168,85,247,0.1)',border:`1px solid ${BORDER}`,color:ACCENT}}>{winner?`${winner==='X'?'Vous gagnez':'CPU gagne'} ! 🎉`:'Égalité !'}</div>}
-      <div className="grid grid-cols-3 gap-2 max-w-[200px] mx-auto">
-        {board.map((v,i)=>(
-          <button key={i} onClick={()=>click(i)} className="aspect-square rounded-xl text-2xl font-black flex items-center justify-center" style={{background:winLine&&winLine.includes(i)?'rgba(168,85,247,0.2)':SURFACE2,border:`1px solid ${BORDER}`,color:v==='X'?ACCENT:'#06b6d4',cursor:playerTurn&&!v?'pointer':'default'}}>{v}</button>
-        ))}
-      </div>
-      <button onClick={reset} className="w-full py-2.5 rounded-xl font-bold text-sm" style={{background:ACCENT,color:'#fff'}}>Rejouer</button>
-    </div>
-  )
-}
-
-// ─── ConnectFour AI helpers ────────────────────────────────────────────────────
-const C4_ROWS=6,C4_COLS=7
-function c4Check(g:number[][],r:number,c:number,p:number):boolean{
-  const dirs=[[0,1],[1,0],[1,1],[1,-1]]
-  return dirs.some(([dr,dc])=>{
-    let cnt=1
-    for(let d=1;d<4;d++){const nr=r+dr*d,nc=c+dc*d;if(nr>=0&&nr<C4_ROWS&&nc>=0&&nc<C4_COLS&&g[nr][nc]===p)cnt++;else break}
-    for(let d=1;d<4;d++){const nr=r-dr*d,nc=c-dc*d;if(nr>=0&&nr<C4_ROWS&&nc>=0&&nc<C4_COLS&&g[nr][nc]===p)cnt++;else break}
-    return cnt>=4
-  })
-}
-function c4DropRow(g:number[][],col:number):number{
-  let r=C4_ROWS-1;while(r>=0&&g[r][col])r--;return r
-}
-// Try to find a winning column for player p; returns -1 if none
-function c4WinCol(g:number[][],p:number):number{
-  for(let c=0;c<C4_COLS;c++){
-    const r=c4DropRow(g,c);if(r<0)continue
-    const tmp=g.map(row=>[...row]);tmp[r][c]=p
-    if(c4Check(tmp,r,c,p))return c
-  }
-  return -1
-}
-// 2-move lookahead score for difficile
-function c4ScoreCol(g:number[][],col:number):number{
-  const r=c4DropRow(g,col);if(r<0)return -999
-  const g2=g.map(row=>[...row]);g2[r][col]=2
-  if(c4Check(g2,r,col,2))return 100
-  // block player win
-  if(c4WinCol(g2,1)!==-1)return -50
-  // count open 3s for cpu after this move
-  let score=col===Math.floor(C4_COLS/2)?3:0
-  return score
-}
-function c4BestMove(g:number[][],easy:boolean):number{
-  const cols=Array.from({length:C4_COLS},(_,i)=>i).filter(c=>c4DropRow(g,c)>=0)
-  if(easy){return cols[Math.floor(Math.random()*cols.length)]}
-  // 1. win immediately
-  const win=c4WinCol(g,2);if(win!==-1)return win
-  // 2. block player
-  const blk=c4WinCol(g,1);if(blk!==-1)return blk
-  // 3. score each column
-  let best=-Infinity,chosen=cols[Math.floor(Math.random()*cols.length)]
-  for(const c of cols){const s=c4ScoreCol(g,c);if(s>best){best=s;chosen=c}}
-  return chosen
-}
-
-function ConnectFour({ onBack }: { onBack:()=>void }) {
-  const empty=():number[][]=>Array.from({length:C4_ROWS},()=>Array(C4_COLS).fill(0))
-  const [grid,setGrid]=useState<number[][]>(empty)
-  const [winner,setWinner]=useState(0)
-  const [easy,setEasy]=useState(false)
-  const [cpuThinking,setCpuThinking]=useState(false)
-  const timerRef=useRef<ReturnType<typeof setTimeout>|null>(null)
-
-  // Track whose turn: 1=player(red), 2=cpu(yellow)
-  // Derive from grid cell counts
-  const reds=grid.flat().filter(v=>v===1).length
-  const yellows=grid.flat().filter(v=>v===2).length
-
-  useEffect(()=>{
-    // Depend on grid/winner only — not cpuThinking, to avoid cancelling the timer
-    if(reds<=yellows||winner)return
-    setCpuThinking(true)
-    const t=setTimeout(()=>{
-      setGrid(prev=>{
-        const col=c4BestMove(prev,easy)
-        const r=c4DropRow(prev,col);if(r<0)return prev
-        const g=prev.map(row=>[...row]);g[r][col]=2
-        if(c4Check(g,r,col,2))setWinner(2)
-        return g
-      })
-      setCpuThinking(false)
-    },600)
-    return ()=>clearTimeout(t)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[grid,winner])
-
-  const drop=(col:number)=>{
-    if(winner||cpuThinking)return
-    const r=c4DropRow(grid,col);if(r<0)return
-    const g=grid.map(row=>[...row]);g[r][col]=1
-    setGrid(g)
-    if(c4Check(g,r,col,1))setWinner(1)
-  }
-
-  const reset=()=>{
-    if(timerRef.current)clearTimeout(timerRef.current)
-    setGrid(empty());setWinner(0);setCpuThinking(false)
-  }
-
-  const statusText=winner?(winner===1?'Vous gagnez !':'CPU gagne !'):cpuThinking?'CPU joue...':'Votre tour'
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="p-1.5 rounded-lg hover:opacity-70" style={{color:MUTED}}><ChevronLeft size={18}/></button>
-        <span className="text-base font-bold" style={{color:TEXT}}>🔴 Puissance 4</span>
-        <span className="ml-auto text-xs" style={{color:MUTED}}>{statusText}</span>
-      </div>
-      {/* Difficulty toggle */}
-      <div className="flex gap-2">
-        {(['Facile','Difficile'] as const).map(d=>(
-          <button key={d} onClick={()=>{setEasy(d==='Facile');reset()}} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{background:(easy&&d==='Facile')||(!easy&&d==='Difficile')?ACCENT:'transparent',border:`1px solid ${(easy&&d==='Facile')||(!easy&&d==='Difficile')?ACCENT:BORDER}`,color:(easy&&d==='Facile')||(!easy&&d==='Difficile')?'#fff':MUTED}}>{d}</button>
-        ))}
-      </div>
-      {winner>0&&<div className="rounded-xl p-2.5 text-center font-bold text-sm" style={{background:'rgba(168,85,247,0.1)',border:`1px solid ${BORDER}`,color:ACCENT}}>{winner===1?'Vous gagnez':'CPU gagne'} ! 🎉</div>}
-      <div className="rounded-2xl p-2 overflow-hidden mx-auto" style={{background:'#1a3a7c',border:'2px solid #1e40af',display:'table'}}>
-        {grid.map((row,r)=>(
-          <div key={r} className="flex">
-            {row.map((v,c)=>(
-              <button key={c} onClick={()=>drop(c)} className="m-0.5 rounded-full flex items-center justify-center" style={{width:36,height:36,background:v===0?'rgba(255,255,255,0.1)':v===1?'#ef4444':'#eab308',cursor:(winner||cpuThinking)?'default':'pointer',transition:'background 0.15s'}}/>
-            ))}
-          </div>
-        ))}
-      </div>
-      <button onClick={reset} className="w-full py-2.5 rounded-xl font-bold text-sm" style={{background:ACCENT,color:'#fff'}}>Rejouer</button>
-    </div>
-  )
-}
-
-const WORDS_HANGMAN=['JAVASCRIPT','PYTHON','ALGORITHME','VARIABLE','FONCTION','COMPOSANT','INTERFACE','SERVEUR','TABLEAU','BOUCLE','CLASSE','METHODE','OBJET','MODULE','PARAMETRE']
-const ALPHA='ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-function Hangman({ onBack }: { onBack:()=>void }) {
-  const newWord=()=>WORDS_HANGMAN[Math.floor(Math.random()*WORDS_HANGMAN.length)]
-  const [word,setWord]=useState(newWord);const [guessed,setGuessed]=useState(new Set<string>())
-  const wrong=[...guessed].filter(l=>!word.includes(l));const won=word.split('').every(l=>guessed.has(l));const lost=wrong.length>=6
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2"><button onClick={onBack} className="p-1.5 rounded-lg hover:opacity-70" style={{color:MUTED}}><ChevronLeft size={18}/></button><span className="text-base font-bold" style={{color:TEXT}}>🪢 Pendu</span><span className="ml-auto text-xs" style={{color:MUTED}}>Erreurs : {wrong.length}/6</span></div>
-      <div className="flex justify-center gap-2 flex-wrap">{word.split('').map((l,i)=><div key={i} className="w-8 h-10 border-b-2 flex items-end justify-center pb-1 font-bold text-base" style={{borderColor:ACCENT,color:TEXT}}>{guessed.has(l)?l:''}</div>)}</div>
-      <svg viewBox="0 0 80 80" className="mx-auto" width={100} height={100}><line x1="10" y1="75" x2="70" y2="75" stroke={MUTED} strokeWidth="2"/><line x1="25" y1="75" x2="25" y2="5" stroke={MUTED} strokeWidth="2"/><line x1="25" y1="5" x2="50" y2="5" stroke={MUTED} strokeWidth="2"/><line x1="50" y1="5" x2="50" y2="15" stroke={MUTED} strokeWidth="2"/>{wrong.length>0&&<circle cx="50" cy="20" r="6" stroke={ACCENT} strokeWidth="2" fill="none"/>}{wrong.length>1&&<line x1="50" y1="26" x2="50" y2="45" stroke={ACCENT} strokeWidth="2"/>}{wrong.length>2&&<line x1="50" y1="32" x2="38" y2="42" stroke={ACCENT} strokeWidth="2"/>}{wrong.length>3&&<line x1="50" y1="32" x2="62" y2="42" stroke={ACCENT} strokeWidth="2"/>}{wrong.length>4&&<line x1="50" y1="45" x2="38" y2="58" stroke={ACCENT} strokeWidth="2"/>}{wrong.length>5&&<line x1="50" y1="45" x2="62" y2="58" stroke={ACCENT} strokeWidth="2"/>}</svg>
-      {(won||lost)?<div className="rounded-xl p-3 text-center space-y-2"><p className="font-bold" style={{color:won?'#22c55e':'#ef4444'}}>{won?'Bravo ! 🎉':`Perdu ! Le mot était : ${word}`}</p><button onClick={()=>{setWord(newWord());setGuessed(new Set())}} className="px-4 py-2 rounded-xl text-sm font-bold" style={{background:ACCENT,color:'#fff'}}>Rejouer</button></div>:<div className="flex flex-wrap justify-center gap-1.5">{[...ALPHA].map(l=><button key={l} onClick={()=>setGuessed(s=>new Set(s).add(l))} disabled={guessed.has(l)} className="w-8 h-8 rounded-lg text-xs font-bold" style={{background:guessed.has(l)?(word.includes(l)?'rgba(34,197,94,0.2)':'rgba(239,68,68,0.15)'):SURFACE2,border:`1px solid ${guessed.has(l)?'transparent':BORDER}`,color:guessed.has(l)?(word.includes(l)?'#22c55e':'#ef4444'):TEXT,opacity:guessed.has(l)?0.5:1}}>{l}</button>)}</div>}
-    </div>
-  )
-}
 
 // ─── Game Card ────────────────────────────────────────────────────────────────
 
@@ -500,13 +257,13 @@ export default function GamesSection() {
       blackjack:    <BlackjackGame onBack={back}/>,
       poker:        <PokerGame onBack={back}/>,
       solitaire:    <SolitaireGame onBack={back}/>,
-      memory:       <MemoryGame onBack={back}/>,
+      memory:       <MemoryGame onBack={back} />,
       bataille:     <WarGame onBack={back}/>,
       higherlower:  <HigherLowerGame onBack={back}/>,
       chess:        <ChessGame onBack={back}/>,
       towerdefense: <TowerDefenseGame onBack={back}/>,
-      ttt:          <TicTacToe onBack={back}/>,
-      connect4:     <ConnectFour onBack={back}/>,
+      ttt:          <TicTacToeGame onBack={back}/>,
+      connect4:     <ConnectFourGame onBack={back}/>,
       mastermind:   <MastermindGame onBack={back}/>,
       reversi:      <ReversiGame onBack={back}/>,
       sliding:      <SlidingPuzzleGame onBack={back}/>,
@@ -515,7 +272,7 @@ export default function GamesSection() {
       '421':        <Game421 onBack={back}/>,
       pig:          <PigGame onBack={back}/>,
       motus:        <MotusGame onBack={back}/>,
-      hangman:      <Hangman onBack={back}/>,
+      hangman:      <HangmanGame onBack={back}/>,
       '2048':       <Game2048 onBack={back}/>,
       snake:        <SnakeGame onBack={back}/>,
       simon:        <SimonGame onBack={back}/>,

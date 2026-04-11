@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Lock, CheckCircle2, ShoppingCart, Smartphone, Receipt, QrCode, Gift, CalendarDays, ScrollText, Users, BarChart3 } from 'lucide-react'
+import { Lock, CheckCircle2, ShoppingCart, Smartphone, Receipt, QrCode, Gift, CalendarDays, ScrollText, Users, BarChart3, Megaphone, BookOpen, Warehouse, ShieldCheck, PartyPopper, Star } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { MODULES } from '@/stores/moduleStore'
 import type { ModuleId } from '@/stores/moduleStore'
@@ -14,6 +14,12 @@ const MODULE_ICONS: Record<ModuleId, LucideIcon> = {
   contracts: ScrollText,
   hr: Users,
   accounting: BarChart3,
+  marketing: Megaphone,
+  reservations: BookOpen,
+  inventory: Warehouse,
+  haccp: ShieldCheck,
+  events: PartyPopper,
+  reputation: Star,
 }
 
 export default function AdminModules() {

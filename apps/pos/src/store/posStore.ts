@@ -6,6 +6,15 @@ import { persist } from 'zustand/middleware'
 export type TableShape = 'round' | 'square' | 'rect' | 'bar'
 export type TableStatus = 'available' | 'occupied' | 'reserved' | 'dirty'
 export type PayMethod = 'cash' | 'card' | 'contactless'
+export type StaffRole = 'OWNER' | 'WAITER' | 'KITCHEN' | 'MANAGER'
+
+export interface StaffMember {
+  id: string
+  name: string
+  pin: string
+  role: StaffRole
+  color: string
+}
 
 export interface MenuItem {
   id: string
@@ -127,12 +136,22 @@ const DEFAULT_SETTINGS: POSSettings = {
   tipPresets: [10, 15, 20],
 }
 
+const DEFAULT_STAFF: StaffMember[] = [
+  { id: 's1', name: 'Admin', pin: '0000', role: 'OWNER', color: '#6366f1' },
+  { id: 's2', name: 'Marie', pin: '1234', role: 'WAITER', color: '#ec4899' },
+  { id: 's3', name: 'Lucas', pin: '5678', role: 'WAITER', color: '#10b981' },
+  { id: 's4', name: 'Chef Paul', pin: '9999', role: 'KITCHEN', color: '#f59e0b' },
+]
+
 // ─── Store ───────────────────────────────────────────────────────────────────
 
 interface POSStore {
   tables: Table[]
   menu: MenuItem[]
   settings: POSSettings
+  staff: StaffMember[]
+  currentStaff: StaffMember | null
+  kioskMode: boolean
 
   // ── Table actions
   openTable: (tableId: string, coverCount: number) => void
@@ -171,6 +190,13 @@ interface POSStore {
   // ── Settings
   updateSettings: (updates: Partial<POSSettings>) => void
 
+  // ── Staff actions
+  loginStaff: (pin: string) => boolean
+  logoutStaff: () => void
+  addStaff: (s: Omit<StaffMember, 'id'>) => void
+  removeStaff: (id: string) => void
+  setKioskMode: (on: boolean) => void
+
   // ── Reset (for testing)
   resetData: () => void
 }
@@ -181,6 +207,9 @@ export const usePOS = create<POSStore>()(
       tables: DEFAULT_TABLES,
       menu: DEFAULT_MENU,
       settings: DEFAULT_SETTINGS,
+      staff: DEFAULT_STAFF,
+      currentStaff: null,
+      kioskMode: false,
 
       // ── Table actions ─────────────────────────────────────────────────────
 
@@ -407,10 +436,33 @@ export const usePOS = create<POSStore>()(
         settings: { ...s.settings, ...updates }
       })),
 
+      // ── Staff actions ──────────────────────────────────────────────────────
+
+      loginStaff: (pin) => {
+        const found = get().staff.find(s => s.pin === pin)
+        if (found) { set({ currentStaff: found }); return true }
+        return false
+      },
+
+      logoutStaff: () => set({ currentStaff: null }),
+
+      addStaff: (s) => set(st => ({
+        staff: [...st.staff, { ...s, id: uid() }]
+      })),
+
+      removeStaff: (id) => set(st => ({
+        staff: st.staff.filter(s => s.id !== id)
+      })),
+
+      setKioskMode: (on) => set({ kioskMode: on }),
+
       resetData: () => set(() => ({
         tables: DEFAULT_TABLES,
         menu: DEFAULT_MENU,
         settings: DEFAULT_SETTINGS,
+        staff: DEFAULT_STAFF,
+        currentStaff: null,
+        kioskMode: false,
       })),
     }),
     { name: 'creorga-pos-v2' }

@@ -23,12 +23,32 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users      UserCompany[]
-  tables     Table[]
-  categories Category[]
-  products   Product[]
-  orders     Order[]
-  settings   CompanySettings?
+  users           UserCompany[]
+  tables          Table[]
+  categories      Category[]
+  products        Product[]
+  orders          Order[]
+  settings        CompanySettings?
+  modules         CompanyModule[]
+  customers       Customer[]
+  giftCards       GiftCard[]
+  invoices        Invoice[]
+  quotes          Quote[]
+  reservations    Reservation[]
+  ingredients     Ingredient[]
+  suppliers       Supplier[]
+  purchaseOrders  PurchaseOrder[]
+  shifts          Shift[]
+  timePunches     TimePunch[]
+  leaveRequests   LeaveRequest[]
+  haccpLogs       HaccpLog[]
+  haccpTasks      HaccpTask[]
+  campaigns       Campaign[]
+  discountCodes   DiscountCode[]
+  cashDrawers     CashDrawer[]
+  expenses        Expense[]
+  reviews         Review[]
+  eventQuotes     EventQuote[]
 }
 
 model CompanySettings {
@@ -62,6 +82,11 @@ model User {
   companies     UserCompany[]
   orders        Order[]
   refreshTokens RefreshToken[]
+  shifts        Shift[]
+  timePunches   TimePunch[]
+  leaveRequests LeaveRequest[]
+  cashDrawers   CashDrawer[]
+  expenses      Expense[]
 }
 
 model UserCompany {
@@ -103,8 +128,9 @@ model Table {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  company Company @relation(fields: [companyId], references: [id])
-  orders  Order[]
+  company      Company       @relation(fields: [companyId], references: [id])
+  orders       Order[]
+  reservations Reservation[]
 }
 
 // ─── CATALOGUE PRODUITS ────────────────────────────────
@@ -142,6 +168,7 @@ model Product {
   company    Company     @relation(fields: [companyId], references: [id])
   category   Category    @relation(fields: [categoryId], references: [id])
   orderItems OrderItem[]
+  recipes    Recipe[]
 }
 
 // ─── COMMANDES ─────────────────────────────────────────
@@ -151,6 +178,7 @@ model Order {
   companyId     String
   tableId       String?
   userId        String
+  customerId    String?
   orderNumber   Int
   status        String    @default("OPEN")
   notes         String?
@@ -164,10 +192,11 @@ model Order {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  company Company     @relation(fields: [companyId], references: [id])
-  table   Table?      @relation(fields: [tableId], references: [id])
-  user    User        @relation(fields: [userId], references: [id])
-  items   OrderItem[]
+  company  Company    @relation(fields: [companyId], references: [id])
+  table    Table?     @relation(fields: [tableId], references: [id])
+  user     User       @relation(fields: [userId], references: [id])
+  customer Customer?  @relation("CustomerOrders", fields: [customerId], references: [id])
+  items    OrderItem[]
 }
 
 model OrderItem {
@@ -183,4 +212,461 @@ model OrderItem {
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
+}
+
+// ─── MODULES ───────────────────────────────────────────
+
+model CompanyModule {
+  id        String    @id @default(cuid())
+  companyId String
+  moduleId  String
+  isActive  Boolean   @default(true)
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, moduleId])
+  @@index([companyId])
+}
+
+// ─── CRM ───────────────────────────────────────────────
+
+model Customer {
+  id            String   @id @default(cuid())
+  companyId     String
+  firstName     String
+  lastName      String
+  email         String?
+  phone         String?
+  points        Int      @default(0)
+  walletBalance Float    @default(0)
+  isGuest       Boolean  @default(false)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  loyaltyTransactions LoyaltyTransaction[]
+  reviews             Review[]
+  invoices            Invoice[]
+  quotes              Quote[]
+  eventQuotes         EventQuote[]
+  orders              Order[]              @relation("CustomerOrders")
+
+  @@index([companyId])
+}
+
+model LoyaltyTransaction {
+  id         String   @id @default(cuid())
+  customerId String
+  type       String   // EARN | SPEND | TOPUP
+  points     Int
+  amount     Float    @default(0)
+  orderId    String?
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+}
+
+model GiftCard {
+  id             String    @id @default(cuid())
+  companyId      String
+  code           String    @unique
+  initialValue   Float
+  currentBalance Float
+  expiresAt      DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+// ─── FACTURATION ───────────────────────────────────────
+
+model Invoice {
+  id         String    @id @default(cuid())
+  companyId  String
+  customerId String?
+  number     String
+  status     String    @default("DRAFT") // DRAFT|SENT|PAID|OVERDUE|CANCELLED
+  dueDate    DateTime?
+  subtotal   Float     @default(0)
+  taxAmount  Float     @default(0)
+  total      Float     @default(0)
+  pdfUrl     String?
+  notes      String?
+  orderId    String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  company  Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer?     @relation(fields: [customerId], references: [id])
+  items    InvoiceItem[]
+
+  @@index([companyId, status])
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Float
+  unitPrice   Float
+  taxRate     Float   @default(17)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model Quote {
+  id         String    @id @default(cuid())
+  companyId  String
+  customerId String?
+  number     String
+  status     String    @default("DRAFT") // DRAFT|SENT|ACCEPTED|REJECTED|EXPIRED
+  validUntil DateTime?
+  total      Float     @default(0)
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer?   @relation(fields: [customerId], references: [id])
+  items    QuoteItem[]
+
+  @@index([companyId, status])
+}
+
+model QuoteItem {
+  id          String @id @default(cuid())
+  quoteId     String
+  description String
+  quantity    Float
+  unitPrice   Float
+  taxRate     Float  @default(17)
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+}
+
+// ─── RESERVATIONS ──────────────────────────────────────
+
+model Reservation {
+  id         String    @id @default(cuid())
+  companyId  String
+  tableId    String?
+  customerId String?
+  guestName  String
+  guestPhone String?
+  guestEmail String?
+  date       DateTime
+  partySize  Int       @default(2)
+  status     String    @default("PENDING") // PENDING|CONFIRMED|CANCELLED|SEATED|NO_SHOW
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  table   Table?  @relation(fields: [tableId], references: [id])
+
+  @@index([companyId, date, status])
+}
+
+// ─── INVENTAIRE ────────────────────────────────────────
+
+model Ingredient {
+  id            String   @id @default(cuid())
+  companyId     String
+  name          String
+  unit          String   @default("kg")
+  costPerUnit   Float    @default(0)
+  currentStock  Float    @default(0)
+  minStockLevel Float    @default(0)
+  supplierId    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company       Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier      Supplier?          @relation(fields: [supplierId], references: [id])
+  recipes       Recipe[]
+  purchaseItems PurchaseOrderItem[]
+
+  @@index([companyId])
+}
+
+model Recipe {
+  id           String @id @default(cuid())
+  productId    String
+  ingredientId String
+  quantity     Float
+
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, ingredientId])
+}
+
+model Supplier {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  contactName String?
+  email       String?
+  phone       String?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ingredients    Ingredient[]
+  purchaseOrders PurchaseOrder[]
+
+  @@index([companyId])
+}
+
+model PurchaseOrder {
+  id         String   @id @default(cuid())
+  companyId  String
+  supplierId String
+  status     String   @default("DRAFT") // DRAFT|SENT|RECEIVED
+  total      Float    @default(0)
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  company  Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier Supplier            @relation(fields: [supplierId], references: [id])
+  items    PurchaseOrderItem[]
+
+  @@index([companyId])
+}
+
+model PurchaseOrderItem {
+  id              String @id @default(cuid())
+  purchaseOrderId String
+  ingredientId    String
+  quantity        Float
+  unitCost        Float
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  ingredient    Ingredient    @relation(fields: [ingredientId], references: [id])
+}
+
+// ─── RH ────────────────────────────────────────────────
+
+model Shift {
+  id           String   @id @default(cuid())
+  companyId    String
+  userId       String
+  role         String
+  startTime    DateTime
+  endTime      DateTime
+  breakMinutes Int      @default(0)
+  notes        String?
+  status       String   @default("SCHEDULED") // SCHEDULED|CONFIRMED|COMPLETED
+  createdAt    DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([companyId, startTime])
+}
+
+model TimePunch {
+  id         String    @id @default(cuid())
+  companyId  String
+  userId     String
+  clockIn    DateTime
+  clockOut   DateTime?
+  note       String?
+  verifiedBy String?
+  createdAt  DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([companyId, userId, clockIn])
+}
+
+model LeaveRequest {
+  id        String   @id @default(cuid())
+  companyId String
+  userId    String
+  type      String   // VACATION|SICK|OTHER
+  startDate DateTime
+  endDate   DateTime
+  status    String   @default("PENDING") // PENDING|APPROVED|REJECTED
+  notes     String?
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([companyId, status])
+}
+
+// ─── HACCP ─────────────────────────────────────────────
+
+model HaccpLog {
+  id          String   @id @default(cuid())
+  companyId   String
+  type        String   // FRIDGE_TEMP|CLEANING|RECEIVING|PEST_CONTROL
+  value       Float?
+  notes       String?
+  loggedAt    DateTime @default(now())
+  loggedBy    String
+  isCompliant Boolean  @default(true)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, type, loggedAt])
+}
+
+model HaccpTask {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  frequency String   // DAILY|WEEKLY|MONTHLY
+  timeOfDay String   // MORNING|MIDDAY|CLOSING
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+// ─── MARKETING ─────────────────────────────────────────
+
+model Campaign {
+  id           String    @id @default(cuid())
+  companyId    String
+  name         String
+  type         String    // SMS|EMAIL|PUSH
+  audience     String    // ALL|LOYAL|INACTIVE|BIRTHDAY
+  subject      String?
+  content      String
+  status       String    @default("DRAFT") // DRAFT|SCHEDULED|SENT
+  scheduledFor DateTime?
+  sentAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status])
+}
+
+model DiscountCode {
+  id         String    @id @default(cuid())
+  companyId  String
+  code       String
+  type       String    // PERCENT|FIXED
+  value      Float
+  usageLimit Int?
+  usedCount  Int       @default(0)
+  expiresAt  DateTime?
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([companyId])
+}
+
+// ─── COMPTABILITE ──────────────────────────────────────
+
+model CashDrawer {
+  id          String    @id @default(cuid())
+  companyId   String
+  userId      String
+  openedAt    DateTime  @default(now())
+  closedAt    DateTime?
+  openAmount  Float
+  closeAmount Float?
+  totalSales  Float     @default(0)
+  discrepancy Float?
+  notes       String?
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([companyId, openedAt])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  companyId   String
+  userId      String
+  category    String   // FOOD_COST|STAFF|UTILITIES|SUPPLIES|OTHER
+  amount      Float
+  taxRate     Float    @default(17)
+  description String
+  receiptUrl  String?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([companyId, date])
+}
+
+// ─── REPUTATION ────────────────────────────────────────
+
+model Review {
+  id         String    @id @default(cuid())
+  companyId  String
+  customerId String?
+  platform   String    @default("INTERNAL") // INTERNAL|GOOGLE|TRIPADVISOR|FACEBOOK
+  rating     Int
+  comment    String?
+  replied    Boolean   @default(false)
+  replyText  String?
+  createdAt  DateTime  @default(now())
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([companyId, platform])
+}
+
+// ─── EVENEMENTIEL ──────────────────────────────────────
+
+model EventQuote {
+  id            String    @id @default(cuid())
+  companyId     String
+  customerId    String?
+  eventName     String
+  eventDate     DateTime
+  location      String?
+  headcount     Int       @default(1)
+  status        String    @default("DRAFT") // DRAFT|SENT|DEPOSIT_PAID|CONFIRMED|COMPLETED|CANCELLED
+  subtotal      Float     @default(0)
+  depositAmount Float     @default(0)
+  depositPaidAt DateTime?
+  total         Float     @default(0)
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer?        @relation(fields: [customerId], references: [id])
+  items    EventQuoteItem[]
+
+  @@index([companyId, eventDate])
+}
+
+model EventQuoteItem {
+  id           String  @id @default(cuid())
+  eventQuoteId String
+  description  String
+  quantity     Float
+  unitPrice    Float
+  category     String?
+
+  eventQuote EventQuote @relation(fields: [eventQuoteId], references: [id], onDelete: Cascade)
 }

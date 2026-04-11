@@ -1,62 +1,109 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { AppLayout } from '@/components/layout'
 import RequireAuth from '@/components/auth/RequireAuth'
+import AppShell from '@/components/layout/AppShell'
 import Login from '@/pages/Login'
 import Welcome from '@/pages/Welcome'
 import ModuleSelector from '@/pages/ModuleSelector'
-import Dashboard from '@/pages/Dashboard'
 import NotFound from '@/pages/NotFound'
-import FloorPlan from '@/pages/pos/FloorPlan'
-import OrderPage from '@/pages/pos/OrderPage'
-import Checkout from '@/pages/pos/Checkout'
 import Kitchen from '@/pages/pos/Kitchen'
-import SettingsCompany from '@/pages/settings/SettingsCompany'
-import SettingsTables from '@/pages/settings/SettingsTables'
-import SettingsCatalog from '@/pages/settings/SettingsCatalog'
-import SettingsUsers from '@/pages/settings/SettingsUsers'
+import GuestHome from '@/pages/guest/GuestHome'
 import AdminLayout from '@/pages/admin/AdminLayout'
 import AdminCompany from '@/pages/admin/AdminCompany'
 import AdminUsers from '@/pages/admin/AdminUsers'
 import AdminCatalog from '@/pages/admin/AdminCatalog'
 import AdminModules from '@/pages/admin/AdminModules'
 import ClientsConfig from '@/pages/clients/ClientsConfig'
-import GuestHome from '@/pages/guest/GuestHome'
+
+// Module Layouts
+import PosLayout from '@/pages/pos/PosLayout'
+import CrmLayout from '@/pages/crm/CrmLayout'
+import InvoicesLayout from '@/pages/invoices/InvoicesLayout'
+import ReservationsLayout from '@/pages/reservations/ReservationsLayout'
+import InventoryLayout from '@/pages/inventory/InventoryLayout'
+import HrLayout from '@/pages/hr/HrLayout'
+import HaccpLayout from '@/pages/haccp/HaccpLayout'
+import AccountingLayout from '@/pages/accounting/AccountingLayout'
+import MarketingLayout from '@/pages/marketing/MarketingLayout'
+import ReputationLayout from '@/pages/reputation/ReputationLayout'
+import EventsLayout from '@/pages/events/EventsLayout'
+
+// POS Pages
+import FloorPlan from '@/pages/pos/FloorPlan'
+import OrderPage from '@/pages/pos/OrderPage'
+import Checkout from '@/pages/pos/Checkout'
+import DashboardPage from '@/pages/pos/DashboardPage'
+
+// CRM Pages
+import ClientsPage from '@/pages/crm/ClientsPage'
+import FidelitePage from '@/pages/crm/FidelitePage'
+import PortefeuillePage from '@/pages/crm/PortefeuillePage'
+import CartesPage from '@/pages/crm/CartesPage'
+
+// Invoices Pages
+import DevisPageInv from '@/pages/invoices/DevisPage'
+import FacturesPage from '@/pages/invoices/FacturesPage'
+import AvoirsPage from '@/pages/invoices/AvoirsPage'
+import RelancesPage from '@/pages/invoices/RelancesPage'
+
+// Reservations Pages
+import CalendrierPage from '@/pages/reservations/CalendrierPage'
+import ReservListePage from '@/pages/reservations/ListePage'
+import ReservConfigPage from '@/pages/reservations/ConfigPage'
+
+// Inventory Pages
+import StockPage from '@/pages/inventory/StockPage'
+import RecettesPage from '@/pages/inventory/RecettesPage'
+import FournisseursPage from '@/pages/inventory/FournisseursPage'
+import CommandesPage from '@/pages/inventory/CommandesPage'
+
+// HR Pages
+import PlanningPage from '@/pages/hr/PlanningPage'
+import PointagesPage from '@/pages/hr/PointagesPage'
+import CongesPage from '@/pages/hr/CongesPage'
+import EquipePage from '@/pages/hr/EquipePage'
+import HrParamsPage from '@/pages/hr/ParamsPage'
+
+// HACCP Pages
+import JourneePage from '@/pages/haccp/JourneePage'
+import TemperaturesPage from '@/pages/haccp/TemperaturesPage'
+import TachesPage from '@/pages/haccp/TachesPage'
+import HaccpHistoriquePage from '@/pages/haccp/HistoriquePage'
+
+// Accounting Pages
+import CaissePage from '@/pages/accounting/CaissePage'
+import DepensesPage from '@/pages/accounting/DepensesPage'
+import TvaPage from '@/pages/accounting/TvaPage'
+import RapportsPage from '@/pages/accounting/RapportsPage'
+
+// Marketing Pages
+import CampagnesPage from '@/pages/marketing/CampagnesPage'
+import CodesPage from '@/pages/marketing/CodesPage'
+import AudiencesPage from '@/pages/marketing/AudiencesPage'
+
+// Reputation Pages
+import AvisPage from '@/pages/reputation/AvisPage'
+import ReponsesPage from '@/pages/reputation/ReponsesPage'
+import ReputStatsPage from '@/pages/reputation/StatsPage'
+
+// Events Pages
+import EventsDevisPage from '@/pages/events/DevisPage'
+import AgendaPage from '@/pages/events/AgendaPage'
+import ClientsB2BPage from '@/pages/events/ClientsB2BPage'
 
 function App() {
   return (
     <Routes>
       {/* Public */}
       <Route path="/login" element={<Login />} />
+      <Route path="/c" element={<GuestHome />} />
 
-      {/* Welcome splash (after login) */}
-      <Route
-        path="/welcome"
-        element={
-          <RequireAuth>
-            <Welcome />
-          </RequireAuth>
-        }
-      />
+      {/* Auth-only without AppShell */}
+      <Route path="/welcome" element={<RequireAuth><Welcome /></RequireAuth>} />
+      <Route path="/modules" element={<RequireAuth><ModuleSelector /></RequireAuth>} />
+      <Route path="/pos/kitchen" element={<RequireAuth><Kitchen /></RequireAuth>} />
 
-      {/* Module selector */}
-      <Route
-        path="/modules"
-        element={
-          <RequireAuth>
-            <ModuleSelector />
-          </RequireAuth>
-        }
-      />
-
-      {/* Admin panel (owner/manager only — enforced inside AdminLayout) */}
-      <Route
-        path="/admin"
-        element={
-          <RequireAuth>
-            <AdminLayout />
-          </RequireAuth>
-        }
-      >
+      {/* Admin */}
+      <Route path="/admin" element={<RequireAuth><AdminLayout /></RequireAuth>}>
         <Route index element={<Navigate to="/admin/company" replace />} />
         <Route path="company" element={<AdminCompany />} />
         <Route path="users" element={<AdminUsers />} />
@@ -64,50 +111,112 @@ function App() {
         <Route path="modules" element={<AdminModules />} />
       </Route>
 
-      {/* Interface client (publique — accessible sans auth via QR code) */}
-      <Route path="/c" element={<GuestHome />} />
+      {/* Clients */}
+      <Route path="/clients" element={<RequireAuth><ClientsConfig /></RequireAuth>} />
 
-      {/* Accès Clients */}
-      <Route
-        path="/clients"
-        element={
-          <RequireAuth>
-            <ClientsConfig />
-          </RequireAuth>
-        }
-      />
-
-      {/* Kitchen — fullscreen, no sidebar */}
-      <Route
-        path="/pos/kitchen"
-        element={
-          <RequireAuth>
-            <Kitchen />
-          </RequireAuth>
-        }
-      />
-
-      {/* Protected avec layout */}
-      <Route
-        element={
-          <RequireAuth>
-            <AppLayout />
-          </RequireAuth>
-        }
-      >
+      {/* AppShell wraps all module routes */}
+      <Route element={<RequireAuth><AppShell /></RequireAuth>}>
         <Route path="/" element={<Navigate to="/modules" replace />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/pos" element={<FloorPlan />} />
-        <Route path="/pos/order/:tableId" element={<OrderPage />} />
-        <Route path="/pos/checkout/:orderId" element={<Checkout />} />
-        <Route path="/settings" element={<Navigate to="/settings/company" replace />} />
-        <Route path="/settings/company" element={<SettingsCompany />} />
-        <Route path="/settings/tables" element={<SettingsTables />} />
-        <Route path="/settings/catalog" element={<SettingsCatalog />} />
-        <Route path="/settings/users" element={<SettingsUsers />} />
+
+        {/* POS Module */}
+        <Route path="/pos" element={<PosLayout />}>
+          <Route index element={<Navigate to="/pos/dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="floor" element={<FloorPlan />} />
+          <Route path="order/:tableId" element={<OrderPage />} />
+          <Route path="checkout/:orderId" element={<Checkout />} />
+          <Route path="orders" element={<DashboardPage />} />
+          <Route path="config" element={<DashboardPage />} />
+        </Route>
+
+        {/* CRM Module */}
+        <Route path="/crm" element={<CrmLayout />}>
+          <Route index element={<Navigate to="/crm/clients" replace />} />
+          <Route path="clients" element={<ClientsPage />} />
+          <Route path="fidelite" element={<FidelitePage />} />
+          <Route path="portefeuille" element={<PortefeuillePage />} />
+          <Route path="cartes-cadeaux" element={<CartesPage />} />
+        </Route>
+
+        {/* Invoices Module */}
+        <Route path="/invoices" element={<InvoicesLayout />}>
+          <Route index element={<Navigate to="/invoices/devis" replace />} />
+          <Route path="devis" element={<DevisPageInv />} />
+          <Route path="factures" element={<FacturesPage />} />
+          <Route path="avoirs" element={<AvoirsPage />} />
+          <Route path="relances" element={<RelancesPage />} />
+        </Route>
+
+        {/* Reservations Module */}
+        <Route path="/reservations" element={<ReservationsLayout />}>
+          <Route index element={<Navigate to="/reservations/calendrier" replace />} />
+          <Route path="calendrier" element={<CalendrierPage />} />
+          <Route path="liste" element={<ReservListePage />} />
+          <Route path="config" element={<ReservConfigPage />} />
+        </Route>
+
+        {/* Inventory Module */}
+        <Route path="/inventory" element={<InventoryLayout />}>
+          <Route index element={<Navigate to="/inventory/stock" replace />} />
+          <Route path="stock" element={<StockPage />} />
+          <Route path="recettes" element={<RecettesPage />} />
+          <Route path="fournisseurs" element={<FournisseursPage />} />
+          <Route path="commandes" element={<CommandesPage />} />
+        </Route>
+
+        {/* HR Module */}
+        <Route path="/hr" element={<HrLayout />}>
+          <Route index element={<Navigate to="/hr/planning" replace />} />
+          <Route path="planning" element={<PlanningPage />} />
+          <Route path="pointages" element={<PointagesPage />} />
+          <Route path="conges" element={<CongesPage />} />
+          <Route path="equipe" element={<EquipePage />} />
+          <Route path="parametres" element={<HrParamsPage />} />
+        </Route>
+
+        {/* HACCP Module */}
+        <Route path="/haccp" element={<HaccpLayout />}>
+          <Route index element={<Navigate to="/haccp/journee" replace />} />
+          <Route path="journee" element={<JourneePage />} />
+          <Route path="temperatures" element={<TemperaturesPage />} />
+          <Route path="taches" element={<TachesPage />} />
+          <Route path="historique" element={<HaccpHistoriquePage />} />
+        </Route>
+
+        {/* Accounting Module */}
+        <Route path="/accounting" element={<AccountingLayout />}>
+          <Route index element={<Navigate to="/accounting/caisse" replace />} />
+          <Route path="caisse" element={<CaissePage />} />
+          <Route path="depenses" element={<DepensesPage />} />
+          <Route path="tva" element={<TvaPage />} />
+          <Route path="rapports" element={<RapportsPage />} />
+        </Route>
+
+        {/* Marketing Module */}
+        <Route path="/marketing" element={<MarketingLayout />}>
+          <Route index element={<Navigate to="/marketing/campagnes" replace />} />
+          <Route path="campagnes" element={<CampagnesPage />} />
+          <Route path="codes" element={<CodesPage />} />
+          <Route path="audiences" element={<AudiencesPage />} />
+        </Route>
+
+        {/* Reputation Module */}
+        <Route path="/reputation" element={<ReputationLayout />}>
+          <Route index element={<Navigate to="/reputation/avis" replace />} />
+          <Route path="avis" element={<AvisPage />} />
+          <Route path="reponses" element={<ReponsesPage />} />
+          <Route path="statistiques" element={<ReputStatsPage />} />
+        </Route>
+
+        {/* Events Module */}
+        <Route path="/events" element={<EventsLayout />}>
+          <Route index element={<Navigate to="/events/devis" replace />} />
+          <Route path="devis" element={<EventsDevisPage />} />
+          <Route path="agenda" element={<AgendaPage />} />
+          <Route path="clients" element={<ClientsB2BPage />} />
+        </Route>
       </Route>
 
-      {/* 404 */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   )

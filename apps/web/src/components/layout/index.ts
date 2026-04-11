@@ -1,3 +1,5 @@
 export { default as AppLayout } from './AppLayout'
+export { default as AppShell } from './AppShell'
+export { default as ModuleLayout } from './ModuleLayout'
 export { default as Sidebar } from './Sidebar'
 export { default as TopBar } from './TopBar'
