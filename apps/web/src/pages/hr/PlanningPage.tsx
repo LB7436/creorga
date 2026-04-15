@@ -42,6 +42,22 @@ interface Reservation {
   section: SectionType
 }
 
+interface SickLeave {
+  id: string
+  employeeName: string
+  startDate: Date
+  endDate: Date
+  reason: string
+}
+
+interface Vacation {
+  id: string
+  employeeName: string
+  startDate: Date
+  endDate: Date
+  label: string
+}
+
 interface Holiday {
   date: Date
   name: string
@@ -128,6 +144,25 @@ function generateMockReservations(): Reservation[] {
   ]
 }
 
+function generateMockSickLeaves(): SickLeave[] {
+  const today = new Date()
+  const weekStart = startOfWeek(today, { weekStartsOn: 1 })
+  return [
+    { id: 'sl1', employeeName: 'Jean Muller', startDate: addDays(weekStart, 1), endDate: addDays(weekStart, 3), reason: 'Grippe' },
+    { id: 'sl2', employeeName: 'Anna Schmit', startDate: addDays(weekStart, 3), endDate: addDays(weekStart, 5), reason: 'Migraine' },
+    { id: 'sl3', employeeName: 'Pierre Martin', startDate: addDays(weekStart, 0), endDate: addDays(weekStart, 1), reason: 'Gastro' },
+  ]
+}
+
+function generateMockVacations(): Vacation[] {
+  const today = new Date()
+  const weekStart = startOfWeek(today, { weekStartsOn: 1 })
+  return [
+    { id: 'v1', employeeName: 'Sophie Klein', startDate: addDays(weekStart, 0), endDate: addDays(weekStart, 4), label: 'Congé annuel' },
+    { id: 'v2', employeeName: 'Claire Reuter', startDate: addDays(weekStart, 2), endDate: addDays(weekStart, 3), label: 'Congé personnel' },
+  ]
+}
+
 // ── Styles ──────────────────────────────────────────────────────────────
 const glassCard: React.CSSProperties = {
   background: 'rgba(255,255,255,0.04)',
@@ -167,10 +202,17 @@ const labelStyle: React.CSSProperties = {
 export default function PlanningPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [view, setView] = useState<ViewType>('week')
-  const [showReservations, setShowReservations] = useState(false)
   const [sectionFilter, setSectionFilter] = useState<string>('Toutes')
   const [shifts] = useState<Shift[]>(generateMockShifts)
   const [reservations] = useState<Reservation[]>(generateMockReservations)
+  const [sickLeaves] = useState<SickLeave[]>(generateMockSickLeaves)
+  const [vacations] = useState<Vacation[]>(generateMockVacations)
+
+  // Filters
+  const [showShifts, setShowShifts] = useState(true)
+  const [showConges, setShowConges] = useState(true)
+  const [showMaladies, setShowMaladies] = useState(true)
+  const [showReservations, setShowReservations] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [addDate, setAddDate] = useState<Date | null>(null)
   const [addHour, setAddHour] = useState(9)
@@ -197,15 +239,25 @@ export default function PlanningPage() {
   const getHoliday = useCallback((day: Date) =>
     HOLIDAYS_2026.find(h => isSameDay(h.date, day)), [])
 
-  const filteredShifts = useMemo(() =>
-    sectionFilter === 'Toutes' ? shifts : shifts.filter(s => s.section === sectionFilter),
-    [shifts, sectionFilter])
+  const filteredShifts = useMemo(() => {
+    if (!showShifts) return []
+    return sectionFilter === 'Toutes' ? shifts : shifts.filter(s => s.section === sectionFilter)
+  }, [shifts, sectionFilter, showShifts])
 
   const getShiftsForDay = useCallback((day: Date) =>
     filteredShifts.filter(s => isSameDay(s.date, day)), [filteredShifts])
 
   const getReservationsForDay = useCallback((day: Date) =>
-    reservations.filter(r => isSameDay(r.date, day)), [reservations])
+    showReservations ? reservations.filter(r => isSameDay(r.date, day)) : [],
+    [reservations, showReservations])
+
+  const getSickLeavesForDay = useCallback((day: Date) =>
+    showMaladies ? sickLeaves.filter(sl => day >= sl.startDate && day <= sl.endDate) : [],
+    [sickLeaves, showMaladies])
+
+  const getVacationsForDay = useCallback((day: Date) =>
+    showConges ? vacations.filter(v => day >= v.startDate && day <= v.endDate) : [],
+    [vacations, showConges])
 
   // CSV Export
   const handleExportCSV = () => {
@@ -254,12 +306,6 @@ export default function PlanningPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {/* Reservation toggle */}
-          <button onClick={() => setShowReservations(!showReservations)} style={{ ...btnGhost, gap: 6 }}>
-            {showReservations ? <ToggleRight size={18} color="#6366f1" /> : <ToggleLeft size={18} />}
-            <span style={{ fontSize: 12 }}>Réservations</span>
-          </button>
-
           {/* View switcher */}
           <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
             {(['week', 'month'] as ViewType[]).map(v => (
@@ -292,14 +338,22 @@ export default function PlanningPage() {
         </div>
       </motion.div>
 
-      {/* Role legend */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        {(Object.keys(ROLE_COLORS) as RoleType[]).map(role => (
-          <div key={role} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#94a3b8' }}>
-            <div style={{ width: 10, height: 10, borderRadius: 3, background: ROLE_COLORS[role] }} />
-            {role}
-          </div>
-        ))}
+      {/* Role legend + Filters */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {(Object.keys(ROLE_COLORS) as RoleType[]).map(role => (
+            <div key={role} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#94a3b8' }}>
+              <div style={{ width: 10, height: 10, borderRadius: 3, background: ROLE_COLORS[role] }} />
+              {role}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <FilterCheckbox label="Shifts" checked={showShifts} onChange={setShowShifts} color="#6366f1" />
+          <FilterCheckbox label="Congés" checked={showConges} onChange={setShowConges} color="#3b82f6" />
+          <FilterCheckbox label="Maladies" checked={showMaladies} onChange={setShowMaladies} color="#ef4444" />
+          <FilterCheckbox label="Réservations" checked={showReservations} onChange={setShowReservations} color="#a855f7" />
+        </div>
       </div>
 
       {/* Calendar body */}
@@ -308,7 +362,9 @@ export default function PlanningPage() {
           <WeekView
             days={weekDays}
             shifts={getShiftsForDay}
-            reservations={showReservations ? getReservationsForDay : () => []}
+            reservations={getReservationsForDay}
+            sickLeaves={getSickLeavesForDay}
+            vacations={getVacationsForDay}
             getHoliday={getHoliday}
             onCellClick={handleCellClick}
           />
@@ -353,10 +409,12 @@ export default function PlanningPage() {
 }
 
 // ── Week View ──────────────────────────────────────────────────────────
-function WeekView({ days, shifts, reservations, getHoliday, onCellClick }: {
+function WeekView({ days, shifts, reservations, sickLeaves, vacations, getHoliday, onCellClick }: {
   days: Date[]
   shifts: (day: Date) => Shift[]
   reservations: (day: Date) => Reservation[]
+  sickLeaves: (day: Date) => SickLeave[]
+  vacations: (day: Date) => Vacation[]
   getHoliday: (day: Date) => Holiday | undefined
   onCellClick: (day: Date, hour: number) => void
 }) {
@@ -402,6 +460,8 @@ function WeekView({ days, shifts, reservations, getHoliday, onCellClick }: {
             const holiday = getHoliday(day)
             const dayShifts = shifts(day).filter(s => s.startHour <= hour && s.endHour > hour)
             const dayRes = reservations(day).filter(r => r.startHour <= hour && r.endHour > hour)
+            const daySick = hour === 8 ? sickLeaves(day) : []
+            const dayVac = hour === 6 ? vacations(day) : []
             return (
               <div
                 key={`c-${hour}-${di}`}
@@ -459,6 +519,46 @@ function WeekView({ days, shifts, reservations, getHoliday, onCellClick }: {
                       <div style={{ fontWeight: 600 }}>{r.guestName} ({r.partySize}p)</div>
                     </motion.div>
                   )
+                ))}
+                {/* Sick leave bars - red striped */}
+                {daySick.map((sl, si) => (
+                  <motion.div
+                    key={sl.id}
+                    initial={{ opacity: 0, x: -4 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    style={{
+                      position: 'absolute',
+                      top: 2 + si * 22, left: 2, right: 2,
+                      height: 18, borderRadius: 4, zIndex: 3,
+                      background: 'repeating-linear-gradient(135deg, rgba(239,68,68,0.25), rgba(239,68,68,0.25) 3px, rgba(239,68,68,0.08) 3px, rgba(239,68,68,0.08) 6px)',
+                      borderLeft: '3px solid #ef4444',
+                      padding: '1px 6px', overflow: 'hidden',
+                      fontSize: 9, color: '#fca5a5', fontWeight: 600,
+                    }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {sl.employeeName} — {sl.reason}
+                  </motion.div>
+                ))}
+                {/* Vacation bars - blue */}
+                {dayVac.map((v, vi) => (
+                  <motion.div
+                    key={v.id}
+                    initial={{ opacity: 0, x: -4 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    style={{
+                      position: 'absolute',
+                      top: 2 + vi * 22, left: 2, right: 2,
+                      height: 18, borderRadius: 4, zIndex: 3,
+                      background: 'rgba(59,130,246,0.2)',
+                      borderLeft: '3px solid #3b82f6',
+                      padding: '1px 6px', overflow: 'hidden',
+                      fontSize: 9, color: '#93c5fd', fontWeight: 600,
+                    }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {v.employeeName} — {v.label}
+                  </motion.div>
                 ))}
               </div>
             )
@@ -622,5 +722,42 @@ function AddShiftModal({ isOpen, onClose, date, hour }: {
       </motion.div>
     </AnimatePresence>,
     document.body,
+  )
+}
+
+// ── Filter Checkbox ───────────────────────────────────────────────────
+function FilterCheckbox({ label, checked, onChange, color }: {
+  label: string
+  checked: boolean
+  onChange: (v: boolean) => void
+  color: string
+}) {
+  return (
+    <button
+      onClick={() => onChange(!checked)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+        background: checked ? `${color}22` : 'rgba(255,255,255,0.04)',
+        color: checked ? color : '#64748b',
+        border: checked ? `1px solid ${color}44` : '1px solid rgba(255,255,255,0.08)',
+        cursor: 'pointer', transition: 'all .2s',
+      }}
+    >
+      <div style={{
+        width: 14, height: 14, borderRadius: 3,
+        border: checked ? `2px solid ${color}` : '2px solid #475569',
+        background: checked ? color : 'transparent',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        transition: 'all .2s',
+      }}>
+        {checked && (
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+            <path d="M1 4L3 6L7 2" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </div>
+      {label}
+    </button>
   )
 }

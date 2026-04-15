@@ -6,13 +6,11 @@ export type ModuleId =
   | 'clients'
   | 'invoices'
   | 'qrmenu'
-  | 'loyalty'
   | 'planning'
   | 'contracts'
   | 'hr'
   | 'accounting'
   | 'marketing'
-  | 'reservations'
   | 'inventory'
   | 'haccp'
   | 'events'
@@ -71,16 +69,6 @@ export const MODULES: ModuleDef[] = [
     category: 'digital',
   },
   {
-    id: 'loyalty',
-    name: 'Carte Fidélité',
-    tagline: 'Programme de récompenses',
-    color: '#9D174D',
-    colorLight: '#fce7f3',
-    path: '/crm/fidelite',
-    available: true,
-    category: 'digital',
-  },
-  {
     id: 'planning',
     name: 'Planning',
     tagline: 'Horaires & disponibilités',
@@ -122,23 +110,13 @@ export const MODULES: ModuleDef[] = [
   },
   {
     id: 'marketing',
-    name: 'Marketing',
-    tagline: 'Campagnes & codes promo',
+    name: 'CRM & Marketing',
+    tagline: 'Clients, fidélité & campagnes',
     color: '#BE185D',
     colorLight: '#fce7f3',
-    path: '/marketing',
+    path: '/crm',
     available: true,
     category: 'business',
-  },
-  {
-    id: 'reservations',
-    name: 'Réservations',
-    tagline: 'Gestion des réservations',
-    color: '#0E7490',
-    colorLight: '#cffafe',
-    path: '/reservations',
-    available: true,
-    category: 'core',
   },
   {
     id: 'inventory',
@@ -162,11 +140,11 @@ export const MODULES: ModuleDef[] = [
   },
   {
     id: 'events',
-    name: 'Événements',
-    tagline: 'Devis & gestion événementielle',
-    color: '#6D28D9',
-    colorLight: '#ede9fe',
-    path: '/events',
+    name: 'Agenda & Calendrier',
+    tagline: 'Réservations & événements',
+    color: '#0E7490',
+    colorLight: '#cffafe',
+    path: '/agenda',
     available: true,
     category: 'business',
   },

@@ -18,14 +18,15 @@ import ClientsConfig from '@/pages/clients/ClientsConfig'
 import PosLayout from '@/pages/pos/PosLayout'
 import CrmLayout from '@/pages/crm/CrmLayout'
 import InvoicesLayout from '@/pages/invoices/InvoicesLayout'
-import ReservationsLayout from '@/pages/reservations/ReservationsLayout'
 import InventoryLayout from '@/pages/inventory/InventoryLayout'
 import HrLayout from '@/pages/hr/HrLayout'
 import HaccpLayout from '@/pages/haccp/HaccpLayout'
 import AccountingLayout from '@/pages/accounting/AccountingLayout'
-import MarketingLayout from '@/pages/marketing/MarketingLayout'
 import ReputationLayout from '@/pages/reputation/ReputationLayout'
-import EventsLayout from '@/pages/events/EventsLayout'
+import AgendaLayout from '@/pages/agenda/AgendaLayout'
+
+// QR Menu Page
+import QrMenuPage from '@/pages/qrmenu/QrMenuPage'
 
 // POS Pages
 import FloorPlan from '@/pages/pos/FloorPlan'
@@ -45,7 +46,7 @@ import FacturesPage from '@/pages/invoices/FacturesPage'
 import AvoirsPage from '@/pages/invoices/AvoirsPage'
 import RelancesPage from '@/pages/invoices/RelancesPage'
 
-// Reservations Pages
+// Reservations Pages (now under Agenda)
 import CalendrierPage from '@/pages/reservations/CalendrierPage'
 import ReservListePage from '@/pages/reservations/ListePage'
 import ReservConfigPage from '@/pages/reservations/ConfigPage'
@@ -101,6 +102,7 @@ function App() {
       <Route path="/welcome" element={<RequireAuth><Welcome /></RequireAuth>} />
       <Route path="/modules" element={<RequireAuth><ModuleSelector /></RequireAuth>} />
       <Route path="/pos/kitchen" element={<RequireAuth><Kitchen /></RequireAuth>} />
+      <Route path="/qrmenu" element={<RequireAuth><QrMenuPage /></RequireAuth>} />
 
       {/* Admin */}
       <Route path="/admin" element={<RequireAuth><AdminLayout /></RequireAuth>}>
@@ -129,13 +131,16 @@ function App() {
           <Route path="config" element={<DashboardPage />} />
         </Route>
 
-        {/* CRM Module */}
+        {/* CRM & Marketing Module */}
         <Route path="/crm" element={<CrmLayout />}>
           <Route index element={<Navigate to="/crm/clients" replace />} />
           <Route path="clients" element={<ClientsPage />} />
           <Route path="fidelite" element={<FidelitePage />} />
           <Route path="portefeuille" element={<PortefeuillePage />} />
           <Route path="cartes-cadeaux" element={<CartesPage />} />
+          <Route path="campagnes" element={<CampagnesPage />} />
+          <Route path="codes" element={<CodesPage />} />
+          <Route path="audiences" element={<AudiencesPage />} />
         </Route>
 
         {/* Invoices Module */}
@@ -147,10 +152,13 @@ function App() {
           <Route path="relances" element={<RelancesPage />} />
         </Route>
 
-        {/* Reservations Module */}
-        <Route path="/reservations" element={<ReservationsLayout />}>
-          <Route index element={<Navigate to="/reservations/calendrier" replace />} />
+        {/* Agenda & Calendrier Module (merged Events + Reservations) */}
+        <Route path="/agenda" element={<AgendaLayout />}>
+          <Route index element={<Navigate to="/agenda/calendrier" replace />} />
           <Route path="calendrier" element={<CalendrierPage />} />
+          <Route path="planning" element={<AgendaPage />} />
+          <Route path="devis" element={<EventsDevisPage />} />
+          <Route path="clients" element={<ClientsB2BPage />} />
           <Route path="liste" element={<ReservListePage />} />
           <Route path="config" element={<ReservConfigPage />} />
         </Route>
@@ -192,14 +200,6 @@ function App() {
           <Route path="rapports" element={<RapportsPage />} />
         </Route>
 
-        {/* Marketing Module */}
-        <Route path="/marketing" element={<MarketingLayout />}>
-          <Route index element={<Navigate to="/marketing/campagnes" replace />} />
-          <Route path="campagnes" element={<CampagnesPage />} />
-          <Route path="codes" element={<CodesPage />} />
-          <Route path="audiences" element={<AudiencesPage />} />
-        </Route>
-
         {/* Reputation Module */}
         <Route path="/reputation" element={<ReputationLayout />}>
           <Route index element={<Navigate to="/reputation/avis" replace />} />
@@ -208,13 +208,6 @@ function App() {
           <Route path="statistiques" element={<ReputStatsPage />} />
         </Route>
 
-        {/* Events Module */}
-        <Route path="/events" element={<EventsLayout />}>
-          <Route index element={<Navigate to="/events/devis" replace />} />
-          <Route path="devis" element={<EventsDevisPage />} />
-          <Route path="agenda" element={<AgendaPage />} />
-          <Route path="clients" element={<ClientsB2BPage />} />
-        </Route>
       </Route>
 
       <Route path="*" element={<NotFound />} />
