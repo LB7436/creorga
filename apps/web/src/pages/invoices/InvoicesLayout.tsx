@@ -9,5 +9,5 @@ const items = [
 ]
 
 export default function InvoicesLayout() {
-  return <ModuleLayout title="Factures & Devis" color="#065F46" items={items} />
+  return <ModuleLayout title="Factures & Devis" color="#065F46" items={items} backPath="/modules" />
 }

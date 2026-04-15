@@ -9,5 +9,5 @@ const items = [
 ]
 
 export default function AccountingLayout() {
-  return <ModuleLayout title="Comptabilité" color="#1F2937" items={items} />
+  return <ModuleLayout title="Comptabilité" color="#1F2937" items={items} backPath="/modules" />
 }

@@ -129,7 +129,7 @@ export const DEFAULT_TABLES: Table[] = [
 ]
 
 const DEFAULT_SETTINGS: POSSettings = {
-  restaurantName: 'Creorga Café',
+  restaurantName: 'Café um Rond-Point',
   currency: '€',
   taxRate: 0,
   defaultTip: 0,
