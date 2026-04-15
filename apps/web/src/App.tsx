@@ -5,6 +5,7 @@ import Login from '@/pages/Login'
 import Welcome from '@/pages/Welcome'
 import ModuleSelector from '@/pages/ModuleSelector'
 import NotFound from '@/pages/NotFound'
+import Dashboard from '@/pages/Dashboard'
 import Kitchen from '@/pages/pos/Kitchen'
 import GuestHome from '@/pages/guest/GuestHome'
 import AdminLayout from '@/pages/admin/AdminLayout'
@@ -116,9 +117,11 @@ function App() {
       {/* Clients */}
       <Route path="/clients" element={<RequireAuth><ClientsConfig /></RequireAuth>} />
 
+      {/* Dashboard — standalone (not inside AppShell) */}
+      <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
+
       {/* AppShell wraps all module routes */}
       <Route element={<RequireAuth><AppShell /></RequireAuth>}>
-        <Route path="/" element={<Navigate to="/modules" replace />} />
 
         {/* POS Module */}
         <Route path="/pos" element={<PosLayout />}>
