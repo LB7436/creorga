@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePOS, Cover, MenuItem, OrderItem, coverTotal, tableTotal, elapsed, MENU_CATEGORIES } from '../store/posStore'
+import ReceiptPreview from './ReceiptPreview'
 
 interface Props {
   tableId: string
@@ -340,12 +341,14 @@ function Numpad({
   onRemise,
   onCuisine,
   onOffrir,
+  onTicket,
 }: {
   selectedItemId: string | null
   tableId: string
   onRemise: () => void
   onCuisine: () => void
   onOffrir: () => void
+  onTicket: () => void
 }) {
   const setItemQty = usePOS(s => s.setItemQty)
   const removeItem = usePOS(s => s.removeItem)
@@ -533,12 +536,13 @@ function Numpad({
 
       {/* Extra professional actions — row 2 */}
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+        display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)',
         gap: 6, marginTop: 6,
       }}>
         {[
           { label: 'Supplément', icon: '➕', color: '#34d399', action: handleSupplement },
           { label: 'Note',       icon: '📋', color: '#fbbf24', action: handleNote },
+          { label: 'Ticket',     icon: '🧾', color: '#38bdf8', action: onTicket },
           { label: 'Répéter',    icon: '🔁', color: '#60a5fa', action: handleRepeat },
           { label: 'Annuler',    icon: '⛔', color: '#f43f5e', action: handleVoid },
         ].map(a => (
@@ -734,6 +738,9 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
   // --- Cuisine toast ---
   const [showCuisineToast, setShowCuisineToast] = useState(false)
 
+  // --- Receipt preview state ---
+  const [receiptType, setReceiptType] = useState<'caisse' | 'cuisine' | 'facture' | null>(null)
+
   const catScrollRef = useRef<HTMLDivElement>(null)
 
   // Elapsed time ticker
@@ -908,8 +915,18 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
 
   // --- Cuisine handler ---
   function handleCuisine() {
+    setReceiptType('cuisine')
+  }
+
+  function handleCuisinePrint() {
+    setReceiptType(null)
     setShowCuisineToast(true)
     setTimeout(() => setShowCuisineToast(false), 2000)
+  }
+
+  // --- Ticket (caisse) handler ---
+  function handleTicket() {
+    setReceiptType('caisse')
   }
 
   // --- Offrir handler ---
@@ -934,6 +951,16 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
       background: '#07070d',
       position: 'relative',
     }}>
+
+      {/* ═══ Receipt Preview Modal ═══ */}
+      {receiptType && (
+        <ReceiptPreview
+          type={receiptType}
+          tableId={tableId}
+          onClose={() => setReceiptType(null)}
+          onPrint={receiptType === 'cuisine' ? handleCuisinePrint : () => setReceiptType(null)}
+        />
+      )}
 
       {/* ═══ Cuisine Toast ═══ */}
       <AnimatePresence>
@@ -1490,6 +1517,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
               onRemise={handleRemise}
               onCuisine={handleCuisine}
               onOffrir={handleOffrir}
+              onTicket={handleTicket}
             />
           </div>
 
