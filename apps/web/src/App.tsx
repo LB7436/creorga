@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import InstallPrompt from '@/components/InstallPrompt'
 import RequireAuth from '@/components/auth/RequireAuth'
 import AppShell from '@/components/layout/AppShell'
 import Login from '@/pages/Login'
@@ -94,6 +95,7 @@ import ClientsB2BPage from '@/pages/events/ClientsB2BPage'
 
 function App() {
   return (
+    <>
     <Routes>
       {/* Public */}
       <Route path="/login" element={<Login />} />
@@ -215,6 +217,8 @@ function App() {
 
       <Route path="*" element={<NotFound />} />
     </Routes>
+    <InstallPrompt />
+    </>
   )
 }
 
