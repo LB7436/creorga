@@ -53,10 +53,10 @@ function AnnouncementsBanner({ items }: { items: Announcement[] }) {
 // ─── Language picker ─────────────────────────────────────
 
 const LANGS = [
-  { code: 'fr', flag: '\u{1F1EB}\u{1F1F7}', name: 'Fran\u00e7ais' },
-  { code: 'en', flag: '\u{1F1EC}\u{1F1E7}', name: 'English' },
-  { code: 'de', flag: '\u{1F1E9}\u{1F1EA}', name: 'Deutsch' },
-  { code: 'pt', flag: '\u{1F1F5}\u{1F1F9}', name: 'Portugu\u00eas' },
+  { code: 'fr', flag: '\🇫\🇷', name: 'Fran\u00e7ais' },
+  { code: 'en', flag: '\🇬\🇧', name: 'English' },
+  { code: 'de', flag: '\🇩\🇪', name: 'Deutsch' },
+  { code: 'pt', flag: '\🇵\🇹', name: 'Portugu\u00eas' },
 ]
 
 function LangPicker({ lang, setLang }: { lang: string; setLang: (l: string) => void }) {
@@ -285,33 +285,33 @@ interface MenuCategory {
 
 const MOCK_MENU: MenuCategory[] = [
   {
-    id: 'boissons', name: 'Boissons', emoji: '\u{1F379}',
+    id: 'boissons', name: 'Boissons', emoji: '\🍹',
     products: [
-      { id: 'b1', name: 'Eau min\u00e9rale', price: 2.50, description: 'Plate ou gazeuse, 50cl', emoji: '\u{1F4A7}' },
-      { id: 'b2', name: 'Coca-Cola', price: 3.00, description: 'Classique, 33cl bien frais', emoji: '\u{1F964}' },
-      { id: 'b3', name: 'Jus d\'orange frais', price: 3.50, description: 'Press\u00e9 minute, 100% fruits', emoji: '\u{1F34A}' },
-      { id: 'b4', name: 'Bi\u00e8re pression', price: 4.50, description: 'Blonde locale, 25cl', emoji: '\u{1F37A}' },
-      { id: 'b5', name: 'Cocktail maison', price: 8.00, description: 'Mojito, Spritz ou Margarita', emoji: '\u{1F378}' },
+      { id: 'b1', name: 'Eau min\u00e9rale', price: 2.50, description: 'Plate ou gazeuse, 50cl', emoji: '\💧' },
+      { id: 'b2', name: 'Coca-Cola', price: 3.00, description: 'Classique, 33cl bien frais', emoji: '\🥤' },
+      { id: 'b3', name: 'Jus d\'orange frais', price: 3.50, description: 'Press\u00e9 minute, 100% fruits', emoji: '\🍊' },
+      { id: 'b4', name: 'Bi\u00e8re pression', price: 4.50, description: 'Blonde locale, 25cl', emoji: '\🍺' },
+      { id: 'b5', name: 'Cocktail maison', price: 8.00, description: 'Mojito, Spritz ou Margarita', emoji: '\🍸' },
     ],
   },
   {
-    id: 'cuisine', name: 'Cuisine', emoji: '\u{1F354}',
+    id: 'cuisine', name: 'Cuisine', emoji: '\🍔',
     products: [
-      { id: 'c1', name: 'Burger classique', price: 12.50, description: 'B\u0153uf 180g, cheddar, salade, tomate', emoji: '\u{1F354}' },
-      { id: 'c2', name: 'Pizza Margherita', price: 11.00, description: 'Tomate, mozzarella, basilic frais', emoji: '\u{1F355}' },
-      { id: 'c3', name: 'Salade C\u00e9sar', price: 9.50, description: 'Poulet grill\u00e9, parmesan, cro\u00fbtons', emoji: '\u{1F957}' },
-      { id: 'c4', name: 'Fish & Chips', price: 13.00, description: 'Cabillaud pan\u00e9, frites maison', emoji: '\u{1F35F}' },
-      { id: 'c5', name: 'Poke Bowl saumon', price: 14.00, description: 'Riz, saumon cru, avocat, \u00e9damame', emoji: '\u{1F363}' },
-      { id: 'c6', name: 'Nachos & Guacamole', price: 7.50, description: 'Tortilla chips, guac maison, cr\u00e8me', emoji: '\u{1F32E}' },
+      { id: 'c1', name: 'Burger classique', price: 12.50, description: 'B\u0153uf 180g, cheddar, salade, tomate', emoji: '\🍔' },
+      { id: 'c2', name: 'Pizza Margherita', price: 11.00, description: 'Tomate, mozzarella, basilic frais', emoji: '\🍕' },
+      { id: 'c3', name: 'Salade C\u00e9sar', price: 9.50, description: 'Poulet grill\u00e9, parmesan, cro\u00fbtons', emoji: '\🥗' },
+      { id: 'c4', name: 'Fish & Chips', price: 13.00, description: 'Cabillaud pan\u00e9, frites maison', emoji: '\🍟' },
+      { id: 'c5', name: 'Poke Bowl saumon', price: 14.00, description: 'Riz, saumon cru, avocat, \u00e9damame', emoji: '\🍣' },
+      { id: 'c6', name: 'Nachos & Guacamole', price: 7.50, description: 'Tortilla chips, guac maison, cr\u00e8me', emoji: '\🌮' },
     ],
   },
   {
-    id: 'desserts', name: 'Desserts', emoji: '\u{1F370}',
+    id: 'desserts', name: 'Desserts', emoji: '\🍰',
     products: [
-      { id: 'd1', name: 'Brownie chocolat', price: 5.50, description: 'Coulant au c\u0153ur, glace vanille', emoji: '\u{1F36B}' },
-      { id: 'd2', name: 'Cr\u00e8me br\u00fbl\u00e9e', price: 6.00, description: 'Vanille de Madagascar', emoji: '\u{1F36E}' },
-      { id: 'd3', name: 'Tiramisu', price: 6.50, description: 'Recette italienne traditionnelle', emoji: '\u{2615}' },
-      { id: 'd4', name: 'Glace artisanale 3 boules', price: 5.00, description: 'Chocolat, vanille, fraise', emoji: '\u{1F368}' },
+      { id: 'd1', name: 'Brownie chocolat', price: 5.50, description: 'Coulant au c\u0153ur, glace vanille', emoji: '\🍫' },
+      { id: 'd2', name: 'Cr\u00e8me br\u00fbl\u00e9e', price: 6.00, description: 'Vanille de Madagascar', emoji: '\🍮' },
+      { id: 'd3', name: 'Tiramisu', price: 6.50, description: 'Recette italienne traditionnelle', emoji: '\☕' },
+      { id: 'd4', name: 'Glace artisanale 3 boules', price: 5.00, description: 'Chocolat, vanille, fraise', emoji: '\🍨' },
     ],
   },
 ]
@@ -351,13 +351,13 @@ function GuestMenu({
       const enriched = cats.map((c: any) => ({
         id: c.id,
         name: c.name,
-        emoji: c.icon || '\u{1F37D}\u{FE0F}',
+        emoji: c.icon || '\🍽\️',
         products: prods.filter((p: any) => p.categoryId === c.id && p.isActive).map((p: any) => ({
           id: p.id,
           name: p.name,
           price: p.price,
           description: p.description || '',
-          emoji: '\u{1F37D}\u{FE0F}',
+          emoji: '\🍽\️',
         })),
       }))
       setCategories(enriched)
@@ -649,7 +649,7 @@ function GuestMenu({
                 borderBottom: `1px solid ${BORDER}`,
               }}>
                 <h3 style={{ fontSize: 18, fontWeight: 700, color: TEXT }}>
-                  \u{1F6D2} Votre panier
+                  \🛒 Votre panier
                 </h3>
                 <button onClick={() => setCartOpen(false)} style={{ color: MUTED, padding: 4 }}>
                   <ChevronDown size={22} />
@@ -778,27 +778,27 @@ function GuestMenu({
 // ═══════════════════════════════════════════════════════════
 
 const CATEGORY_RATINGS = [
-  { key: 'food', label: 'Nourriture', emoji: '\u{1F35D}' },
-  { key: 'service', label: 'Service', emoji: '\u{1F44B}' },
-  { key: 'ambiance', label: 'Ambiance', emoji: '\u{1F3B6}' },
-  { key: 'value', label: 'Rapport qualit\u00e9-prix', emoji: '\u{1F4B0}' },
+  { key: 'food', label: 'Nourriture', emoji: '\🍝' },
+  { key: 'service', label: 'Service', emoji: '\👋' },
+  { key: 'ambiance', label: 'Ambiance', emoji: '\🎶' },
+  { key: 'value', label: 'Rapport qualit\u00e9-prix', emoji: '\💰' },
 ]
 
 const MOCK_REVIEWS = [
   {
     id: 'r1', name: 'Marie L.', rating: 5, date: 'Il y a 2 jours',
     comment: 'Excellent service et ambiance au top ! Les jeux de soci\u00e9t\u00e9 rendent l\'exp\u00e9rience unique.',
-    avatar: '\u{1F469}',
+    avatar: '\👩',
   },
   {
     id: 'r2', name: 'Thomas K.', rating: 4, date: 'Il y a 5 jours',
     comment: 'Tr\u00e8s bonne cuisine, portions g\u00e9n\u00e9reuses. Le staff est sympa et attentif.',
-    avatar: '\u{1F468}',
+    avatar: '\👨',
   },
   {
     id: 'r3', name: 'Sophie M.', rating: 5, date: 'Il y a 1 semaine',
     comment: 'On adore venir ici entre amis. Le concept est g\u00e9nial, on revient bient\u00f4t !',
-    avatar: '\u{1F467}',
+    avatar: '\👧',
   },
 ]
 
