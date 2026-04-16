@@ -74,6 +74,7 @@ import HaccpHistoriquePage from '@/pages/haccp/HistoriquePage'
 
 // Accounting Pages
 import CaissePage from '@/pages/accounting/CaissePage'
+import CloturePage from '@/pages/accounting/CloturePage'
 import DepensesPage from '@/pages/accounting/DepensesPage'
 import TvaPage from '@/pages/accounting/TvaPage'
 import RapportsPage from '@/pages/accounting/RapportsPage'
@@ -200,6 +201,7 @@ function App() {
         <Route path="/accounting" element={<AccountingLayout />}>
           <Route index element={<Navigate to="/accounting/caisse" replace />} />
           <Route path="caisse" element={<CaissePage />} />
+          <Route path="cloture" element={<CloturePage />} />
           <Route path="depenses" element={<DepensesPage />} />
           <Route path="tva" element={<TvaPage />} />
           <Route path="rapports" element={<RapportsPage />} />
