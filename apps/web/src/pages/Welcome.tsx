@@ -1,124 +1,378 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { Sun, Coffee, Moon, Cloud } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
+
+type Period = 'morning' | 'afternoon' | 'evening'
+
+function getPeriod(): Period {
+  const h = new Date().getHours()
+  if (h < 12) return 'morning'
+  if (h < 18) return 'afternoon'
+  return 'evening'
+}
+
+function getGreeting(period: Period): string {
+  if (period === 'morning') return 'Bonjour'
+  if (period === 'afternoon') return 'Bon après-midi'
+  return 'Bonsoir'
+}
 
 export default function Welcome() {
   const navigate = useNavigate()
   const company = useAuthStore((s) => s.company)
   const user = useAuthStore((s) => s.user)
+  const [period] = useState<Period>(getPeriod())
+
+  const companyName = company?.name ?? 'Café um Rond-Point'
+  const city = 'Rumelange - Luxembourg'
 
   useEffect(() => {
-    const timer = setTimeout(() => navigate('/modules', { replace: true }), 3200)
+    const timer = setTimeout(() => navigate('/modules', { replace: true }), 3500)
     return () => clearTimeout(timer)
   }, [navigate])
 
+  const PeriodIcon = period === 'morning' ? Sun : period === 'afternoon' ? Coffee : Moon
+  const periodColor =
+    period === 'morning' ? '#f59e0b' : period === 'afternoon' ? '#b45309' : '#6366f1'
+
+  const handleSkip = () => navigate('/modules', { replace: true })
+
   return (
     <div
-      className="fixed inset-0 flex flex-col items-center justify-center overflow-hidden"
-      style={{ background: 'linear-gradient(135deg, #0a1628 0%, #0d1f3c 50%, #111827 100%)' }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+        background:
+          'linear-gradient(135deg, #f8fafc 0%, #eef2ff 40%, #e0e7ff 70%, #c7d2fe 100%)',
+        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+      }}
     >
-      {/* Ambient orbs */}
+      {/* Animated orbs */}
       <motion.div
-        className="absolute rounded-full pointer-events-none"
         style={{
-          width: 700,
-          height: 700,
-          background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-        }}
-        animate={{ scale: [1, 1.15, 1] }}
-        transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.div
-        className="absolute rounded-full pointer-events-none"
-        style={{
-          width: 400,
-          height: 400,
-          background: 'radial-gradient(circle, rgba(139,92,246,0.10) 0%, transparent 70%)',
-          top: '30%',
-          right: '15%',
-        }}
-        animate={{ scale: [1.1, 0.9, 1.1], x: [20, -20, 20] }}
-        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.div
-        className="absolute rounded-full pointer-events-none"
-        style={{
-          width: 300,
-          height: 300,
-          background: 'radial-gradient(circle, rgba(245,158,11,0.07) 0%, transparent 70%)',
-          bottom: '20%',
+          position: 'absolute',
+          width: 600,
+          height: 600,
+          borderRadius: '50%',
+          background:
+            'radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%)',
+          top: '20%',
           left: '10%',
+          pointerEvents: 'none',
         }}
-        animate={{ scale: [0.9, 1.2, 0.9] }}
-        transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+        animate={{ x: [0, 60, 0], y: [0, 40, 0], scale: [1, 1.1, 1] }}
+        transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.div
+        style={{
+          position: 'absolute',
+          width: 450,
+          height: 450,
+          borderRadius: '50%',
+          background:
+            'radial-gradient(circle, rgba(139,92,246,0.14) 0%, transparent 70%)',
+          top: '50%',
+          right: '8%',
+          pointerEvents: 'none',
+        }}
+        animate={{ x: [0, -40, 0], y: [0, -30, 0], scale: [1.05, 0.95, 1.05] }}
+        transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.div
+        style={{
+          position: 'absolute',
+          width: 350,
+          height: 350,
+          borderRadius: '50%',
+          background:
+            'radial-gradient(circle, rgba(236,72,153,0.10) 0%, transparent 70%)',
+          bottom: '10%',
+          left: '30%',
+          pointerEvents: 'none',
+        }}
+        animate={{ scale: [0.9, 1.15, 0.9], opacity: [0.6, 1, 0.6] }}
+        transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
       />
 
-      {/* Logo */}
+      {/* Weather widget top-left */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.6, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.7, ease: [0.34, 1.56, 0.64, 1] }}
-        className="relative mb-10"
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.3, duration: 0.6 }}
+        style={{
+          position: 'absolute',
+          top: 24,
+          left: 24,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '10px 16px',
+          borderRadius: 14,
+          background: 'rgba(255,255,255,0.7)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid rgba(226,232,240,0.9)',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
+          color: '#1e293b',
+          fontSize: 13,
+          fontWeight: 500,
+          zIndex: 10,
+        }}
       >
-        <div
-          className="w-20 h-20 rounded-[22px] flex items-center justify-center"
-          style={{
-            background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)',
-            boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 20px 60px rgba(37,99,235,0.35)',
-          }}
-        >
-          <span className="text-white text-3xl font-bold tracking-tight">C</span>
-        </div>
-        {/* Pulse ring */}
-        <motion.div
-          className="absolute inset-0 rounded-[22px]"
-          style={{ border: '1px solid rgba(37,99,235,0.5)' }}
-          animate={{ scale: [1, 1.35], opacity: [0.6, 0] }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
-        />
+        <Cloud size={18} style={{ color: '#64748b' }} />
+        <span>12°C Rumelange</span>
+        <span style={{ color: '#f59e0b' }}>☀</span>
       </motion.div>
 
-      {/* Text */}
-      <div className="text-center relative z-10">
-        <motion.p
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.5 }}
-          className="text-blue-400/70 text-sm font-medium tracking-[0.2em] uppercase mb-3"
+      {/* Period icon top-right */}
+      <motion.div
+        initial={{ opacity: 0, rotate: -90, scale: 0.5 }}
+        animate={{ opacity: 1, rotate: 0, scale: 1 }}
+        transition={{ delay: 0.4, type: 'spring', stiffness: 120, damping: 12 }}
+        style={{
+          position: 'absolute',
+          top: 24,
+          right: 24,
+          width: 48,
+          height: 48,
+          borderRadius: 14,
+          background: 'rgba(255,255,255,0.8)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid rgba(226,232,240,0.9)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
+          zIndex: 10,
+        }}
+      >
+        <PeriodIcon size={22} style={{ color: periodColor }} />
+      </motion.div>
+
+      {/* Center content */}
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 5,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+          padding: '0 24px',
+        }}
+      >
+        {/* Logo */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.3, y: -20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 180, damping: 14, delay: 0.2 }}
+          style={{ position: 'relative', marginBottom: 32 }}
         >
-          Bienvenue chez
+          <div
+            style={{
+              width: 110,
+              height: 110,
+              borderRadius: '50%',
+              background:
+                'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow:
+                '0 20px 60px rgba(99,102,241,0.35), inset 0 2px 4px rgba(255,255,255,0.3)',
+            }}
+          >
+            <span
+              style={{
+                color: '#fff',
+                fontSize: 52,
+                fontWeight: 800,
+                letterSpacing: '-0.04em',
+              }}
+            >
+              C
+            </span>
+          </div>
+          <motion.div
+            style={{
+              position: 'absolute',
+              inset: -8,
+              borderRadius: '50%',
+              border: '2px solid rgba(99,102,241,0.4)',
+              pointerEvents: 'none',
+            }}
+            animate={{ scale: [1, 1.4], opacity: [0.8, 0] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: 'easeOut' }}
+          />
+          <motion.div
+            style={{
+              position: 'absolute',
+              inset: -8,
+              borderRadius: '50%',
+              border: '2px solid rgba(139,92,246,0.3)',
+              pointerEvents: 'none',
+            }}
+            animate={{ scale: [1, 1.4], opacity: [0.8, 0] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: 'easeOut', delay: 1 }}
+          />
+        </motion.div>
+
+        <motion.p
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55, duration: 0.5 }}
+          style={{
+            color: '#64748b',
+            fontSize: 13,
+            fontWeight: 600,
+            letterSpacing: '0.24em',
+            textTransform: 'uppercase',
+            marginBottom: 14,
+          }}
+        >
+          {getGreeting(period)}
+          {user?.firstName ? `, ${user.firstName}` : ''} — Bienvenue chez
         </motion.p>
 
         <motion.h1
+          initial={{ opacity: 0, y: 20, scale: 0.92 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 140, damping: 16, delay: 0.7 }}
+          style={{
+            color: '#1e293b',
+            fontSize: 'clamp(2.5rem, 6vw, 4rem)',
+            fontWeight: 800,
+            letterSpacing: '-0.035em',
+            lineHeight: 1.05,
+            margin: 0,
+            maxWidth: 900,
+            backgroundImage:
+              'linear-gradient(135deg, #1e293b 0%, #4338ca 50%, #7c3aed 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}
+        >
+          {companyName}
+        </motion.h1>
+
+        <motion.p
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.6, ease: 'easeOut' }}
-          className="text-white font-bold tracking-tight"
-          style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)' }}
+          transition={{ delay: 1.0, duration: 0.55 }}
+          style={{
+            color: '#475569',
+            fontSize: 17,
+            fontWeight: 500,
+            marginTop: 14,
+            letterSpacing: '-0.01em',
+          }}
         >
-          {company?.name ?? 'Creorga'}
-        </motion.h1>
+          {city}
+        </motion.p>
+
+        {/* Loading dots */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.3, duration: 0.4 }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginTop: 44,
+          }}
+        >
+          {[0, 1, 2].map((i) => (
+            <motion.span
+              key={i}
+              style={{
+                width: 9,
+                height: 9,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              }}
+              animate={{ scale: [1, 1.5, 1], opacity: [0.4, 1, 0.4] }}
+              transition={{
+                duration: 1.2,
+                repeat: Infinity,
+                ease: 'easeInOut',
+                delay: i * 0.18,
+              }}
+            />
+          ))}
+        </motion.div>
 
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 1.0, duration: 0.6 }}
-          className="text-gray-500 mt-3 text-sm"
+          transition={{ delay: 1.5, duration: 0.5 }}
+          style={{
+            color: '#64748b',
+            fontSize: 13.5,
+            marginTop: 16,
+            fontWeight: 500,
+          }}
         >
-          Bonjour{user?.firstName ? `, ${user.firstName}` : ''} — chargement de votre espace…
+          Préparation de votre espace…
         </motion.p>
       </div>
 
-      {/* Progress bar */}
+      {/* Skip button */}
+      <motion.button
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.8, duration: 0.5 }}
+        onClick={handleSkip}
+        style={{
+          position: 'absolute',
+          bottom: 28,
+          right: 28,
+          padding: '10px 20px',
+          borderRadius: 12,
+          background: 'rgba(255,255,255,0.75)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid rgba(226,232,240,0.9)',
+          color: '#475569',
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: 'pointer',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
+          transition: 'all 0.2s',
+          zIndex: 10,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'rgba(255,255,255,1)'
+          e.currentTarget.style.color = '#1e293b'
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'rgba(255,255,255,0.75)'
+          e.currentTarget.style.color = '#475569'
+        }}
+      >
+        Ignorer →
+      </motion.button>
+
+      {/* Bottom progress bar */}
       <motion.div
-        className="absolute bottom-0 left-0 h-[2px] bg-gradient-to-r from-blue-600 via-blue-400 to-transparent"
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          height: 3,
+          background:
+            'linear-gradient(90deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%)',
+          boxShadow: '0 0 12px rgba(139,92,246,0.5)',
+        }}
         initial={{ width: '0%' }}
         animate={{ width: '100%' }}
-        transition={{ duration: 3.2, ease: 'linear' }}
+        transition={{ duration: 3.5, ease: 'linear' }}
       />
     </div>
   )
