@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useModuleStore, MODULES } from '@/stores/moduleStore'
+import NotificationCenter from '@/components/NotificationCenter'
 
 export default function AppShell() {
   const navigate = useNavigate()
@@ -11,6 +12,7 @@ export default function AppShell() {
   const clearModule = useModuleStore((s) => s.clearModule)
 
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const currentModule = activeModule ? MODULES.find((m) => m.id === activeModule) : null
@@ -186,6 +188,7 @@ export default function AppShell() {
 
           {/* notification bell */}
           <button
+            onClick={() => setNotifOpen(true)}
             style={{
               width: 36,
               height: 36,
@@ -212,20 +215,30 @@ export default function AppShell() {
               el.style.color = 'rgba(148,163,184,0.6)'
             }}
           >
-            {'🔔'}
-            {/* notification dot */}
+            {'\u{1F514}'}
+            {/* unread count badge */}
             <span
               style={{
                 position: 'absolute',
-                top: 7,
-                right: 8,
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: '#f43f5e',
-                border: '1.5px solid rgba(10,10,20,0.9)',
+                top: -4,
+                right: -4,
+                minWidth: 18,
+                height: 18,
+                borderRadius: 9,
+                background: '#ef4444',
+                color: '#fff',
+                fontSize: 10,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 4px',
+                border: '2px solid rgba(10,10,20,0.9)',
+                lineHeight: 1,
               }}
-            />
+            >
+              8
+            </span>
           </button>
 
           {/* user avatar + dropdown */}
@@ -400,6 +413,9 @@ export default function AppShell() {
       <main style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <Outlet />
       </main>
+
+      {/* ── notification center ── */}
+      <NotificationCenter isOpen={notifOpen} onClose={() => setNotifOpen(false)} />
     </div>
   )
 }
