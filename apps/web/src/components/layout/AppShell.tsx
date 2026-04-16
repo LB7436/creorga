@@ -3,8 +3,10 @@ import { Outlet, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useModuleStore, MODULES } from '@/stores/moduleStore'
 import { useI18n } from '@/lib/i18n'
+import { useThemeColors } from '@/lib/theme'
 import NotificationCenter from '@/components/NotificationCenter'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
+import ThemeToggle from '@/components/ThemeToggle'
 
 export default function AppShell() {
   const navigate = useNavigate()
@@ -13,6 +15,7 @@ export default function AppShell() {
   const activeModule = useModuleStore((s) => s.activeModule)
   const clearModule = useModuleStore((s) => s.clearModule)
   const { t } = useI18n()
+  const colors = useThemeColors()
 
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
@@ -45,9 +48,10 @@ export default function AppShell() {
     <div
       style={{
         minHeight: '100vh',
-        background: '#0a0a1a',
+        background: colors.bg,
         display: 'flex',
         flexDirection: 'column',
+        transition: 'background 0.3s ease',
       }}
     >
       {/* ── sticky header ── */}
@@ -61,10 +65,11 @@ export default function AppShell() {
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '0 24px',
-          background: 'rgba(10,10,20,0.8)',
+          background: colors.bgHeader,
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          borderBottom: `1px solid ${colors.border}`,
+          transition: 'background 0.3s ease, border-color 0.3s ease',
           flexShrink: 0,
         }}
       >
@@ -107,7 +112,7 @@ export default function AppShell() {
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: 'rgba(148,163,184,0.5)',
+                  color: colors.textLight,
                   fontSize: 13,
                   cursor: 'pointer',
                   padding: 0,
@@ -115,15 +120,15 @@ export default function AppShell() {
                   transition: 'color 0.2s',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = '#a5b4fc'
+                  e.currentTarget.style.color = colors.accent
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.color = 'rgba(148,163,184,0.5)'
+                  e.currentTarget.style.color = colors.textLight
                 }}
               >
                 {t('modules')}
               </button>
-              <span style={{ color: 'rgba(148,163,184,0.3)', fontSize: 12 }}>/</span>
+              <span style={{ color: colors.textLight, fontSize: 12 }}>/</span>
               <div
                 style={{
                   display: 'flex',
@@ -131,8 +136,8 @@ export default function AppShell() {
                   gap: 6,
                   padding: '4px 12px',
                   borderRadius: 8,
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.06)',
+                  background: colors.bgCard,
+                  border: `1px solid ${colors.border}`,
                 }}
               >
                 <span
@@ -145,7 +150,7 @@ export default function AppShell() {
                     boxShadow: `0 0 8px ${currentModule.color}60`,
                   }}
                 />
-                <span style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600 }}>
+                <span style={{ color: colors.text, fontSize: 13, fontWeight: 600 }}>
                   {currentModule.name}
                 </span>
               </div>
@@ -164,9 +169,9 @@ export default function AppShell() {
               gap: 6,
               padding: '7px 14px',
               borderRadius: 10,
-              border: '1px solid rgba(255,255,255,0.08)',
-              background: 'rgba(255,255,255,0.04)',
-              color: 'rgba(148,163,184,0.7)',
+              border: `1px solid ${colors.border}`,
+              background: colors.bgCard,
+              color: colors.textMuted,
               fontSize: 13,
               fontWeight: 500,
               cursor: 'pointer',
@@ -174,15 +179,15 @@ export default function AppShell() {
             }}
             onMouseEnter={(e) => {
               const el = e.currentTarget
-              el.style.background = 'rgba(99,102,241,0.1)'
-              el.style.borderColor = 'rgba(99,102,241,0.3)'
-              el.style.color = '#a5b4fc'
+              el.style.background = colors.accentLight
+              el.style.borderColor = colors.accent
+              el.style.color = colors.accent
             }}
             onMouseLeave={(e) => {
               const el = e.currentTarget
-              el.style.background = 'rgba(255,255,255,0.04)'
-              el.style.borderColor = 'rgba(255,255,255,0.08)'
-              el.style.color = 'rgba(148,163,184,0.7)'
+              el.style.background = colors.bgCard
+              el.style.borderColor = colors.border
+              el.style.color = colors.textMuted
             }}
           >
             <span style={{ fontSize: 14 }}>{'▦'}</span>
@@ -192,6 +197,9 @@ export default function AppShell() {
           {/* language switcher */}
           <LanguageSwitcher />
 
+          {/* theme toggle */}
+          <ThemeToggle />
+
           {/* notification bell */}
           <button
             onClick={() => setNotifOpen(true)}
@@ -199,9 +207,9 @@ export default function AppShell() {
               width: 36,
               height: 36,
               borderRadius: 10,
-              border: '1px solid rgba(255,255,255,0.08)',
-              background: 'rgba(255,255,255,0.04)',
-              color: 'rgba(148,163,184,0.6)',
+              border: `1px solid ${colors.border}`,
+              background: colors.bgCard,
+              color: colors.textMuted,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -212,13 +220,13 @@ export default function AppShell() {
             }}
             onMouseEnter={(e) => {
               const el = e.currentTarget
-              el.style.background = 'rgba(255,255,255,0.08)'
-              el.style.color = '#e2e8f0'
+              el.style.background = colors.accentLight
+              el.style.color = colors.text
             }}
             onMouseLeave={(e) => {
               const el = e.currentTarget
-              el.style.background = 'rgba(255,255,255,0.04)'
-              el.style.color = 'rgba(148,163,184,0.6)'
+              el.style.background = colors.bgCard
+              el.style.color = colors.textMuted
             }}
           >
             {'\u{1F514}'}
@@ -239,7 +247,7 @@ export default function AppShell() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: '0 4px',
-                border: '2px solid rgba(10,10,20,0.9)',
+                border: `2px solid ${colors.bg}`,
                 lineHeight: 1,
               }}
             >
@@ -257,16 +265,16 @@ export default function AppShell() {
                 gap: 8,
                 padding: '4px 10px 4px 4px',
                 borderRadius: 12,
-                border: '1px solid rgba(255,255,255,0.08)',
-                background: 'rgba(255,255,255,0.04)',
+                border: `1px solid ${colors.border}`,
+                background: colors.bgCard,
                 cursor: 'pointer',
                 transition: 'all 0.2s',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+                e.currentTarget.style.background = colors.accentLight
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                e.currentTarget.style.background = colors.bgCard
               }}
             >
               <div
@@ -284,13 +292,13 @@ export default function AppShell() {
                   {user?.firstName?.[0]}{user?.lastName?.[0]}
                 </span>
               </div>
-              <span style={{ color: '#cbd5e1', fontSize: 13, fontWeight: 500 }}>
+              <span style={{ color: colors.text, fontSize: 13, fontWeight: 500 }}>
                 {user?.firstName}
               </span>
               <span
                 style={{
                   fontSize: 9,
-                  color: 'rgba(148,163,184,0.5)',
+                  color: colors.textLight,
                   transition: 'transform 0.2s',
                   transform: userMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)',
                 }}
@@ -308,11 +316,11 @@ export default function AppShell() {
                   right: 0,
                   minWidth: 200,
                   borderRadius: 14,
-                  background: 'rgba(20,20,40,0.95)',
+                  background: colors.bgSidebar,
                   backdropFilter: 'blur(20px)',
                   WebkitBackdropFilter: 'blur(20px)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+                  border: `1px solid ${colors.border}`,
+                  boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
                   padding: 6,
                   zIndex: 100,
                 }}
@@ -321,14 +329,14 @@ export default function AppShell() {
                 <div
                   style={{
                     padding: '10px 12px',
-                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                    borderBottom: `1px solid ${colors.border}`,
                     marginBottom: 4,
                   }}
                 >
-                  <div style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600 }}>
+                  <div style={{ color: colors.text, fontSize: 13, fontWeight: 600 }}>
                     {user?.firstName} {user?.lastName}
                   </div>
-                  <div style={{ color: 'rgba(148,163,184,0.5)', fontSize: 11, marginTop: 2 }}>
+                  <div style={{ color: colors.textLight, fontSize: 11, marginTop: 2 }}>
                     {company?.name ?? 'Creorga'}
                   </div>
                 </div>
@@ -353,19 +361,19 @@ export default function AppShell() {
                       borderRadius: 8,
                       border: 'none',
                       background: 'transparent',
-                      color: 'rgba(203,213,225,0.8)',
+                      color: colors.textMuted,
                       fontSize: 13,
                       cursor: 'pointer',
                       textAlign: 'left',
                       transition: 'all 0.15s',
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
-                      e.currentTarget.style.color = '#e2e8f0'
+                      e.currentTarget.style.background = colors.accentLight
+                      e.currentTarget.style.color = colors.text
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.background = 'transparent'
-                      e.currentTarget.style.color = 'rgba(203,213,225,0.8)'
+                      e.currentTarget.style.color = colors.textMuted
                     }}
                   >
                     <span style={{ fontSize: 14 }}>{item.icon}</span>
@@ -374,7 +382,7 @@ export default function AppShell() {
                 ))}
 
                 {/* separator */}
-                <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '4px 0' }} />
+                <div style={{ height: 1, background: colors.border, margin: '4px 0' }} />
 
                 {/* logout */}
                 <button
