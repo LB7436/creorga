@@ -7,9 +7,10 @@ import ConfigPage from './pages/ConfigPage'
 import PinLoginPage from './pages/PinLoginPage'
 import KioskPage from './pages/KioskPage'
 import FloorPlanEditor from './pages/FloorPlanEditor'
+import WaiterMode from './pages/WaiterMode'
 import { usePOS } from './store/posStore'
 
-export type AppView = 'pin_login' | 'floor' | 'order' | 'payment' | 'config' | 'kiosk' | 'editor'
+export type AppView = 'pin_login' | 'floor' | 'order' | 'payment' | 'config' | 'kiosk' | 'editor' | 'waiter'
 
 export default function App() {
   const [view, setView] = useState<AppView>('pin_login')
@@ -52,6 +53,8 @@ export default function App() {
     } else if (view === 'kiosk') {
       setKioskMode(false)
       setView('floor')
+    } else if (view === 'waiter') {
+      setView('floor')
     }
   }
 
@@ -63,6 +66,11 @@ export default function App() {
   // ── Kiosk mode (full takeover) ──
   if (view === 'kiosk' || kioskMode) {
     return <KioskPage onExit={() => { setKioskMode(false); setView('floor') }} />
+  }
+
+  // ── Waiter tablet mode (full takeover) ──
+  if (view === 'waiter') {
+    return <WaiterMode onExit={() => setView('floor')} />
   }
 
   // ── Breadcrumb segments ──
@@ -152,6 +160,22 @@ export default function App() {
           {view !== 'floor' && (
             <button onClick={goBack} style={headerBtn()}>
               ← Retour
+            </button>
+          )}
+
+          {/* Serveur (Waiter) button */}
+          {view === 'floor' && (
+            <button
+              onClick={() => setView('waiter')}
+              style={headerBtn()}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              Serveur
             </button>
           )}
 
