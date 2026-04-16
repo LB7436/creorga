@@ -8,9 +8,10 @@ import PinLoginPage from './pages/PinLoginPage'
 import KioskPage from './pages/KioskPage'
 import FloorPlanEditor from './pages/FloorPlanEditor'
 import WaiterMode from './pages/WaiterMode'
+import KitchenDisplay from './pages/KitchenDisplay'
 import { usePOS } from './store/posStore'
 
-export type AppView = 'pin_login' | 'floor' | 'order' | 'payment' | 'config' | 'kiosk' | 'editor' | 'waiter'
+export type AppView = 'pin_login' | 'floor' | 'order' | 'payment' | 'config' | 'kiosk' | 'editor' | 'waiter' | 'kitchen'
 
 export default function App() {
   const [view, setView] = useState<AppView>('pin_login')
@@ -55,6 +56,8 @@ export default function App() {
       setView('floor')
     } else if (view === 'waiter') {
       setView('floor')
+    } else if (view === 'kitchen') {
+      setView('floor')
     }
   }
 
@@ -71,6 +74,11 @@ export default function App() {
   // ── Waiter tablet mode (full takeover) ──
   if (view === 'waiter') {
     return <WaiterMode onExit={() => setView('floor')} />
+  }
+
+  // ── Kitchen Display System (full takeover) ──
+  if (view === 'kitchen') {
+    return <KitchenDisplay onExit={() => setView('floor')} />
   }
 
   // ── Breadcrumb segments ──
@@ -160,6 +168,20 @@ export default function App() {
           {view !== 'floor' && (
             <button onClick={goBack} style={headerBtn()}>
               ← Retour
+            </button>
+          )}
+
+          {/* Cuisine (KDS) button */}
+          {view === 'floor' && (
+            <button
+              onClick={() => setView('kitchen')}
+              style={headerBtn()}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6z"/>
+                <line x1="6" y1="17" x2="18" y2="17"/>
+              </svg>
+              Cuisine
             </button>
           )}
 
