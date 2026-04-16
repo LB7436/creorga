@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useModuleStore, MODULES } from '@/stores/moduleStore'
+import { useI18n } from '@/lib/i18n'
 import NotificationCenter from '@/components/NotificationCenter'
+import LanguageSwitcher from '@/components/LanguageSwitcher'
 
 export default function AppShell() {
   const navigate = useNavigate()
@@ -10,6 +12,7 @@ export default function AppShell() {
   const logout = useAuthStore((s) => s.logout)
   const activeModule = useModuleStore((s) => s.activeModule)
   const clearModule = useModuleStore((s) => s.clearModule)
+  const { t } = useI18n()
 
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
@@ -118,7 +121,7 @@ export default function AppShell() {
                   e.currentTarget.style.color = 'rgba(148,163,184,0.5)'
                 }}
               >
-                Modules
+                {t('modules')}
               </button>
               <span style={{ color: 'rgba(148,163,184,0.3)', fontSize: 12 }}>/</span>
               <div
@@ -183,8 +186,11 @@ export default function AppShell() {
             }}
           >
             <span style={{ fontSize: 14 }}>{'▦'}</span>
-            Modules
+            {t('modules')}
           </button>
+
+          {/* language switcher */}
+          <LanguageSwitcher />
 
           {/* notification bell */}
           <button
@@ -329,8 +335,8 @@ export default function AppShell() {
 
                 {/* menu items */}
                 {[
-                  { label: 'Mon profil', icon: '👤', action: () => {} },
-                  { label: 'Parametres', icon: '⚙️', action: () => {} },
+                  { label: t('profile'), icon: '\u{1F464}', action: () => {} },
+                  { label: t('settings'), icon: '\u2699\uFE0F', action: () => {} },
                 ].map((item) => (
                   <button
                     key={item.label}
@@ -400,8 +406,8 @@ export default function AppShell() {
                     e.currentTarget.style.color = 'rgba(248,113,113,0.8)'
                   }}
                 >
-                  <span style={{ fontSize: 14 }}>{'↗'}</span>
-                  Deconnexion
+                  <span style={{ fontSize: 14 }}>{'\u2197'}</span>
+                  {t('logout')}
                 </button>
               </div>
             )}
