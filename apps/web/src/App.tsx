@@ -106,6 +106,11 @@ import ClientsB2BPage from '@/pages/events/ClientsB2BPage'
 import SitesPage from '@/pages/sites/SitesPage'
 import ApiPage from '@/pages/api/ApiPage'
 
+// New modules
+import AiAssistantPage from '@/pages/ai/AiAssistantPage'
+import BackupPage from '@/pages/backup/BackupPage'
+import OwnerReportPage from '@/pages/owner/OwnerReportPage'
+
 function App() {
   return (
     <>
@@ -236,6 +241,15 @@ function App() {
 
         {/* API & Intégrations Module */}
         <Route path="/api" element={<ApiPage />} />
+
+        {/* Assistant IA Module */}
+        <Route path="/ai" element={<AiAssistantPage />} />
+
+        {/* Sauvegarde & Sécurité Module */}
+        <Route path="/backup" element={<BackupPage />} />
+
+        {/* Rapport Patron Module */}
+        <Route path="/owner" element={<OwnerReportPage />} />
 
         {/* Reputation Module */}
         <Route path="/reputation" element={<ReputationLayout />}>

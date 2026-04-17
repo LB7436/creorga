@@ -21,6 +21,9 @@ export type ModuleId =
   | 'rgpd'
   | 'sites'
   | 'api'
+  | 'ai'
+  | 'backup'
+  | 'owner'
 
 export interface ModuleDef {
   id: ModuleId
@@ -223,6 +226,36 @@ export const MODULES: ModuleDef[] = [
     path: '/api',
     available: true,
     category: 'admin',
+  },
+  {
+    id: 'ai',
+    name: 'Assistant IA',
+    tagline: 'Votre copilote intelligent',
+    color: '#8b5cf6',
+    colorLight: '#ede9fe',
+    path: '/ai',
+    available: true,
+    category: 'digital',
+  },
+  {
+    id: 'backup',
+    name: 'Sauvegarde',
+    tagline: 'Sécurité & restauration',
+    color: '#0284c7',
+    colorLight: '#e0f2fe',
+    path: '/backup',
+    available: true,
+    category: 'admin',
+  },
+  {
+    id: 'owner',
+    name: 'Rapport Patron',
+    tagline: 'Vision stratégique globale',
+    color: '#166534',
+    colorLight: '#d1fae5',
+    path: '/owner',
+    available: true,
+    category: 'business',
   },
 ]
 
