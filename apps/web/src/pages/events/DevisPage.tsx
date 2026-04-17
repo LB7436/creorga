@@ -821,12 +821,12 @@ function DetailModal({ quote, onClose }: { quote: EventQuote; onClose: () => voi
 
         <div style={{ padding: 24 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 20 }}>
-            <Info icon={Calendar} label="Date" value={new Date(quote.eventDate).toLocaleDateString('fr-LU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} />
-            <Info icon={MapPin} label="Lieu" value={quote.venue} />
-            <Info icon={Users} label="Couverts" value={`${quote.guests} personnes — ${getTier(quote.guests).label}`} />
-            <Info icon={Building2} label="Type" value={quote.eventType} />
-            <Info icon={User} label="Client" value={`${quote.client} (${quote.clientType})`} />
-            <Info icon={Euro} label="Montant total" value={fmtEUR(quote.amount)} />
+            <InfoRow icon={Calendar} label="Date" value={new Date(quote.eventDate).toLocaleDateString('fr-LU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} />
+            <InfoRow icon={MapPin} label="Lieu" value={quote.venue} />
+            <InfoRow icon={Users} label="Couverts" value={`${quote.guests} personnes — ${getTier(quote.guests).label}`} />
+            <InfoRow icon={Building2} label="Type" value={quote.eventType} />
+            <InfoRow icon={User} label="Client" value={`${quote.client} (${quote.clientType})`} />
+            <InfoRow icon={Euro} label="Montant total" value={fmtEUR(quote.amount)} />
           </div>
 
           {/* Dietary alert if applicable */}
@@ -882,7 +882,7 @@ function DetailModal({ quote, onClose }: { quote: EventQuote; onClose: () => voi
   )
 }
 
-function Info({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
+function InfoRow({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
       <Icon size={16} style={{ color: '#64748b', marginTop: 2 }} />
