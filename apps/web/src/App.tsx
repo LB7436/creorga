@@ -30,6 +30,9 @@ import AgendaLayout from '@/pages/agenda/AgendaLayout'
 // QR Menu Page
 import QrMenuPage from '@/pages/qrmenu/QrMenuPage'
 
+// Formation Page
+import FormationPage from '@/pages/formation/FormationPage'
+
 // POS Pages
 import FloorPlan from '@/pages/pos/FloorPlan'
 import OrderPage from '@/pages/pos/OrderPage'
@@ -206,6 +209,9 @@ function App() {
           <Route path="tva" element={<TvaPage />} />
           <Route path="rapports" element={<RapportsPage />} />
         </Route>
+
+        {/* Formation Module */}
+        <Route path="/formation" element={<FormationPage />} />
 
         {/* Reputation Module */}
         <Route path="/reputation" element={<ReputationLayout />}>

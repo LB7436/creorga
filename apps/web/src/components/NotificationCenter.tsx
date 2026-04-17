@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useOverdueAlerts, formatAlertMessage } from '../lib/overdueAlerts'
 
 /* ── types ── */
-type Category = 'Commandes' | 'Stock' | 'Planning' | 'Clients' | 'HACCP'
+type Category = 'Commandes' | 'Stock' | 'Planning' | 'Clients' | 'HACCP' | 'Factures/Devis'
 
 interface Notification {
   id: number
@@ -21,6 +22,7 @@ const CATEGORY_COLORS: Record<Category, string> = {
   Planning: '#8b5cf6',
   Clients: '#10b981',
   HACCP: '#ef4444',
+  'Factures/Devis': '#dc2626',
 }
 
 /* ── 15 mock notifications ── */
@@ -45,11 +47,28 @@ const INITIAL_NOTIFICATIONS: Notification[] = [
 /* ── filter tab type ── */
 type FilterTab = 'Tout' | Category
 
-const FILTER_TABS: FilterTab[] = ['Tout', 'Commandes', 'Stock', 'Planning', 'Clients', 'HACCP']
+const FILTER_TABS: FilterTab[] = ['Tout', 'Commandes', 'Stock', 'Planning', 'Clients', 'HACCP', 'Factures/Devis']
 
 /* ── component ── */
 export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS)
+  const overdue = useOverdueAlerts()
+
+  const overdueNotifications = useMemo<Notification[]>(() => {
+    return overdue.all.map((a, i) => ({
+      id: 1000 + i,
+      icon: a.type === 'invoice' ? '\u{1F4B0}' : '\u{1F4DD}',
+      title: a.type === 'invoice' ? `Facture ${a.number} impayée` : `Devis ${a.number} sans réponse`,
+      description: formatAlertMessage(a),
+      time: `${a.daysOverdue}j`,
+      category: 'Factures/Devis' as Category,
+      unread: a.severity === 'danger',
+    }))
+  }, [overdue.all])
+
+  const [notifications, setNotifications] = useState<Notification[]>([
+    ...INITIAL_NOTIFICATIONS,
+    ...overdueNotifications,
+  ])
   const [activeTab, setActiveTab] = useState<FilterTab>('Tout')
   const [hoveredId, setHoveredId] = useState<number | null>(null)
   const [hoveredTab, setHoveredTab] = useState<FilterTab | null>(null)
@@ -58,7 +77,7 @@ export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolea
   const unreadCount = useMemo(() => notifications.filter((n) => n.unread).length, [notifications])
 
   const tabCounts = useMemo(() => {
-    const counts: Record<FilterTab, number> = { Tout: notifications.length, Commandes: 0, Stock: 0, Planning: 0, Clients: 0, HACCP: 0 }
+    const counts: Record<FilterTab, number> = { Tout: notifications.length, Commandes: 0, Stock: 0, Planning: 0, Clients: 0, HACCP: 0, 'Factures/Devis': 0 }
     notifications.forEach((n) => { counts[n.category]++ })
     return counts
   }, [notifications])
@@ -245,6 +264,32 @@ export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolea
                 )
               })}
             </div>
+
+            {/* ── overdue banner ── */}
+            {(overdue.totals.invoicesCount > 0 || overdue.totals.quotesCount > 0) && (activeTab === 'Tout' || activeTab === 'Factures/Devis') && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                  margin: '10px 12px 4px',
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  background: 'linear-gradient(135deg, #fef2f2 0%, #fff7ed 100%)',
+                  border: '1px solid #fecaca',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  fontSize: 12.5,
+                  color: '#991b1b',
+                  fontWeight: 600,
+                }}
+              >
+                <span style={{ fontSize: 18 }}>{'\u26A0\uFE0F'}</span>
+                <span>
+                  {overdue.totals.invoicesCount} factures impayées {'\u00B7'} {overdue.totals.quotesCount} devis en attente
+                </span>
+              </motion.div>
+            )}
 
             {/* ── notification list ── */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>

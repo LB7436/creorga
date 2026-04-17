@@ -15,6 +15,7 @@ export type ModuleId =
   | 'haccp'
   | 'events'
   | 'reputation'
+  | 'formation'
 
 export interface ModuleDef {
   id: ModuleId
@@ -157,6 +158,16 @@ export const MODULES: ModuleDef[] = [
     path: '/reputation',
     available: true,
     category: 'digital',
+  },
+  {
+    id: 'formation',
+    name: 'Formation',
+    tagline: 'Formation & certification du personnel',
+    color: '#7C3AED',
+    colorLight: '#ede9fe',
+    path: '/formation',
+    available: true,
+    category: 'admin',
   },
 ]
 
