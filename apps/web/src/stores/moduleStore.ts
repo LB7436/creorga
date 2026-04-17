@@ -16,6 +16,9 @@ export type ModuleId =
   | 'events'
   | 'reputation'
   | 'formation'
+  | 'maintenance'
+  | 'licences'
+  | 'rgpd'
 
 export interface ModuleDef {
   id: ModuleId
@@ -166,6 +169,36 @@ export const MODULES: ModuleDef[] = [
     color: '#7C3AED',
     colorLight: '#ede9fe',
     path: '/formation',
+    available: true,
+    category: 'admin',
+  },
+  {
+    id: 'maintenance',
+    name: 'Maintenance',
+    tagline: 'Équipements & interventions',
+    color: '#0891b2',
+    colorLight: '#cffafe',
+    path: '/maintenance',
+    available: true,
+    category: 'admin',
+  },
+  {
+    id: 'licences',
+    name: 'Licences & Assurances',
+    tagline: 'Documents légaux & échéances',
+    color: '#ca8a04',
+    colorLight: '#fef3c7',
+    path: '/licences',
+    available: true,
+    category: 'admin',
+  },
+  {
+    id: 'rgpd',
+    name: 'RGPD / Conformité',
+    tagline: 'Protection des données',
+    color: '#059669',
+    colorLight: '#d1fae5',
+    path: '/rgpd',
     available: true,
     category: 'admin',
   },

@@ -33,6 +33,11 @@ import QrMenuPage from '@/pages/qrmenu/QrMenuPage'
 // Formation Page
 import FormationPage from '@/pages/formation/FormationPage'
 
+// Admin module pages
+import MaintenancePage from '@/pages/maintenance/MaintenancePage'
+import LicencesPage from '@/pages/licences/LicencesPage'
+import RgpdPage from '@/pages/rgpd/RgpdPage'
+
 // POS Pages
 import FloorPlan from '@/pages/pos/FloorPlan'
 import OrderPage from '@/pages/pos/OrderPage'
@@ -212,6 +217,15 @@ function App() {
 
         {/* Formation Module */}
         <Route path="/formation" element={<FormationPage />} />
+
+        {/* Maintenance Module */}
+        <Route path="/maintenance" element={<MaintenancePage />} />
+
+        {/* Licences & Assurances Module */}
+        <Route path="/licences" element={<LicencesPage />} />
+
+        {/* RGPD / Conformité Module */}
+        <Route path="/rgpd" element={<RgpdPage />} />
 
         {/* Reputation Module */}
         <Route path="/reputation" element={<ReputationLayout />}>
