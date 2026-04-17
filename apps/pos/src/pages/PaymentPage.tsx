@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePOS, Cover, PayMethod, coverTotal, tableTotal } from '../store/posStore'
 
@@ -12,6 +12,7 @@ type SplitMode = 'full' | 'by-cover' | 'equal'
 type TipMode = 'percent' | 'euro'
 type ReceiptMode = 'paper' | 'email' | 'sms' | 'none' | 'qr'
 type Partial = { id: string; method: PayMethod; amount: number }
+type QrStatus = 'waiting' | 'scanned' | 'paid'
 
 const PAY_METHODS: { id: PayMethod; label: string; icon: string }[] = [
   { id: 'cash',        label: 'Espèces',      icon: '💵' },
@@ -25,8 +26,34 @@ const STAFF_LIST = ['Marie', 'Thomas', 'Sophie', 'Paul']
 const DEMO_PROMOS: Record<string, number> = { 'BIENVENUE10': 10, 'ETE5': 5, 'FIDELE20': 20 }
 const DEMO_GIFTS: Record<string, number> = { 'GC-2024-ABCD': 25, 'GC-XMAS-1234': 50 }
 
+const LS_RECEIPT_PREFS = 'creorga_pos_receipt_prefs'
+
 function fmt(n: number) { return n.toFixed(2) + ' €' }
 function uid() { return Math.random().toString(36).slice(2, 9) }
+function roundUp50(n: number) { return Math.ceil(n / 50) * 50 }
+
+/* ── Seeded QR pattern (stable across renders) ───────────────────────────────── */
+function useQrPattern(seed: string) {
+  return useMemo(() => {
+    let s = 0
+    for (let i = 0; i < seed.length; i++) s = (s * 31 + seed.charCodeAt(i)) >>> 0
+    const cells: boolean[] = []
+    for (let i = 0; i < 169; i++) {
+      s = (s * 1103515245 + 12345) >>> 0
+      cells.push((s & 1) === 1)
+    }
+    // force finder patterns at 3 corners
+    const n = 13
+    const forceCorner = (r: number, c: number) => {
+      for (let dr = 0; dr < 3; dr++) for (let dc = 0; dc < 3; dc++) {
+        cells[(r + dr) * n + (c + dc)] = true
+      }
+      cells[(r + 1) * n + (c + 1)] = false
+    }
+    forceCorner(0, 0); forceCorner(0, n - 3); forceCorner(n - 3, 0)
+    return cells
+  }, [seed])
+}
 
 /* ── Cover checkbox ─────────────────────────────────────────────────────────── */
 function CoverCheck({ cover, selected, onToggle }: { cover: Cover; selected: boolean; onToggle: () => void }) {
@@ -66,7 +93,12 @@ function CoverCheck({ cover, selected, onToggle }: { cover: Cover; selected: boo
 }
 
 /* ── Receipt / ticket ───────────────────────────────────────────────────────── */
-function Receipt({ covers, tip, discount }: { covers: Cover[]; tip: number; discount: number }) {
+function Receipt({
+  covers, tip, discount, customMsg, includeLogo, includePromo, promoNext,
+}: {
+  covers: Cover[]; tip: number; discount: number
+  customMsg?: string; includeLogo?: boolean; includePromo?: boolean; promoNext?: string
+}) {
   const subtotal = covers.reduce((s, c) => s + coverTotal(c), 0)
   const total = Math.max(0, subtotal - discount) + tip
 
@@ -75,6 +107,15 @@ function Receipt({ covers, tip, discount }: { covers: Cover[]; tip: number; disc
       background: 'rgba(255,255,255,0.02)', borderRadius: 14,
       border: '1px solid rgba(255,255,255,0.06)', overflow: 'hidden',
     }}>
+      {includeLogo && (
+        <div style={{
+          padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)',
+          textAlign: 'center' as const,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#a5b4fc', letterSpacing: '0.2em' }}>CREORGA</div>
+          <div style={{ fontSize: 9, color: '#64748b' }}>Restaurant démo · Luxembourg</div>
+        </div>
+      )}
       {covers.map(cover => (
         <div key={cover.id}>
           {covers.length > 1 && (
@@ -131,17 +172,62 @@ function Receipt({ covers, tip, discount }: { covers: Cover[]; tip: number; disc
           <span style={{ fontSize: 16, fontWeight: 700, color: '#e2e8f0' }}>{fmt(total)}</span>
         </div>
       </div>
+
+      {(customMsg || (includePromo && promoNext)) && (
+        <div style={{
+          padding: '10px 16px', borderTop: '1px dashed rgba(255,255,255,0.06)',
+          background: 'rgba(99,102,241,0.04)',
+        }}>
+          {customMsg && (
+            <div style={{ fontSize: 11, color: '#a5b4fc', fontStyle: 'italic' as const, textAlign: 'center' as const, marginBottom: includePromo ? 6 : 0 }}>
+              « {customMsg} »
+            </div>
+          )}
+          {includePromo && promoNext && (
+            <div style={{
+              padding: '6px 10px', borderRadius: 8,
+              background: 'rgba(16,185,129,0.08)', border: '1px dashed rgba(16,185,129,0.3)',
+              textAlign: 'center' as const,
+            }}>
+              <div style={{ fontSize: 9, color: '#6ee7b7', fontWeight: 700, letterSpacing: '0.05em' }}>
+                PROCHAINE VISITE
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#10b981' }}>{promoNext}</div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
-/* ── Success overlay with receipt options ───────────────────────────────────── */
-function SuccessOverlay({
-  amount, change, method, onFinish,
-}: {
-  amount: number; change: number | null; method: PayMethod; onFinish: () => void
+/* ── QR code SVG (13x13 grid) ───────────────────────────────────────────────── */
+function QrSvg({ cells, size = 160, color = '#fff', bg = '#07070d' }: {
+  cells: boolean[]; size?: number; color?: string; bg?: string
 }) {
-  const [receiptMode, setReceiptMode] = useState<ReceiptMode | null>(null)
+  const n = 13
+  const cs = size / n
+  return (
+    <svg width={size} height={size} style={{ display: 'block', borderRadius: 10 }}>
+      <rect width={size} height={size} fill={bg} />
+      {cells.map((on, i) => {
+        if (!on) return null
+        const x = (i % n) * cs
+        const y = Math.floor(i / n) * cs
+        return <rect key={i} x={x} y={y} width={cs + 0.5} height={cs + 0.5} fill={color} />
+      })}
+    </svg>
+  )
+}
+
+/* ── Success overlay ────────────────────────────────────────────────────────── */
+function SuccessOverlay({
+  amount, change, method, onFinish, defaultMode,
+}: {
+  amount: number; change: number | null; method: PayMethod
+  onFinish: (mode: ReceiptMode) => void; defaultMode: ReceiptMode | null
+}) {
+  const [receiptMode, setReceiptMode] = useState<ReceiptMode | null>(defaultMode)
   const [contact, setContact] = useState('')
 
   const options: { id: ReceiptMode; label: string; icon: string }[] = [
@@ -197,7 +283,6 @@ function SuccessOverlay({
         </div>
       )}
 
-      {/* Receipt options */}
       <div style={{
         marginTop: 14, padding: '18px 22px', borderRadius: 16,
         background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
@@ -245,27 +330,9 @@ function SuccessOverlay({
           />
         )}
 
-        {receiptMode === 'qr' && (
-          <div style={{
-            textAlign: 'center' as const, padding: '14px 0',
-            display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 8,
-          }}>
-            <div style={{
-              width: 96, height: 96, borderRadius: 10,
-              background: '#fff',
-              display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', padding: 6,
-            }}>
-              {Array.from({ length: 64 }).map((_, i) => (
-                <div key={i} style={{ background: Math.random() > 0.45 ? '#000' : '#fff' }} />
-              ))}
-            </div>
-            <div style={{ fontSize: 11, color: '#64748b' }}>Scannez pour télécharger plus tard</div>
-          </div>
-        )}
-
         <motion.button
           whileTap={{ scale: 0.97 }}
-          onClick={onFinish}
+          onClick={() => receiptMode && onFinish(receiptMode)}
           disabled={!receiptMode}
           style={{
             marginTop: 14, width: '100%', padding: '12px 0',
@@ -281,71 +348,6 @@ function SuccessOverlay({
           {receiptMode ? 'Terminer' : 'Sélectionnez une option'}
         </motion.button>
       </div>
-    </motion.div>
-  )
-}
-
-/* ── Print preview ──────────────────────────────────────────────────────────── */
-function PrintPreview({ covers, tip, discount, onClose }: {
-  covers: Cover[]; tip: number; discount: number; onClose: () => void
-}) {
-  const subtotal = covers.reduce((s, c) => s + coverTotal(c), 0)
-  const total = Math.max(0, subtotal - discount) + tip
-  const date = new Date().toLocaleString('fr-FR')
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 900,
-        background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(10px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-      }}
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ scale: 0.92, y: 16 }} animate={{ scale: 1, y: 0 }}
-        onClick={e => e.stopPropagation()}
-        style={{
-          width: 340, maxHeight: '80vh', overflowY: 'auto' as const,
-          background: '#fefefe', color: '#111', borderRadius: 8,
-          padding: '20px 20px', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.5,
-          boxShadow: '0 20px 80px rgba(0,0,0,0.8)',
-        }}
-      >
-        <div style={{ textAlign: 'center' as const, marginBottom: 14 }}>
-          <div style={{ fontWeight: 800, fontSize: 16 }}>CREORGA POS</div>
-          <div style={{ fontSize: 10, color: '#555' }}>Restaurant démo · Luxembourg</div>
-          <div style={{ fontSize: 10, color: '#555' }}>{date}</div>
-        </div>
-        <div style={{ borderTop: '1px dashed #aaa', borderBottom: '1px dashed #aaa', padding: '8px 0', marginBottom: 8 }}>
-          {covers.map(c => c.items.map(it => (
-            <div key={it.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>{it.qty}× {it.name}</span>
-              <span>{(it.price * it.qty).toFixed(2)}</span>
-            </div>
-          )))}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>Sous-total</span><span>{subtotal.toFixed(2)}</span>
-        </div>
-        {discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Réduction</span><span>-{discount.toFixed(2)}</span></div>}
-        {tip > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Pourboire</span><span>+{tip.toFixed(2)}</span></div>}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 14, marginTop: 8, paddingTop: 8, borderTop: '1px solid #000' }}>
-          <span>TOTAL</span><span>{total.toFixed(2)} €</span>
-        </div>
-        <div style={{ textAlign: 'center' as const, marginTop: 14, fontSize: 10 }}>Merci de votre visite !</div>
-        <button
-          onClick={onClose}
-          style={{
-            marginTop: 16, width: '100%', padding: '10px',
-            background: '#111', color: '#fff', border: 'none', borderRadius: 8,
-            fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-          }}
-        >
-          Fermer l'aperçu
-        </button>
-      </motion.div>
     </motion.div>
   )
 }
@@ -383,12 +385,57 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   const [giftError, setGiftError] = useState('')
 
   const [usePoints, setUsePoints] = useState(false)
-  const [showPreview, setShowPreview] = useState(false)
+
+  // QR payment state
+  const [showQr, setShowQr] = useState(false)
+  const [qrStatus, setQrStatus] = useState<QrStatus>('waiting')
+
+  // Round-up for charity
+  const [roundUp, setRoundUp] = useState(false)
+
+  // Member signup
+  const [isMember, setIsMember] = useState(false)
+  const [showMemberForm, setShowMemberForm] = useState(false)
+  const [memberName, setMemberName] = useState('')
+  const [memberEmail, setMemberEmail] = useState('')
+  const [memberDiscount, setMemberDiscount] = useState(0)
+
+  // Open tab
+  const [keepOpen, setKeepOpen] = useState(false)
+
+  // Receipt customization
+  const [receiptLogo, setReceiptLogo] = useState(true)
+  const [receiptMsg, setReceiptMsg] = useState('Merci de votre visite !')
+  const [receiptPromo, setReceiptPromo] = useState(true)
+
+  // Print/save preferences (last 3 modes)
+  const [recentReceiptModes, setRecentReceiptModes] = useState<ReceiptMode[]>([])
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_RECEIPT_PREFS)
+      if (raw) {
+        const arr = JSON.parse(raw) as ReceiptMode[]
+        if (Array.isArray(arr)) setRecentReceiptModes(arr.slice(0, 3))
+      }
+    } catch { /* noop */ }
+  }, [])
 
   // Demo loyalty state
   const hasClient = true
   const clientPoints = 142
   const pointsValue = Math.floor(clientPoints / 10)
+
+  const qrCells = useQrPattern(tableId + Date.now().toString().slice(-4))
+
+  // Simulate QR status progression when modal opens
+  useEffect(() => {
+    if (!showQr) return
+    setQrStatus('waiting')
+    const t1 = setTimeout(() => setQrStatus('scanned'), 2600)
+    const t2 = setTimeout(() => setQrStatus('paid'), 5200)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [showQr])
 
   if (!table) return null
 
@@ -406,7 +453,8 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   const promoDiscount = appliedPromo ? subtotal * (appliedPromo.pct / 100) : 0
   const giftDiscount = appliedGift ? Math.min(appliedGift.balance, subtotal - promoDiscount) : 0
   const pointsDiscount = usePoints ? pointsValue : 0
-  const totalDiscount = promoDiscount + giftDiscount + pointsDiscount
+  const memberReduction = memberDiscount > 0 ? subtotal * (memberDiscount / 100) : 0
+  const totalDiscount = promoDiscount + giftDiscount + pointsDiscount + memberReduction
   const afterDiscount = Math.max(0, subtotal - totalDiscount)
 
   const tipAmount = useMemo(() => {
@@ -419,7 +467,13 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   }, [tipIsCustom, customTip, tipPercent, afterDiscount, tipMode])
 
   const perPersonAmount = splitMode === 'equal' ? (afterDiscount + tipAmount) / equalParts : 0
-  const totalToPay = afterDiscount + tipAmount
+
+  // Round up to next 50€
+  const baseTotal = afterDiscount + tipAmount
+  const roundUpTarget = roundUp ? roundUp50(baseTotal) : baseTotal
+  const charityAmount = roundUp ? roundUpTarget - baseTotal : 0
+  const totalToPay = roundUpTarget
+
   const tipPerStaff = splitTip && connectedStaff.length > 0 ? tipAmount / connectedStaff.length : 0
 
   const paidSoFar = partials.reduce((s, p) => s + p.amount, 0)
@@ -478,10 +532,25 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
     setGiftCode('')
   }
 
+  function completeMemberSignup() {
+    if (!memberName.trim() || !memberEmail.trim()) return
+    setIsMember(true)
+    setMemberDiscount(10)
+    setShowMemberForm(false)
+  }
+
   function handleConfirm() {
     const ids = splitMode === 'by-cover' ? [...selectedCoverIds] : undefined
     processPayment(tableId, method, tipAmount, ids)
     setDone(true)
+  }
+
+  function handleFinish(mode: ReceiptMode) {
+    // Persist last 3 choices
+    const next = [mode, ...recentReceiptModes.filter(m => m !== mode)].slice(0, 3)
+    setRecentReceiptModes(next)
+    try { localStorage.setItem(LS_RECEIPT_PREFS, JSON.stringify(next)) } catch { /* noop */ }
+    onDone()
   }
 
   const canPay = splitMode !== 'by-cover' || selectedCoverIds.size > 0
@@ -496,16 +565,189 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
             amount={totalToPay}
             change={cashChange}
             method={method}
-            onFinish={onDone}
+            onFinish={handleFinish}
+            defaultMode={recentReceiptModes[0] ?? null}
           />
         )}
-        {showPreview && (
-          <PrintPreview
-            covers={payingCovers}
-            tip={tipAmount}
-            discount={totalDiscount}
-            onClose={() => setShowPreview(false)}
-          />
+
+        {showQr && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setShowQr(false)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 900,
+              background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.92, y: 16 }} animate={{ scale: 1, y: 0 }}
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: 360, padding: 28, borderRadius: 22,
+                background: 'linear-gradient(180deg, #0a0a14, #131322)',
+                border: '1px solid rgba(99,102,241,0.3)',
+                boxShadow: '0 30px 80px rgba(99,102,241,0.3)',
+                textAlign: 'center' as const,
+              }}
+            >
+              <div style={{
+                fontSize: 11, color: '#818cf8', fontWeight: 700, letterSpacing: '0.1em',
+                textTransform: 'uppercase' as const, marginBottom: 6,
+              }}>Paiement QR Code</div>
+              <div style={{ fontSize: 26, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em', marginBottom: 18 }}>
+                {fmt(totalToPay)}
+              </div>
+
+              <div style={{
+                padding: 14, borderRadius: 16, background: '#07070d',
+                border: '1px solid rgba(255,255,255,0.08)',
+                display: 'inline-block', marginBottom: 16, position: 'relative' as const,
+              }}>
+                <QrSvg cells={qrCells} size={180} />
+                {qrStatus === 'paid' && (
+                  <motion.div
+                    initial={{ scale: 0 }} animate={{ scale: 1 }}
+                    style={{
+                      position: 'absolute' as const, inset: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: 'rgba(16,185,129,0.88)', borderRadius: 16,
+                    }}
+                  >
+                    <span style={{ fontSize: 60, color: '#fff' }}>✓</span>
+                  </motion.div>
+                )}
+              </div>
+
+              <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 12 }}>
+                Scannez pour payer avec votre téléphone
+              </div>
+
+              <div style={{
+                padding: '10px 14px', borderRadius: 12, marginBottom: 16,
+                background: qrStatus === 'paid'
+                  ? 'rgba(16,185,129,0.12)'
+                  : qrStatus === 'scanned' ? 'rgba(245,158,11,0.12)' : 'rgba(99,102,241,0.12)',
+                border: `1px solid ${qrStatus === 'paid' ? 'rgba(16,185,129,0.3)' : qrStatus === 'scanned' ? 'rgba(245,158,11,0.3)' : 'rgba(99,102,241,0.3)'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              }}>
+                {qrStatus !== 'paid' && (
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
+                    style={{
+                      width: 14, height: 14, borderRadius: '50%',
+                      border: '2px solid rgba(255,255,255,0.15)',
+                      borderTopColor: qrStatus === 'scanned' ? '#f59e0b' : '#818cf8',
+                    }}
+                  />
+                )}
+                <span style={{
+                  fontSize: 13, fontWeight: 700,
+                  color: qrStatus === 'paid' ? '#10b981' : qrStatus === 'scanned' ? '#f59e0b' : '#a5b4fc',
+                }}>
+                  {qrStatus === 'paid' ? 'Paiement reçu ✓' : qrStatus === 'scanned' ? 'QR scanné — en attente…' : 'En attente…'}
+                </span>
+              </div>
+
+              {qrStatus === 'paid' ? (
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => { setShowQr(false); handleConfirm() }}
+                  style={{
+                    width: '100%', padding: '12px 0', borderRadius: 12, border: 'none',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >Terminer</motion.button>
+              ) : (
+                <button
+                  onClick={() => setShowQr(false)}
+                  style={{
+                    width: '100%', padding: '10px 0', borderRadius: 12,
+                    background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#94a3b8', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >Annuler</button>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+
+        {showMemberForm && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setShowMemberForm(false)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 800,
+              background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.94, y: 16 }} animate={{ scale: 1, y: 0 }}
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: 360, padding: 24, borderRadius: 20,
+                background: '#0a0a14',
+                border: '1px solid rgba(99,102,241,0.25)',
+              }}
+            >
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 4 }}>
+                Inscription membre
+              </div>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 18 }}>
+                10% de remise immédiate + points fidélité
+              </div>
+
+              <input
+                autoFocus placeholder="Prénom Nom" value={memberName}
+                onChange={e => setMemberName(e.target.value)}
+                style={{
+                  width: '100%', padding: '11px 14px', borderRadius: 10,
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.04)', color: '#e2e8f0',
+                  fontSize: 13, outline: 'none', fontFamily: 'inherit', marginBottom: 10,
+                  boxSizing: 'border-box' as const,
+                }}
+              />
+              <input
+                placeholder="email@exemple.com" value={memberEmail} type="email"
+                onChange={e => setMemberEmail(e.target.value)}
+                style={{
+                  width: '100%', padding: '11px 14px', borderRadius: 10,
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.04)', color: '#e2e8f0',
+                  fontSize: 13, outline: 'none', fontFamily: 'inherit', marginBottom: 14,
+                  boxSizing: 'border-box' as const,
+                }}
+              />
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => setShowMemberForm(false)}
+                  style={{
+                    flex: 1, padding: '10px 0', borderRadius: 10,
+                    background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#64748b', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >Annuler</button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={completeMemberSignup}
+                  disabled={!memberName.trim() || !memberEmail.trim()}
+                  style={{
+                    flex: 1.4, padding: '10px 0', borderRadius: 10, border: 'none',
+                    background: memberName.trim() && memberEmail.trim()
+                      ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                      : 'rgba(255,255,255,0.06)',
+                    color: memberName.trim() && memberEmail.trim() ? '#fff' : '#475569',
+                    fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >Inscrire + 10%</motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -573,20 +815,71 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
 
         <div style={{ flex: 1, overflowY: 'auto' as const, padding: '14px 18px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={labelStyle}>Reçu</div>
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowPreview(true)}
-              style={{
-                fontSize: 11, color: '#a5b4fc', background: 'rgba(99,102,241,0.1)',
-                border: '1px solid rgba(99,102,241,0.2)',
-                padding: '4px 12px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
-              }}
-            >
-              🖨 Aperçu
-            </motion.button>
+            <div style={labelStyle}>Aperçu reçu temps réel</div>
           </div>
-          <Receipt covers={payingCovers} tip={tipAmount} discount={totalDiscount} />
+          <Receipt
+            covers={payingCovers}
+            tip={tipAmount}
+            discount={totalDiscount}
+            customMsg={receiptMsg}
+            includeLogo={receiptLogo}
+            includePromo={receiptPromo}
+            promoNext="REVENEZ10 · −10% prochaine visite"
+          />
+
+          {/* Receipt customization */}
+          <div style={{ marginTop: 14, ...sectionCard }}>
+            <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, marginBottom: 10 }}>
+              Personnalisation du reçu
+            </div>
+            <label style={checkRow}>
+              <input
+                type="checkbox" checked={receiptLogo}
+                onChange={e => setReceiptLogo(e.target.checked)}
+                style={{ accentColor: '#6366f1', width: 15, height: 15 }}
+              />
+              <span style={{ fontSize: 12, color: '#94a3b8' }}>Inclure logo Creorga</span>
+            </label>
+            <label style={checkRow}>
+              <input
+                type="checkbox" checked={receiptPromo}
+                onChange={e => setReceiptPromo(e.target.checked)}
+                style={{ accentColor: '#6366f1', width: 15, height: 15 }}
+              />
+              <span style={{ fontSize: 12, color: '#94a3b8' }}>Code promo prochaine visite</span>
+            </label>
+            <input
+              placeholder="Message personnalisé"
+              value={receiptMsg}
+              onChange={e => setReceiptMsg(e.target.value)}
+              style={{
+                width: '100%', padding: '8px 12px', borderRadius: 10,
+                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'rgba(255,255,255,0.04)', color: '#e2e8f0',
+                fontSize: 12, outline: 'none', fontFamily: 'inherit', marginTop: 8,
+                boxSizing: 'border-box' as const,
+              }}
+            />
+          </div>
+
+          {recentReceiptModes.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 10, color: '#475569', fontWeight: 700, marginBottom: 6, letterSpacing: '0.05em' }}>
+                🔖 RÉCENTS
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const }}>
+                {recentReceiptModes.map((m, i) => (
+                  <span key={i} style={{
+                    fontSize: 10, padding: '3px 9px', borderRadius: 12,
+                    background: 'rgba(99,102,241,0.08)',
+                    color: '#818cf8', fontWeight: 600,
+                  }}>
+                    {m === 'paper' ? 'Papier' : m === 'email' ? 'Email' : m === 'sms' ? 'SMS' : m === 'qr' ? 'QR' : 'Aucun'}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {splitMode === 'by-cover' && grandTotal > subtotal && subtotal > 0 && (
             <div style={{
@@ -609,7 +902,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
           <div style={{
             background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(79,70,229,0.08))',
             border: '1px solid rgba(99,102,241,0.25)',
-            borderRadius: 22, padding: '22px 26px', marginBottom: 20,
+            borderRadius: 22, padding: '22px 26px', marginBottom: 16,
             textAlign: 'center' as const, boxShadow: '0 4px 40px rgba(99,102,241,0.12)',
           }}>
             <div style={{ fontSize: 11, color: '#818cf8', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginBottom: 6 }}>
@@ -618,6 +911,11 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
             <div style={{ fontSize: 46, fontWeight: 900, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
               {fmt(totalToPay)}
             </div>
+            {roundUp && charityAmount > 0 && (
+              <div style={{ fontSize: 12, color: '#fca5a5', marginTop: 6 }}>
+                dont <strong>+{fmt(charityAmount)}</strong> pour la Croix-Rouge 🤝
+              </div>
+            )}
             {splitMode === 'equal' && (
               <div style={{ fontSize: 14, color: '#818cf8', marginTop: 8 }}>
                 {equalParts} × {fmt(perPersonAmount)}
@@ -645,7 +943,57 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
             )}
           </div>
 
-          {/* Loyalty / Promo / Gift accordion */}
+          {/* Member signup suggestion */}
+          {!hasClient || (!isMember && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+              style={{
+                ...sectionCard,
+                background: 'linear-gradient(135deg, rgba(236,72,153,0.08), rgba(139,92,246,0.06))',
+                border: '1px solid rgba(236,72,153,0.2)',
+              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 22 }}>⭐</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: '#e2e8f0' }}>
+                    Ce client n'est pas membre
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                    Inscription en 10s → <strong style={{ color: '#f472b6' }}>10% de remise immédiate</strong>
+                  </div>
+                </div>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowMemberForm(true)}
+                  style={{
+                    padding: '8px 16px', borderRadius: 10, border: 'none',
+                    background: 'linear-gradient(135deg, #ec4899, #8b5cf6)',
+                    color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                    whiteSpace: 'nowrap' as const,
+                  }}
+                >Inscrire</motion.button>
+              </div>
+            </motion.div>
+          ))}
+
+          {isMember && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+              style={{
+                ...sectionCard,
+                background: 'rgba(16,185,129,0.08)',
+                border: '1px solid rgba(16,185,129,0.25)',
+              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 18 }}>✓</span>
+                <span style={{ fontSize: 12.5, color: '#6ee7b7', fontWeight: 700 }}>
+                  {memberName} inscrit·e · −10% appliqué
+                </span>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Loyalty card */}
           {hasClient && (
             <div style={sectionCard}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -666,8 +1014,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-            {/* Promo */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
             <div style={sectionCard}>
               <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 8 }}>🏷 Code promo</div>
               {appliedPromo ? (
@@ -689,7 +1036,6 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
               {promoError && <div style={{ fontSize: 10, color: '#f43f5e', marginTop: 4 }}>{promoError}</div>}
             </div>
 
-            {/* Gift */}
             <div style={sectionCard}>
               <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 8 }}>🎁 Carte cadeau</div>
               {appliedGift ? (
@@ -712,44 +1058,112 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
             </div>
           </div>
 
+          {/* Round up for charity */}
+          {baseTotal > 0 && roundUp50(baseTotal) > baseTotal && (
+            <label style={{
+              ...sectionCard,
+              cursor: 'pointer' as const,
+              background: roundUp ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.02)',
+              border: roundUp ? '1px solid rgba(239,68,68,0.3)' : '1px solid rgba(255,255,255,0.06)',
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}>
+              <input
+                type="checkbox" checked={roundUp}
+                onChange={e => setRoundUp(e.target.checked)}
+                style={{ accentColor: '#ef4444', width: 16, height: 16 }}
+              />
+              <span style={{ fontSize: 20 }}>➕</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#e2e8f0' }}>
+                  Arrondir à {roundUp50(baseTotal)}€ pour Croix-Rouge Luxembourg
+                </div>
+                <div style={{ fontSize: 11, color: '#fca5a5', marginTop: 2 }}>
+                  +{fmt(roundUp50(baseTotal) - baseTotal)} pour solidarité 🤝
+                </div>
+              </div>
+            </label>
+          )}
+
+          {/* Tipping insights banner */}
+          {!tipIsCustom && tipPercent === 0 && afterDiscount > 0 && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              style={{
+                padding: '10px 14px', borderRadius: 12, marginBottom: 16,
+                background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(34,197,94,0.05))',
+                border: '1px dashed rgba(16,185,129,0.3)',
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+              <span style={{ fontSize: 18 }}>💚</span>
+              <span style={{ fontSize: 12, color: '#6ee7b7' }}>
+                D'autres clients laissent en moyenne <strong>15%</strong> de pourboire
+              </span>
+            </motion.div>
+          )}
+
           {/* Payment method / mixed toggle */}
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 18 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <div style={labelStyle}>Mode de règlement</div>
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => { setMixedMode(!mixedMode); setPartials([]) }}
-                style={{
-                  ...pillStyle(mixedMode),
-                  fontSize: 11,
-                }}
+                style={{ ...pillStyle(mixedMode), fontSize: 11 }}
               >
                 {mixedMode ? '✓ Paiement mixte' : '+ Paiement mixte'}
               </motion.button>
             </div>
 
             {!mixedMode && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                {PAY_METHODS.map(m => {
-                  const isActive = method === m.id
-                  return (
-                    <motion.button
-                      key={m.id} whileTap={{ scale: 0.95 }} onClick={() => setMethod(m.id)}
-                      style={{
-                        display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 8,
-                        padding: '18px 12px', borderRadius: 16, cursor: 'pointer',
-                        border: isActive ? '1.5px solid rgba(99,102,241,0.6)' : '1px solid rgba(255,255,255,0.06)',
-                        background: isActive ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.03)',
-                        color: isActive ? '#a5b4fc' : '#64748b',
-                        boxShadow: isActive ? '0 0 24px rgba(99,102,241,0.2)' : 'none',
-                      }}
-                    >
-                      <span style={{ fontSize: 28 }}>{m.icon}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>{m.label}</span>
-                    </motion.button>
-                  )
-                })}
-              </div>
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
+                  {PAY_METHODS.map(m => {
+                    const isActive = method === m.id
+                    return (
+                      <motion.button
+                        key={m.id} whileTap={{ scale: 0.95 }} onClick={() => setMethod(m.id)}
+                        style={{
+                          display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 8,
+                          padding: '18px 12px', borderRadius: 16, cursor: 'pointer',
+                          border: isActive ? '1.5px solid rgba(99,102,241,0.6)' : '1px solid rgba(255,255,255,0.06)',
+                          background: isActive ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.03)',
+                          color: isActive ? '#a5b4fc' : '#64748b',
+                          boxShadow: isActive ? '0 0 24px rgba(99,102,241,0.2)' : 'none',
+                        }}
+                      >
+                        <span style={{ fontSize: 28 }}>{m.icon}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600 }}>{m.label}</span>
+                      </motion.button>
+                    )
+                  })}
+                </div>
+
+                {/* Digital wallets row */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => setShowQr(true)}
+                    style={walletBtn('linear-gradient(135deg, #6366f1, #4f46e5)')}
+                  >
+                    <span style={{ fontSize: 14 }}>🔳</span>
+                    <span style={{ fontSize: 11, fontWeight: 700 }}>QR Code</span>
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    style={walletBtn('#000')}
+                  >
+                    <span style={{ fontSize: 14 }}>&#63743;</span>
+                    <span style={{ fontSize: 11, fontWeight: 700 }}>Apple Pay</span>
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    style={walletBtn('#1a73e8')}
+                  >
+                    <span style={{ fontSize: 14 }}>G</span>
+                    <span style={{ fontSize: 11, fontWeight: 700 }}>Google Pay</span>
+                  </motion.button>
+                </div>
+              </>
             )}
 
             {mixedMode && (
@@ -812,7 +1226,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
           </div>
 
           {!mixedMode && method === 'cash' && (
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 18 }}>
               <div style={labelStyle}>Montant reçu</div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
                 <input
@@ -865,7 +1279,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
           )}
 
           {/* Tip section */}
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 18 }}>
             <div style={labelStyle}>Pourboire</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const, marginBottom: 10 }}>
               <motion.button whileTap={{ scale: 0.93 }} onClick={() => { setTipIsCustom(false); setTipPercent(0) }} style={tipBtnStyle(!tipIsCustom && tipPercent === 0)}>
@@ -940,6 +1354,30 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
               </div>
             )}
           </div>
+
+          {/* Keep tab open */}
+          <label style={{
+            ...sectionCard,
+            cursor: 'pointer' as const,
+            background: keepOpen ? 'rgba(245,158,11,0.08)' : 'rgba(255,255,255,0.02)',
+            border: keepOpen ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(255,255,255,0.06)',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <input
+              type="checkbox" checked={keepOpen}
+              onChange={e => setKeepOpen(e.target.checked)}
+              style={{ accentColor: '#f59e0b', width: 16, height: 16 }}
+            />
+            <span style={{ fontSize: 18 }}>🍷</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#e2e8f0' }}>
+                Garder ouvert pour +1 consommation
+              </div>
+              <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 2 }}>
+                La table reste ouverte, règlement final après le dernier verre
+              </div>
+            </div>
+          </label>
         </div>
 
         <div style={{ padding: '16px 28px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
@@ -962,12 +1400,17 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
               style={{
                 display: 'block', width: '100%', padding: '16px 0',
                 borderRadius: 16, border: 'none',
-                background: 'linear-gradient(135deg, #10b981, #059669)',
+                background: keepOpen
+                  ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+                  : 'linear-gradient(135deg, #10b981, #059669)',
                 color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer',
-                boxShadow: '0 4px 28px rgba(16,185,129,0.35)', letterSpacing: '-0.01em', fontFamily: 'inherit',
+                boxShadow: keepOpen
+                  ? '0 4px 28px rgba(245,158,11,0.35)'
+                  : '0 4px 28px rgba(16,185,129,0.35)',
+                letterSpacing: '-0.01em', fontFamily: 'inherit',
               }}
             >
-              ✓ Encaisser {fmt(totalToPay)}
+              {keepOpen ? `🍷 Garder ouvert · ${fmt(totalToPay)}` : `✓ Encaisser ${fmt(totalToPay)}`}
             </motion.button>
           )}
           <button
@@ -995,6 +1438,11 @@ const labelStyle: React.CSSProperties = {
 const sectionCard: React.CSSProperties = {
   padding: '12px 14px', borderRadius: 14, marginBottom: 12,
   background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+}
+
+const checkRow: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 10,
+  padding: '4px 0', cursor: 'pointer',
 }
 
 const inputStyle: React.CSSProperties = {
@@ -1056,5 +1504,14 @@ function appliedChip(color: string): React.CSSProperties {
     padding: '8px 12px', borderRadius: 10,
     background: `${color}15`, border: `1px solid ${color}30`,
     color, fontSize: 12, fontWeight: 700,
+  }
+}
+
+function walletBtn(bg: string): React.CSSProperties {
+  return {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    padding: '10px 8px', borderRadius: 12, border: 'none',
+    background: bg, color: '#fff', cursor: 'pointer', fontFamily: 'inherit',
+    boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
   }
 }
