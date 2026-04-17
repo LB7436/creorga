@@ -4,9 +4,9 @@ import type { LucideIcon } from 'lucide-react'
 import { useThemeColors, useTheme } from '@/lib/theme'
 
 interface NavItem { label: string; path: string; icon: LucideIcon }
-interface ModuleLayoutProps { title: string; color: string; items: NavItem[]; backPath?: string }
+interface ModuleLayoutProps { title: string; color: string; items: NavItem[]; backPath?: string; banner?: React.ReactNode }
 
-export default function ModuleLayout({ title, color, items, backPath = '/modules' }: ModuleLayoutProps) {
+export default function ModuleLayout({ title, color, items, backPath = '/modules', banner }: ModuleLayoutProps) {
   const navigate = useNavigate()
   const colors = useThemeColors()
   const isDark = useTheme((s) => s.resolvedTheme) === 'dark'
@@ -104,6 +104,11 @@ export default function ModuleLayout({ title, color, items, backPath = '/modules
           transition: 'background 0.3s ease',
         }}
       >
+        {banner && (
+          <div style={{ borderBottom: `1px solid ${colors.border}` }}>
+            {banner}
+          </div>
+        )}
         <Outlet />
       </div>
     </div>

@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { clsx } from 'clsx'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -7,11 +8,21 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
-  Lock,
   LayoutGrid,
+  CalendarDays,
+  Users,
+  Package,
+  ClipboardList,
+  Wallet,
+  UserCheck,
+  UtensilsCrossed,
+  Sparkles,
+  MessageSquare,
+  BarChart3,
+  Bell,
+  UserCog,
 } from 'lucide-react'
 import Avatar from '../ui/Avatar'
-import Badge from '../ui/Badge'
 
 interface SidebarProps {
   collapsed: boolean
@@ -23,23 +34,32 @@ interface SidebarProps {
 
 interface NavItem {
   to: string
-  icon: typeof LayoutDashboard
+  icon: React.ElementType
   label: string
-  disabled?: boolean
+  color: string
+  badge?: number
 }
 
 const navItems: NavItem[] = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord' },
-  { to: '/pos', icon: ShoppingCart, label: 'Point de vente' },
-  { to: '/settings', icon: Settings, label: 'Paramètres' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord', color: '#0ea5e9' },
+  { to: '/pos', icon: ShoppingCart, label: 'Point de vente', color: '#f97316' },
+  { to: '/agenda', icon: CalendarDays, label: 'Agenda', color: '#6D28D9', badge: 3 },
+  { to: '/reservations', icon: ClipboardList, label: 'Réservations', color: '#0891b2', badge: 5 },
+  { to: '/kitchen', icon: UtensilsCrossed, label: 'Cuisine', color: '#dc2626' },
+  { to: '/inventory', icon: Package, label: 'Inventaire', color: '#ca8a04' },
+  { to: '/accounting', icon: Wallet, label: 'Comptabilité', color: '#1F2937' },
+  { to: '/crm', icon: Users, label: 'CRM', color: '#7c3aed' },
+  { to: '/staff', icon: UserCheck, label: 'RH & Planning', color: '#059669' },
+  { to: '/marketing', icon: Sparkles, label: 'Marketing', color: '#ec4899' },
+  { to: '/messages', icon: MessageSquare, label: 'Messages', color: '#3b82f6', badge: 2 },
+  { to: '/reports', icon: BarChart3, label: 'Rapports', color: '#0d9488' },
+  { to: '/notifications', icon: Bell, label: 'Notifications', color: '#f59e0b' },
+  { to: '/settings', icon: Settings, label: 'Paramètres', color: '#475569' },
+  { to: '/profile', icon: UserCog, label: 'Profil', color: '#64748b' },
 ]
 
-const futureModules = [
-  { label: 'Réservations', disabled: true },
-  { label: 'Inventaire', disabled: true },
-  { label: 'Comptabilité', disabled: true },
-  { label: 'RH & Planning', disabled: true },
-]
+const COLLAPSED_WIDTH = 48
+const EXPANDED_WIDTH = 240
 
 export default function Sidebar({
   collapsed,
@@ -50,127 +70,404 @@ export default function Sidebar({
 }: SidebarProps) {
   const location = useLocation()
   const navigate = useNavigate()
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null)
+
+  const width = collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH
 
   return (
-    <aside
-      className={clsx(
-        'fixed left-0 top-0 h-full bg-white border-r border-gray-100 z-40',
-        'flex flex-col transition-all duration-300 ease-in-out',
-        collapsed ? 'w-[72px]' : 'w-[260px]',
-      )}
+    <motion.aside
+      animate={{ width }}
+      transition={{ duration: 0.22, ease: 'easeOut' }}
+      style={{
+        position: 'fixed',
+        left: 0,
+        top: 0,
+        height: '100%',
+        background: '#ffffff',
+        borderRight: '1px solid #e2e8f0',
+        zIndex: 40,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'visible',
+      }}
     >
       {/* Logo */}
-      <div className="flex items-center h-16 px-4 border-b border-gray-100">
-        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shrink-0">
-          <span className="text-white font-bold text-lg">C</span>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          height: 56,
+          padding: collapsed ? '0' : '0 12px',
+          justifyContent: collapsed ? 'center' : 'flex-start',
+          borderBottom: '1px solid #e2e8f0',
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            background: '#6D28D9',
+            borderRadius: 8,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ color: '#ffffff', fontWeight: 700, fontSize: 14 }}>C</span>
         </div>
         {!collapsed && (
-          <div className="ml-3 overflow-hidden">
-            <h1 className="font-bold text-primary text-lg leading-tight">Creorga</h1>
+          <div style={{ marginLeft: 10, overflow: 'hidden', minWidth: 0 }}>
+            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 14, lineHeight: 1.2 }}>
+              Creorga
+            </div>
             {companyName && (
-              <p className="text-xs text-gray-400 truncate">{companyName}</p>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: '#94a3b8',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {companyName}
+              </div>
             )}
           </div>
         )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
+      <nav
+        style={{
+          flex: 1,
+          padding: '8px 6px',
+          overflowY: 'auto',
+          overflowX: 'visible',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+        }}
+      >
         {navItems.map((item) => {
           const isActive =
-            location.pathname === item.to ||
-            location.pathname.startsWith(item.to + '/')
+            location.pathname === item.to || location.pathname.startsWith(item.to + '/')
+          const Icon = item.icon
 
           return (
-            <NavLink
+            <div
               key={item.to}
-              to={item.to}
-              className={clsx(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200',
-                'text-sm font-medium',
-                isActive
-                  ? 'bg-primary-50 text-primary'
-                  : 'text-gray-600 hover:bg-surface-2 hover:text-gray-900',
-              )}
-              title={collapsed ? item.label : undefined}
+              style={{ position: 'relative' }}
+              onMouseEnter={() => setHoveredItem(item.to)}
+              onMouseLeave={() => setHoveredItem(null)}
             >
-              <item.icon size={20} className="shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </NavLink>
+              <NavLink
+                to={item.to}
+                style={{
+                  position: 'relative',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: collapsed ? '8px 0' : '8px 10px',
+                  justifyContent: collapsed ? 'center' : 'flex-start',
+                  borderRadius: 8,
+                  textDecoration: 'none',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: isActive ? item.color : '#64748b',
+                  background: isActive ? `${item.color}12` : 'transparent',
+                  transition: 'background 0.15s, color 0.15s',
+                }}
+                onMouseOver={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = '#f1f5f9'
+                    e.currentTarget.style.color = '#1e293b'
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'transparent'
+                    e.currentTarget.style.color = '#64748b'
+                  }
+                }}
+              >
+                {/* Active colored bar */}
+                {isActive && (
+                  <motion.div
+                    layoutId="sidebar-active-bar"
+                    style={{
+                      position: 'absolute',
+                      left: -6,
+                      top: 6,
+                      bottom: 6,
+                      width: 3,
+                      borderRadius: '0 3px 3px 0',
+                      background: item.color,
+                    }}
+                  />
+                )}
+
+                <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
+                  <Icon size={18} />
+                  {item.badge && item.badge > 0 && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: -4,
+                        right: -6,
+                        minWidth: 14,
+                        height: 14,
+                        padding: '0 4px',
+                        borderRadius: 7,
+                        background: '#ef4444',
+                        color: '#ffffff',
+                        fontSize: 9,
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '1.5px solid #ffffff',
+                      }}
+                    >
+                      {item.badge > 9 ? '9+' : item.badge}
+                    </span>
+                  )}
+                </div>
+
+                <AnimatePresence initial={false}>
+                  {!collapsed && (
+                    <motion.span
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.12 }}
+                      style={{
+                        overflow: 'hidden',
+                        whiteSpace: 'nowrap',
+                        textOverflow: 'ellipsis',
+                        flex: 1,
+                      }}
+                    >
+                      {item.label}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </NavLink>
+
+              {/* Collapsed tooltip */}
+              {collapsed && hoveredItem === item.to && (
+                <motion.div
+                  initial={{ opacity: 0, x: -4 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.12 }}
+                  style={{
+                    position: 'absolute',
+                    left: 'calc(100% + 8px)',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: '#1e293b',
+                    color: '#ffffff',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    whiteSpace: 'nowrap',
+                    zIndex: 50,
+                    pointerEvents: 'none',
+                    boxShadow: '0 4px 10px rgba(15, 23, 42, 0.18)',
+                  }}
+                >
+                  {item.label}
+                  {item.badge ? (
+                    <span style={{ marginLeft: 6, color: '#fca5a5', fontWeight: 700 }}>
+                      · {item.badge}
+                    </span>
+                  ) : null}
+                </motion.div>
+              )}
+            </div>
           )
         })}
-
-        {/* Future modules */}
-        {!collapsed && (
-          <div className="pt-4 mt-4 border-t border-gray-100">
-            <p className="px-3 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Modules
-            </p>
-            {futureModules.map((mod) => (
-              <div
-                key={mod.label}
-                className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-300 cursor-not-allowed"
-              >
-                <Lock size={16} />
-                <span>{mod.label}</span>
-                <Badge variant="neutral" className="ml-auto text-[10px]">
-                  Bientôt
-                </Badge>
-              </div>
-            ))}
-          </div>
-        )}
       </nav>
 
-      {/* Back to modules */}
-      <div className="px-3 pb-2">
+      {/* Modules shortcut */}
+      <div style={{ padding: '6px', borderTop: '1px solid #e2e8f0' }}>
         <button
           onClick={() => navigate('/modules')}
-          className={clsx(
-            'flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm text-gray-400 hover:bg-surface-2 hover:text-gray-600 transition-all',
-          )}
-          title={collapsed ? 'Modules' : undefined}
+          title={collapsed ? 'Changer de module' : undefined}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: collapsed ? '8px 0' : '8px 10px',
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            borderRadius: 8,
+            color: '#94a3b8',
+            fontSize: 12,
+            transition: 'background 0.15s, color 0.15s',
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = '#f1f5f9'
+            e.currentTarget.style.color = '#1e293b'
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.color = '#94a3b8'
+          }}
         >
-          <LayoutGrid size={18} className="shrink-0" />
-          {!collapsed && <span className="text-xs">Changer de module</span>}
+          <LayoutGrid size={16} />
+          {!collapsed && <span>Changer de module</span>}
         </button>
       </div>
 
-      {/* Toggle */}
+      {/* Toggle button */}
       <button
         onClick={onToggle}
-        className="absolute -right-3 top-20 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-surface-2 transition-colors"
+        aria-label={collapsed ? 'Déplier' : 'Replier'}
+        style={{
+          position: 'absolute',
+          right: -10,
+          top: 64,
+          width: 20,
+          height: 20,
+          background: '#ffffff',
+          border: '1px solid #e2e8f0',
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          boxShadow: '0 2px 4px rgba(15, 23, 42, 0.08)',
+          color: '#64748b',
+          zIndex: 41,
+        }}
       >
-        {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
       </button>
 
-      {/* User */}
-      <div className="border-t border-gray-100 p-3">
-        <div className="flex items-center gap-3">
-          <Avatar
-            name={user ? `${user.firstName} ${user.lastName}` : 'U'}
-            src={user?.avatar}
-            size="sm"
-          />
-          {!collapsed && user && (
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
-                {user.firstName} {user.lastName}
-              </p>
-              <p className="text-xs text-gray-400 truncate">{user.email}</p>
-            </div>
-          )}
-          {!collapsed && (
+      {/* User profile */}
+      <div
+        style={{
+          borderTop: '1px solid #e2e8f0',
+          padding: collapsed ? '10px 0' : '10px',
+          flexShrink: 0,
+        }}
+      >
+        {collapsed ? (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Avatar
+              name={user ? `${user.firstName} ${user.lastName}` : 'U'}
+              src={user?.avatar}
+              size="sm"
+            />
             <button
               onClick={onLogout}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
               title="Déconnexion"
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: '#94a3b8',
+                cursor: 'pointer',
+                padding: 4,
+                borderRadius: 6,
+                display: 'flex',
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = '#fef2f2'
+                e.currentTarget.style.color = '#ef4444'
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'transparent'
+                e.currentTarget.style.color = '#94a3b8'
+              }}
             >
-              <LogOut size={16} />
+              <LogOut size={14} />
             </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              <Avatar
+                name={user ? `${user.firstName} ${user.lastName}` : 'U'}
+                src={user?.avatar}
+                size="sm"
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#1e293b',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {user ? `${user.firstName} ${user.lastName}` : 'Utilisateur'}
+                </div>
+                <button
+                  onClick={() => navigate('/profile')}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    fontSize: 11,
+                    color: '#6D28D9',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontWeight: 500,
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.textDecoration = 'underline'
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.textDecoration = 'none'
+                  }}
+                >
+                  Gérer profil
+                </button>
+              </div>
+              <button
+                onClick={onLogout}
+                title="Déconnexion"
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: 6,
+                  borderRadius: 6,
+                  display: 'flex',
+                  flexShrink: 0,
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.background = '#fef2f2'
+                  e.currentTarget.style.color = '#ef4444'
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.background = 'transparent'
+                  e.currentTarget.style.color = '#94a3b8'
+                }}
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-    </aside>
+    </motion.aside>
   )
 }
