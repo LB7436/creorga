@@ -1,1831 +1,890 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Package, Euro, AlertTriangle, XCircle, Search, Plus, ChevronUp, ChevronDown,
-  ShoppingCart, Truck, X, Check, ArrowUpRight, Upload, FileText, ClipboardList,
-  Clock, RotateCcw, Download, Timer, CheckCircle2, BarChart3,
-} from 'lucide-react';
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  CartesianGrid, Legend, AreaChart, Area,
+} from 'recharts'
+import {
+  Package, Euro, AlertTriangle, XCircle, Search, Plus, ShoppingCart, Truck, X,
+  Check, Upload, ClipboardList, Clock, RotateCcw, Download, Timer, CheckCircle2,
+  BarChart3, ScanLine, TrendingDown, CalendarDays, ShieldAlert, Trash2, MapPin,
+  Tag, Leaf, Snowflake, Edit3, Zap, FileClock, ArrowRightLeft, PackageCheck,
+} from 'lucide-react'
 
 /* ─── animation variants ─── */
 const container = {
   hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
-};
+  show: { opacity: 1, transition: { staggerChildren: 0.05 } },
+}
 const item = {
-  hidden: { opacity: 0, y: 18 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } },
-};
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } },
+}
 
 /* ─── shared styles ─── */
 const cardStyle: React.CSSProperties = {
   background: '#ffffff',
   border: '1px solid #e2e8f0',
   borderRadius: 16,
-  padding: '20px 24px',
-};
+  padding: '18px 22px',
+}
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat('fr-LU', { style: 'currency', currency: 'EUR' }).format(n);
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 12px',
+  borderRadius: 10,
+  border: '1px solid #e2e8f0',
+  fontSize: 13,
+  color: '#1e293b',
+  outline: 'none',
+  boxSizing: 'border-box',
+  background: '#fff',
+}
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: '#475569',
+  marginBottom: 6,
+  display: 'block',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+}
+
+const smallBtnStyle: React.CSSProperties = {
+  padding: '8px 14px',
+  borderRadius: 10,
+  border: '1px solid #e2e8f0',
+  background: '#ffffff',
+  color: '#1e293b',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+}
+
+const fmt = (n: number) => new Intl.NumberFormat('fr-LU', { style: 'currency', currency: 'EUR' }).format(n)
 
 /* ─── types ─── */
-type Statut = 'OK' | 'Bas' | 'Rupture';
-type Categorie = 'Boissons' | 'Produits laitiers' | 'Épicerie' | 'Légumes' | 'Viande';
+type Statut = 'OK' | 'Bas' | 'Rupture'
+type Categorie = 'Boissons' | 'Produits laitiers' | '\u00c9picerie' | 'L\u00e9gumes' | 'Viande'
+type Location = 'R\u00e9serve' | 'Bar' | 'Cuisine'
+type Season = 'Aucune' | '\u00c9t\u00e9' | 'Hiver'
 
 interface Ingredient {
-  id: string;
-  nom: string;
-  categorie: Categorie;
-  stockActuel: number;
-  unite: string;
-  seuilMinimum: number;
-  valeur: number;
-  dernierAppro: string;
-  fournisseur: string;
+  id: string
+  nom: string
+  barcode: string
+  categorie: Categorie
+  stockActuel: number
+  unite: string
+  seuilMinimum: number
+  valeur: number
+  dernierAppro: string
+  fournisseur: string
+  dluo: string
+  dluoCritique?: boolean
+  location: Location
+  saison: Season
+  cogs: number
 }
 
-/* ─── invoice types ─── */
-interface InvoiceLine {
-  ingredientId: string;
-  quantite: number;
-  prixUnitaire: number;
+interface Movement {
+  id: string
+  date: string
+  time: string
+  ingredient: string
+  type: 'Entr\u00e9e' | 'Sortie' | 'Transfert' | 'Perte'
+  quantite: number
+  user: string
+  raison: string
+  location?: string
 }
 
-interface ImportRecord {
-  id: string;
-  date: string;
-  fournisseur: string;
-  montant: number;
-  articlesCount: number;
-  numero: string;
+interface Waste {
+  id: string
+  date: string
+  ingredient: string
+  quantite: number
+  unite: string
+  raison: 'Expiration' | 'Casse' | 'Avari\u00e9' | 'Vol'
+  cout: number
 }
 
-/* ─── stock count types ─── */
-interface CountLine {
-  ingredientId: string;
-  nom: string;
-  unite: string;
-  stockTheorique: number;
-  stockReel: number | null;
+interface SupplierPrice {
+  fournisseur: string
+  prix: number
+  delai: string
+  note: number
 }
 
-interface CountRecord {
-  id: string;
-  date: string;
-  compteur: string;
-  totalArticles: number;
-  articlesAvecEcart: number;
-  valeurEcart: number;
-}
-
-/* ─── mock data — Luxembourg café context ─── */
+/* ─── mock data ─── */
 const INITIAL_DATA: Ingredient[] = [
-  { id: '1',  nom: 'Café en grains',   categorie: 'Boissons',          stockActuel: 2.5,  unite: 'kg',        seuilMinimum: 5,   valeur: 37.50,   dernierAppro: '2026-04-08', fournisseur: 'Bofrost Luxembourg' },
-  { id: '2',  nom: 'Lait entier',      categorie: 'Produits laitiers', stockActuel: 8,    unite: 'L',         seuilMinimum: 15,  valeur: 9.60,    dernierAppro: '2026-04-10', fournisseur: 'Luxlait' },
-  { id: '3',  nom: 'Beurre',           categorie: 'Produits laitiers', stockActuel: 1.2,  unite: 'kg',        seuilMinimum: 3,   valeur: 10.80,   dernierAppro: '2026-04-07', fournisseur: 'Luxlait' },
-  { id: '4',  nom: 'Farine T55',       categorie: 'Épicerie',          stockActuel: 0,    unite: 'kg',        seuilMinimum: 5,   valeur: 0,       dernierAppro: '2026-03-28', fournisseur: 'Metro Luxembourg' },
-  { id: '5',  nom: 'Sucre',            categorie: 'Épicerie',          stockActuel: 3,    unite: 'kg',        seuilMinimum: 5,   valeur: 4.50,    dernierAppro: '2026-04-05', fournisseur: 'Metro Luxembourg' },
-  { id: '6',  nom: 'Bière Diekirch',   categorie: 'Boissons',          stockActuel: 24,   unite: 'bouteilles',seuilMinimum: 48,  valeur: 38.40,   dernierAppro: '2026-04-09', fournisseur: 'Brasserie de Luxembourg' },
-  { id: '7',  nom: 'Vin Moselle',      categorie: 'Boissons',          stockActuel: 6,    unite: 'bouteilles',seuilMinimum: 12,  valeur: 66.00,   dernierAppro: '2026-04-03', fournisseur: 'Domaines Vinsmoselle' },
-  { id: '8',  nom: 'Coca-Cola',        categorie: 'Boissons',          stockActuel: 0,    unite: 'canettes',  seuilMinimum: 24,  valeur: 0,       dernierAppro: '2026-03-30', fournisseur: 'Metro Luxembourg' },
-  { id: '9',  nom: 'Tomates',          categorie: 'Légumes',           stockActuel: 4,    unite: 'kg',        seuilMinimum: 3,   valeur: 11.60,   dernierAppro: '2026-04-12', fournisseur: 'Marché Gros Luxembourg' },
-  { id: '10', nom: 'Oignons',          categorie: 'Légumes',           stockActuel: 3,    unite: 'kg',        seuilMinimum: 2,   valeur: 3.90,    dernierAppro: '2026-04-11', fournisseur: 'Marché Gros Luxembourg' },
-  { id: '11', nom: 'Pommes de terre',  categorie: 'Légumes',           stockActuel: 12,   unite: 'kg',        seuilMinimum: 8,   valeur: 14.40,   dernierAppro: '2026-04-10', fournisseur: 'Marché Gros Luxembourg' },
-  { id: '12', nom: 'Crème fraîche',    categorie: 'Produits laitiers', stockActuel: 2,    unite: 'L',         seuilMinimum: 1,   valeur: 7.00,    dernierAppro: '2026-04-11', fournisseur: 'Luxlait' },
-  { id: '13', nom: 'Huile d\'olive',   categorie: 'Épicerie',          stockActuel: 3,    unite: 'L',         seuilMinimum: 2,   valeur: 23.70,   dernierAppro: '2026-04-06', fournisseur: 'Metro Luxembourg' },
-  { id: '14', nom: 'Sel',              categorie: 'Épicerie',          stockActuel: 5,    unite: 'kg',        seuilMinimum: 1,   valeur: 2.50,    dernierAppro: '2026-04-01', fournisseur: 'Metro Luxembourg' },
-  { id: '15', nom: 'Poulet',           categorie: 'Viande',            stockActuel: 4,    unite: 'kg',        seuilMinimum: 3,   valeur: 35.60,   dernierAppro: '2026-04-13', fournisseur: 'Bofrost Luxembourg' },
-];
+  { id: '1',  nom: 'Caf\u00e9 en grains',   barcode: '3560070891234', categorie: 'Boissons', stockActuel: 2.5,  unite: 'kg',         seuilMinimum: 5,  valeur: 37.50, dernierAppro: '2026-04-08', fournisseur: 'Bofrost Luxembourg', dluo: '2026-10-15', location: 'Bar',      saison: 'Aucune', cogs: 15.0 },
+  { id: '2',  nom: 'Lait entier',           barcode: '3228021400019', categorie: 'Produits laitiers', stockActuel: 8,    unite: 'L',          seuilMinimum: 15, valeur: 9.60,  dernierAppro: '2026-04-10', fournisseur: 'Luxlait', dluo: '2026-04-22', dluoCritique: true, location: 'Cuisine', saison: 'Aucune', cogs: 1.20 },
+  { id: '3',  nom: 'Beurre',                barcode: '3228021500108', categorie: 'Produits laitiers', stockActuel: 1.2,  unite: 'kg',         seuilMinimum: 3,  valeur: 10.80, dernierAppro: '2026-04-07', fournisseur: 'Luxlait', dluo: '2026-05-03', location: 'Cuisine', saison: 'Aucune', cogs: 9.0 },
+  { id: '4',  nom: 'Farine T55',            barcode: '3017620422003', categorie: '\u00c9picerie', stockActuel: 0,    unite: 'kg',         seuilMinimum: 5,  valeur: 0,     dernierAppro: '2026-03-28', fournisseur: 'Metro Luxembourg', dluo: '2026-12-01', location: 'R\u00e9serve', saison: 'Aucune', cogs: 1.5 },
+  { id: '5',  nom: 'Sucre',                 barcode: '3258561024567', categorie: '\u00c9picerie', stockActuel: 3,    unite: 'kg',         seuilMinimum: 5,  valeur: 4.50,  dernierAppro: '2026-04-05', fournisseur: 'Metro Luxembourg', dluo: '2027-06-01', location: 'R\u00e9serve', saison: 'Aucune', cogs: 1.5 },
+  { id: '6',  nom: 'Bi\u00e8re Diekirch',   barcode: '5420005671234', categorie: 'Boissons', stockActuel: 24,   unite: 'bouteilles', seuilMinimum: 48, valeur: 38.40, dernierAppro: '2026-04-09', fournisseur: 'Brasserie de Luxembourg', dluo: '2026-09-30', location: 'Bar',      saison: '\u00c9t\u00e9', cogs: 1.60 },
+  { id: '7',  nom: 'Vin Moselle',           barcode: '3760123456789', categorie: 'Boissons', stockActuel: 6,    unite: 'bouteilles', seuilMinimum: 12, valeur: 66.00, dernierAppro: '2026-04-03', fournisseur: 'Domaines Vinsmoselle', dluo: '2028-12-31', location: 'Bar', saison: 'Aucune', cogs: 11.0 },
+  { id: '8',  nom: 'Coca-Cola',             barcode: '5449000131805', categorie: 'Boissons', stockActuel: 0,    unite: 'canettes',   seuilMinimum: 24, valeur: 0,     dernierAppro: '2026-03-30', fournisseur: 'Metro Luxembourg', dluo: '2026-08-15', location: 'Bar', saison: '\u00c9t\u00e9', cogs: 0.8 },
+  { id: '9',  nom: 'Tomates',               barcode: '2000010010001', categorie: 'L\u00e9gumes', stockActuel: 4,    unite: 'kg',         seuilMinimum: 3,  valeur: 11.60, dernierAppro: '2026-04-12', fournisseur: 'March\u00e9 Gros Luxembourg', dluo: '2026-04-20', dluoCritique: true, location: 'Cuisine', saison: '\u00c9t\u00e9', cogs: 2.90 },
+  { id: '10', nom: 'Oignons',               barcode: '2000010020002', categorie: 'L\u00e9gumes', stockActuel: 3,    unite: 'kg',         seuilMinimum: 2,  valeur: 3.90,  dernierAppro: '2026-04-11', fournisseur: 'March\u00e9 Gros Luxembourg', dluo: '2026-05-10', location: 'R\u00e9serve', saison: 'Aucune', cogs: 1.30 },
+  { id: '11', nom: 'Pommes de terre',       barcode: '2000010030003', categorie: 'L\u00e9gumes', stockActuel: 12,   unite: 'kg',         seuilMinimum: 8,  valeur: 14.40, dernierAppro: '2026-04-10', fournisseur: 'March\u00e9 Gros Luxembourg', dluo: '2026-06-01', location: 'R\u00e9serve', saison: 'Hiver', cogs: 1.20 },
+  { id: '12', nom: 'Cr\u00e8me fra\u00eeche', barcode: '3228021400224', categorie: 'Produits laitiers', stockActuel: 2,    unite: 'L',          seuilMinimum: 1,  valeur: 7.00,  dernierAppro: '2026-04-11', fournisseur: 'Luxlait', dluo: '2026-04-28', location: 'Cuisine', saison: 'Aucune', cogs: 3.50 },
+  { id: '13', nom: 'Huile d\'olive',        barcode: '8410188012003', categorie: '\u00c9picerie', stockActuel: 3,    unite: 'L',          seuilMinimum: 2,  valeur: 23.70, dernierAppro: '2026-04-06', fournisseur: 'Metro Luxembourg', dluo: '2027-03-15', location: 'Cuisine', saison: 'Aucune', cogs: 7.90 },
+  { id: '14', nom: 'Sel',                   barcode: '3166330114567', categorie: '\u00c9picerie', stockActuel: 5,    unite: 'kg',         seuilMinimum: 1,  valeur: 2.50,  dernierAppro: '2026-04-01', fournisseur: 'Metro Luxembourg', dluo: '2030-01-01', location: 'Cuisine', saison: 'Aucune', cogs: 0.50 },
+  { id: '15', nom: 'Poulet',                barcode: '2000200010005', categorie: 'Viande', stockActuel: 4,    unite: 'kg',         seuilMinimum: 3,  valeur: 35.60, dernierAppro: '2026-04-13', fournisseur: 'Bofrost Luxembourg', dluo: '2026-04-19', dluoCritique: true, location: 'Cuisine', saison: 'Aucune', cogs: 8.90 },
+  { id: '16', nom: 'Soupe potiron',         barcode: '3017620100123', categorie: '\u00c9picerie', stockActuel: 15,   unite: 'bo\u00eetes', seuilMinimum: 20, valeur: 22.50, dernierAppro: '2026-04-01', fournisseur: 'Metro Luxembourg', dluo: '2027-10-01', location: 'R\u00e9serve', saison: 'Hiver', cogs: 1.50 },
+]
 
-const CATEGORIES: Categorie[] = ['Boissons', 'Produits laitiers', 'Épicerie', 'Légumes', 'Viande'];
+const MOVEMENTS: Movement[] = [
+  { id: 'm1', date: '2026-04-17', time: '09:14', ingredient: 'Lait entier',     type: 'Sortie',    quantite: 2,   user: 'Sophie', raison: 'Service petit-d\u00e9j', location: 'Cuisine' },
+  { id: 'm2', date: '2026-04-17', time: '08:45', ingredient: 'Caf\u00e9 en grains', type: 'Sortie', quantite: 0.5, user: 'Marc',   raison: 'Service matin',       location: 'Bar' },
+  { id: 'm3', date: '2026-04-16', time: '17:30', ingredient: 'Bi\u00e8re Diekirch', type: 'Entr\u00e9e', quantite: 24, user: 'Paul', raison: 'R\u00e9ception cde',    location: 'Bar' },
+  { id: 'm4', date: '2026-04-16', time: '14:22', ingredient: 'Tomates',         type: 'Transfert', quantite: 2,   user: 'Sophie', raison: 'R\u00e9serve \u2192 Cuisine' },
+  { id: 'm5', date: '2026-04-16', time: '11:02', ingredient: 'Beurre',          type: 'Perte',     quantite: 0.3, user: 'Marc',   raison: 'DLUO d\u00e9pass\u00e9e' },
+  { id: 'm6', date: '2026-04-15', time: '16:45', ingredient: 'Poulet',          type: 'Entr\u00e9e', quantite: 5,  user: 'Paul',   raison: 'Livraison Bofrost' },
+  { id: 'm7', date: '2026-04-15', time: '10:18', ingredient: 'Vin Moselle',     type: 'Sortie',    quantite: 3,   user: 'Sophie', raison: 'Consommation' },
+]
 
-const FOURNISSEURS_FACTURE = ['Metro', 'Bofrost', 'Ferme Bio', 'Boissons du Grand-Duché'];
+const WASTE_LOG: Waste[] = [
+  { id: 'w1', date: '2026-04-16', ingredient: 'Beurre',  quantite: 0.3, unite: 'kg', raison: 'Expiration', cout: 2.70 },
+  { id: 'w2', date: '2026-04-14', ingredient: 'Tomates', quantite: 1.2, unite: 'kg', raison: 'Avari\u00e9', cout: 3.48 },
+  { id: 'w3', date: '2026-04-12', ingredient: 'Lait entier', quantite: 2, unite: 'L', raison: 'Expiration', cout: 2.40 },
+  { id: 'w4', date: '2026-04-10', ingredient: 'Vin Moselle', quantite: 1, unite: 'bt', raison: 'Casse', cout: 11.00 },
+]
+
+const SUPPLIER_COMPARE: Record<string, SupplierPrice[]> = {
+  default: [
+    { fournisseur: 'Metro Luxembourg', prix: 12.50, delai: '24h', note: 4.5 },
+    { fournisseur: 'Bofrost Luxembourg', prix: 13.20, delai: '48h', note: 4.7 },
+    { fournisseur: 'March\u00e9 Gros',   prix: 11.90, delai: '24h', note: 4.2 },
+  ],
+}
+
+const CATEGORIES: Categorie[] = ['Boissons', 'Produits laitiers', '\u00c9picerie', 'L\u00e9gumes', 'Viande']
+const LOCATIONS: Location[] = ['R\u00e9serve', 'Bar', 'Cuisine']
 
 const CATEGORY_COLORS: Record<Categorie, { bg: string; text: string }> = {
   'Boissons':          { bg: '#dbeafe', text: '#1d4ed8' },
   'Produits laitiers': { bg: '#fce7f3', text: '#be185d' },
-  'Épicerie':          { bg: '#fef3c7', text: '#92400e' },
-  'Légumes':           { bg: '#dcfce7', text: '#166534' },
+  '\u00c9picerie':     { bg: '#fef3c7', text: '#92400e' },
+  'L\u00e9gumes':      { bg: '#dcfce7', text: '#166534' },
   'Viande':            { bg: '#fee2e2', text: '#991b1b' },
-};
-
-function getStatut(ing: Ingredient): Statut {
-  if (ing.stockActuel === 0) return 'Rupture';
-  if (ing.stockActuel < ing.seuilMinimum) return 'Bas';
-  return 'OK';
 }
 
 const STATUT_STYLES: Record<Statut, { bg: string; text: string; dot: string }> = {
   OK:      { bg: '#dcfce7', text: '#166534', dot: '#22c55e' },
   Bas:     { bg: '#fef9c3', text: '#854d0e', dot: '#eab308' },
   Rupture: { bg: '#fee2e2', text: '#991b1b', dot: '#ef4444' },
-};
-
-const ROW_TINTS: Record<Statut, string> = {
-  OK:      'rgba(34,197,94,0.04)',
-  Bas:     'rgba(234,179,8,0.06)',
-  Rupture: 'rgba(239,68,68,0.06)',
-};
-
-type SortKey = 'nom' | 'categorie' | 'stockActuel' | 'seuilMinimum' | 'statut' | 'valeur' | 'dernierAppro' | 'fournisseur';
-
-/* ─── cost per unit helper for suggestions ─── */
-function costPerUnit(ing: Ingredient): number {
-  if (ing.stockActuel === 0) return ing.valeur > 0 ? ing.valeur : 1.50;
-  return ing.valeur / ing.stockActuel;
 }
 
-/* ─── modal backdrop ─── */
-function Overlay({ children, onClose, wide }: { children: React.ReactNode; onClose: () => void; wide?: boolean }) {
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 50,
-          background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-        }}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          transition={{ duration: 0.25, ease: 'easeOut' }}
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            background: '#ffffff', borderRadius: 20, width: '100%',
-            maxWidth: wide ? 900 : 640,
-            maxHeight: '90vh', overflow: 'auto',
-            boxShadow: '0 25px 50px rgba(0,0,0,0.15)',
-          }}
-        >
-          {children}
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
-  );
+function getStatut(ing: Ingredient): Statut {
+  if (ing.stockActuel === 0) return 'Rupture'
+  if (ing.stockActuel < ing.seuilMinimum) return 'Bas'
+  return 'OK'
 }
 
-/* ─── timer hook ─── */
-function useTimer(active: boolean) {
-  const [seconds, setSeconds] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (active) {
-      setSeconds(0);
-      intervalRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [active]);
-
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  const display = h > 0
-    ? `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`
-    : `${m}m ${String(s).padStart(2, '0')}s`;
-
-  return display;
+function daysUntil(date: string): number {
+  const t = new Date(date).getTime()
+  return Math.floor((t - Date.now()) / (1000 * 60 * 60 * 24))
 }
 
-/* ═══════════════════════════════════════════════════════════════ */
-export default function StockPage() {
-  const [data, setData] = useState<Ingredient[]>(INITIAL_DATA);
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<Categorie | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('nom');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showAlerts, setShowAlerts] = useState(false);
-  const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
+function predictRunout(ing: Ingredient): number {
+  // Mock ML prediction: based on stock / average daily consumption
+  const dailyConsumption = ing.cogs > 5 ? 1.2 : 0.6
+  if (ing.stockActuel === 0) return 0
+  return Math.round(ing.stockActuel / dailyConsumption)
+}
 
-  /* ─── form state ─── */
-  const [formNom, setFormNom] = useState('');
-  const [formCategorie, setFormCategorie] = useState<Categorie>('Épicerie');
-  const [formStock, setFormStock] = useState('');
-  const [formUnite, setFormUnite] = useState('kg');
-  const [formSeuil, setFormSeuil] = useState('');
-  const [formValeur, setFormValeur] = useState('');
-  const [formFournisseur, setFormFournisseur] = useState('');
+const consumptionHistory = [
+  { jour: 'L', entrees: 12, sorties: 18 },
+  { jour: 'M', entrees: 8,  sorties: 22 },
+  { jour: 'M', entrees: 24, sorties: 19 },
+  { jour: 'J', entrees: 6,  sorties: 25 },
+  { jour: 'V', entrees: 18, sorties: 32 },
+  { jour: 'S', entrees: 4,  sorties: 38 },
+  { jour: 'D', entrees: 2,  sorties: 15 },
+]
 
-  /* ═══ FEATURE 1: Invoice import state ═══ */
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [invoiceManual, setInvoiceManual] = useState(true);
-  const [invoiceFournisseur, setInvoiceFournisseur] = useState(FOURNISSEURS_FACTURE[0]);
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
-  const [invoiceNumero, setInvoiceNumero] = useState('');
-  const [invoiceLines, setInvoiceLines] = useState<InvoiceLine[]>([
-    { ingredientId: '', quantite: 0, prixUnitaire: 0 },
-  ]);
-  const [importHistory, setImportHistory] = useState<ImportRecord[]>([
-    { id: 'imp-1', date: '2026-04-14', fournisseur: 'Metro', montant: 245.80, articlesCount: 6, numero: 'FAC-2026-0412' },
-    { id: 'imp-2', date: '2026-04-10', fournisseur: 'Bofrost', montant: 189.50, articlesCount: 4, numero: 'FAC-2026-0398' },
-    { id: 'imp-3', date: '2026-04-07', fournisseur: 'Ferme Bio', montant: 92.30, articlesCount: 3, numero: 'FAC-2026-0385' },
-  ]);
-  const [dragOver, setDragOver] = useState(false);
+const cogsMonthly = [
+  { mois: 'Nov', cogs: 3200, ventes: 12500 },
+  { mois: 'D\u00e9c', cogs: 4100, ventes: 16200 },
+  { mois: 'Jan', cogs: 2900, ventes: 11000 },
+  { mois: 'F\u00e9v', cogs: 3300, ventes: 12800 },
+  { mois: 'Mar', cogs: 3700, ventes: 14400 },
+  { mois: 'Avr', cogs: 2200, ventes: 8900 },
+]
 
-  /* ═══ FEATURE 2: Stock counting mode state ═══ */
-  const [countingMode, setCountingMode] = useState(false);
-  const [countLines, setCountLines] = useState<CountLine[]>([]);
-  const [showCountSummary, setShowCountSummary] = useState(false);
-  const [countHistory, setCountHistory] = useState<CountRecord[]>([
-    { id: 'cnt-1', date: '2026-04-01', compteur: 'Marc D.', totalArticles: 15, articlesAvecEcart: 3, valeurEcart: 12.40 },
-    { id: 'cnt-2', date: '2026-03-15', compteur: 'Sophie L.', totalArticles: 15, articlesAvecEcart: 5, valeurEcart: 28.90 },
-    { id: 'cnt-3', date: '2026-03-01', compteur: 'Marc D.', totalArticles: 14, articlesAvecEcart: 2, valeurEcart: 6.20 },
-  ]);
-  const timerDisplay = useTimer(countingMode && !showCountSummary);
+const overlay: React.CSSProperties = {
+  position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)',
+  backdropFilter: 'blur(4px)', zIndex: 999, display: 'flex',
+  alignItems: 'center', justifyContent: 'center', padding: 24,
+}
 
-  /* ─── computed ─── */
-  const stats = useMemo(() => {
-    const total = data.length;
-    const valeur = data.reduce((s, i) => s + i.valeur, 0);
-    const bas = data.filter((i) => getStatut(i) === 'Bas').length;
-    const rupture = data.filter((i) => getStatut(i) === 'Rupture').length;
-    return { total, valeur, bas, rupture, alertes: bas + rupture };
-  }, [data]);
-
-  const filtered = useMemo(() => {
-    let list = [...data];
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter((i) =>
-        i.nom.toLowerCase().includes(q) ||
-        i.fournisseur.toLowerCase().includes(q) ||
-        i.categorie.toLowerCase().includes(q)
-      );
-    }
-    if (categoryFilter) list = list.filter((i) => i.categorie === categoryFilter);
-
-    list.sort((a, b) => {
-      let cmp = 0;
-      switch (sortKey) {
-        case 'nom':          cmp = a.nom.localeCompare(b.nom); break;
-        case 'categorie':    cmp = a.categorie.localeCompare(b.categorie); break;
-        case 'stockActuel':  cmp = a.stockActuel - b.stockActuel; break;
-        case 'seuilMinimum': cmp = a.seuilMinimum - b.seuilMinimum; break;
-        case 'statut':       cmp = getStatut(a).localeCompare(getStatut(b)); break;
-        case 'valeur':       cmp = a.valeur - b.valeur; break;
-        case 'dernierAppro': cmp = a.dernierAppro.localeCompare(b.dernierAppro); break;
-        case 'fournisseur':  cmp = a.fournisseur.localeCompare(b.fournisseur); break;
-      }
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-    return list;
-  }, [data, search, categoryFilter, sortKey, sortDir]);
-
-  const suggestions = useMemo(() => {
-    return data
-      .filter((i) => i.stockActuel < i.seuilMinimum)
-      .map((i) => {
-        const deficit = i.seuilMinimum - i.stockActuel;
-        const buffer = Math.ceil(deficit * 1.2 * 10) / 10;
-        const cpu = costPerUnit(i);
-        return {
-          ...i,
-          quantiteSuggérée: buffer,
-          coûtEstimé: Math.round(buffer * cpu * 100) / 100,
-        };
-      });
-  }, [data]);
-
-  const totalSuggestionCost = suggestions.reduce((s, i) => s + i.coûtEstimé, 0);
-
-  /* ─── invoice computed ─── */
-  const invoiceTotal = useMemo(() => {
-    return invoiceLines.reduce((sum, l) => sum + (l.quantite * l.prixUnitaire), 0);
-  }, [invoiceLines]);
-
-  /* ─── counting computed ─── */
-  const countProgress = useMemo(() => {
-    const counted = countLines.filter((l) => l.stockReel !== null).length;
-    return { counted, total: countLines.length };
-  }, [countLines]);
-
-  const countSummaryData = useMemo(() => {
-    const counted = countLines.filter((l) => l.stockReel !== null);
-    const withEcart = counted.filter((l) => l.stockReel !== l.stockTheorique);
-    const valeurEcart = withEcart.reduce((sum, l) => {
-      const ing = data.find((d) => d.id === l.ingredientId);
-      if (!ing || ing.stockActuel === 0) return sum;
-      const cpu = ing.valeur / ing.stockActuel;
-      return sum + Math.abs((l.stockReel ?? 0) - l.stockTheorique) * cpu;
-    }, 0);
-    return {
-      totalComptes: counted.length,
-      articlesAvecEcart: withEcart.length,
-      valeurEcart: Math.round(valeurEcart * 100) / 100,
-    };
-  }, [countLines, data]);
-
-  function handleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortDir('asc');
-    }
-  }
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ChevronUp size={12} style={{ opacity: 0.25 }} />;
-    return sortDir === 'asc'
-      ? <ChevronUp size={12} style={{ color: '#0369a1' }} />
-      : <ChevronDown size={12} style={{ color: '#0369a1' }} />;
-  }
-
-  const formatDate = (d: string) => {
-    const dt = new Date(d);
-    return dt.toLocaleDateString('fr-LU', { day: '2-digit', month: 'short', year: 'numeric' });
-  };
-
-  /* ─── flash animation on stock update ─── */
-  const triggerFlash = useCallback((ids: string[]) => {
-    setFlashIds(new Set(ids));
-    setTimeout(() => setFlashIds(new Set()), 1800);
-  }, []);
-
-  /* ═══ INVOICE HANDLERS ═══ */
-  function addInvoiceLine() {
-    setInvoiceLines([...invoiceLines, { ingredientId: '', quantite: 0, prixUnitaire: 0 }]);
-  }
-
-  function updateInvoiceLine(idx: number, field: keyof InvoiceLine, value: string | number) {
-    const updated = [...invoiceLines];
-    if (field === 'ingredientId') {
-      updated[idx] = { ...updated[idx], ingredientId: value as string };
-    } else {
-      updated[idx] = { ...updated[idx], [field]: Number(value) || 0 };
-    }
-    setInvoiceLines(updated);
-  }
-
-  function removeInvoiceLine(idx: number) {
-    if (invoiceLines.length <= 1) return;
-    setInvoiceLines(invoiceLines.filter((_, i) => i !== idx));
-  }
-
-  function submitInvoice() {
-    const validLines = invoiceLines.filter((l) => l.ingredientId && l.quantite > 0);
-    if (validLines.length === 0) return;
-
-    const affectedIds: string[] = [];
-    const updatedData = data.map((ing) => {
-      const line = validLines.find((l) => l.ingredientId === ing.id);
-      if (line) {
-        affectedIds.push(ing.id);
-        const newStock = ing.stockActuel + line.quantite;
-        const cpu = line.prixUnitaire;
-        return {
-          ...ing,
-          stockActuel: Math.round(newStock * 100) / 100,
-          valeur: Math.round(newStock * cpu * 100) / 100,
-          dernierAppro: invoiceDate,
-        };
-      }
-      return ing;
-    });
-
-    setData(updatedData);
-    triggerFlash(affectedIds);
-
-    const record: ImportRecord = {
-      id: `imp-${Date.now()}`,
-      date: invoiceDate,
-      fournisseur: invoiceFournisseur,
-      montant: Math.round(invoiceTotal * 100) / 100,
-      articlesCount: validLines.length,
-      numero: invoiceNumero || `FAC-${Date.now()}`,
-    };
-    setImportHistory((prev) => [record, ...prev].slice(0, 5));
-
-    setShowInvoiceModal(false);
-    setInvoiceLines([{ ingredientId: '', quantite: 0, prixUnitaire: 0 }]);
-    setInvoiceNumero('');
-  }
-
-  /* ═══ COUNTING HANDLERS ═══ */
-  function startCounting() {
-    setCountLines(
-      data.map((ing) => ({
-        ingredientId: ing.id,
-        nom: ing.nom,
-        unite: ing.unite,
-        stockTheorique: ing.stockActuel,
-        stockReel: null,
-      }))
-    );
-    setCountingMode(true);
-    setShowCountSummary(false);
-  }
-
-  function updateCountReel(ingredientId: string, value: string) {
-    setCountLines((prev) =>
-      prev.map((l) =>
-        l.ingredientId === ingredientId
-          ? { ...l, stockReel: value === '' ? null : parseFloat(value) || 0 }
-          : l
-      )
-    );
-  }
-
-  function validateAll() {
-    setCountLines((prev) =>
-      prev.map((l) => (l.stockReel === null ? { ...l, stockReel: l.stockTheorique } : l))
-    );
-  }
-
-  function resetCount() {
-    setCountLines((prev) => prev.map((l) => ({ ...l, stockReel: null })));
-  }
-
-  function finishCounting() {
-    setShowCountSummary(true);
-  }
-
-  function applyCountResults() {
-    const affectedIds: string[] = [];
-    const updatedData = data.map((ing) => {
-      const cl = countLines.find((l) => l.ingredientId === ing.id);
-      if (cl && cl.stockReel !== null && cl.stockReel !== cl.stockTheorique) {
-        affectedIds.push(ing.id);
-        const cpu = ing.stockActuel > 0 ? ing.valeur / ing.stockActuel : costPerUnit(ing);
-        return {
-          ...ing,
-          stockActuel: cl.stockReel,
-          valeur: Math.round(cl.stockReel * cpu * 100) / 100,
-        };
-      }
-      return ing;
-    });
-    setData(updatedData);
-    triggerFlash(affectedIds);
-
-    const record: CountRecord = {
-      id: `cnt-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
-      compteur: 'Utilisateur',
-      totalArticles: countSummaryData.totalComptes,
-      articlesAvecEcart: countSummaryData.articlesAvecEcart,
-      valeurEcart: countSummaryData.valeurEcart,
-    };
-    setCountHistory((prev) => [record, ...prev].slice(0, 3));
-
-    setCountingMode(false);
-    setShowCountSummary(false);
-  }
-
-  function exportCountCSV() {
-    const header = 'Ingrédient;Unité;Stock théorique;Stock réel;Écart\n';
-    const rows = countLines
-      .filter((l) => l.stockReel !== null)
-      .map((l) => `${l.nom};${l.unite};${l.stockTheorique};${l.stockReel};${(l.stockReel ?? 0) - l.stockTheorique}`)
-      .join('\n');
-    const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `comptage-stock-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  /* ─── stat card component ─── */
-  function StatCard({ icon, label, value, accent, sub }: {
-    icon: React.ReactNode; label: string; value: string | number; accent?: string; sub?: string;
-  }) {
-    return (
-      <motion.div variants={item} style={{
-        ...cardStyle,
-        display: 'flex', alignItems: 'flex-start', gap: 16,
-      }}>
-        <div style={{
-          width: 48, height: 48, borderRadius: 14,
-          background: accent ? `${accent}15` : '#f0f9ff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-        }}>
-          {icon}
-        </div>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {label}
-          </div>
-          <div style={{ fontSize: 30, fontWeight: 800, color: accent || '#1e293b', marginTop: 2 }}>
-            {value}
-          </div>
-          {sub && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{sub}</div>}
-        </div>
-      </motion.div>
-    );
-  }
-
-  /* ─── input style helper ─── */
-  const inputStyle: React.CSSProperties = {
-    width: '100%', border: '1px solid #e2e8f0', borderRadius: 12,
-    padding: '10px 14px', fontSize: 14, color: '#1e293b', outline: 'none',
-    transition: 'border-color 0.2s',
-  };
-
-  /* ═══════════════════════════════════════════════════════════════ */
-  /* ═══ COUNTING MODE FULL SCREEN ═══ */
-  /* ═══════════════════════════════════════════════════════════════ */
-  if (countingMode) {
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 20, minHeight: '100vh' }}
-      >
-        {/* Header */}
-        <div style={{
-          ...cardStyle,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
-          border: '1px solid #93c5fd',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div style={{
-              width: 50, height: 50, borderRadius: 14,
-              background: '#0369a1', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <ClipboardList size={26} color="#fff" />
-            </div>
-            <div>
-              <h1 style={{ fontSize: 24, fontWeight: 800, color: '#1e293b', margin: 0 }}>
-                Mode Comptage — {new Date().toLocaleDateString('fr-LU', { day: '2-digit', month: 'long', year: 'numeric' })}
-              </h1>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                <Timer size={14} color="#0369a1" />
-                <span style={{ fontSize: 14, fontWeight: 600, color: '#0369a1' }}>{timerDisplay}</span>
-              </div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={resetCount}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                border: '1px solid #e2e8f0', background: '#ffffff', color: '#64748b', cursor: 'pointer',
-              }}
-            >
-              <RotateCcw size={14} /> Réinitialiser
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={validateAll}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                border: 'none', background: '#059669', color: '#fff', cursor: 'pointer',
-              }}
-            >
-              <Check size={14} /> Tout valider
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => { setCountingMode(false); setShowCountSummary(false); }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer',
-              }}
-            >
-              <X size={14} /> Annuler
-            </motion.button>
-          </div>
-        </div>
-
-        {/* Progress bar */}
-        <div style={{ ...cardStyle, padding: '16px 24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>
-              {countProgress.counted}/{countProgress.total} articles comptés
-            </span>
-            <span style={{ fontSize: 13, color: '#64748b' }}>
-              {countProgress.total > 0 ? Math.round((countProgress.counted / countProgress.total) * 100) : 0}%
-            </span>
-          </div>
-          <div style={{ width: '100%', height: 10, background: '#e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${countProgress.total > 0 ? (countProgress.counted / countProgress.total) * 100 : 0}%` }}
-              transition={{ duration: 0.5, ease: 'easeOut' }}
-              style={{ height: '100%', background: 'linear-gradient(90deg, #0369a1, #0ea5e9)', borderRadius: 10 }}
-            />
-          </div>
-        </div>
-
-        {/* Counting table */}
-        <div style={{ ...cardStyle, padding: 0, overflow: 'hidden', flex: 1 }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
-              <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Ingrédient
-                  </th>
-                  <th style={{ padding: '16px 20px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Unité
-                  </th>
-                  <th style={{ padding: '16px 20px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Stock théorique
-                  </th>
-                  <th style={{ padding: '16px 20px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, minWidth: 180 }}>
-                    Stock réel
-                  </th>
-                  <th style={{ padding: '16px 20px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Écart
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {countLines.map((cl) => {
-                  const ecart = cl.stockReel !== null ? Math.round((cl.stockReel - cl.stockTheorique) * 100) / 100 : null;
-                  const pctDiff = cl.stockTheorique > 0 && ecart !== null
-                    ? Math.abs(ecart / cl.stockTheorique) * 100
-                    : 0;
-                  let rowBg = '#ffffff';
-                  if (cl.stockReel !== null) {
-                    if (ecart === 0) rowBg = '#f0fdf4';
-                    else if (pctDiff <= 10) rowBg = '#fefce8';
-                    else rowBg = '#fef2f2';
-                  }
-                  let ecartColor = '#94a3b8';
-                  if (ecart !== null) {
-                    if (ecart > 0) ecartColor = '#16a34a';
-                    else if (ecart < 0) ecartColor = '#dc2626';
-                    else ecartColor = '#94a3b8';
-                  }
-
-                  return (
-                    <tr
-                      key={cl.ingredientId}
-                      style={{
-                        background: rowBg,
-                        borderBottom: '1px solid #f1f5f9',
-                        transition: 'background 0.2s',
-                      }}
-                    >
-                      <td style={{ padding: '12px 20px', fontWeight: 700, color: '#1e293b', fontSize: 16 }}>
-                        {cl.nom}
-                      </td>
-                      <td style={{ padding: '12px 20px', textAlign: 'center', color: '#64748b', fontSize: 14 }}>
-                        {cl.unite}
-                      </td>
-                      <td style={{ padding: '12px 20px', textAlign: 'center', fontWeight: 600, color: '#475569', fontSize: 16 }}>
-                        {cl.stockTheorique}
-                      </td>
-                      <td style={{ padding: '12px 20px', textAlign: 'center' }}>
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={cl.stockReel === null ? '' : cl.stockReel}
-                          onChange={(e) => updateCountReel(cl.ingredientId, e.target.value)}
-                          placeholder="—"
-                          style={{
-                            width: '100%',
-                            maxWidth: 160,
-                            height: 60,
-                            border: '2px solid #cbd5e1',
-                            borderRadius: 14,
-                            padding: '8px 16px',
-                            fontSize: 22,
-                            fontWeight: 700,
-                            color: '#1e293b',
-                            textAlign: 'center',
-                            outline: 'none',
-                            background: cl.stockReel !== null ? '#f0f9ff' : '#ffffff',
-                            transition: 'border-color 0.2s, box-shadow 0.2s',
-                          }}
-                          onFocus={(e) => {
-                            e.currentTarget.style.borderColor = '#0369a1';
-                            e.currentTarget.style.boxShadow = '0 0 0 3px rgba(3,105,161,0.15)';
-                          }}
-                          onBlur={(e) => {
-                            e.currentTarget.style.borderColor = '#cbd5e1';
-                            e.currentTarget.style.boxShadow = 'none';
-                          }}
-                        />
-                      </td>
-                      <td style={{ padding: '12px 20px', textAlign: 'center' }}>
-                        {ecart !== null ? (
-                          <span style={{
-                            display: 'inline-block',
-                            padding: '6px 16px',
-                            borderRadius: 10,
-                            fontSize: 16,
-                            fontWeight: 800,
-                            color: ecartColor,
-                            background: ecart === 0 ? '#f1f5f9' : ecart > 0 ? '#dcfce7' : '#fee2e2',
-                          }}>
-                            {ecart > 0 ? '+' : ''}{ecart}
-                          </span>
-                        ) : (
-                          <span style={{ color: '#cbd5e1', fontSize: 14 }}>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Finish counting button */}
-        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={finishCounting}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '16px 40px', borderRadius: 14, fontSize: 16, fontWeight: 700,
-              border: 'none', background: '#0369a1', color: '#fff', cursor: 'pointer',
-              boxShadow: '0 4px 16px rgba(3,105,161,0.3)',
-            }}
-          >
-            <CheckCircle2 size={20} /> Terminer le comptage
-          </motion.button>
-        </div>
-
-        {/* ═══ COUNT SUMMARY MODAL ═══ */}
-        <AnimatePresence>
-          {showCountSummary && (
-            <Overlay onClose={() => setShowCountSummary(false)}>
-              <div style={{ padding: '24px 28px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{
-                    width: 42, height: 42, borderRadius: 12, background: '#0369a1',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <BarChart3 size={22} color="#fff" />
-                  </div>
-                  <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>
-                    Résumé du comptage
-                  </h2>
-                </div>
-                <button
-                  onClick={() => setShowCountSummary(false)}
-                  style={{
-                    border: 'none', background: '#f1f5f9', borderRadius: 10,
-                    width: 36, height: 36, cursor: 'pointer', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center',
-                  }}
-                >
-                  <X size={18} color="#64748b" />
-                </button>
-              </div>
-              <div style={{ padding: '28px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-                {/* Stats */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-                  <div style={{
-                    background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 14, padding: 20, textAlign: 'center',
-                  }}>
-                    <div style={{ fontSize: 32, fontWeight: 800, color: '#166534' }}>{countSummaryData.totalComptes}</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#16a34a', marginTop: 4 }}>Articles comptés</div>
-                  </div>
-                  <div style={{
-                    background: countSummaryData.articlesAvecEcart > 0 ? '#fef2f2' : '#f0fdf4',
-                    border: `1px solid ${countSummaryData.articlesAvecEcart > 0 ? '#fecaca' : '#bbf7d0'}`,
-                    borderRadius: 14, padding: 20, textAlign: 'center',
-                  }}>
-                    <div style={{ fontSize: 32, fontWeight: 800, color: countSummaryData.articlesAvecEcart > 0 ? '#dc2626' : '#166534' }}>
-                      {countSummaryData.articlesAvecEcart}
-                    </div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: countSummaryData.articlesAvecEcart > 0 ? '#b91c1c' : '#16a34a', marginTop: 4 }}>
-                      Articles avec écart
-                    </div>
-                  </div>
-                  <div style={{
-                    background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 14, padding: 20, textAlign: 'center',
-                  }}>
-                    <div style={{ fontSize: 32, fontWeight: 800, color: '#1d4ed8' }}>{fmt(countSummaryData.valeurEcart)}</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#2563eb', marginTop: 4 }}>Valeur de l'écart</div>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 8 }}>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={exportCountCSV}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '12px 22px', borderRadius: 10, fontSize: 14, fontWeight: 600,
-                      border: '1px solid #e2e8f0', background: '#ffffff', color: '#475569', cursor: 'pointer',
-                    }}
-                  >
-                    <Download size={16} /> Exporter le rapport
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={applyCountResults}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '12px 22px', borderRadius: 10, fontSize: 14, fontWeight: 700,
-                      border: 'none', background: '#0369a1', color: '#fff', cursor: 'pointer',
-                      boxShadow: '0 2px 8px rgba(3,105,161,0.25)',
-                    }}
-                  >
-                    <Check size={16} /> Valider et mettre à jour
-                  </motion.button>
-                </div>
-              </div>
-            </Overlay>
-          )}
-        </AnimatePresence>
-      </motion.div>
-    );
-  }
-
-  /* ═══════════════════════════════════════════════════════════════ */
-  /* ═══ NORMAL MODE (original + invoice import) ═══ */
-  /* ═══════════════════════════════════════════════════════════════ */
+/* ─── Toast ─── */
+function Toast({ message, onClose }: { message: string; onClose: () => void }) {
   return (
     <motion.div
-      variants={container}
-      initial="hidden"
-      animate="show"
-      style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 24 }}
+      initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+      style={{
+        position: 'fixed', bottom: 32, right: 32, background: '#1e293b', color: '#fff',
+        padding: '12px 20px', borderRadius: 12, fontSize: 13, fontWeight: 500,
+        boxShadow: '0 8px 28px rgba(0,0,0,0.18)', zIndex: 10001,
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}
     >
-      {/* ═══ HEADER ═══ */}
-      <motion.div variants={item} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: '#1e293b', margin: 0 }}>
-            Gestion du stock
-          </h1>
-          <p style={{ color: '#64748b', marginTop: 4, fontSize: 14 }}>
-            Suivi en temps réel de votre inventaire — Café um Rond-Point
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setShowInvoiceModal(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              background: '#7c3aed', color: '#fff', border: 'none',
-              borderRadius: 12, padding: '12px 22px', fontSize: 14, fontWeight: 600,
-              cursor: 'pointer', boxShadow: '0 2px 8px rgba(124,58,237,0.25)',
-            }}
-          >
-            <FileText size={18} /> Importer une facture
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={startCounting}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              background: '#059669', color: '#fff', border: 'none',
-              borderRadius: 12, padding: '12px 22px', fontSize: 14, fontWeight: 600,
-              cursor: 'pointer', boxShadow: '0 2px 8px rgba(5,150,105,0.25)',
-            }}
-          >
-            <ClipboardList size={18} /> Comptage de stock
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setShowAddModal(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              background: '#0369a1', color: '#fff', border: 'none',
-              borderRadius: 12, padding: '12px 22px', fontSize: 14, fontWeight: 600,
-              cursor: 'pointer', boxShadow: '0 2px 8px rgba(3,105,161,0.25)',
-            }}
-          >
-            <Plus size={18} /> Ajouter un ingrédient
-          </motion.button>
-        </div>
-      </motion.div>
+      <CheckCircle2 size={15} style={{ color: '#34d399' }} />
+      {message}
+      <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0, marginLeft: 6 }}>
+        <X size={13} />
+      </button>
+    </motion.div>
+  )
+}
 
-      {/* ═══ STAT CARDS ═══ */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-        <StatCard
-          icon={<Package size={22} color="#0369a1" />}
-          label="Références totales"
-          value={stats.total}
-          sub="Ingrédients enregistrés"
-        />
-        <StatCard
-          icon={<Euro size={22} color="#059669" />}
-          label="Valeur du stock"
-          value={fmt(stats.valeur)}
-          accent="#059669"
-          sub="Coût total actuel"
-        />
-        <StatCard
-          icon={<AlertTriangle size={22} color="#dc2626" />}
-          label="Alertes stock bas"
-          value={stats.bas}
-          accent="#dc2626"
-          sub="Sous le seuil minimum"
-        />
-        <StatCard
-          icon={<XCircle size={22} color="#7f1d1d" />}
-          label="Ruptures de stock"
-          value={stats.rupture}
-          accent="#7f1d1d"
-          sub="Stock à zéro"
-        />
-      </div>
+/* ─── Barcode scan modal ─── */
+function BarcodeScanner({ onClose, onScan }: { onClose: () => void; onScan: (code: string) => void }) {
+  const [code, setCode] = useState('')
+  const [scanning, setScanning] = useState(true)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setCode('3228021400019')
+      setScanning(false)
+    }, 2200)
+    return () => clearTimeout(t)
+  }, [])
 
-      {/* ═══ ALERT BANNER ═══ */}
-      {stats.alertes > 0 && (
-        <motion.div
-          variants={item}
-          style={{
-            background: 'linear-gradient(135deg, #fef2f2 0%, #fff7ed 100%)',
-            border: '1px solid #fecaca',
-            borderRadius: 14, padding: '16px 24px',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 38, height: 38, borderRadius: 10,
-              background: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <AlertTriangle size={20} color="#fff" />
-            </div>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#991b1b' }}>
-                {stats.alertes} article{stats.alertes > 1 ? 's' : ''} sous le seuil minimum
-              </div>
-              <div style={{ fontSize: 13, color: '#b91c1c', marginTop: 2 }}>
-                {stats.rupture} rupture{stats.rupture > 1 ? 's' : ''} de stock — réapprovisionnement urgent recommandé
-              </div>
-            </div>
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} style={overlay}>
+      <motion.div
+        initial={{ scale: 0.95 }} animate={{ scale: 1 }}
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 18, maxWidth: 460, width: '100%', padding: 28 }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ScanLine size={18} /> Scanner un produit
+          </h2>
+          <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
+        </div>
+        <div style={{
+          height: 200, background: '#0f172a', borderRadius: 14, position: 'relative', overflow: 'hidden',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{ width: '80%', height: 2, background: '#ef4444', position: 'absolute', boxShadow: '0 0 20px #ef4444' }}
+               className="scan-line">
+            <motion.div
+              animate={{ y: [-60, 60, -60] }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+              style={{ width: '100%', height: 2, background: '#ef4444', boxShadow: '0 0 14px #ef4444' }}
+            />
           </div>
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setShowAlerts(!showAlerts)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: '#dc2626', color: '#fff', border: 'none',
-              borderRadius: 10, padding: '10px 18px', fontSize: 13, fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            <AlertTriangle size={14} />
-            {showAlerts ? 'Masquer les alertes' : 'Voir les alertes'}
-          </motion.button>
-        </motion.div>
-      )}
-
-      {/* ═══ SEARCH & FILTERS ═══ */}
-      <motion.div variants={item} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: 280 }}>
-          <Search size={18} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-          <input
-            type="text"
-            placeholder="Rechercher un ingrédient..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              ...inputStyle,
-              paddingLeft: 42, background: '#ffffff', border: '1px solid #e2e8f0',
-            }}
-          />
+          <div style={{ color: '#94a3b8', fontSize: 11, position: 'absolute', bottom: 10, left: 16 }}>
+            {scanning ? 'Recherche en cours...' : 'Code d\u00e9tect\u00e9'}
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
-            onClick={() => setCategoryFilter(null)}
-            style={{
-              padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-              border: categoryFilter === null ? '2px solid #0369a1' : '1px solid #e2e8f0',
-              background: categoryFilter === null ? '#e0f2fe' : '#ffffff',
-              color: categoryFilter === null ? '#0369a1' : '#64748b',
-              cursor: 'pointer',
-            }}
-          >
-            Tous
-          </motion.button>
-          {CATEGORIES.map((cat) => {
-            const active = categoryFilter === cat;
-            const colors = CATEGORY_COLORS[cat];
-            return (
-              <motion.button
-                key={cat}
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={() => setCategoryFilter(active ? null : cat)}
-                style={{
-                  padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                  border: active ? `2px solid ${colors.text}` : '1px solid #e2e8f0',
-                  background: active ? colors.bg : '#ffffff',
-                  color: active ? colors.text : '#64748b',
-                  cursor: 'pointer',
-                }}
-              >
-                {cat}
-              </motion.button>
-            );
-          })}
+        {!scanning && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ marginTop: 16, padding: 14, background: '#f0fdf4', borderRadius: 12, border: '1px solid #bbf7d0' }}>
+            <div style={{ fontSize: 11, color: '#166534', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Produit identifi\u00e9</div>
+            <div style={{ fontFamily: 'monospace', fontSize: 14, color: '#1e293b', marginTop: 6 }}>{code}</div>
+            <div style={{ fontSize: 13, color: '#475569', marginTop: 4 }}>Lait entier \u2022 Luxlait \u2022 Brique 1L</div>
+            <button
+              onClick={() => { onScan(code); onClose() }}
+              style={{ marginTop: 12, width: '100%', padding: '10px 14px', borderRadius: 10, border: 'none', background: '#10b981', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}
+            >
+              Ajouter au stock
+            </button>
+          </motion.div>
+        )}
+      </motion.div>
+    </motion.div>
+  )
+}
+
+/* ─── Supplier comparison modal ─── */
+function SupplierModal({ ingredient, onClose }: { ingredient: Ingredient; onClose: () => void }) {
+  const prices = SUPPLIER_COMPARE.default.map((s, i) => ({ ...s, prix: ingredient.cogs * (0.85 + i * 0.1) }))
+  const best = prices.reduce((a, b) => a.prix < b.prix ? a : b)
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} style={overlay}>
+      <motion.div
+        initial={{ scale: 0.95 }} animate={{ scale: 1 }}
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 18, maxWidth: 620, width: '100%', padding: 28 }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#1e293b' }}>Comparer les fournisseurs</h2>
+          <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
+        </div>
+        <div style={{ marginBottom: 14, fontSize: 13, color: '#475569' }}>
+          <strong>{ingredient.nom}</strong> \u2022 {ingredient.unite} \u2022 commande pour atteindre le seuil
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {prices.map(p => (
+            <div key={p.fournisseur} style={{
+              padding: 14, borderRadius: 12, border: p.fournisseur === best.fournisseur ? '2px solid #10b981' : '1px solid #e2e8f0',
+              background: p.fournisseur === best.fournisseur ? '#f0fdf4' : '#fff',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {p.fournisseur}
+                  {p.fournisseur === best.fournisseur && (
+                    <span style={{ fontSize: 10, padding: '2px 8px', background: '#10b981', color: '#fff', borderRadius: 10, fontWeight: 800 }}>MEILLEUR PRIX</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Livraison : {p.delai} \u2022 Note : {p.note}/5 \u2b50</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: '#1e293b' }}>{fmt(p.prix)}</div>
+                <div style={{ fontSize: 11, color: '#64748b' }}>/ {ingredient.unite}</div>
+              </div>
+            </div>
+          ))}
         </div>
       </motion.div>
+    </motion.div>
+  )
+}
 
-      {/* ═══ STOCK TABLE ═══ */}
-      <motion.div variants={item} style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+/* ─── Waste log modal ─── */
+function WasteModal({ onClose, onToast }: { onClose: () => void; onToast: (m: string) => void }) {
+  const [list, setList] = useState<Waste[]>(WASTE_LOG)
+  const [ingredient, setIngredient] = useState('')
+  const [quantite, setQuantite] = useState('')
+  const [raison, setRaison] = useState<Waste['raison']>('Expiration')
+  const total = list.reduce((s, w) => s + w.cout, 0)
+
+  const add = () => {
+    if (!ingredient || !quantite) return
+    const w: Waste = {
+      id: `w${Date.now()}`, date: new Date().toISOString().slice(0, 10),
+      ingredient, quantite: parseFloat(quantite), unite: 'u', raison,
+      cout: parseFloat(quantite) * 5,
+    }
+    setList([w, ...list])
+    setIngredient(''); setQuantite('')
+    onToast(`Perte enregistr\u00e9e : ${ingredient}`)
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} style={overlay}>
+      <motion.div
+        initial={{ scale: 0.95 }} animate={{ scale: 1 }}
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 18, maxWidth: 720, width: '100%', maxHeight: '86vh', overflow: 'auto', padding: 28 }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Trash2 size={17} /> Journal des pertes
+          </h2>
+          <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
+        </div>
+        <div style={{ padding: 14, background: '#fef2f2', borderRadius: 12, marginBottom: 16, border: '1px solid #fecaca' }}>
+          <div style={{ fontSize: 11, color: '#991b1b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Co\u00fbt total pertes ce mois</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: '#dc2626', marginTop: 4 }}>{fmt(total)}</div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 8, marginBottom: 16 }}>
+          <input style={inputStyle} placeholder="Ingr\u00e9dient" value={ingredient} onChange={e => setIngredient(e.target.value)} />
+          <input style={inputStyle} placeholder="Qt\u00e9" type="number" value={quantite} onChange={e => setQuantite(e.target.value)} />
+          <select style={inputStyle} value={raison} onChange={e => setRaison(e.target.value as Waste['raison'])}>
+            <option>Expiration</option><option>Casse</option><option>Avari\u00e9</option><option>Vol</option>
+          </select>
+          <button onClick={add} style={{ ...smallBtnStyle, background: '#065F46', color: '#fff', border: 'none' }}>
+            <Plus size={13} /> Ajouter
+          </button>
+        </div>
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                {([
-                  ['nom', 'Ingrédient'],
-                  ['categorie', 'Catégorie'],
-                  ['stockActuel', 'Stock actuel'],
-                  ['seuilMinimum', 'Seuil minimum'],
-                  ['statut', 'Statut'],
-                  ['valeur', 'Valeur'],
-                  ['dernierAppro', 'Dernier appro.'],
-                  ['fournisseur', 'Fournisseur'],
-                ] as [SortKey, string][]).map(([key, label]) => (
-                  <th
-                    key={key}
-                    onClick={() => handleSort(key)}
-                    style={{
-                      padding: '14px 16px', textAlign: 'left', fontSize: 12,
-                      fontWeight: 700, color: '#64748b', textTransform: 'uppercase',
-                      letterSpacing: 0.5, cursor: 'pointer', userSelect: 'none',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      {label}
-                      <SortIcon col={key} />
-                    </span>
-                  </th>
+              <tr style={{ background: '#f8fafc' }}>
+                {['Date', 'Ingr\u00e9dient', 'Qt\u00e9', 'Raison', 'Co\u00fbt'].map(h => (
+                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 10, color: '#475569', fontWeight: 700, textTransform: 'uppercase' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((ing, idx) => {
-                const statut = getStatut(ing);
-                const sStyles = STATUT_STYLES[statut];
-                const catColor = CATEGORY_COLORS[ing.categorie];
-                const isFlashing = flashIds.has(ing.id);
-                return (
-                  <motion.tr
-                    key={ing.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{
-                      opacity: 1,
-                      y: 0,
-                      backgroundColor: isFlashing
-                        ? ['rgba(34,197,94,0.25)', 'rgba(34,197,94,0.05)', 'rgba(34,197,94,0.20)', 'rgba(34,197,94,0.0)']
-                        : ROW_TINTS[statut],
-                    }}
-                    transition={isFlashing
-                      ? { backgroundColor: { duration: 1.8, times: [0, 0.3, 0.6, 1] } }
-                      : { duration: 0.25, delay: idx * 0.02 }
-                    }
-                    style={{
-                      borderBottom: '1px solid #f1f5f9',
-                      transition: 'background 0.15s',
-                    }}
-                    onMouseEnter={(e) => { if (!isFlashing) (e.currentTarget as HTMLElement).style.background = '#f0f9ff'; }}
-                    onMouseLeave={(e) => { if (!isFlashing) (e.currentTarget as HTMLElement).style.background = ROW_TINTS[statut]; }}
-                  >
-                    <td style={{ padding: '14px 16px', fontWeight: 600, color: '#1e293b' }}>
-                      {ing.nom}
-                    </td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <span style={{
-                        display: 'inline-block', padding: '4px 12px', borderRadius: 8,
-                        fontSize: 12, fontWeight: 600,
-                        background: catColor.bg, color: catColor.text,
-                      }}>
-                        {ing.categorie}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 16px', fontWeight: 700, color: '#1e293b' }}>
-                      {ing.stockActuel} <span style={{ fontWeight: 400, color: '#94a3b8' }}>{ing.unite}</span>
-                    </td>
-                    <td style={{ padding: '14px 16px', color: '#64748b' }}>
-                      {ing.seuilMinimum} {ing.unite}
-                    </td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        padding: '5px 14px', borderRadius: 20,
-                        fontSize: 12, fontWeight: 700,
-                        background: sStyles.bg, color: sStyles.text,
-                      }}>
-                        <span style={{
-                          width: 7, height: 7, borderRadius: '50%', background: sStyles.dot,
-                        }} />
-                        {statut}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 16px', fontWeight: 600, color: '#1e293b' }}>
-                      {fmt(ing.valeur)}
-                    </td>
-                    <td style={{ padding: '14px 16px', color: '#64748b', fontSize: 13 }}>
-                      {formatDate(ing.dernierAppro)}
-                    </td>
-                    <td style={{ padding: '14px 16px', color: '#475569', fontSize: 13 }}>
-                      {ing.fournisseur}
-                    </td>
-                  </motion.tr>
-                );
-              })}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={8} style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 15 }}>
-                    Aucun ingrédient trouvé
+              {list.map(w => (
+                <tr key={w.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '10px 14px', color: '#64748b' }}>{w.date}</td>
+                  <td style={{ padding: '10px 14px', color: '#1e293b', fontWeight: 600 }}>{w.ingredient}</td>
+                  <td style={{ padding: '10px 14px', color: '#475569' }}>{w.quantite} {w.unite}</td>
+                  <td style={{ padding: '10px 14px' }}>
+                    <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, background: '#fee2e2', color: '#991b1b' }}>{w.raison}</span>
                   </td>
+                  <td style={{ padding: '10px 14px', color: '#dc2626', fontWeight: 700 }}>{fmt(w.cout)}</td>
                 </tr>
-              )}
+              ))}
             </tbody>
           </table>
         </div>
-        <div style={{
-          padding: '12px 20px', borderTop: '1px solid #e2e8f0',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          background: '#f8fafc', fontSize: 13, color: '#64748b',
-        }}>
-          <span>{filtered.length} ingrédient{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''}</span>
-          <span>Valeur totale : <strong style={{ color: '#1e293b' }}>{fmt(stats.valeur)}</strong></span>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+/* ─── Movements log modal ─── */
+function MovementsModal({ onClose }: { onClose: () => void }) {
+  const [filter, setFilter] = useState<string>('all')
+  const filtered = MOVEMENTS.filter(m => filter === 'all' || m.type === filter)
+
+  const typeColors: Record<string, { bg: string; fg: string }> = {
+    'Entr\u00e9e':   { bg: '#dcfce7', fg: '#166534' },
+    'Sortie':    { bg: '#dbeafe', fg: '#1d4ed8' },
+    'Transfert': { bg: '#ede9fe', fg: '#6d28d9' },
+    'Perte':     { bg: '#fee2e2', fg: '#991b1b' },
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} style={overlay}>
+      <motion.div
+        initial={{ scale: 0.95 }} animate={{ scale: 1 }}
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 18, maxWidth: 860, width: '100%', maxHeight: '86vh', overflow: 'auto', padding: 28 }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FileClock size={17} /> Journal des mouvements
+          </h2>
+          <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
+        </div>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+          {['all', 'Entr\u00e9e', 'Sortie', 'Transfert', 'Perte'].map(t => (
+            <button key={t} onClick={() => setFilter(t)} style={{
+              padding: '6px 12px', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+              border: filter === t ? '1px solid #4338ca' : '1px solid #e2e8f0',
+              background: filter === t ? '#eef2ff' : '#fff',
+              color: filter === t ? '#4338ca' : '#475569',
+            }}>{t === 'all' ? 'Tous' : t}</button>
+          ))}
+        </div>
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: '#f8fafc' }}>
+                {['Date', 'Heure', 'Type', 'Ingr\u00e9dient', 'Qt\u00e9', 'Utilisateur', 'Raison'].map(h => (
+                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 10, color: '#475569', fontWeight: 700, textTransform: 'uppercase' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(m => {
+                const c = typeColors[m.type]
+                return (
+                  <tr key={m.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '10px 14px', color: '#64748b' }}>{m.date}</td>
+                    <td style={{ padding: '10px 14px', color: '#64748b' }}>{m.time}</td>
+                    <td style={{ padding: '10px 14px' }}>
+                      <span style={{ padding: '2px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700, background: c.bg, color: c.fg }}>{m.type}</span>
+                    </td>
+                    <td style={{ padding: '10px 14px', color: '#1e293b', fontWeight: 600 }}>{m.ingredient}</td>
+                    <td style={{ padding: '10px 14px', color: '#475569' }}>{m.quantite}</td>
+                    <td style={{ padding: '10px 14px', color: '#475569' }}>{m.user}</td>
+                    <td style={{ padding: '10px 14px', color: '#64748b', fontStyle: 'italic' }}>{m.raison}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       </motion.div>
+    </motion.div>
+  )
+}
 
-      {/* ═══ AUTO-REORDER SUGGESTIONS PANEL ═══ */}
-      <motion.div variants={item}>
-        <div style={{
-          ...cardStyle, padding: 0, overflow: 'hidden',
-          border: suggestions.length > 0 ? '1px solid #fde68a' : '1px solid #e2e8f0',
-        }}>
-          <div style={{
-            padding: '20px 24px',
-            background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
-            borderBottom: '1px solid #fde68a',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: 12,
-                background: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <ShoppingCart size={22} color="#fff" />
-              </div>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>
-                  Suggestions de réapprovisionnement
-                </div>
-                <div style={{ fontSize: 13, color: '#92400e', marginTop: 2 }}>
-                  {suggestions.length} article{suggestions.length > 1 ? 's' : ''} à commander — Coût estimé total : <strong>{fmt(totalSuggestionCost)}</strong>
-                </div>
+/* ─── Bulk price update modal ─── */
+function BulkPriceModal({ onClose, onToast }: { onClose: () => void; onToast: (m: string) => void }) {
+  const [supplier, setSupplier] = useState<string>('Metro Luxembourg')
+  const [adjust, setAdjust] = useState<string>('5')
+  const [direction, setDirection] = useState<'up' | 'down'>('up')
+
+  const apply = () => {
+    onToast(`Prix mis \u00e0 jour pour ${supplier} : ${direction === 'up' ? '+' : '-'}${adjust}%`)
+    onClose()
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} style={overlay}>
+      <motion.div
+        initial={{ scale: 0.95 }} animate={{ scale: 1 }}
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 18, maxWidth: 480, width: '100%', padding: 28 }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Edit3 size={17} /> Mise \u00e0 jour prix en masse
+          </h2>
+          <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Fournisseur</label>
+            <select style={inputStyle} value={supplier} onChange={e => setSupplier(e.target.value)}>
+              <option>Metro Luxembourg</option>
+              <option>Luxlait</option>
+              <option>Bofrost Luxembourg</option>
+              <option>March\u00e9 Gros Luxembourg</option>
+            </select>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={labelStyle}>Direction</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => setDirection('up')} style={{
+                  flex: 1, padding: 10, borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                  border: direction === 'up' ? '1px solid #dc2626' : '1px solid #e2e8f0',
+                  background: direction === 'up' ? '#fef2f2' : '#fff', color: direction === 'up' ? '#dc2626' : '#64748b',
+                }}>+ Hausse</button>
+                <button onClick={() => setDirection('down')} style={{
+                  flex: 1, padding: 10, borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                  border: direction === 'down' ? '1px solid #16a34a' : '1px solid #e2e8f0',
+                  background: direction === 'down' ? '#f0fdf4' : '#fff', color: direction === 'down' ? '#16a34a' : '#64748b',
+                }}>\u2212 Baisse</button>
               </div>
             </div>
-            {suggestions.length > 0 && (
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  background: '#f59e0b', color: '#fff', border: 'none',
-                  borderRadius: 10, padding: '10px 20px', fontSize: 14, fontWeight: 700,
-                  cursor: 'pointer', boxShadow: '0 2px 8px rgba(245,158,11,0.3)',
-                }}
-              >
-                <Truck size={16} /> Commander tout
-              </motion.button>
+            <div>
+              <label style={labelStyle}>Pourcentage</label>
+              <input style={inputStyle} type="number" value={adjust} onChange={e => setAdjust(e.target.value)} />
+            </div>
+          </div>
+          <div style={{ padding: 12, background: '#f8fafc', borderRadius: 10, fontSize: 12, color: '#475569' }}>
+            Cette action appliquera un ajustement de <strong>{direction === 'up' ? '+' : '-'}{adjust}%</strong> sur tous les articles du fournisseur <strong>{supplier}</strong>.
+          </div>
+          <button onClick={apply} style={{ padding: '12px 18px', borderRadius: 12, border: 'none', background: '#065F46', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Appliquer
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+export default function StockPage() {
+  const [data, setData] = useState<Ingredient[]>(INITIAL_DATA)
+  const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<Categorie | null>(null)
+  const [locationFilter, setLocationFilter] = useState<Location | null>(null)
+  const [statusFilter, setStatusFilter] = useState<Statut | null>(null)
+
+  const [showScanner, setShowScanner] = useState(false)
+  const [supplierCompare, setSupplierCompare] = useState<Ingredient | null>(null)
+  const [showWaste, setShowWaste] = useState(false)
+  const [showMovements, setShowMovements] = useState(false)
+  const [showBulk, setShowBulk] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  const showToast = (m: string) => {
+    setToast(m)
+    setTimeout(() => setToast(null), 2800)
+  }
+
+  const stats = useMemo(() => {
+    const total = data.length
+    const ok = data.filter(i => getStatut(i) === 'OK').length
+    const bas = data.filter(i => getStatut(i) === 'Bas').length
+    const rupture = data.filter(i => getStatut(i) === 'Rupture').length
+    const valeur = data.reduce((s, i) => s + i.valeur, 0)
+    const dluoCritiques = data.filter(i => daysUntil(i.dluo) <= 7 && i.stockActuel > 0).length
+    return { total, ok, bas, rupture, valeur, dluoCritiques }
+  }, [data])
+
+  const filtered = useMemo(() => {
+    return data.filter(i => {
+      if (search && !i.nom.toLowerCase().includes(search.toLowerCase())) return false
+      if (categoryFilter && i.categorie !== categoryFilter) return false
+      if (locationFilter && i.location !== locationFilter) return false
+      if (statusFilter && getStatut(i) !== statusFilter) return false
+      return true
+    })
+  }, [data, search, categoryFilter, locationFilter, statusFilter])
+
+  const predictions = useMemo(() => {
+    return data
+      .map(i => ({ ing: i, days: predictRunout(i) }))
+      .filter(p => p.days > 0 && p.days <= 7)
+      .sort((a, b) => a.days - b.days)
+      .slice(0, 4)
+  }, [data])
+
+  const fifoAlerts = useMemo(() => {
+    return data
+      .filter(i => daysUntil(i.dluo) <= 7 && i.stockActuel > 0)
+      .sort((a, b) => daysUntil(a.dluo) - daysUntil(b.dluo))
+  }, [data])
+
+  const handleScan = (code: string) => {
+    const ing = data.find(i => i.barcode === code)
+    if (ing) {
+      setData(prev => prev.map(i => i.id === ing.id ? { ...i, stockActuel: i.stockActuel + 1 } : i))
+      showToast(`+1 ${ing.unite} de ${ing.nom} ajout\u00e9`)
+    }
+  }
+
+  return (
+    <>
+      <motion.div variants={container} initial="hidden" animate="show" style={{ padding: 28, maxWidth: 1400, margin: '0 auto' }}>
+        {/* Header */}
+        <motion.div variants={item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
+          <div>
+            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1e293b', margin: 0 }}>Stock & inventaire</h1>
+            <p style={{ fontSize: 14, color: '#475569', margin: '4px 0 0' }}>Suivi temps r\u00e9el, DLUO, co\u00fbts et pr\u00e9dictions ML</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button onClick={() => setShowScanner(true)} style={{ ...smallBtnStyle, background: '#4338ca', color: '#fff', border: 'none' }}>
+              <ScanLine size={13} /> Scanner
+            </button>
+            <button onClick={() => setShowMovements(true)} style={smallBtnStyle}>
+              <FileClock size={13} /> Mouvements
+            </button>
+            <button onClick={() => setShowWaste(true)} style={smallBtnStyle}>
+              <Trash2 size={13} /> Pertes
+            </button>
+            <button onClick={() => setShowBulk(true)} style={smallBtnStyle}>
+              <Edit3 size={13} /> Prix en masse
+            </button>
+          </div>
+        </motion.div>
+
+        {/* Stats */}
+        <motion.div variants={item} style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 20 }}>
+          {[
+            { label: 'Total articles', value: stats.total, icon: Package, color: '#4338ca' },
+            { label: 'Stock OK', value: stats.ok, icon: CheckCircle2, color: '#10b981' },
+            { label: 'Stock bas', value: stats.bas, icon: AlertTriangle, color: '#eab308' },
+            { label: 'Ruptures', value: stats.rupture, icon: XCircle, color: '#ef4444' },
+            { label: 'Valeur stock', value: fmt(stats.valeur), icon: Euro, color: '#8b5cf6' },
+            { label: 'DLUO < 7j', value: stats.dluoCritiques, icon: CalendarDays, color: '#f97316' },
+          ].map(s => (
+            <div key={s.label} style={cardStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <div style={{ width: 30, height: 30, borderRadius: 9, background: `${s.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <s.icon size={14} style={{ color: s.color }} />
+                </div>
+                <span style={{ fontSize: 11, color: '#475569', fontWeight: 600 }}>{s.label}</span>
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#1e293b' }}>{s.value}</div>
+            </div>
+          ))}
+        </motion.div>
+
+        {/* Charts row */}
+        <motion.div variants={item} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+          <div style={cardStyle}>
+            <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px', color: '#1e293b' }}>Entr\u00e9es / Sorties cette semaine</h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={consumptionHistory}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="jour" stroke="#94a3b8" fontSize={11} />
+                <YAxis stroke="#94a3b8" fontSize={11} />
+                <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
+                <Area type="monotone" dataKey="entrees" stroke="#10b981" fill="#10b98130" strokeWidth={2} />
+                <Area type="monotone" dataKey="sorties" stroke="#ef4444" fill="#ef444430" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div style={cardStyle}>
+            <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <BarChart3 size={14} /> Co\u00fbt des marchandises (COGS)
+            </h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={cogsMonthly}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="mois" stroke="#94a3b8" fontSize={11} />
+                <YAxis stroke="#94a3b8" fontSize={11} />
+                <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="cogs" fill="#ef4444" name="COGS" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="ventes" fill="#10b981" name="Ventes" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
+
+        {/* Predictions + FIFO alerts */}
+        <motion.div variants={item} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+          <div style={cardStyle}>
+            <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 14px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Zap size={14} style={{ color: '#8b5cf6' }} /> Pr\u00e9dictions rupture (ML)
+            </h3>
+            {predictions.length === 0 ? (
+              <div style={{ fontSize: 12, color: '#64748b', padding: 16, textAlign: 'center' }}>Aucune rupture pr\u00e9vue</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {predictions.map(p => (
+                  <div key={p.ing.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#faf5ff', borderRadius: 10, border: '1px solid #e9d5ff' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{p.ing.nom}</div>
+                      <div style={{ fontSize: 11, color: '#64748b' }}>Stock : {p.ing.stockActuel} {p.ing.unite}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: '#8b5cf6' }}>J+{p.days}</div>
+                      <div style={{ fontSize: 10, color: '#64748b' }}>rupture estim\u00e9e</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-
-          {suggestions.length === 0 ? (
-            <div style={{ padding: 48, textAlign: 'center', color: '#94a3b8' }}>
-              <Check size={36} style={{ marginBottom: 12, color: '#22c55e' }} />
-              <div style={{ fontSize: 15, fontWeight: 600, color: '#1e293b' }}>Tous les stocks sont au-dessus du seuil minimum</div>
-              <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>Aucun réapprovisionnement nécessaire pour le moment</div>
-            </div>
-          ) : (
-            <div>
-              <div style={{
-                display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.2fr 1fr 1.5fr 120px',
-                padding: '12px 24px', background: '#fffbeb',
-                borderBottom: '1px solid #fef3c7', fontSize: 11, fontWeight: 700,
-                color: '#92400e', textTransform: 'uppercase', letterSpacing: 0.5,
-              }}>
-                <span>Ingrédient</span>
-                <span>Stock actuel</span>
-                <span>Minimum</span>
-                <span>Qté suggérée</span>
-                <span>Coût estimé</span>
-                <span>Fournisseur</span>
-                <span />
-              </div>
-              {suggestions.map((sug, idx) => (
-                <motion.div
-                  key={sug.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: idx * 0.05 }}
-                  style={{
-                    display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.2fr 1fr 1.5fr 120px',
-                    padding: '16px 24px', alignItems: 'center',
-                    borderBottom: '1px solid #fef9c3',
-                    background: getStatut(sug) === 'Rupture' ? 'rgba(239,68,68,0.04)' : 'transparent',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: getStatut(sug) === 'Rupture' ? '#ef4444' : '#eab308',
-                    }} />
-                    <div>
-                      <div style={{ fontWeight: 600, color: '#1e293b', fontSize: 14 }}>{sug.nom}</div>
-                      <div style={{ fontSize: 12, color: '#94a3b8' }}>{sug.categorie}</div>
-                    </div>
-                  </div>
-                  <div style={{ fontWeight: 700, color: getStatut(sug) === 'Rupture' ? '#dc2626' : '#854d0e', fontSize: 14 }}>
-                    {sug.stockActuel} {sug.unite}
-                  </div>
-                  <div style={{ color: '#64748b', fontSize: 14 }}>
-                    {sug.seuilMinimum} {sug.unite}
-                  </div>
-                  <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                    background: '#dbeafe', color: '#1d4ed8', padding: '4px 12px',
-                    borderRadius: 8, fontWeight: 700, fontSize: 14, width: 'fit-content',
-                  }}>
-                    <ArrowUpRight size={14} />
-                    +{sug.quantiteSuggérée} {sug.unite}
-                  </div>
-                  <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 14 }}>
-                    {fmt(sug.coûtEstimé)}
-                  </div>
-                  <div style={{ color: '#475569', fontSize: 13 }}>
-                    {sug.fournisseur}
-                  </div>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      background: '#0369a1', color: '#fff', border: 'none',
-                      borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600,
-                      cursor: 'pointer', width: 'fit-content',
-                    }}
-                  >
-                    <ShoppingCart size={13} /> Commander
-                  </motion.button>
-                </motion.div>
-              ))}
-              <div style={{
-                display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 24,
-                padding: '16px 24px', background: '#fffbeb', borderTop: '1px solid #fde68a',
-              }}>
-                <div style={{ fontSize: 14, color: '#92400e' }}>
-                  Total estimé pour {suggestions.length} article{suggestions.length > 1 ? 's' : ''} :
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#1e293b' }}>
-                  {fmt(totalSuggestionCost)}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </motion.div>
-
-      {/* ═══ IMPORT HISTORY ═══ */}
-      {importHistory.length > 0 && (
-        <motion.div variants={item}>
-          <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-            <div style={{
-              padding: '18px 24px',
-              background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
-              borderBottom: '1px solid #ddd6fe',
-              display: 'flex', alignItems: 'center', gap: 12,
-            }}>
-              <div style={{
-                width: 38, height: 38, borderRadius: 10,
-                background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <FileText size={18} color="#fff" />
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>
-                Historique des importations
-              </div>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: '#faf5ff', borderBottom: '1px solid #ede9fe' }}>
-                  <th style={{ padding: '12px 20px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: 0.5 }}>Date</th>
-                  <th style={{ padding: '12px 20px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: 0.5 }}>Numéro</th>
-                  <th style={{ padding: '12px 20px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: 0.5 }}>Fournisseur</th>
-                  <th style={{ padding: '12px 20px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: 0.5 }}>Montant</th>
-                  <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: 0.5 }}>Articles</th>
-                </tr>
-              </thead>
-              <tbody>
-                {importHistory.map((rec) => (
-                  <tr key={rec.id} style={{ borderBottom: '1px solid #f5f3ff' }}>
-                    <td style={{ padding: '12px 20px', color: '#475569' }}>{formatDate(rec.date)}</td>
-                    <td style={{ padding: '12px 20px', color: '#64748b', fontFamily: 'monospace', fontSize: 12 }}>{rec.numero}</td>
-                    <td style={{ padding: '12px 20px', fontWeight: 600, color: '#1e293b' }}>{rec.fournisseur}</td>
-                    <td style={{ padding: '12px 20px', textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>{fmt(rec.montant)}</td>
-                    <td style={{ padding: '12px 20px', textAlign: 'center' }}>
-                      <span style={{
-                        display: 'inline-block', padding: '3px 12px', borderRadius: 8,
-                        background: '#ede9fe', color: '#7c3aed', fontWeight: 700, fontSize: 12,
-                      }}>
-                        {rec.articlesCount}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
-      )}
-
-      {/* ═══ COUNT HISTORY ═══ */}
-      {countHistory.length > 0 && (
-        <motion.div variants={item}>
-          <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-            <div style={{
-              padding: '18px 24px',
-              background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
-              borderBottom: '1px solid #a7f3d0',
-              display: 'flex', alignItems: 'center', gap: 12,
-            }}>
-              <div style={{
-                width: 38, height: 38, borderRadius: 10,
-                background: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <ClipboardList size={18} color="#fff" />
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>
-                Historique des comptages
-              </div>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: '#f0fdf4', borderBottom: '1px solid #bbf7d0' }}>
-                  <th style={{ padding: '12px 20px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: 0.5 }}>Date</th>
-                  <th style={{ padding: '12px 20px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: 0.5 }}>Compteur</th>
-                  <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: 0.5 }}>Articles</th>
-                  <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: 0.5 }}>Écarts</th>
-                  <th style={{ padding: '12px 20px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: 0.5 }}>Valeur écart</th>
-                </tr>
-              </thead>
-              <tbody>
-                {countHistory.map((rec) => (
-                  <tr key={rec.id} style={{ borderBottom: '1px solid #ecfdf5' }}>
-                    <td style={{ padding: '12px 20px', color: '#475569' }}>{formatDate(rec.date)}</td>
-                    <td style={{ padding: '12px 20px', fontWeight: 600, color: '#1e293b' }}>{rec.compteur}</td>
-                    <td style={{ padding: '12px 20px', textAlign: 'center', color: '#1e293b' }}>{rec.totalArticles}</td>
-                    <td style={{ padding: '12px 20px', textAlign: 'center' }}>
-                      <span style={{
-                        display: 'inline-block', padding: '3px 12px', borderRadius: 8,
-                        background: rec.articlesAvecEcart > 0 ? '#fee2e2' : '#dcfce7',
-                        color: rec.articlesAvecEcart > 0 ? '#dc2626' : '#16a34a',
-                        fontWeight: 700, fontSize: 12,
-                      }}>
-                        {rec.articlesAvecEcart}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 20px', textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>{fmt(rec.valeurEcart)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
-      )}
-
-      {/* ═══ ADD INGREDIENT MODAL ═══ */}
-      <AnimatePresence>
-        {showAddModal && (
-          <Overlay onClose={() => setShowAddModal(false)}>
-            <div style={{ padding: '24px 28px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>
-                Ajouter un ingrédient
-              </h2>
-              <button
-                onClick={() => setShowAddModal(false)}
-                style={{
-                  border: 'none', background: '#f1f5f9', borderRadius: 10,
-                  width: 36, height: 36, cursor: 'pointer', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                }}
-              >
-                <X size={18} color="#64748b" />
-              </button>
-            </div>
-            <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
-                    Nom de l'ingrédient
-                  </label>
-                  <input
-                    value={formNom}
-                    onChange={(e) => setFormNom(e.target.value)}
-                    placeholder="ex. Café en grains"
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
-                    Catégorie
-                  </label>
-                  <select
-                    value={formCategorie}
-                    onChange={(e) => setFormCategorie(e.target.value as Categorie)}
-                    style={{ ...inputStyle, cursor: 'pointer' }}
-                  >
-                    {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
-                    Stock actuel
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={formStock}
-                    onChange={(e) => setFormStock(e.target.value)}
-                    placeholder="0"
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
-                    Unité
-                  </label>
-                  <select
-                    value={formUnite}
-                    onChange={(e) => setFormUnite(e.target.value)}
-                    style={{ ...inputStyle, cursor: 'pointer' }}
-                  >
-                    {['kg', 'L', 'pièces', 'bouteilles', 'canettes', 'paquets'].map((u) => (
-                      <option key={u} value={u}>{u}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
-                    Seuil minimum
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={formSeuil}
-                    onChange={(e) => setFormSeuil(e.target.value)}
-                    placeholder="0"
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
-                    Valeur totale (EUR)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formValeur}
-                    onChange={(e) => setFormValeur(e.target.value)}
-                    placeholder="0.00"
-                    style={inputStyle}
-                  />
-                </div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
-                  Fournisseur
-                </label>
-                <input
-                  value={formFournisseur}
-                  onChange={(e) => setFormFournisseur(e.target.value)}
-                  placeholder="ex. Metro Luxembourg"
-                  style={inputStyle}
-                />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 8 }}>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setShowAddModal(false)}
-                  style={{
-                    padding: '10px 22px', borderRadius: 10, fontSize: 14, fontWeight: 600,
-                    border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', cursor: 'pointer',
-                  }}
-                >
-                  Annuler
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => {
-                    setShowAddModal(false);
-                    setFormNom(''); setFormStock(''); setFormSeuil(''); setFormValeur(''); setFormFournisseur('');
-                  }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '10px 22px', borderRadius: 10, fontSize: 14, fontWeight: 600,
-                    border: 'none', background: '#0369a1', color: '#fff', cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(3,105,161,0.25)',
-                  }}
-                >
-                  <Plus size={16} /> Ajouter
-                </motion.button>
-              </div>
-            </div>
-          </Overlay>
-        )}
-      </AnimatePresence>
-
-      {/* ═══ INVOICE IMPORT MODAL ═══ */}
-      <AnimatePresence>
-        {showInvoiceModal && (
-          <Overlay onClose={() => setShowInvoiceModal(false)} wide>
-            <div style={{ padding: '24px 28px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 42, height: 42, borderRadius: 12, background: '#7c3aed',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <FileText size={22} color="#fff" />
-                </div>
-                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>
-                  Importer une facture fournisseur
-                </h2>
-              </div>
-              <button
-                onClick={() => setShowInvoiceModal(false)}
-                style={{
-                  border: 'none', background: '#f1f5f9', borderRadius: 10,
-                  width: 36, height: 36, cursor: 'pointer', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                }}
-              >
-                <X size={18} color="#64748b" />
-              </button>
-            </div>
-            <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-              {/* Upload / Manual toggle */}
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setInvoiceManual(false)}
-                  style={{
-                    padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                    border: !invoiceManual ? '2px solid #7c3aed' : '1px solid #e2e8f0',
-                    background: !invoiceManual ? '#f5f3ff' : '#fff',
-                    color: !invoiceManual ? '#7c3aed' : '#64748b', cursor: 'pointer',
-                  }}
-                >
-                  <Upload size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                  Téléverser un fichier
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setInvoiceManual(true)}
-                  style={{
-                    padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                    border: invoiceManual ? '2px solid #7c3aed' : '1px solid #e2e8f0',
-                    background: invoiceManual ? '#f5f3ff' : '#fff',
-                    color: invoiceManual ? '#7c3aed' : '#64748b', cursor: 'pointer',
-                  }}
-                >
-                  Saisir manuellement
-                </motion.button>
-              </div>
-
-              {/* Upload zone */}
-              {!invoiceManual && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={(e) => { e.preventDefault(); setDragOver(false); setInvoiceManual(true); }}
-                  style={{
-                    border: `3px dashed ${dragOver ? '#7c3aed' : '#cbd5e1'}`,
-                    borderRadius: 16,
-                    padding: '48px 24px',
-                    textAlign: 'center',
-                    background: dragOver ? '#f5f3ff' : '#fafafa',
-                    transition: 'all 0.2s',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <Upload size={40} color={dragOver ? '#7c3aed' : '#94a3b8'} style={{ marginBottom: 12 }} />
-                  <div style={{ fontSize: 15, fontWeight: 600, color: '#475569' }}>
-                    Glissez-déposez votre facture ici
-                  </div>
-                  <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
-                    PDF ou image (JPG, PNG) — max 10 Mo
-                  </div>
-                  <div style={{ fontSize: 12, color: '#7c3aed', marginTop: 12, fontWeight: 600 }}>
-                    Ou saisir manuellement
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Manual form */}
-              {invoiceManual && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
-                >
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
-                        Fournisseur
-                      </label>
-                      <select
-                        value={invoiceFournisseur}
-                        onChange={(e) => setInvoiceFournisseur(e.target.value)}
-                        style={{ ...inputStyle, cursor: 'pointer' }}
-                      >
-                        {FOURNISSEURS_FACTURE.map((f) => <option key={f} value={f}>{f}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
-                        Date facture
-                      </label>
-                      <input
-                        type="date"
-                        value={invoiceDate}
-                        onChange={(e) => setInvoiceDate(e.target.value)}
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
-                        Numéro facture
-                      </label>
-                      <input
-                        value={invoiceNumero}
-                        onChange={(e) => setInvoiceNumero(e.target.value)}
-                        placeholder="FAC-2026-XXXX"
-                        style={inputStyle}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Line items */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 8 }}>
-                      Lignes de la facture
-                    </label>
-                    <div style={{
-                      border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden',
-                    }}>
-                      <div style={{
-                        display: 'grid', gridTemplateColumns: '2.5fr 1fr 1fr 1fr 40px',
-                        padding: '10px 16px', background: '#f8fafc', gap: 10,
-                        borderBottom: '1px solid #e2e8f0', fontSize: 11, fontWeight: 700,
-                        color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5,
-                      }}>
-                        <span>Ingrédient</span>
-                        <span>Quantité</span>
-                        <span>Prix unit.</span>
-                        <span>Total</span>
-                        <span />
+          <div style={cardStyle}>
+            <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 14px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <ShieldAlert size={14} style={{ color: '#f97316' }} /> DLUO &amp; alertes FIFO
+            </h3>
+            {fifoAlerts.length === 0 ? (
+              <div style={{ fontSize: 12, color: '#64748b', padding: 16, textAlign: 'center' }}>Aucune DLUO critique</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {fifoAlerts.map(i => {
+                  const days = daysUntil(i.dluo)
+                  return (
+                    <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: days <= 3 ? '#fef2f2' : '#fff7ed', borderRadius: 10, border: `1px solid ${days <= 3 ? '#fecaca' : '#fed7aa'}` }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{i.nom}</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>DLUO : {i.dluo} \u2022 {i.stockActuel} {i.unite}</div>
                       </div>
-                      {invoiceLines.map((line, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            display: 'grid', gridTemplateColumns: '2.5fr 1fr 1fr 1fr 40px',
-                            padding: '8px 16px', gap: 10, alignItems: 'center',
-                            borderBottom: idx < invoiceLines.length - 1 ? '1px solid #f1f5f9' : 'none',
-                          }}
-                        >
-                          <select
-                            value={line.ingredientId}
-                            onChange={(e) => updateInvoiceLine(idx, 'ingredientId', e.target.value)}
-                            style={{ ...inputStyle, padding: '8px 10px', fontSize: 13 }}
-                          >
-                            <option value="">— Sélectionner —</option>
-                            {data.map((ing) => (
-                              <option key={ing.id} value={ing.id}>{ing.nom} ({ing.unite})</option>
-                            ))}
-                          </select>
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={line.quantite || ''}
-                            onChange={(e) => updateInvoiceLine(idx, 'quantite', e.target.value)}
-                            placeholder="0"
-                            style={{ ...inputStyle, padding: '8px 10px', fontSize: 13 }}
-                          />
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={line.prixUnitaire || ''}
-                            onChange={(e) => updateInvoiceLine(idx, 'prixUnitaire', e.target.value)}
-                            placeholder="0.00"
-                            style={{ ...inputStyle, padding: '8px 10px', fontSize: 13 }}
-                          />
-                          <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 14, paddingLeft: 4 }}>
-                            {fmt(line.quantite * line.prixUnitaire)}
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: days <= 3 ? '#dc2626' : '#f97316' }}>J{days >= 0 ? `+${days}` : days}</div>
+                        <div style={{ fontSize: 10, color: '#64748b' }}>{days <= 3 ? 'URGENT' : 'attention'}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* Filters */}
+        <motion.div variants={item} style={{ ...cardStyle, padding: 14, marginBottom: 14, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
+            <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+            <input style={{ ...inputStyle, paddingLeft: 34 }} placeholder="Rechercher..." value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', alignSelf: 'center', fontWeight: 700, letterSpacing: 1 }}>Cat.</span>
+            <button onClick={() => setCategoryFilter(null)} style={{
+              padding: '6px 12px', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+              border: 'none', background: categoryFilter === null ? '#1e293b' : '#f1f5f9', color: categoryFilter === null ? '#fff' : '#475569',
+            }}>Toutes</button>
+            {CATEGORIES.map(c => (
+              <button key={c} onClick={() => setCategoryFilter(c)} style={{
+                padding: '6px 12px', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                border: 'none',
+                background: categoryFilter === c ? CATEGORY_COLORS[c].bg : '#f1f5f9',
+                color: categoryFilter === c ? CATEGORY_COLORS[c].text : '#475569',
+              }}>{c}</button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', alignSelf: 'center', fontWeight: 700, letterSpacing: 1 }}>Lieu</span>
+            <button onClick={() => setLocationFilter(null)} style={{
+              padding: '6px 12px', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+              border: 'none', background: locationFilter === null ? '#1e293b' : '#f1f5f9', color: locationFilter === null ? '#fff' : '#475569',
+            }}>Tous</button>
+            {LOCATIONS.map(l => (
+              <button key={l} onClick={() => setLocationFilter(l)} style={{
+                padding: '6px 12px', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                border: 'none',
+                background: locationFilter === l ? '#e0e7ff' : '#f1f5f9',
+                color: locationFilter === l ? '#4338ca' : '#475569',
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+              }}>
+                <MapPin size={10} /> {l}
+              </button>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Table */}
+        <motion.div variants={item} style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1200 }}>
+              <thead>
+                <tr style={{ background: '#f8fafc' }}>
+                  {['Article', 'Cat\u00e9gorie', 'Lieu', 'Stock', 'Seuil', 'DLUO', 'COGS/u', 'Statut', 'Actions'].map(h => (
+                    <th key={h} style={{ textAlign: 'left', padding: '12px 14px', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: '1px solid #e2e8f0' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(i => {
+                  const statut = getStatut(i)
+                  const s = STATUT_STYLES[statut]
+                  const dluoDays = daysUntil(i.dluo)
+                  const cat = CATEGORY_COLORS[i.categorie]
+                  return (
+                    <tr key={i.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{i.nom}</span>
+                          {i.saison === '\u00c9t\u00e9' && <Leaf size={11} style={{ color: '#16a34a' }} />}
+                          {i.saison === 'Hiver' && <Snowflake size={11} style={{ color: '#0ea5e9' }} />}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace', marginTop: 2 }}>{i.barcode}</div>
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700, background: cat.bg, color: cat.text }}>{i.categorie}</span>
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#475569', padding: '3px 8px', borderRadius: 6, background: '#f1f5f9' }}>
+                          <MapPin size={10} /> {i.location}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 14px', fontSize: 13, color: '#1e293b', fontWeight: 700 }}>
+                        {i.stockActuel} <span style={{ fontSize: 11, color: '#64748b', fontWeight: 400 }}>{i.unite}</span>
+                      </td>
+                      <td style={{ padding: '12px 14px', fontSize: 12, color: '#64748b' }}>{i.seuilMinimum} {i.unite}</td>
+                      <td style={{ padding: '12px 14px', fontSize: 11 }}>
+                        <div style={{ color: dluoDays <= 3 ? '#dc2626' : dluoDays <= 7 ? '#f97316' : '#64748b', fontWeight: dluoDays <= 7 ? 700 : 500 }}>
+                          {i.dluo}
+                        </div>
+                        {dluoDays <= 14 && i.stockActuel > 0 && (
+                          <div style={{ fontSize: 10, color: dluoDays <= 3 ? '#dc2626' : '#f97316', marginTop: 2 }}>
+                            J{dluoDays >= 0 ? `+${dluoDays}` : dluoDays}
                           </div>
-                          <button
-                            onClick={() => removeInvoiceLine(idx)}
-                            disabled={invoiceLines.length <= 1}
-                            style={{
-                              border: 'none', background: 'none', cursor: invoiceLines.length <= 1 ? 'default' : 'pointer',
-                              opacity: invoiceLines.length <= 1 ? 0.3 : 1, padding: 4,
-                            }}
-                          >
-                            <X size={16} color="#ef4444" />
+                        )}
+                      </td>
+                      <td style={{ padding: '12px 14px', fontSize: 12, color: '#1e293b', fontWeight: 600 }}>{fmt(i.cogs)}</td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: s.bg, color: s.text }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.dot }} />
+                          {statut}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button onClick={() => setSupplierCompare(i)} title="Comparer fournisseurs" style={{ ...smallBtnStyle, padding: '5px 8px' }}>
+                            <ArrowRightLeft size={11} />
+                          </button>
+                          <button onClick={() => showToast(`Commande lanc\u00e9e : ${i.nom}`)} title="Commander" style={{ ...smallBtnStyle, padding: '5px 8px', background: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe' }}>
+                            <ShoppingCart size={11} />
                           </button>
                         </div>
-                      ))}
-                    </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </motion.div>
+      </motion.div>
 
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={addInvoiceLine}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6, marginTop: 10,
-                        padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                        border: '1px dashed #cbd5e1', background: '#fafafa', color: '#64748b',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <Plus size={14} /> Ajouter une ligne
-                    </motion.button>
-                  </div>
-
-                  {/* Total */}
-                  <div style={{
-                    display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 16,
-                    padding: '16px 20px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0',
-                  }}>
-                    <span style={{ fontSize: 15, fontWeight: 600, color: '#64748b' }}>Total facture :</span>
-                    <span style={{ fontSize: 24, fontWeight: 800, color: '#1e293b' }}>{fmt(invoiceTotal)}</span>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Actions */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 4 }}>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setShowInvoiceModal(false)}
-                  style={{
-                    padding: '12px 22px', borderRadius: 10, fontSize: 14, fontWeight: 600,
-                    border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', cursor: 'pointer',
-                  }}
-                >
-                  Annuler
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={submitInvoice}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '12px 24px', borderRadius: 10, fontSize: 14, fontWeight: 700,
-                    border: 'none', background: '#7c3aed', color: '#fff', cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(124,58,237,0.3)',
-                  }}
-                >
-                  <Check size={16} /> Valider et mettre à jour le stock
-                </motion.button>
-              </div>
-            </div>
-          </Overlay>
-        )}
+      <AnimatePresence>
+        {showScanner && <BarcodeScanner onClose={() => setShowScanner(false)} onScan={handleScan} />}
+        {supplierCompare && <SupplierModal ingredient={supplierCompare} onClose={() => setSupplierCompare(null)} />}
+        {showWaste && <WasteModal onClose={() => setShowWaste(false)} onToast={showToast} />}
+        {showMovements && <MovementsModal onClose={() => setShowMovements(false)} />}
+        {showBulk && <BulkPriceModal onClose={() => setShowBulk(false)} onToast={showToast} />}
+        {toast && <Toast message={toast} onClose={() => setToast(null)} />}
       </AnimatePresence>
-    </motion.div>
-  );
+    </>
+  )
 }
