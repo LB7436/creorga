@@ -1,467 +1,650 @@
-import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Thermometer, Plus, AlertTriangle } from 'lucide-react'
-import { LineChart, Line, ResponsiveContainer } from 'recharts'
+import { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceArea,
+} from 'recharts';
+import {
+  Thermometer, AlertTriangle, CheckCircle2, Plus, X, Download, Mail, Camera,
+  Clock, Filter, FileText, Bell, Snowflake, Refrigerator, Package,
+} from 'lucide-react';
 
-interface TempEquipment {
-  id: string
-  name: string
-  currentTemp: number
-  unit: string
-  min: number
-  max: number
-  history: { day: string; value: number }[]
+/* ------------------------------------------------------------------ */
+/*  Types                                                              */
+/* ------------------------------------------------------------------ */
+
+type EquipmentIcon = 'fridge' | 'freezer' | 'coldroom' | 'drinks';
+
+interface Equipment {
+  id: string;
+  name: string;
+  icon: EquipmentIcon;
+  min: number;
+  max: number;
+  current: number;
+  lastReading: string;
+  sparkline: number[];
 }
 
-interface TempLog {
-  id: string
-  date: string
-  equipment: string
-  value: number
-  conforme: boolean
-  operator: string
+interface Reading {
+  id: string;
+  equipmentId: string;
+  equipmentName: string;
+  value: number;
+  timestamp: string;
+  user: string;
+  conform: boolean;
+  notes?: string;
+  auto?: boolean;
 }
 
-const equipments: TempEquipment[] = [
+interface Alert {
+  id: string;
+  equipment: string;
+  severity: 'high' | 'medium' | 'low';
+  message: string;
+  since: string;
+  duration: string;
+  acknowledged: boolean;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Mock data                                                          */
+/* ------------------------------------------------------------------ */
+
+const equipments: Equipment[] = [
   {
-    id: 'f1',
-    name: 'Frigo 1',
-    currentTemp: 4.2,
-    unit: '°C',
-    min: 0,
-    max: 8,
-    history: [
-      { day: 'Lun', value: 4.1 },
-      { day: 'Mar', value: 4.3 },
-      { day: 'Mer', value: 3.9 },
-      { day: 'Jeu', value: 4.2 },
-      { day: 'Ven', value: 4.0 },
-      { day: 'Sam', value: 4.4 },
-      { day: 'Dim', value: 4.2 },
-    ],
+    id: 'eq1', name: 'Frigo Cuisine', icon: 'fridge', min: 2, max: 8, current: 4.5,
+    lastReading: 'Il y a 12 min',
+    sparkline: [4.2, 4.4, 4.6, 4.8, 5.1, 4.9, 4.7, 4.5, 4.3, 4.4, 4.5, 4.6, 4.5, 4.4, 4.3, 4.5, 4.6, 4.8, 4.7, 4.5, 4.4, 4.3, 4.5, 4.5],
   },
   {
-    id: 'f2',
-    name: 'Frigo 2',
-    currentTemp: 3.8,
-    unit: '°C',
-    min: 0,
-    max: 8,
-    history: [
-      { day: 'Lun', value: 3.5 },
-      { day: 'Mar', value: 3.7 },
-      { day: 'Mer', value: 4.0 },
-      { day: 'Jeu', value: 3.8 },
-      { day: 'Ven', value: 3.6 },
-      { day: 'Sam', value: 3.9 },
-      { day: 'Dim', value: 3.8 },
-    ],
+    id: 'eq2', name: 'Congélateur', icon: 'freezer', min: -25, max: -18, current: -21,
+    lastReading: 'Il y a 18 min',
+    sparkline: [-21.2, -21.0, -20.8, -20.5, -20.7, -21.1, -21.3, -21.5, -21.4, -21.2, -21.0, -20.9, -21.1, -21.3, -21.2, -21.0, -20.8, -20.9, -21.1, -21.2, -21.0, -20.9, -21.1, -21.0],
   },
   {
-    id: 'c1',
-    name: 'Congélateur',
-    currentTemp: -18.5,
-    unit: '°C',
-    min: -25,
-    max: -15,
-    history: [
-      { day: 'Lun', value: -18.2 },
-      { day: 'Mar', value: -18.6 },
-      { day: 'Mer', value: -18.1 },
-      { day: 'Jeu', value: -18.5 },
-      { day: 'Ven', value: -18.3 },
-      { day: 'Sam', value: -18.7 },
-      { day: 'Dim', value: -18.5 },
-    ],
+    id: 'eq3', name: 'Frigo Boissons', icon: 'drinks', min: 2, max: 8, current: 9.2,
+    lastReading: 'Il y a 8 min',
+    sparkline: [6.5, 6.8, 7.1, 7.4, 7.8, 8.1, 8.3, 8.5, 8.7, 8.9, 9.0, 9.1, 9.3, 9.4, 9.2, 9.1, 9.0, 9.1, 9.2, 9.3, 9.1, 9.0, 9.1, 9.2],
   },
-]
+  {
+    id: 'eq4', name: 'Chambre froide viandes', icon: 'coldroom', min: 0, max: 4, current: 2.5,
+    lastReading: 'Il y a 22 min',
+    sparkline: [2.3, 2.4, 2.5, 2.6, 2.7, 2.5, 2.4, 2.3, 2.5, 2.6, 2.7, 2.8, 2.6, 2.5, 2.4, 2.3, 2.5, 2.6, 2.7, 2.5, 2.4, 2.3, 2.4, 2.5],
+  },
+];
 
-const mockLogs: TempLog[] = [
-  { id: '1', date: '14/04/2026 08:00', equipment: 'Frigo 1', value: 4.2, conforme: true, operator: 'Marie L.' },
-  { id: '2', date: '14/04/2026 08:05', equipment: 'Frigo 2', value: 3.8, conforme: true, operator: 'Marie L.' },
-  { id: '3', date: '14/04/2026 08:10', equipment: 'Congélateur', value: -18.5, conforme: true, operator: 'Marie L.' },
-  { id: '4', date: '13/04/2026 08:00', equipment: 'Frigo 1', value: 4.4, conforme: true, operator: 'Thomas R.' },
-  { id: '5', date: '13/04/2026 08:05', equipment: 'Frigo 2', value: 3.9, conforme: true, operator: 'Thomas R.' },
-  { id: '6', date: '13/04/2026 08:10', equipment: 'Congélateur', value: -18.7, conforme: true, operator: 'Thomas R.' },
-  { id: '7', date: '12/04/2026 08:00', equipment: 'Frigo 1', value: 4.0, conforme: true, operator: 'Marie L.' },
-  { id: '8', date: '12/04/2026 08:05', equipment: 'Frigo 2', value: 9.1, conforme: false, operator: 'Marie L.' },
-  { id: '9', date: '12/04/2026 08:10', equipment: 'Congélateur', value: -18.1, conforme: true, operator: 'Marie L.' },
-  { id: '10', date: '11/04/2026 08:00', equipment: 'Frigo 1', value: 4.1, conforme: true, operator: 'Lucas D.' },
-  { id: '11', date: '11/04/2026 08:05', equipment: 'Frigo 2', value: 3.7, conforme: true, operator: 'Lucas D.' },
-  { id: '12', date: '11/04/2026 08:10', equipment: 'Congélateur', value: -18.3, conforme: true, operator: 'Lucas D.' },
-  { id: '13', date: '10/04/2026 08:00', equipment: 'Frigo 1', value: 4.3, conforme: true, operator: 'Thomas R.' },
-  { id: '14', date: '10/04/2026 08:05', equipment: 'Frigo 2', value: 3.6, conforme: true, operator: 'Thomas R.' },
-  { id: '15', date: '10/04/2026 08:10', equipment: 'Congélateur', value: -18.6, conforme: true, operator: 'Thomas R.' },
-]
+const chart24h = Array.from({ length: 24 }, (_, i) => ({
+  heure: `${String(i).padStart(2, '0')}h`,
+  frigoC: equipments[0].sparkline[i],
+  congel: equipments[1].sparkline[i],
+  frigoB: equipments[2].sparkline[i],
+  chambre: equipments[3].sparkline[i],
+}));
 
-const card: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.7)',
-  borderRadius: 20,
-  border: '1px solid rgba(255,255,255,0.6)',
-  boxShadow: '0 4px 24px rgba(0,0,0,0.04)',
-  padding: 24,
-}
+const historyMock: Reading[] = [
+  { id: 'r1', equipmentId: 'eq1', equipmentName: 'Frigo Cuisine', value: 4.5, timestamp: '17/04 14:32', user: 'Sophie L.', conform: true, auto: false },
+  { id: 'r2', equipmentId: 'eq2', equipmentName: 'Congélateur', value: -21, timestamp: '17/04 14:30', user: 'Sophie L.', conform: true, auto: false },
+  { id: 'r3', equipmentId: 'eq3', equipmentName: 'Frigo Boissons', value: 9.2, timestamp: '17/04 14:28', user: 'Auto', conform: false, auto: true, notes: 'Hors norme — alerte déclenchée' },
+  { id: 'r4', equipmentId: 'eq4', equipmentName: 'Chambre froide viandes', value: 2.5, timestamp: '17/04 14:15', user: 'Paul M.', conform: true, auto: false },
+  { id: 'r5', equipmentId: 'eq1', equipmentName: 'Frigo Cuisine', value: 4.3, timestamp: '17/04 12:00', user: 'Auto', conform: true, auto: true },
+  { id: 'r6', equipmentId: 'eq2', equipmentName: 'Congélateur', value: -20.8, timestamp: '17/04 12:00', user: 'Auto', conform: true, auto: true },
+  { id: 'r7', equipmentId: 'eq3', equipmentName: 'Frigo Boissons', value: 8.7, timestamp: '17/04 12:00', user: 'Auto', conform: false, auto: true },
+  { id: 'r8', equipmentId: 'eq4', equipmentName: 'Chambre froide viandes', value: 2.4, timestamp: '17/04 12:00', user: 'Auto', conform: true, auto: true },
+  { id: 'r9', equipmentId: 'eq1', equipmentName: 'Frigo Cuisine', value: 4.1, timestamp: '17/04 09:00', user: 'Thomas B.', conform: true, auto: false },
+  { id: 'r10', equipmentId: 'eq2', equipmentName: 'Congélateur', value: -21.5, timestamp: '17/04 09:00', user: 'Thomas B.', conform: true, auto: false },
+  { id: 'r11', equipmentId: 'eq3', equipmentName: 'Frigo Boissons', value: 7.2, timestamp: '17/04 09:00', user: 'Thomas B.', conform: true, auto: false },
+  { id: 'r12', equipmentId: 'eq4', equipmentName: 'Chambre froide viandes', value: 2.2, timestamp: '17/04 09:00', user: 'Thomas B.', conform: true, auto: false },
+  { id: 'r13', equipmentId: 'eq1', equipmentName: 'Frigo Cuisine', value: 4.8, timestamp: '17/04 06:00', user: 'Auto', conform: true, auto: true },
+  { id: 'r14', equipmentId: 'eq2', equipmentName: 'Congélateur', value: -20.5, timestamp: '17/04 06:00', user: 'Auto', conform: true, auto: true },
+  { id: 'r15', equipmentId: 'eq3', equipmentName: 'Frigo Boissons', value: 7.5, timestamp: '17/04 06:00', user: 'Auto', conform: true, auto: true },
+  { id: 'r16', equipmentId: 'eq4', equipmentName: 'Chambre froide viandes', value: 2.6, timestamp: '17/04 06:00', user: 'Auto', conform: true, auto: true },
+  { id: 'r17', equipmentId: 'eq1', equipmentName: 'Frigo Cuisine', value: 5.1, timestamp: '16/04 22:00', user: 'Julie K.', conform: true, auto: false },
+  { id: 'r18', equipmentId: 'eq2', equipmentName: 'Congélateur', value: -20.7, timestamp: '16/04 22:00', user: 'Julie K.', conform: true, auto: false },
+  { id: 'r19', equipmentId: 'eq3', equipmentName: 'Frigo Boissons', value: 7.8, timestamp: '16/04 22:00', user: 'Julie K.', conform: true, auto: false },
+  { id: 'r20', equipmentId: 'eq4', equipmentName: 'Chambre froide viandes', value: 2.7, timestamp: '16/04 22:00', user: 'Julie K.', conform: true, auto: false },
+  { id: 'r21', equipmentId: 'eq1', equipmentName: 'Frigo Cuisine', value: 4.9, timestamp: '16/04 18:00', user: 'Auto', conform: true, auto: true },
+  { id: 'r22', equipmentId: 'eq2', equipmentName: 'Congélateur', value: -21.1, timestamp: '16/04 18:00', user: 'Auto', conform: true, auto: true },
+  { id: 'r23', equipmentId: 'eq3', equipmentName: 'Frigo Boissons', value: 8.1, timestamp: '16/04 18:00', user: 'Auto', conform: false, auto: true },
+  { id: 'r24', equipmentId: 'eq4', equipmentName: 'Chambre froide viandes', value: 2.5, timestamp: '16/04 18:00', user: 'Auto', conform: true, auto: true },
+  { id: 'r25', equipmentId: 'eq1', equipmentName: 'Frigo Cuisine', value: 4.7, timestamp: '16/04 12:00', user: 'Sophie L.', conform: true, auto: false },
+  { id: 'r26', equipmentId: 'eq2', equipmentName: 'Congélateur', value: -21.3, timestamp: '16/04 12:00', user: 'Sophie L.', conform: true, auto: false },
+  { id: 'r27', equipmentId: 'eq3', equipmentName: 'Frigo Boissons', value: 8.3, timestamp: '16/04 12:00', user: 'Sophie L.', conform: false, auto: false, notes: 'Porte restée ouverte' },
+  { id: 'r28', equipmentId: 'eq4', equipmentName: 'Chambre froide viandes', value: 2.3, timestamp: '16/04 12:00', user: 'Sophie L.', conform: true, auto: false },
+  { id: 'r29', equipmentId: 'eq1', equipmentName: 'Frigo Cuisine', value: 4.4, timestamp: '16/04 09:00', user: 'Thomas B.', conform: true, auto: false },
+  { id: 'r30', equipmentId: 'eq2', equipmentName: 'Congélateur', value: -21.0, timestamp: '16/04 09:00', user: 'Thomas B.', conform: true, auto: false },
+];
 
-const stagger = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.08 } },
-}
+const alertsMock: Alert[] = [
+  {
+    id: 'a1', equipment: 'Frigo Boissons', severity: 'high',
+    message: 'Température au-dessus de la limite (9,2°C > 8°C)',
+    since: '17/04 13:15', duration: '1h 17min', acknowledged: false,
+  },
+];
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.35 } },
-}
+const scheduledChecks = [
+  { time: '06:00', label: 'Contrôle matin', done: true, missed: false },
+  { time: '12:00', label: 'Contrôle midi', done: true, missed: false },
+  { time: '18:00', label: 'Contrôle après-midi', done: false, missed: false },
+  { time: '22:00', label: 'Contrôle soir', done: false, missed: false },
+];
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                            */
+/* ------------------------------------------------------------------ */
+
+const iconMap: Record<EquipmentIcon, typeof Refrigerator> = {
+  fridge: Refrigerator,
+  freezer: Snowflake,
+  coldroom: Package,
+  drinks: Refrigerator,
+};
+
+const isConform = (eq: Equipment) => eq.current >= eq.min && eq.current <= eq.max;
+
+const Sparkline = ({ values, conform }: { values: number[]; conform: boolean }) => {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const points = values
+    .map((v, i) => {
+      const x = (i / (values.length - 1)) * 100;
+      const y = 100 - ((v - min) / range) * 100;
+      return `${x},${y}`;
+    })
+    .join(' ');
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: 40 }}>
+      <polyline
+        points={points}
+        fill="none"
+        stroke={conform ? '#10b981' : '#ef4444'}
+        strokeWidth={1.5}
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+};
+
+/* ------------------------------------------------------------------ */
+/*  Component                                                          */
+/* ------------------------------------------------------------------ */
 
 export default function TemperaturesPage() {
-  const [showForm, setShowForm] = useState(false)
+  const [showModal, setShowModal] = useState(false);
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>(equipments[0].id);
+  const [valueInput, setValueInput] = useState<string>('');
+  const [notes, setNotes] = useState('');
+  const [filterEquipment, setFilterEquipment] = useState<string>('all');
+  const [filterDate, setFilterDate] = useState<string>('all');
+  const [filterConform, setFilterConform] = useState<string>('all');
 
-  const isConform = (eq: TempEquipment) =>
-    eq.currentTemp >= eq.min && eq.currentTemp <= eq.max
+  const selectedEq = equipments.find(e => e.id === selectedEquipmentId)!;
+  const inputNum = parseFloat(valueInput);
+  const inputConform = !isNaN(inputNum) && inputNum >= selectedEq.min && inputNum <= selectedEq.max;
+
+  const filteredHistory = useMemo(() => {
+    return historyMock.filter(r => {
+      if (filterEquipment !== 'all' && r.equipmentId !== filterEquipment) return false;
+      if (filterConform === 'ok' && !r.conform) return false;
+      if (filterConform === 'ko' && r.conform) return false;
+      if (filterDate === 'today' && !r.timestamp.startsWith('17/04')) return false;
+      if (filterDate === 'yesterday' && !r.timestamp.startsWith('16/04')) return false;
+      return true;
+    });
+  }, [filterEquipment, filterDate, filterConform]);
+
+  const stats = {
+    equipements: equipments.length,
+    mesuresToday: historyMock.filter(r => r.timestamp.startsWith('17/04')).length,
+    alertes: alertsMock.filter(a => !a.acknowledged).length,
+    conformite: 98,
+  };
+
+  const saveReading = () => {
+    setShowModal(false);
+    setValueInput('');
+    setNotes('');
+  };
+
+  const exportCsv = () => {
+    const rows = [
+      ['N°', 'Équipement', 'Valeur', 'Date', 'Opérateur', 'Conforme', 'Notes'],
+      ...historyMock.map(r => [r.id, r.equipmentName, String(r.value), r.timestamp, r.user, r.conform ? 'Oui' : 'Non', r.notes ?? '']),
+    ];
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'temperatures.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
-    <div style={{ padding: 24, maxWidth: 960, margin: '0 auto' }}>
-      <motion.div
-        variants={stagger}
-        initial="hidden"
-        animate="show"
-        style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
-      >
-        {/* Header */}
-        <motion.div
-          variants={fadeUp}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1e293b' }}>
-              Températures
-            </h1>
-            <p style={{ fontSize: 14, color: '#475569' }}>
-              Suivi et enregistrement des relevés
-            </p>
-          </div>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '10px 18px',
-              borderRadius: 12,
-              border: 'none',
-              fontSize: 14,
-              fontWeight: 600,
-              color: '#fff',
-              background: '#B45309',
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={16} />
-            Enregistrer une température
+    <div style={{ padding: '32px 40px', background: '#f8fafc', minHeight: '100vh' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, flexWrap: 'wrap', gap: 14 }}>
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#1e293b', margin: 0 }}>Températures</h1>
+          <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: 14 }}>
+            Suivi des équipements frigorifiques — conformité HACCP
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button onClick={exportCsv} style={btnGhost}>
+            <Download size={16} /> Export CSV
           </button>
-        </motion.div>
+          <button style={btnGhost}>
+            <Mail size={16} /> Envoyer HACCP
+          </button>
+          <button onClick={() => setShowModal(true)} style={btnPrimary}>
+            <Plus size={16} /> Enregistrer une température
+          </button>
+        </div>
+      </div>
 
-        {/* Form */}
-        {showForm && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            style={card}
-          >
-            <h3
-              style={{
-                fontSize: 15,
-                fontWeight: 600,
-                color: '#1e293b',
-                marginBottom: 16,
-              }}
-            >
-              Nouveau relevé
-            </h3>
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
+        <StatCard label="Équipements" value={String(stats.equipements)} icon={<Thermometer size={18} />} accent="#0369a1" />
+        <StatCard label="Mesures aujourd'hui" value={String(stats.mesuresToday)} icon={<FileText size={18} />} accent="#10b981" />
+        <StatCard label="Alertes actives" value={String(stats.alertes)} icon={<AlertTriangle size={18} />} accent="#ef4444" />
+        <StatCard label="Conformité 7j" value={`${stats.conformite}%`} icon={<CheckCircle2 size={18} />} accent="#059669" />
+      </div>
+
+      {/* Scheduled checks */}
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <h2 style={h2Style}><Clock size={18} /> Contrôles planifiés — Aujourd'hui</h2>
+          <span style={{ fontSize: 12, color: '#64748b' }}>Auto-déclenchés 4× par jour</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          {scheduledChecks.map(c => (
             <div
+              key={c.time}
               style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr 1fr',
-                gap: 12,
+                padding: '14px 16px',
+                background: c.missed ? '#fef2f2' : c.done ? '#f0fdf4' : '#f8fafc',
+                border: `1px solid ${c.missed ? '#fecaca' : c.done ? '#bbf7d0' : '#e2e8f0'}`,
+                borderRadius: 10,
               }}
             >
-              <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: 13,
-                    color: '#475569',
-                    marginBottom: 4,
-                  }}
-                >
-                  Équipement
-                </label>
-                <select
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: 10,
-                    border: '1px solid #e2e8f0',
-                    fontSize: 14,
-                    color: '#1e293b',
-                    background: '#fff',
-                  }}
-                >
-                  {equipments.map((eq) => (
-                    <option key={eq.id}>{eq.name}</option>
-                  ))}
-                </select>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <Clock size={14} color={c.missed ? '#dc2626' : c.done ? '#059669' : '#64748b'} />
+                <span style={{ fontWeight: 600, color: '#1e293b' }}>{c.time}</span>
               </div>
-              <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: 13,
-                    color: '#475569',
-                    marginBottom: 4,
-                  }}
-                >
-                  Température (°C)
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  placeholder="ex: 4.2"
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: 10,
-                    border: '1px solid #e2e8f0',
-                    fontSize: 14,
-                    color: '#1e293b',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                <button
-                  style={{
-                    width: '100%',
-                    padding: '9px 0',
-                    borderRadius: 10,
-                    border: 'none',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: '#fff',
-                    background: '#16a34a',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Enregistrer
-                </button>
+              <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>{c.label}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: c.missed ? '#dc2626' : c.done ? '#059669' : '#64748b' }}>
+                {c.missed ? 'Manqué' : c.done ? '✓ Effectué' : '⏰ En attente'}
               </div>
             </div>
-          </motion.div>
-        )}
-
-        {/* Equipment cards */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 16,
-          }}
-        >
-          {equipments.map((eq) => {
-            const conform = isConform(eq)
-            return (
-              <motion.div key={eq.id} variants={fadeUp} style={card}>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: 8,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    <Thermometer
-                      size={18}
-                      style={{ color: conform ? '#16a34a' : '#dc2626' }}
-                    />
-                    <span
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 600,
-                        color: '#1e293b',
-                      }}
-                    >
-                      {eq.name}
-                    </span>
-                  </div>
-                  <span style={{ fontSize: 13 }}>
-                    {conform ? '✅' : '❌'}
-                  </span>
-                </div>
-                <p
-                  style={{
-                    fontSize: 28,
-                    fontWeight: 700,
-                    color: conform ? '#1e293b' : '#dc2626',
-                    marginBottom: 4,
-                  }}
-                >
-                  {eq.currentTemp}°C
-                </p>
-                <p style={{ fontSize: 12, color: '#475569', marginBottom: 12 }}>
-                  Plage : {eq.min}°C à {eq.max}°C
-                </p>
-                {!conform && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '6px 10px',
-                      borderRadius: 8,
-                      background: '#fef2f2',
-                      marginBottom: 12,
-                    }}
-                  >
-                    <AlertTriangle size={14} style={{ color: '#dc2626' }} />
-                    <span
-                      style={{ fontSize: 12, color: '#dc2626', fontWeight: 500 }}
-                    >
-                      Hors plage !
-                    </span>
-                  </div>
-                )}
-                <div style={{ height: 50 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={eq.history}>
-                      <Line
-                        type="monotone"
-                        dataKey="value"
-                        stroke={conform ? '#16a34a' : '#dc2626'}
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-                <p
-                  style={{
-                    fontSize: 11,
-                    color: '#475569',
-                    textAlign: 'center',
-                    marginTop: 4,
-                  }}
-                >
-                  7 derniers jours
-                </p>
-              </motion.div>
-            )
-          })}
+          ))}
         </div>
+      </div>
 
-        {/* Log table */}
-        <motion.div variants={fadeUp} style={card}>
-          <h2
+      {/* Equipment cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginTop: 20 }}>
+        {equipments.map((eq, i) => {
+          const conform = isConform(eq);
+          const Icon = iconMap[eq.icon];
+          return (
+            <motion.div
+              key={eq.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              style={{
+                background: '#fff',
+                border: `1px solid ${conform ? '#e2e8f0' : '#fecaca'}`,
+                borderLeft: `4px solid ${conform ? '#10b981' : '#ef4444'}`,
+                borderRadius: 12,
+                padding: 18,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 34, height: 34, borderRadius: 8,
+                    background: conform ? '#ecfdf5' : '#fef2f2',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: conform ? '#059669' : '#dc2626',
+                  }}>
+                    <Icon size={18} />
+                  </div>
+                  <div style={{ fontWeight: 600, color: '#1e293b', fontSize: 14 }}>{eq.name}</div>
+                </div>
+                <span style={{
+                  fontSize: 10, padding: '3px 8px', borderRadius: 12, fontWeight: 700,
+                  background: conform ? '#ecfdf5' : '#fef2f2',
+                  color: conform ? '#059669' : '#dc2626',
+                  letterSpacing: 0.3,
+                }}>
+                  {conform ? 'OK' : 'HORS NORME'}
+                </span>
+              </div>
+
+              <div style={{ fontSize: 36, fontWeight: 700, color: conform ? '#1e293b' : '#dc2626', lineHeight: 1 }}>
+                {eq.current}°C
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                Cible : {eq.min} à {eq.max}°C
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <Sparkline values={eq.sparkline} conform={conform} />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 11, color: '#94a3b8' }}>
+                <Clock size={11} />
+                {eq.lastReading}
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* 24h chart */}
+      <div style={{ ...cardStyle, marginTop: 20 }}>
+        <h2 style={h2Style}>Courbes 24h — toutes équipements</h2>
+        <div style={{ width: '100%', height: 320, marginTop: 12 }}>
+          <ResponsiveContainer>
+            <LineChart data={chart24h}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="heure" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
+              <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <ReferenceArea y1={2} y2={8} fill="#bbf7d0" fillOpacity={0.18} />
+              <ReferenceArea y1={-25} y2={-18} fill="#bfdbfe" fillOpacity={0.18} />
+              <ReferenceArea y1={0} y2={4} fill="#ddd6fe" fillOpacity={0.15} />
+              <Line type="monotone" dataKey="frigoC" name="Frigo Cuisine" stroke="#10b981" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="congel" name="Congélateur" stroke="#3b82f6" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="frigoB" name="Frigo Boissons" stroke="#ef4444" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="chambre" name="Chambre froide" stroke="#8b5cf6" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Alerts */}
+      <div style={{ ...cardStyle, marginTop: 20 }}>
+        <h2 style={h2Style}><Bell size={18} /> Alertes actives</h2>
+        <div style={{ marginTop: 12 }}>
+          {alertsMock.length === 0 ? (
+            <div style={{ color: '#64748b', fontSize: 13 }}>Aucune alerte active.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {alertsMock.map(a => (
+                <div
+                  key={a.id}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '14px 16px',
+                    background: a.severity === 'high' ? '#fef2f2' : '#fffbeb',
+                    border: `1px solid ${a.severity === 'high' ? '#fecaca' : '#fde68a'}`,
+                    borderRadius: 10,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <AlertTriangle size={20} color={a.severity === 'high' ? '#dc2626' : '#d97706'} />
+                    <div>
+                      <div style={{ fontWeight: 600, color: '#1e293b', fontSize: 14 }}>{a.equipment}</div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{a.message}</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                        Depuis {a.since} — durée : {a.duration}
+                      </div>
+                    </div>
+                  </div>
+                  <button style={{ ...btnGhost, fontSize: 12 }}>
+                    {a.acknowledged ? 'Acquitté' : 'Acquitter'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* History */}
+      <div style={{ ...cardStyle, marginTop: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+          <h2 style={h2Style}><FileText size={18} /> Historique (30 dernières mesures)</h2>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Filter size={14} color="#64748b" />
+            <select value={filterEquipment} onChange={e => setFilterEquipment(e.target.value)} style={selectStyle}>
+              <option value="all">Tous équipements</option>
+              {equipments.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+            <select value={filterDate} onChange={e => setFilterDate(e.target.value)} style={selectStyle}>
+              <option value="all">Toutes dates</option>
+              <option value="today">Aujourd'hui</option>
+              <option value="yesterday">Hier</option>
+            </select>
+            <select value={filterConform} onChange={e => setFilterConform(e.target.value)} style={selectStyle}>
+              <option value="all">Toutes conformités</option>
+              <option value="ok">Conformes</option>
+              <option value="ko">Non conformes</option>
+            </select>
+          </div>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: '#f8fafc' }}>
+                <th style={thStyle}>Équipement</th>
+                <th style={thStyle}>Valeur</th>
+                <th style={thStyle}>Date/Heure</th>
+                <th style={thStyle}>Opérateur</th>
+                <th style={thStyle}>Type</th>
+                <th style={thStyle}>Conformité</th>
+                <th style={thStyle}>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredHistory.map(r => (
+                <tr key={r.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={tdStyle}>{r.equipmentName}</td>
+                  <td style={{ ...tdStyle, fontWeight: 600, color: r.conform ? '#1e293b' : '#dc2626' }}>{r.value}°C</td>
+                  <td style={tdStyle}>{r.timestamp}</td>
+                  <td style={tdStyle}>{r.user}</td>
+                  <td style={tdStyle}>
+                    {r.auto ? (
+                      <span style={{ fontSize: 11, color: '#6366f1', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Clock size={11} /> Auto
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 11, color: '#64748b' }}>Manuel</span>
+                    )}
+                  </td>
+                  <td style={tdStyle}>
+                    <span style={{
+                      fontSize: 11, padding: '2px 8px', borderRadius: 10, fontWeight: 600,
+                      background: r.conform ? '#ecfdf5' : '#fef2f2',
+                      color: r.conform ? '#059669' : '#dc2626',
+                    }}>
+                      {r.conform ? 'Conforme' : 'Non conforme'}
+                    </span>
+                  </td>
+                  <td style={{ ...tdStyle, color: '#64748b', fontSize: 12 }}>{r.notes ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Modal */}
+      <AnimatePresence>
+        {showModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setShowModal(false)}
             style={{
-              fontSize: 16,
-              fontWeight: 600,
-              color: '#1e293b',
-              marginBottom: 16,
+              position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20,
             }}
           >
-            Historique des relevés
-          </h2>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr
-                  style={{
-                    borderBottom: '1px solid #e2e8f0',
-                  }}
-                >
-                  {['Date', 'Équipement', 'Valeur', 'Conforme', 'Opérateur'].map(
-                    (h) => (
-                      <th
-                        key={h}
-                        style={{
-                          padding: '10px 12px',
-                          textAlign: 'left',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          color: '#475569',
-                          textTransform: 'uppercase',
-                          letterSpacing: 0.5,
-                        }}
-                      >
-                        {h}
-                      </th>
-                    )
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520,
+                padding: 28, boxShadow: '0 20px 60px rgba(15,23,42,0.25)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                <h3 style={{ margin: 0, color: '#1e293b', fontSize: 18 }}>Enregistrer une température</h3>
+                <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={labelStyle}>Équipement</label>
+                  <select value={selectedEquipmentId} onChange={e => setSelectedEquipmentId(e.target.value)} style={inputStyle}>
+                    {equipments.map(e => (
+                      <option key={e.id} value={e.id}>{e.name} ({e.min} à {e.max}°C)</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Valeur mesurée</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={valueInput}
+                      onChange={e => setValueInput(e.target.value)}
+                      placeholder="Ex: 4.5"
+                      style={{ ...inputStyle, paddingRight: 40 }}
+                    />
+                    <span style={{
+                      position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+                      color: '#64748b', fontSize: 13, fontWeight: 600,
+                    }}>°C</span>
+                  </div>
+                  {!isNaN(inputNum) && (
+                    <div style={{
+                      marginTop: 6, fontSize: 12, fontWeight: 600,
+                      color: inputConform ? '#059669' : '#dc2626',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                      {inputConform ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
+                      {inputConform ? 'Conforme aux cibles' : 'HORS NORME — alerte sera déclenchée'}
+                    </div>
                   )}
-                </tr>
-              </thead>
-              <tbody>
-                {mockLogs.map((log) => (
-                  <tr
-                    key={log.id}
-                    style={{ borderBottom: '1px solid #f1f5f9' }}
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Photo (optionnel)</label>
+                  <button
+                    type="button"
+                    style={{
+                      ...inputStyle,
+                      display: 'flex', alignItems: 'center', gap: 8, color: '#64748b',
+                      cursor: 'pointer', textAlign: 'left' as const,
+                    }}
                   >
-                    <td
-                      style={{
-                        padding: '10px 12px',
-                        fontSize: 13,
-                        color: '#475569',
-                      }}
-                    >
-                      {log.date}
-                    </td>
-                    <td
-                      style={{
-                        padding: '10px 12px',
-                        fontSize: 13,
-                        color: '#1e293b',
-                        fontWeight: 500,
-                      }}
-                    >
-                      {log.equipment}
-                    </td>
-                    <td
-                      style={{
-                        padding: '10px 12px',
-                        fontSize: 13,
-                        color: log.conforme ? '#1e293b' : '#dc2626',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {log.value}°C
-                    </td>
-                    <td style={{ padding: '10px 12px', fontSize: 13 }}>
-                      {log.conforme ? '✅' : '❌'}
-                    </td>
-                    <td
-                      style={{
-                        padding: '10px 12px',
-                        fontSize: 13,
-                        color: '#475569',
-                      }}
-                    >
-                      {log.operator}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
-      </motion.div>
+                    <Camera size={16} /> Ajouter une preuve photo
+                  </button>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Notes</label>
+                  <textarea
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    placeholder="Observations éventuelles..."
+                    rows={3}
+                    style={{ ...inputStyle, resize: 'vertical' as const, fontFamily: 'inherit' }}
+                  />
+                </div>
+
+                <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                  Horodatage automatique : {new Date().toLocaleString('fr-FR')}
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6 }}>
+                  <button onClick={() => setShowModal(false)} style={btnGhost}>Annuler</button>
+                  <button
+                    onClick={saveReading}
+                    style={{ ...btnPrimary, opacity: valueInput ? 1 : 0.5, cursor: valueInput ? 'pointer' : 'not-allowed' }}
+                    disabled={!valueInput}
+                  >
+                    Enregistrer
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
-  )
+  );
 }
+
+/* ------------------------------------------------------------------ */
+/*  Sub-components & styles                                            */
+/* ------------------------------------------------------------------ */
+
+function StatCard({ label, value, icon, accent }: { label: string; value: string; icon: React.ReactNode; accent: string }) {
+  return (
+    <div style={{
+      background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 18,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500 }}>{label}</span>
+        <span style={{ color: accent }}>{icon}</span>
+      </div>
+      <div style={{ fontSize: 26, fontWeight: 700, color: '#1e293b' }}>{value}</div>
+    </div>
+  );
+}
+
+const cardStyle: React.CSSProperties = {
+  background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 22,
+};
+
+const h2Style: React.CSSProperties = {
+  margin: 0, fontSize: 16, fontWeight: 600, color: '#1e293b',
+  display: 'flex', alignItems: 'center', gap: 8,
+};
+
+const btnPrimary: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 6,
+  padding: '9px 16px', border: 'none', borderRadius: 8,
+  background: '#B45309', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer',
+};
+
+const btnGhost: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 6,
+  padding: '9px 14px', border: '1px solid #e2e8f0', borderRadius: 8,
+  background: '#fff', color: '#334155', fontWeight: 500, fontSize: 13, cursor: 'pointer',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 6,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: 8,
+  fontSize: 13, color: '#1e293b', background: '#fff', outline: 'none', boxSizing: 'border-box' as const,
+};
+
+const selectStyle: React.CSSProperties = {
+  padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 6,
+  fontSize: 12, color: '#334155', background: '#fff', cursor: 'pointer',
+};
+
+const thStyle: React.CSSProperties = {
+  textAlign: 'left' as const, padding: '10px 12px', fontWeight: 600, color: '#475569',
+  fontSize: 12, borderBottom: '1px solid #e2e8f0',
+};
+
+const tdStyle: React.CSSProperties = {
+  padding: '10px 12px', color: '#1e293b',
+};
