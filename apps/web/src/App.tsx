@@ -102,6 +102,10 @@ import EventsDevisPage from '@/pages/events/DevisPage'
 import AgendaPage from '@/pages/events/AgendaPage'
 import ClientsB2BPage from '@/pages/events/ClientsB2BPage'
 
+// Sites & API Pages
+import SitesPage from '@/pages/sites/SitesPage'
+import ApiPage from '@/pages/api/ApiPage'
+
 function App() {
   return (
     <>
@@ -226,6 +230,12 @@ function App() {
 
         {/* RGPD / Conformité Module */}
         <Route path="/rgpd" element={<RgpdPage />} />
+
+        {/* Multi-établissements Module */}
+        <Route path="/sites" element={<SitesPage />} />
+
+        {/* API & Intégrations Module */}
+        <Route path="/api" element={<ApiPage />} />
 
         {/* Reputation Module */}
         <Route path="/reputation" element={<ReputationLayout />}>

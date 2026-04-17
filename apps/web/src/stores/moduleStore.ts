@@ -19,6 +19,8 @@ export type ModuleId =
   | 'maintenance'
   | 'licences'
   | 'rgpd'
+  | 'sites'
+  | 'api'
 
 export interface ModuleDef {
   id: ModuleId
@@ -199,6 +201,26 @@ export const MODULES: ModuleDef[] = [
     color: '#059669',
     colorLight: '#d1fae5',
     path: '/rgpd',
+    available: true,
+    category: 'admin',
+  },
+  {
+    id: 'sites',
+    name: 'Multi-établissements',
+    tagline: 'Gestion des sites et chaînes',
+    color: '#db2777',
+    colorLight: '#fce7f3',
+    path: '/sites',
+    available: true,
+    category: 'admin',
+  },
+  {
+    id: 'api',
+    name: 'API & Intégrations',
+    tagline: 'Connectez vos outils favoris',
+    color: '#475569',
+    colorLight: '#f1f5f9',
+    path: '/api',
     available: true,
     category: 'admin',
   },
