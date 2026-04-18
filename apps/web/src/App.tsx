@@ -112,6 +112,8 @@ import BackupPage from '@/pages/backup/BackupPage'
 import OwnerReportPage from '@/pages/owner/OwnerReportPage'
 import DeliveryPage from '@/pages/delivery/DeliveryPage'
 import ClickCollectPage from '@/pages/clickcollect/ClickCollectPage'
+import CateringPage from '@/pages/catering/CateringPage'
+import CentralKitchenPage from '@/pages/centralkitchen/CentralKitchenPage'
 
 function App() {
   return (
@@ -258,6 +260,12 @@ function App() {
 
         {/* Click & Collect Module */}
         <Route path="/clickcollect" element={<ClickCollectPage />} />
+
+        {/* Traiteur Module */}
+        <Route path="/catering" element={<CateringPage />} />
+
+        {/* Cuisine Centrale Module */}
+        <Route path="/centralkitchen" element={<CentralKitchenPage />} />
 
         {/* Reputation Module */}
         <Route path="/reputation" element={<ReputationLayout />}>

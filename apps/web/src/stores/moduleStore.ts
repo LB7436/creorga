@@ -26,6 +26,8 @@ export type ModuleId =
   | 'owner'
   | 'delivery'
   | 'clickcollect'
+  | 'catering'
+  | 'centralkitchen'
 
 export interface ModuleDef {
   id: ModuleId
@@ -276,6 +278,26 @@ export const MODULES: ModuleDef[] = [
     color: '#0d9488',
     colorLight: '#ccfbf1',
     path: '/clickcollect',
+    available: true,
+    category: 'core',
+  },
+  {
+    id: 'catering',
+    name: 'Traiteur',
+    tagline: 'Événements livrés & buffets',
+    color: '#9333ea',
+    colorLight: '#f3e8ff',
+    path: '/catering',
+    available: true,
+    category: 'business',
+  },
+  {
+    id: 'centralkitchen',
+    name: 'Cuisine Centrale',
+    tagline: 'Batch cooking & prévisions',
+    color: '#be185d',
+    colorLight: '#fce7f3',
+    path: '/centralkitchen',
     available: true,
     category: 'core',
   },
