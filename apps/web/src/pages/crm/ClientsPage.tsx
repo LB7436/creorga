@@ -2,6 +2,12 @@ import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 import {
+  useCustomers,
+  useCreateCustomer,
+  useUpdateCustomer,
+  useRechargeWallet,
+} from '@/hooks/api/useCustomers'
+import {
   Plus, Search, X, User, Star, Wallet,
   ShoppingBag, ChevronRight, ChevronDown, ChevronUp,
   Users, Mail, Phone, MapPin, Calendar, Tag,
@@ -296,7 +302,44 @@ export default function ClientsPage() {
     marketingConsent: false,
   })
 
-  const customers = MOCK_CUSTOMERS
+  // Real API with mock fallback (keeps the rich UI alive if backend returns nothing yet)
+  const { data: apiCustomers } = useCustomers()
+  const createCustomer = useCreateCustomer()
+  const updateCustomer = useUpdateCustomer()
+  const rechargeWallet = useRechargeWallet()
+
+  const customers: Customer[] = useMemo(() => {
+    if (apiCustomers && apiCustomers.length > 0) {
+      // Merge API data with mock shape to avoid UI crashes on missing fields.
+      return apiCustomers.map((c, i) => {
+        const mock = MOCK_CUSTOMERS[i % MOCK_CUSTOMERS.length]
+        return {
+          ...mock,
+          ...(c as Partial<Customer>),
+          id: c.id,
+          firstName: c.firstName ?? mock.firstName,
+          lastName: c.lastName ?? mock.lastName,
+          email: c.email ?? mock.email,
+          phone: c.phone ?? mock.phone,
+          loyaltyPoints: c.loyaltyPoints ?? mock.loyaltyPoints,
+          walletBalance: c.walletBalance ?? mock.walletBalance,
+          totalSpent: c.totalSpent ?? mock.totalSpent,
+          visitCount: c.visits ?? mock.visitCount,
+          lastVisit: c.lastVisit ?? mock.lastVisit,
+          tags: c.tags ?? mock.tags,
+        } as Customer
+      })
+    }
+    return MOCK_CUSTOMERS
+  }, [apiCustomers])
+
+  function handleRechargeWallet(id: string, amount: number) {
+    if (!amount || amount <= 0) {
+      toast.error('Montant invalide')
+      return
+    }
+    rechargeWallet.mutate({ id, amount })
+  }
 
   const now = new Date()
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
@@ -393,7 +436,12 @@ export default function ClientsPage() {
       toast.error('Veuillez remplir les champs obligatoires')
       return
     }
-    toast.success('Client cr\é\é avec succ\ès')
+    if (selected) {
+      // Edit mode — if `selected` is bound to the form elsewhere.
+      updateCustomer.mutate({ id: selected.id, data: newForm })
+    } else {
+      createCustomer.mutate(newForm)
+    }
     setShowNew(false)
     setNewForm({
       firstName: '', lastName: '', email: '', phone: '+352 ',

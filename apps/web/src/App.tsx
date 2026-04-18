@@ -6,7 +6,9 @@ import RequireAuth from '@/components/auth/RequireAuth'
 import { useAuthStore } from '@/stores/authStore'
 import AppShell from '@/components/layout/AppShell'
 import Login from '@/pages/Login'
+import DemoLanding from '@/pages/DemoLanding'
 import Welcome from '@/pages/Welcome'
+import { useDemoMode } from '@/lib/demoMode'
 import ModuleSelector from '@/pages/ModuleSelector'
 import NotFound from '@/pages/NotFound'
 import Dashboard from '@/pages/Dashboard'
@@ -129,6 +131,25 @@ function App() {
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const demoActive = useDemoMode((s) => s.active)
+  const demoExit = useDemoMode((s) => s.exitDemoMode)
+  const demoExpiresAt = useDemoMode((s) => s.expiresAt)
+  const [demoRemaining, setDemoRemaining] = useState<number>(0)
+
+  useEffect(() => {
+    if (!demoActive || !demoExpiresAt) return
+    const tick = () => {
+      const left = Math.max(0, demoExpiresAt - Date.now())
+      setDemoRemaining(left)
+      if (left <= 0) demoExit()
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [demoActive, demoExpiresAt, demoExit])
+
+  const demoMinutes = Math.floor(demoRemaining / 60000)
+  const demoSeconds = Math.floor((demoRemaining % 60000) / 1000)
 
   useEffect(() => {
     if (user && location.pathname !== '/login') {
@@ -142,6 +163,7 @@ function App() {
     <Routes>
       {/* Public */}
       <Route path="/login" element={<Login />} />
+      <Route path="/demo" element={<DemoLanding />} />
       <Route path="/c" element={<GuestHome />} />
 
       {/* Auth-only without AppShell */}
@@ -321,6 +343,88 @@ function App() {
 
       <Route path="*" element={<NotFound />} />
     </Routes>
+
+    {/* Bannière MODE DÉMO */}
+    {demoActive && location.pathname !== '/demo' && (
+      <>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 9999,
+            background: 'linear-gradient(90deg, #F59E0B 0%, #F97316 100%)',
+            color: '#fff',
+            padding: '8px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: 13,
+            fontWeight: 600,
+            fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          }}
+        >
+          <span>🎬 MODE DÉMO · Les données se réinitialisent toutes les 24h</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+              ⏱ Expire dans {demoMinutes}:{String(demoSeconds).padStart(2, '0')}
+            </span>
+            <a
+              href="/login"
+              style={{
+                background: '#fff',
+                color: '#B45309',
+                padding: '4px 12px',
+                borderRadius: 6,
+                textDecoration: 'none',
+                fontWeight: 700,
+                fontSize: 12,
+              }}
+            >
+              Créer un vrai compte
+            </a>
+            <button
+              onClick={() => demoExit()}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                color: '#fff',
+                border: '1px solid rgba(255,255,255,0.4)',
+                padding: '4px 10px',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: 12,
+              }}
+            >
+              Quitter
+            </button>
+          </span>
+        </div>
+        {/* Watermark DÉMO subtil */}
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 16,
+            right: 16,
+            zIndex: 9998,
+            padding: '6px 12px',
+            background: 'rgba(245, 158, 11, 0.12)',
+            color: '#B45309',
+            borderRadius: 999,
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '1px',
+            pointerEvents: 'none',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+          }}
+        >
+          DÉMO
+        </div>
+      </>
+    )}
+
     <InstallPrompt />
     {showOnboarding && (
       <OnboardingWizard

@@ -1,9 +1,13 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Users, Clock, CreditCard, Maximize2, Edit3, X,
-  Eye, Sparkles, DoorOpen, Circle,
+  Eye, Sparkles, DoorOpen, Circle, Loader2,
 } from 'lucide-react'
+import { useTables, useUpdateTableStatus } from '@/hooks/api/useTables'
+import { useOrders } from '@/hooks/api/useOrders'
+import { useSocketEvent } from '@/hooks/useSocket'
+import { useQueryClient } from '@tanstack/react-query'
 
 /* ------------------------------------------------------------------ */
 /*  TYPES                                                              */
@@ -118,9 +122,63 @@ function fmtElapsed(ts: number) {
 /*  MAIN COMPONENT                                                     */
 /* ================================================================== */
 export default function FloorPlan() {
-  const [tables, setTables] = useState<MockTable[]>(mockTables)
+  const qc = useQueryClient()
+  const { data: tablesData, isLoading: tablesLoading, isError: tablesError } = useTables()
+  const { data: ordersData, isLoading: ordersLoading } = useOrders()
+  const updateStatus = useUpdateTableStatus()
+
+  // Realtime: any table or order event triggers a cache refresh.
+  useSocketEvent('table:updated', () => {
+    qc.invalidateQueries({ queryKey: ['tables'] })
+  })
+  useSocketEvent('order:new', () => {
+    qc.invalidateQueries({ queryKey: ['orders'] })
+    qc.invalidateQueries({ queryKey: ['tables'] })
+  })
+  useSocketEvent('order:updated', () => {
+    qc.invalidateQueries({ queryKey: ['orders'] })
+  })
+
+  // Merge tables with their open orders so the UI sees `orderTotal`/`orderItems`.
+  const tables: MockTable[] = useMemo(() => {
+    const raw = (tablesData ?? []) as unknown as MockTable[]
+    const orders = (ordersData ?? []) as Array<{
+      id: string
+      tableId?: string
+      total?: number
+      items?: { name: string; qty: number; price: number }[]
+      openedAt?: string | number
+      server?: string
+      status?: string
+    }>
+    return raw.map((t) => {
+      const order = orders.find(
+        (o) => o.tableId === t.id && o.status !== 'PAID' && o.status !== 'CANCELLED',
+      )
+      if (!order) return t
+      return {
+        ...t,
+        orderTotal: order.total ?? t.orderTotal,
+        orderItems: order.items ?? t.orderItems,
+        openedAt: order.openedAt
+          ? typeof order.openedAt === 'string'
+            ? new Date(order.openedAt).getTime()
+            : order.openedAt
+          : t.openedAt,
+        server: order.server ?? t.server,
+      }
+    })
+  }, [tablesData, ordersData])
+
   const [selected, setSelected] = useState<MockTable | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
+
+  // Keep the selected table in sync with fresh data.
+  useEffect(() => {
+    if (!selected) return
+    const fresh = tables.find((t) => t.id === selected.id)
+    if (fresh && fresh !== selected) setSelected(fresh)
+  }, [tables, selected])
 
   const stats = useMemo(() => {
     const occ = tables.filter((t) => t.status === 'OCCUPEE').length
@@ -132,12 +190,56 @@ export default function FloorPlan() {
   }, [tables])
 
   const handleClean = (id: string) => {
-    setTables((prev) => prev.map((t) => (t.id === id ? { ...t, status: 'LIBRE', orderTotal: undefined, orderItems: undefined, openedAt: undefined } : t)))
+    updateStatus.mutate({ id, status: 'LIBRE' })
     setSelected(null)
   }
   const handleClose = (id: string) => {
-    setTables((prev) => prev.map((t) => (t.id === id ? { ...t, status: 'NETTOYAGE', orderTotal: undefined, orderItems: undefined, openedAt: undefined } : t)))
+    updateStatus.mutate({ id, status: 'NETTOYAGE' })
     setSelected(null)
+  }
+
+  const loading = tablesLoading || ordersLoading
+  const isEmpty = !loading && tables.length === 0
+
+  if (loading) {
+    return (
+      <div style={{ padding: 48, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, color: '#64748b' }}>
+        <Loader2 size={28} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
+        <div style={{ fontSize: 14, fontWeight: 600 }}>Chargement du plan de salle…</div>
+      </div>
+    )
+  }
+
+  if (tablesError) {
+    return (
+      <div style={{ padding: 48, textAlign: 'center', color: '#991b1b' }}>
+        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
+          Impossible de charger les tables
+        </div>
+        <div style={{ fontSize: 13, color: '#64748b' }}>
+          Vérifiez votre connexion et réessayez.
+        </div>
+      </div>
+    )
+  }
+
+  if (isEmpty) {
+    return (
+      <div
+        onClick={() => (window.location.href = '/pos-standalone/floor/editor')}
+        style={{
+          padding: 48, textAlign: 'center', cursor: 'pointer',
+          border: '2px dashed #cbd5e1', borderRadius: 16,
+          margin: 24, color: '#64748b',
+          background: '#f8fafc',
+        }}
+      >
+        <DoorOpen size={32} style={{ marginBottom: 12 }} />
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>
+          Aucune donnée - cliquez ici pour créer une table
+        </div>
+      </div>
+    )
   }
 
   /* ---- shared card style ---- */

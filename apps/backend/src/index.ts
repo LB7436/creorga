@@ -27,6 +27,8 @@ import marketingRoutes from './routes/marketing'
 import accountingRoutes from './routes/accounting'
 import reputationRoutes from './routes/reputation'
 import eventsRoutes from './routes/events'
+import stripeRoutes from './routes/stripe'
+import emailRoutes from './routes/email'
 
 const app = express()
 const httpServer = createServer(app)
@@ -71,6 +73,8 @@ app.use('/api/marketing', authenticate, requireCompany, marketingRoutes)
 app.use('/api/accounting', authenticate, requireCompany, accountingRoutes)
 app.use('/api/reputation', authenticate, requireCompany, reputationRoutes)
 app.use('/api/events', authenticate, requireCompany, eventsRoutes)
+app.use('/api/stripe', stripeRoutes)
+app.use('/api/email', emailRoutes)
 
 // Error handler
 app.use(errorHandler)
