@@ -29,6 +29,9 @@ export type ModuleId =
   | 'catering'
   | 'centralkitchen'
   | 'billing'
+  | 'autoorder'
+  | 'sustainability'
+  | 'community'
 
 export interface ModuleDef {
   id: ModuleId
@@ -311,6 +314,36 @@ export const MODULES: ModuleDef[] = [
     path: '/billing',
     available: true,
     category: 'admin',
+  },
+  {
+    id: 'autoorder',
+    name: 'Auto-Réapprovisionnement',
+    tagline: 'Commandes IA intelligentes',
+    color: '#d97706',
+    colorLight: '#fef3c7',
+    path: '/autoorder',
+    available: true,
+    category: 'core',
+  },
+  {
+    id: 'sustainability',
+    name: 'Durabilité',
+    tagline: 'Impact environnemental & RSE',
+    color: '#16a34a',
+    colorLight: '#dcfce7',
+    path: '/sustainability',
+    available: true,
+    category: 'admin',
+  },
+  {
+    id: 'community',
+    name: 'Communauté',
+    tagline: 'Réseau & benchmarks restaurants',
+    color: '#db2777',
+    colorLight: '#fce7f3',
+    path: '/community',
+    available: true,
+    category: 'digital',
   },
 ]
 

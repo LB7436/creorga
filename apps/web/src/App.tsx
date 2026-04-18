@@ -118,6 +118,9 @@ import ClickCollectPage from '@/pages/clickcollect/ClickCollectPage'
 import CateringPage from '@/pages/catering/CateringPage'
 import CentralKitchenPage from '@/pages/centralkitchen/CentralKitchenPage'
 import BillingPage from '@/pages/billing/BillingPage'
+import AutoOrderPage from '@/pages/autoorder/AutoOrderPage'
+import SustainabilityPage from '@/pages/sustainability/SustainabilityPage'
+import CommunityPage from '@/pages/community/CommunityPage'
 
 function App() {
   const location = useLocation()
@@ -284,6 +287,15 @@ function App() {
 
         {/* Billing & Subscription Module */}
         <Route path="/billing" element={<BillingPage />} />
+
+        {/* Auto-Réapprovisionnement IA Module */}
+        <Route path="/autoorder" element={<AutoOrderPage />} />
+
+        {/* Durabilité & Impact Environnemental Module */}
+        <Route path="/sustainability" element={<SustainabilityPage />} />
+
+        {/* Communauté Creorga Module */}
+        <Route path="/community" element={<CommunityPage />} />
 
         {/* Reputation Module */}
         <Route path="/reputation" element={<ReputationLayout />}>
