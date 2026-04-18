@@ -3,19 +3,98 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/creorga.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#6366f1" />
+    <meta name="color-scheme" content="light dark" />
+
+    <!-- Primary SEO -->
+    <title>Creorga OS - Gestion de restaurant au Luxembourg</title>
+    <meta name="description" content="Plateforme tout-en-un pour restaurants, bars et cafés au Luxembourg. POS moderne, conformité TVA/HACCP/CNPD, agenda, clients, notifications." />
+    <meta name="keywords" content="POS Luxembourg, logiciel restaurant, caisse enregistreuse, gestion café, HACCP, TVA Luxembourg, Creorga" />
+    <meta name="author" content="Creorga" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <link rel="canonical" href="https://app.creorga.lu/" />
+    <meta name="application-name" content="Creorga OS" />
+
+    <!-- PWA -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Creorga" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Creorga OS" />
+    <meta property="og:title" content="Creorga OS - Gestion de restaurant au Luxembourg" />
+    <meta property="og:description" content="Plateforme tout-en-un pour restaurants, bars et cafés au Luxembourg. POS moderne, conformité TVA/HACCP/CNPD." />
+    <meta property="og:url" content="https://app.creorga.lu/" />
+    <meta property="og:locale" content="fr_LU" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:locale:alternate" content="de_DE" />
+    <meta property="og:image" content="https://app.creorga.lu/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Tableau de bord Creorga OS" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@creorga_lu" />
+    <meta name="twitter:creator" content="@creorga_lu" />
+    <meta name="twitter:title" content="Creorga OS - Gestion de restaurant au Luxembourg" />
+    <meta name="twitter:description" content="Plateforme tout-en-un pour restaurants, bars et cafés au Luxembourg." />
+    <meta name="twitter:image" content="https://app.creorga.lu/og-image.png" />
+    <meta name="twitter:image:alt" content="Tableau de bord Creorga OS" />
+
+    <!-- Preconnect / DNS prefetch -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://api.creorga.lu" />
+    <link rel="preconnect" href="https://api.creorga.lu" crossorigin />
+
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-    <title>Creorga POS</title>
+
+    <!-- JSON-LD structured data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Creorga OS",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web, iOS, Android",
+      "description": "Plateforme de gestion tout-en-un pour restaurants, bars et cafés au Luxembourg : POS, agenda, CRM clients, conformité TVA et HACCP.",
+      "url": "https://app.creorga.lu/",
+      "inLanguage": "fr-LU",
+      "offers": {
+        "@type": "Offer",
+        "price": "49.00",
+        "priceCurrency": "EUR"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Creorga",
+        "url": "https://creorga.lu/",
+        "logo": "https://creorga.lu/icon-512.png"
+      }
+    }
+    </script>
+
+    <style>
+      html { -webkit-text-size-adjust: 100%; }
+      body { margin: 0; }
+      /* Tap targets 44px minimum sur mobile */
+      @media (max-width: 768px) {
+        button, a, input, select { min-height: 44px; }
+      }
+    </style>
   </head>
   <body class="font-sans antialiased bg-surface-2 text-gray-900">
     <div id="root"></div>
+    <noscript>Creorga OS nécessite JavaScript pour fonctionner. Veuillez l'activer.</noscript>
     <script type="module" src="/src/main.tsx"></script>
     <!-- SW disabled for dev -->
   </body>

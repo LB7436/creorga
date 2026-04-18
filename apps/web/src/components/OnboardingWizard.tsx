@@ -361,7 +361,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
 
           {/* Progress bar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            {steps.map((s, i) => (
+            {steps.map((_s, i) => (
               <div
                 key={i}
                 style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}
@@ -429,12 +429,12 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                     {'\u{1F44B}'}
                   </motion.div>
                   <h1 style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', margin: '0 0 10px' }}>
-                    Bienvenue chez Creorga, Caf\u00e9 um Rond-Point!
+                    Bienvenue chez Creorga, Café um Rond-Point!
                   </h1>
                   <p style={{ fontSize: 15, color: '#64748b', maxWidth: 520, margin: '0 auto 24px', lineHeight: 1.55 }}>
-                    En quelques minutes, nous allons configurer votre \u00e9tablissement pour
-                    que vous puissiez commencer \u00e0 encaisser, g\u00e9rer et faire prosp\u00e9rer
-                    votre activit\u00e9.
+                    En quelques minutes, nous allons configurer votre établissement pour
+                    que vous puissiez commencer à encaisser, gérer et faire prospérer
+                    votre activité.
                   </p>
                   <div
                     style={{
@@ -479,11 +479,11 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                         fontWeight: 600,
                       }}
                     >
-                      Vid\u00e9o de bienvenue (2 min)
+                      Vidéo de bienvenue (2 min)
                     </span>
                   </div>
                   <p style={{ marginTop: 24, fontSize: 13, color: '#94a3b8' }}>
-                    Commen\u00e7ons l'installation
+                    Commençons l'installation
                   </p>
                 </div>
               )}
@@ -495,7 +495,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                     Informations de votre entreprise
                   </h2>
                   <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 24px' }}>
-                    Ces informations appara\u00eetront sur vos factures et tickets de caisse.
+                    Ces informations apparaîtront sur vos factures et tickets de caisse.
                   </p>
 
                   <div
@@ -537,7 +537,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                         PNG, JPG ou SVG. Max 2 Mo.
                       </div>
                       <label style={{ ...btnSecondary, display: 'inline-block' }}>
-                        T\u00e9l\u00e9verser un logo
+                        Téléverser un logo
                         <input
                           type="file"
                           accept="image/*"
@@ -608,7 +608,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                     Configuration des tables
                   </h2>
                   <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 16px' }}>
-                    Glissez-d\u00e9posez pour disposer. Ajoutez des formes, ajustez la capacit\u00e9.
+                    Glissez-déposez pour disposer. Ajoutez des formes, ajustez la capacité.
                   </p>
 
                   <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -616,7 +616,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                       {'\u26AA'} Table ronde
                     </button>
                     <button style={btnSecondary} onClick={() => addTable('square')}>
-                      {'\u25FC\uFE0F'} Table carr\u00e9e
+                      {'\u25FC\uFE0F'} Table carrée
                     </button>
                     <button style={btnSecondary} onClick={() => addTable('rect')}>
                       {'\u25AC'} Table rectangulaire
@@ -698,7 +698,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                               lineHeight: 1,
                             }}
                           >
-                            \u00d7
+                            ×
                           </button>
                         </div>
                       )
@@ -756,7 +756,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                     Importer votre menu
                   </h2>
                   <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 20px' }}>
-                    Choisissez la m\u00e9thode qui vous convient le mieux.
+                    Choisissez la méthode qui vous convient le mieux.
                   </p>
 
                   <div
@@ -811,7 +811,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                         {fileName ? fileName : 'Glissez votre fichier ici'}
                       </div>
                       <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 14 }}>
-                        Formats accept\u00e9s : CSV, XLSX (max 5 Mo)
+                        Formats acceptés : CSV, XLSX (max 5 Mo)
                       </div>
                       <label style={{ ...btnPrimary, display: 'inline-block' }}>
                         Parcourir les fichiers
@@ -840,7 +840,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                         }}
                       />
                       <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 6 }}>
-                        Un produit par ligne. S\u00e9parez le nom et le prix par une tabulation.
+                        Un produit par ligne. Séparez le nom et le prix par une tabulation.
                       </div>
                     </div>
                   )}
@@ -881,10 +881,10 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
               {step === 4 && (
                 <div>
                   <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 6px' }}>
-                    Invitez votre \u00e9quipe
+                    Invitez votre équipe
                   </h2>
                   <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 20px' }}>
-                    Ajoutez des collaborateurs par email ou g\u00e9n\u00e9rez des codes PIN pour les r\u00f4les.
+                    Ajoutez des collaborateurs par email ou générez des codes PIN pour les rôles.
                   </p>
 
                   <div
@@ -957,7 +957,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                               }
                               style={{ ...btnGhost, padding: 4 }}
                             >
-                              \u00d7
+                              ×
                             </button>
                           </div>
                         ))}
@@ -967,7 +967,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
 
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', marginBottom: 10 }}>
-                      Ou g\u00e9n\u00e9rer un code PIN par r\u00f4le
+                      Ou générer un code PIN par rôle
                     </div>
                     <div
                       style={{
@@ -1013,7 +1013,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                                 padding: '6px 10px',
                               }}
                             >
-                              G\u00e9n\u00e9rer un PIN
+                              Générer un PIN
                             </button>
                           )}
                         </div>
@@ -1047,11 +1047,11 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                     {'\u2713'}
                   </motion.div>
                   <h1 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 10px' }}>
-                    C'est pr\u00eat !
+                    C'est prêt !
                   </h1>
                   <p style={{ fontSize: 15, color: '#64748b', maxWidth: 480, margin: '0 auto 28px' }}>
-                    Votre \u00e9tablissement est configur\u00e9. Voici ce que vous pouvez faire
-                    d\u00e8s maintenant :
+                    Votre établissement est configuré. Voici ce que vous pouvez faire
+                    dès maintenant :
                   </p>
                   <div
                     style={{
@@ -1106,7 +1106,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
           <div style={{ display: 'flex', gap: 10 }}>
             {step > 0 && (
               <button onClick={prev} style={btnSecondary}>
-                {'\u2190'} Pr\u00e9c\u00e9dent
+                {'\u2190'} Précédent
               </button>
             )}
             <button onClick={next} style={btnPrimary}>

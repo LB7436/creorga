@@ -28,6 +28,7 @@ export type ModuleId =
   | 'clickcollect'
   | 'catering'
   | 'centralkitchen'
+  | 'billing'
 
 export interface ModuleDef {
   id: ModuleId
@@ -300,6 +301,16 @@ export const MODULES: ModuleDef[] = [
     path: '/centralkitchen',
     available: true,
     category: 'core',
+  },
+  {
+    id: 'billing',
+    name: 'Facturation',
+    tagline: 'Abonnement & paiements',
+    color: '#0ea5e9',
+    colorLight: '#e0f2fe',
+    path: '/billing',
+    available: true,
+    category: 'admin',
   },
 ]
 

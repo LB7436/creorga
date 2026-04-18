@@ -1,16 +1,25 @@
 {
-  "name": "Creorga OS - Caf\u00e9 um Rond-Point",
+  "name": "Creorga OS - Gestion de restaurant",
   "short_name": "Creorga",
-  "description": "Syst\u00e8me de gestion pour restaurants et caf\u00e9s au Luxembourg",
+  "description": "Plateforme de gestion complète pour restaurants et cafés au Luxembourg",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#07070d",
+  "background_color": "#ffffff",
   "theme_color": "#6366f1",
   "orientation": "any",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
-  "categories": ["business", "food"],
-  "lang": "fr-LU"
+  "categories": ["business", "food", "productivity"],
+  "lang": "fr-LU",
+  "dir": "ltr",
+  "shortcuts": [
+    { "name": "Dashboard", "url": "/", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}] },
+    { "name": "POS", "url": "/pos/dashboard", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}] },
+    { "name": "Notifications", "url": "/notifications", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}] }
+  ],
+  "screenshots": [
+    { "src": "/screenshot-1.png", "sizes": "1280x720", "type": "image/png" }
+  ]
 }

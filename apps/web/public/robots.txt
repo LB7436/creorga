@@ -1,0 +1,33 @@
+# robots.txt - Creorga OS (application)
+# L'application est protégée par authentification : on autorise l'indexation
+# de la landing publique uniquement.
+
+User-agent: *
+Allow: /$
+Disallow: /pos/
+Disallow: /agenda/
+Disallow: /clients/
+Disallow: /notifications
+Disallow: /settings
+Disallow: /admin/
+Disallow: /api/
+Disallow: /auth/
+
+# Bots IA / scrapers : bloqués par défaut
+User-agent: GPTBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+Sitemap: https://app.creorga.lu/sitemap.xml
+Host: https://app.creorga.lu

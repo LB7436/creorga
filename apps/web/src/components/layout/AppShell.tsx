@@ -117,8 +117,50 @@ export default function AppShell() {
           </span>
         </div>
 
-        {/* ── center: breadcrumb ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* ── center: global search bar + breadcrumb ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, justifyContent: 'center', maxWidth: 600, margin: '0 24px' }}>
+          <button
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Rechercher dans Creorga"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '8px 12px',
+              borderRadius: 10,
+              border: `1px solid ${colors.border}`,
+              background: colors.bgCard,
+              color: colors.textLight,
+              fontSize: 13,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              flex: 1,
+              maxWidth: 420,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = colors.accent
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = colors.border
+            }}
+          >
+            <span style={{ fontSize: 14 }}>{'\u{1F50D}'}</span>
+            <span style={{ flex: 1, textAlign: 'left' }}>Rechercher dans Creorga... (Cmd+K)</span>
+            <kbd
+              style={{
+                fontSize: 10,
+                padding: '2px 6px',
+                borderRadius: 5,
+                background: colors.bg,
+                border: `1px solid ${colors.border}`,
+                color: colors.textLight,
+                fontWeight: 600,
+                fontFamily: 'inherit',
+              }}
+            >
+              {'\u2318'}K
+            </kbd>
+          </button>
           {currentModule && (
             <>
               <button
@@ -206,52 +248,6 @@ export default function AppShell() {
           >
             <span style={{ fontSize: 14 }}>{'▦'}</span>
             {t('modules')}
-          </button>
-
-          {/* command palette trigger */}
-          <button
-            onClick={() => setPaletteOpen(true)}
-            title="Recherche rapide (Ctrl+K)"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '7px 10px 7px 12px',
-              borderRadius: 10,
-              border: `1px solid ${colors.border}`,
-              background: colors.bgCard,
-              color: colors.textMuted,
-              fontSize: 13,
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              minWidth: 180,
-            }}
-            onMouseEnter={(e) => {
-              const el = e.currentTarget
-              el.style.borderColor = colors.accent
-              el.style.color = colors.accent
-            }}
-            onMouseLeave={(e) => {
-              const el = e.currentTarget
-              el.style.borderColor = colors.border
-              el.style.color = colors.textMuted
-            }}
-          >
-            <span style={{ fontSize: 13 }}>{'\u{1F50D}'}</span>
-            <span style={{ flex: 1, textAlign: 'left' }}>Rechercher...</span>
-            <span
-              style={{
-                fontSize: 10,
-                padding: '2px 6px',
-                borderRadius: 5,
-                background: colors.bg,
-                border: `1px solid ${colors.border}`,
-                color: colors.textLight,
-                fontWeight: 600,
-              }}
-            >
-              {'\u2318'}K
-            </span>
           </button>
 
           {/* language switcher */}

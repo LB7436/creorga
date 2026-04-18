@@ -117,6 +117,7 @@ import DeliveryPage from '@/pages/delivery/DeliveryPage'
 import ClickCollectPage from '@/pages/clickcollect/ClickCollectPage'
 import CateringPage from '@/pages/catering/CateringPage'
 import CentralKitchenPage from '@/pages/centralkitchen/CentralKitchenPage'
+import BillingPage from '@/pages/billing/BillingPage'
 
 function App() {
   const location = useLocation()
@@ -280,6 +281,9 @@ function App() {
 
         {/* Cuisine Centrale Module */}
         <Route path="/centralkitchen" element={<CentralKitchenPage />} />
+
+        {/* Billing & Subscription Module */}
+        <Route path="/billing" element={<BillingPage />} />
 
         {/* Reputation Module */}
         <Route path="/reputation" element={<ReputationLayout />}>

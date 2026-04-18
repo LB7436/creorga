@@ -502,7 +502,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
                           padding: '14px 14px 4px',
                         }}
                       >
-                        R\u00e9cent
+                        {'R\u00E9cent'}
                       </div>
                       {recent
                         .map((id) => allItems.find((x) => x.id === id))
@@ -521,7 +521,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
                 >
                   <div style={{ fontSize: 32, marginBottom: 8 }}>{'\u{1F50D}'}</div>
                   <div style={{ fontSize: 14, color: '#64748b', fontWeight: 500 }}>
-                    Aucun r\u00e9sultat pour
+                    {'Aucun r\u00E9sultat pour'}
                     <span style={{ color: '#0f172a', marginLeft: 6 }}>"{query}"</span>
                   </div>
                   <div style={{ fontSize: 12, marginTop: 4 }}>
