@@ -8,6 +8,9 @@ import NotificationCenter from '@/components/NotificationCenter'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import ThemeToggle from '@/components/ThemeToggle'
 import CommandPalette from '@/components/CommandPalette'
+import AccessibilityMenu from '@/components/AccessibilityMenu'
+import HelpWidget from '@/components/HelpWidget'
+import OfflineIndicator from '@/components/OfflineIndicator'
 
 export default function AppShell() {
   const navigate = useNavigate()
@@ -489,6 +492,11 @@ export default function AppShell() {
 
       {/* ── command palette ── */}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+
+      {/* ── floating widgets ── */}
+      <AccessibilityMenu />
+      <HelpWidget />
+      <OfflineIndicator />
     </div>
   )
 }
