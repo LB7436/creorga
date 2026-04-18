@@ -1,6 +1,9 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import InstallPrompt from '@/components/InstallPrompt'
+import OnboardingWizard from '@/components/OnboardingWizard'
 import RequireAuth from '@/components/auth/RequireAuth'
+import { useAuthStore } from '@/stores/authStore'
 import AppShell from '@/components/layout/AppShell'
 import Login from '@/pages/Login'
 import Welcome from '@/pages/Welcome'
@@ -116,6 +119,17 @@ import CateringPage from '@/pages/catering/CateringPage'
 import CentralKitchenPage from '@/pages/centralkitchen/CentralKitchenPage'
 
 function App() {
+  const location = useLocation()
+  const user = useAuthStore((s) => s.user)
+  const [showOnboarding, setShowOnboarding] = useState(false)
+
+  useEffect(() => {
+    if (user && location.pathname !== '/login') {
+      const done = localStorage.getItem('creorga-onboarded')
+      if (!done) setShowOnboarding(true)
+    }
+  }, [user, location.pathname])
+
   return (
     <>
     <Routes>
@@ -280,6 +294,12 @@ function App() {
       <Route path="*" element={<NotFound />} />
     </Routes>
     <InstallPrompt />
+    {showOnboarding && (
+      <OnboardingWizard
+        onComplete={() => setShowOnboarding(false)}
+        onSkip={() => setShowOnboarding(false)}
+      />
+    )}
     </>
   )
 }

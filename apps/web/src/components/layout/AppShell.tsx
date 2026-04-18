@@ -7,6 +7,7 @@ import { useThemeColors } from '@/lib/theme'
 import NotificationCenter from '@/components/NotificationCenter'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import ThemeToggle from '@/components/ThemeToggle'
+import CommandPalette from '@/components/CommandPalette'
 
 export default function AppShell() {
   const navigate = useNavigate()
@@ -19,7 +20,20 @@ export default function AppShell() {
 
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  /* global Cmd+K / Ctrl+K listener */
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault()
+        setPaletteOpen((o) => !o)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   const currentModule = activeModule ? MODULES.find((m) => m.id === activeModule) : null
 
@@ -192,6 +206,52 @@ export default function AppShell() {
           >
             <span style={{ fontSize: 14 }}>{'▦'}</span>
             {t('modules')}
+          </button>
+
+          {/* command palette trigger */}
+          <button
+            onClick={() => setPaletteOpen(true)}
+            title="Recherche rapide (Ctrl+K)"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '7px 10px 7px 12px',
+              borderRadius: 10,
+              border: `1px solid ${colors.border}`,
+              background: colors.bgCard,
+              color: colors.textMuted,
+              fontSize: 13,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              minWidth: 180,
+            }}
+            onMouseEnter={(e) => {
+              const el = e.currentTarget
+              el.style.borderColor = colors.accent
+              el.style.color = colors.accent
+            }}
+            onMouseLeave={(e) => {
+              const el = e.currentTarget
+              el.style.borderColor = colors.border
+              el.style.color = colors.textMuted
+            }}
+          >
+            <span style={{ fontSize: 13 }}>{'\u{1F50D}'}</span>
+            <span style={{ flex: 1, textAlign: 'left' }}>Rechercher...</span>
+            <span
+              style={{
+                fontSize: 10,
+                padding: '2px 6px',
+                borderRadius: 5,
+                background: colors.bg,
+                border: `1px solid ${colors.border}`,
+                color: colors.textLight,
+                fontWeight: 600,
+              }}
+            >
+              {'\u2318'}K
+            </span>
           </button>
 
           {/* language switcher */}
@@ -430,6 +490,9 @@ export default function AppShell() {
 
       {/* ── notification center ── */}
       <NotificationCenter isOpen={notifOpen} onClose={() => setNotifOpen(false)} />
+
+      {/* ── command palette ── */}
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   )
 }
