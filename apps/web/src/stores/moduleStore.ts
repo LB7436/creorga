@@ -24,6 +24,8 @@ export type ModuleId =
   | 'ai'
   | 'backup'
   | 'owner'
+  | 'delivery'
+  | 'clickcollect'
 
 export interface ModuleDef {
   id: ModuleId
@@ -256,6 +258,26 @@ export const MODULES: ModuleDef[] = [
     path: '/owner',
     available: true,
     category: 'business',
+  },
+  {
+    id: 'delivery',
+    name: 'Livraison',
+    tagline: 'Uber Eats, Wedely & livreurs',
+    color: '#ea580c',
+    colorLight: '#ffedd5',
+    path: '/delivery',
+    available: true,
+    category: 'core',
+  },
+  {
+    id: 'clickcollect',
+    name: 'Click & Collect',
+    tagline: 'Commandes à emporter',
+    color: '#0d9488',
+    colorLight: '#ccfbf1',
+    path: '/clickcollect',
+    available: true,
+    category: 'core',
   },
 ]
 

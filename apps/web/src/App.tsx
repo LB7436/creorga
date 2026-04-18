@@ -110,6 +110,8 @@ import ApiPage from '@/pages/api/ApiPage'
 import AiAssistantPage from '@/pages/ai/AiAssistantPage'
 import BackupPage from '@/pages/backup/BackupPage'
 import OwnerReportPage from '@/pages/owner/OwnerReportPage'
+import DeliveryPage from '@/pages/delivery/DeliveryPage'
+import ClickCollectPage from '@/pages/clickcollect/ClickCollectPage'
 
 function App() {
   return (
@@ -250,6 +252,12 @@ function App() {
 
         {/* Rapport Patron Module */}
         <Route path="/owner" element={<OwnerReportPage />} />
+
+        {/* Livraison & Delivery Module */}
+        <Route path="/delivery" element={<DeliveryPage />} />
+
+        {/* Click & Collect Module */}
+        <Route path="/clickcollect" element={<ClickCollectPage />} />
 
         {/* Reputation Module */}
         <Route path="/reputation" element={<ReputationLayout />}>
