@@ -32,6 +32,9 @@ export type ModuleId =
   | 'autoorder'
   | 'sustainability'
   | 'community'
+  | 'status'
+  | 'changelog'
+  | 'referral'
 
 export interface ModuleDef {
   id: ModuleId
@@ -344,6 +347,36 @@ export const MODULES: ModuleDef[] = [
     path: '/community',
     available: true,
     category: 'digital',
+  },
+  {
+    id: 'status',
+    name: 'Statut système',
+    tagline: 'Uptime & incidents en temps réel',
+    color: '#10b981',
+    colorLight: '#d1fae5',
+    path: '/status',
+    available: true,
+    category: 'admin',
+  },
+  {
+    id: 'changelog',
+    name: 'Changelog',
+    tagline: 'Nouveautés & versions',
+    color: '#8b5cf6',
+    colorLight: '#ede9fe',
+    path: '/changelog',
+    available: true,
+    category: 'admin',
+  },
+  {
+    id: 'referral',
+    name: 'Parrainage',
+    tagline: 'Invitez et gagnez 100€',
+    color: '#f59e0b',
+    colorLight: '#fef3c7',
+    path: '/referral',
+    available: true,
+    category: 'business',
   },
 ]
 

@@ -121,6 +121,9 @@ import BillingPage from '@/pages/billing/BillingPage'
 import AutoOrderPage from '@/pages/autoorder/AutoOrderPage'
 import SustainabilityPage from '@/pages/sustainability/SustainabilityPage'
 import CommunityPage from '@/pages/community/CommunityPage'
+import StatusPage from '@/pages/status/StatusPage'
+import ChangelogPage from '@/pages/changelog/ChangelogPage'
+import ReferralPage from '@/pages/referral/ReferralPage'
 
 function App() {
   const location = useLocation()
@@ -296,6 +299,15 @@ function App() {
 
         {/* Communauté Creorga Module */}
         <Route path="/community" element={<CommunityPage />} />
+
+        {/* Status Page */}
+        <Route path="/status" element={<StatusPage />} />
+
+        {/* Changelog */}
+        <Route path="/changelog" element={<ChangelogPage />} />
+
+        {/* Referral Program */}
+        <Route path="/referral" element={<ReferralPage />} />
 
         {/* Reputation Module */}
         <Route path="/reputation" element={<ReputationLayout />}>
