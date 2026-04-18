@@ -1,330 +1,379 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-  Inbox, Clock, CheckCircle, AlertTriangle, Send, User,
-  MessageSquare, ArrowUp, Mail, Phone, Zap,
+  LifeBuoy, AlertTriangle, CheckCircle2, Clock, Send, Paperclip,
+  User, Mail, Phone, Building2, BookOpen,
 } from 'lucide-react';
+
+const BG = '#0a0a0f';
+const CARD = '#13131a';
+const BORDER = '#2a2a35';
+const TEXT = '#e2e8f0';
+const MUTED = '#94a3b8';
+const ACCENT = '#a78bfa';
 
 interface Ticket {
   id: string;
   client: string;
+  clientEmail: string;
+  clientPhone: string;
+  plan: string;
   subject: string;
-  priority: 'Haute' | 'Normale' | 'Basse' | 'Urgente';
-  status: 'Ouvert' | 'En cours' | 'Résolu';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: 'Nouveau' | 'En cours' | 'Attente client' | 'Résolu';
   assignee: string;
+  sla: string;
+  slaHot: boolean;
   created: string;
-  sla: number; // minutes remaining
-  messages: { from: 'client' | 'support'; text: string; time: string }[];
+  messages: { from: 'client' | 'admin'; author: string; text: string; time: string }[];
 }
 
 const TICKETS: Ticket[] = [
   {
-    id: '#4812', client: 'Café Namur', subject: 'Terminal Bluetooth ne répond plus',
-    priority: 'Urgente', status: 'Ouvert', assignee: '—', created: 'il y a 4h', sla: -120,
+    id: 'T-5012', client: 'Café Rond-Point', clientEmail: 'contact@cafe-rumelange.lu',
+    clientPhone: '+352 27 12 34 56', plan: 'Pro',
+    subject: "Impossible d'imprimer les tickets", priority: 'urgent', status: 'En cours',
+    assignee: 'Bryan L.', sla: '00:23', slaHot: true, created: '2026-04-18 10:12',
     messages: [
-      { from: 'client', text: 'Bonjour, notre terminal Bluetooth SumUp ne se connecte plus depuis ce matin. Impossible d\'encaisser les CB. Urgence !', time: '08:12' },
+      { from: 'client', author: 'Jean R.', text: "Depuis ce matin l'imprimante ne répond plus, urgence nous ouvrons à 11h30.", time: '10:12' },
+      { from: 'admin', author: 'Bryan L.', text: "Bonjour Jean, je regarde ça tout de suite. Pouvez-vous vérifier le voyant LED sur l'imprimante ?", time: '10:18' },
+      { from: 'client', author: 'Jean R.', text: 'Rouge clignotant.', time: '10:22' },
     ],
   },
-  {
-    id: '#4811', client: 'Brasserie LU', subject: 'Question sur facture INV-2026-0142',
-    priority: 'Normale', status: 'En cours', assignee: 'Sophie M.', created: 'il y a 2h', sla: 180,
-    messages: [
-      { from: 'client', text: 'Je ne comprends pas la ligne "Module Loyalty" sur ma dernière facture.', time: '10:03' },
-      { from: 'support', text: 'Bonjour, il s\'agit de votre abonnement au module Loyalty activé le 15 mars. Je vous envoie le détail par mail.', time: '10:18' },
-    ],
-  },
-  {
-    id: '#4810', client: 'Le Gourmand', subject: 'Demande nouvelle fonctionnalité — Export Excel',
-    priority: 'Basse', status: 'Ouvert', assignee: '—', created: 'hier', sla: 720,
-    messages: [
-      { from: 'client', text: 'Serait-il possible d\'exporter les stats mensuelles au format Excel natif ?', time: 'hier 16:45' },
-    ],
-  },
-  {
-    id: '#4809', client: 'Chez Marco', subject: 'Synchro stocks entre 2 sites',
-    priority: 'Haute', status: 'En cours', assignee: 'Bryan L.', created: 'hier', sla: 60,
-    messages: [
-      { from: 'client', text: 'Les stocks ne se synchronisent plus entre nos deux restaurants depuis lundi.', time: 'hier 14:22' },
-      { from: 'support', text: 'Nous avons identifié le problème côté API. Correctif déployé dans l\'heure.', time: 'hier 15:10' },
-    ],
-  },
-  {
-    id: '#4808', client: 'Pizzeria Bella', subject: 'Comment annuler mon abonnement ?',
-    priority: 'Normale', status: 'Ouvert', assignee: '—', created: 'hier', sla: 360,
-    messages: [
-      { from: 'client', text: 'Bonjour, nous souhaitons malheureusement arrêter notre abonnement fin du mois.', time: 'hier 11:08' },
-    ],
-  },
-  {
-    id: '#4807', client: 'Bar Le Coin', subject: 'Impression ticket caisse tronquée',
-    priority: 'Haute', status: 'En cours', assignee: 'Thomas K.', created: '2j', sla: 30,
-    messages: [
-      { from: 'client', text: 'Les tickets imprimés sont coupés en bas. Urgent pour comptabilité.', time: '2j 09:34' },
-    ],
-  },
+  { id: 'T-5011', client: 'Bistro Maxim', clientEmail: 'info@bistromaxim.lu', clientPhone: '+352 26 11 22 33', plan: 'Starter', subject: 'Question facturation TVA', priority: 'medium', status: 'Nouveau', assignee: 'Non assigné', sla: '03:48', slaHot: false, created: '2026-04-18 09:45', messages: [{ from: 'client', author: 'Anne B.', text: 'La TVA sur ma facture est à 16% au lieu de 17%.', time: '09:45' }] },
+  { id: 'T-5010', client: 'Pizza Napoli', clientEmail: 'napoli@mail.lu', clientPhone: '+352 26 99 88 77', plan: 'Starter', subject: 'Ajout utilisateur admin', priority: 'low', status: 'Résolu', assignee: 'Marie D.', sla: '—', slaHot: false, created: '2026-04-17 16:00', messages: [] },
+  { id: 'T-5009', client: 'Chez Marie', clientEmail: 'marie@chezmarie.fr', clientPhone: '+33 3 82 11 22 33', plan: 'Pro', subject: 'Formation module stocks', priority: 'low', status: 'En cours', assignee: 'Marie D.', sla: '12:14', slaHot: false, created: '2026-04-17 14:30', messages: [] },
+  { id: 'T-5008', client: 'Brasserie Nord', clientEmail: 'brass.nord@mail.lu', clientPhone: '+352 28 22 11 00', plan: 'Business', subject: 'Intégration Stripe échoue', priority: 'high', status: 'En cours', assignee: 'Bryan L.', sla: '01:02', slaHot: true, created: '2026-04-18 08:00', messages: [] },
+  { id: 'T-5007', client: 'Le Gourmet', clientEmail: 'info@legourmet.lu', clientPhone: '+352 27 00 11 22', plan: 'Pro', subject: 'Export Excel tronqué', priority: 'medium', status: 'Attente client', assignee: 'Bryan L.', sla: '—', slaHot: false, created: '2026-04-16 11:15', messages: [] },
+  { id: 'T-5006', client: 'Snack Corner', clientEmail: 'snack@corner.lu', clientPhone: '+352 26 55 66 77', plan: 'Starter', subject: 'Connexion impossible', priority: 'high', status: 'Résolu', assignee: 'Bryan L.', sla: '—', slaHot: false, created: '2026-04-16 09:22', messages: [] },
+  { id: 'T-5005', client: 'Café Central', clientEmail: 'cafe@central.lu', clientPhone: '+352 27 33 44 55', plan: 'Starter', subject: 'Changer plan', priority: 'low', status: 'Nouveau', assignee: 'Non assigné', sla: '04:22', slaHot: false, created: '2026-04-18 08:30', messages: [] },
+  { id: 'T-5004', client: 'Taverne du Parc', clientEmail: 'parc@taverne.lu', clientPhone: '+352 26 77 88 99', plan: 'Pro', subject: 'Module marketing — prix', priority: 'low', status: 'Nouveau', assignee: 'Non assigné', sla: '05:10', slaHot: false, created: '2026-04-18 07:55', messages: [] },
+  { id: 'T-5003', client: 'La Fourchette', clientEmail: 'f@fourchette.lu', clientPhone: '+352 27 55 44 33', plan: 'Pro', subject: 'QR menu affichage mobile', priority: 'medium', status: 'En cours', assignee: 'Marie D.', sla: '02:30', slaHot: false, created: '2026-04-17 18:42', messages: [] },
+  { id: 'T-5002', client: 'Le Petit Coin', clientEmail: 'petit@coin.lu', clientPhone: '+352 26 00 99 88', plan: 'Starter', subject: 'Demande de remboursement', priority: 'high', status: 'En cours', assignee: 'Bryan L.', sla: '00:45', slaHot: true, created: '2026-04-18 09:00', messages: [] },
+  { id: 'T-5001', client: 'Chez Antoine', clientEmail: 'antoine@resto.fr', clientPhone: '+33 3 87 00 11 22', plan: 'Pro', subject: 'Bug calcul pourboire', priority: 'medium', status: 'En cours', assignee: 'Marie D.', sla: '03:15', slaHot: false, created: '2026-04-17 17:10', messages: [] },
+  { id: 'T-5000', client: 'Bar du Port', clientEmail: 'port@bar.be', clientPhone: '+32 4 11 22 33 44', plan: 'Starter', subject: 'Commande matériel', priority: 'low', status: 'Résolu', assignee: 'Marie D.', sla: '—', slaHot: false, created: '2026-04-16 13:33', messages: [] },
+  { id: 'T-4999', client: 'Brasserie Est', clientEmail: 'est@brass.de', clientPhone: '+49 6 81 22 33 44', plan: 'Business', subject: 'Question conformité RGPD', priority: 'medium', status: 'Nouveau', assignee: 'Non assigné', sla: '02:20', slaHot: false, created: '2026-04-18 10:30', messages: [] },
+  { id: 'T-4998', client: 'Café des Arts', clientEmail: 'arts@cafe.lu', clientPhone: '+352 26 11 00 99', plan: 'Pro', subject: 'Mise à jour menu bug', priority: 'low', status: 'Résolu', assignee: 'Bryan L.', sla: '—', slaHot: false, created: '2026-04-16 10:10', messages: [] },
+  { id: 'T-4997', client: 'Le Refuge', clientEmail: 'r@refuge.lu', clientPhone: '+352 27 22 11 00', plan: 'Pro', subject: 'Impression ticket coupé', priority: 'medium', status: 'En cours', assignee: 'Bryan L.', sla: '04:05', slaHot: false, created: '2026-04-17 20:00', messages: [] },
+  { id: 'T-4996', client: 'Chez Pierre', clientEmail: 'p@chezpierre.fr', clientPhone: '+33 3 82 44 55 66', plan: 'Starter', subject: 'Changer email admin', priority: 'low', status: 'Résolu', assignee: 'Marie D.', sla: '—', slaHot: false, created: '2026-04-16 15:22', messages: [] },
+  { id: 'T-4995', client: 'La Terrasse', clientEmail: 'terrasse@mail.lu', clientPhone: '+352 26 33 44 55', plan: 'Pro', subject: 'Comment configurer happy hour', priority: 'low', status: 'Résolu', assignee: 'Marie D.', sla: '—', slaHot: false, created: '2026-04-16 11:00', messages: [] },
+  { id: 'T-4994', client: 'Bistrot 22', clientEmail: 'bistrot22@lu.lu', clientPhone: '+352 27 99 88 77', plan: 'Starter', subject: 'Reset mot de passe', priority: 'medium', status: 'Résolu', assignee: 'Bryan L.', sla: '—', slaHot: false, created: '2026-04-17 08:00', messages: [] },
+  { id: 'T-4993', client: 'Pizza Express', clientEmail: 'pizza@express.lu', clientPhone: '+352 26 88 77 66', plan: 'Starter', subject: 'Demande devis Pro', priority: 'low', status: 'Nouveau', assignee: 'Non assigné', sla: '06:00', slaHot: false, created: '2026-04-18 06:45', messages: [] },
 ];
 
-const TEMPLATES = [
-  { label: 'Accusé réception', text: 'Bonjour, nous avons bien reçu votre demande et nous nous en occupons. Réponse sous 2h.' },
-  { label: 'Demande de précisions', text: 'Bonjour, pouvez-vous nous préciser sur quel appareil vous rencontrez ce problème ?' },
-  { label: 'Problème résolu', text: 'Bonjour, le problème est résolu. N\'hésitez pas si besoin. Bonne journée !' },
-  { label: 'Escalation tech', text: 'Nous avons transmis votre demande à notre équipe technique. Réponse sous 24h.' },
+const cannedResponses = [
+  { name: 'Accueil', text: 'Bonjour, merci pour votre message. Je prends en charge votre demande immédiatement.' },
+  { name: "Demande d'info", text: "Pourriez-vous nous préciser la version du POS ainsi qu'une capture d'écran de l'erreur ?" },
+  { name: 'Ticket résolu', text: 'Votre problème est résolu. Pouvez-vous confirmer de votre côté ? Excellente journée !' },
+  { name: 'Escalade', text: "Votre demande nécessite l'attention d'un ingénieur. Un retour sous 2h ouvrées." },
 ];
-
-const STATS = {
-  open: TICKETS.filter(t => t.status === 'Ouvert').length,
-  inProgress: TICKETS.filter(t => t.status === 'En cours').length,
-  resolvedToday: 8,
-  avgResponse: '42min',
-};
 
 export default function SupportPage() {
-  const [selected, setSelected] = useState<Ticket>(TICKETS[0]);
+  const [selected, setSelected] = useState<Ticket | null>(TICKETS[0]);
   const [reply, setReply] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('Tous');
+  const [filter, setFilter] = useState<string>('all');
 
-  const list = TICKETS.filter(t => statusFilter === 'Tous' || t.status === statusFilter);
+  const filtered = TICKETS.filter((t) => filter === 'all' || t.status === filter);
+
+  const stats = {
+    open: TICKETS.filter((t) => t.status === 'Nouveau').length,
+    progress: TICKETS.filter((t) => t.status === 'En cours').length,
+    resolved: TICKETS.filter((t) => t.status === 'Résolu').length,
+    avg: '1h42',
+  };
 
   return (
-    <div style={{ padding: 32 }}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ margin: '0 0 6px', fontSize: 26, fontWeight: 700, color: '#e2e8f0' }}>Support client</h1>
-        <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
-          {STATS.open + STATS.inProgress} tickets actifs · {STATS.resolvedToday} résolus aujourd'hui · Temps moyen {STATS.avgResponse}
-        </p>
-      </div>
+    <div style={{ padding: '32px 40px', background: BG, minHeight: '100vh', color: TEXT }}>
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: 20 }}>
+        <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>Support</h1>
+        <p style={{ margin: '6px 0 0', color: MUTED, fontSize: 14 }}>File d'attente et conversations</p>
+      </motion.div>
 
-      {/* KPI cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 20 }}>
-        <KPI label="Ouverts" value={STATS.open} icon={Inbox} color="#f87171" onClick={() => setStatusFilter('Ouvert')} />
-        <KPI label="En cours" value={STATS.inProgress} icon={Clock} color="#fbbf24" onClick={() => setStatusFilter('En cours')} />
-        <KPI label="Résolus aujourd'hui" value={STATS.resolvedToday} icon={CheckCircle} color="#4ade80" onClick={() => setStatusFilter('Résolu')} />
-        <KPI label="Temps de réponse" value={STATS.avgResponse} icon={Zap} color="#a78bfa" />
+        <StatCard label="Nouveaux" value={stats.open} icon={AlertTriangle} color="#f59e0b" />
+        <StatCard label="En cours" value={stats.progress} icon={Clock} color="#3b82f6" />
+        <StatCard label="Résolus aujourd'hui" value={stats.resolved} icon={CheckCircle2} color="#10b981" />
+        <StatCard label="Temps moyen réponse" value={stats.avg} icon={LifeBuoy} color={ACCENT} />
       </div>
 
       <div style={{
-        display: 'grid', gridTemplateColumns: '360px 1fr 280px', gap: 16,
-        height: 'calc(100vh - 320px)', minHeight: 520,
+        display: 'grid', gridTemplateColumns: '400px 1fr 320px', gap: 16,
+        height: 'calc(100vh - 280px)', minHeight: 500,
       }}>
-        {/* Ticket list */}
         <div style={{
-          background: '#13131a', border: '1px solid #2a2a35', borderRadius: 12,
+          background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12,
           overflow: 'hidden', display: 'flex', flexDirection: 'column',
         }}>
-          <div style={{ padding: 14, borderBottom: '1px solid #2a2a35', display: 'flex', gap: 6 }}>
-            {['Tous', 'Ouvert', 'En cours', 'Résolu'].map(s => (
-              <button key={s} onClick={() => setStatusFilter(s)} style={{
-                padding: '6px 10px', background: statusFilter === s ? 'rgba(167,139,250,0.15)' : '#0a0a0f',
-                border: `1px solid ${statusFilter === s ? '#a78bfa' : '#2a2a35'}`,
-                color: statusFilter === s ? '#a78bfa' : '#94a3b8',
-                borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-              }}>{s}</button>
-            ))}
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {list.map(t => (
-              <motion.button
-                key={t.id}
-                onClick={() => setSelected(t)}
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          <div style={{ padding: 12, borderBottom: `1px solid ${BORDER}`, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {['all', 'Nouveau', 'En cours', 'Résolu'].map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
                 style={{
-                  width: '100%', padding: 14, textAlign: 'left',
-                  background: selected.id === t.id ? 'rgba(167,139,250,0.1)' : 'transparent',
-                  border: 'none', borderLeft: selected.id === t.id ? '3px solid #a78bfa' : '3px solid transparent',
-                  borderBottom: '1px solid #2a2a35', cursor: 'pointer', color: '#e2e8f0',
+                  background: filter === f ? 'rgba(167,139,250,0.15)' : 'transparent',
+                  color: filter === f ? ACCENT : MUTED,
+                  border: `1px solid ${filter === f ? ACCENT : BORDER}`,
+                  padding: '5px 10px', borderRadius: 6, fontSize: 11,
+                  cursor: 'pointer', fontWeight: 600,
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, fontFamily: 'monospace', color: '#a78bfa' }}>{t.id}</span>
-                  <PriorityBadge p={t.priority} />
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', marginBottom: 3 }}>{t.client}</div>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {t.subject}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b' }}>
-                  <span>{t.created}</span>
-                  <span style={{ color: t.sla < 0 ? '#f87171' : t.sla < 60 ? '#fbbf24' : '#94a3b8' }}>
-                    SLA: {t.sla < 0 ? `dépassé ${Math.abs(t.sla)}min` : `${t.sla}min restantes`}
-                  </span>
-                </div>
-              </motion.button>
+                {f === 'all' ? 'Tous' : f}
+              </button>
+            ))}
+          </div>
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {filtered.map((t) => (
+              <TicketRow
+                key={t.id}
+                ticket={t}
+                active={selected?.id === t.id}
+                onClick={() => setSelected(t)}
+              />
             ))}
           </div>
         </div>
 
-        {/* Conversation */}
         <div style={{
-          background: '#13131a', border: '1px solid #2a2a35', borderRadius: 12,
+          background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12,
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}>
-          <div style={{ padding: 16, borderBottom: '1px solid #2a2a35' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {selected ? (
+            <>
+              <div style={{ padding: 16, borderBottom: `1px solid ${BORDER}` }}>
+                <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>{selected.id}</div>
+                <h3 style={{ margin: 0, fontSize: 16 }}>{selected.subject}</h3>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                  <PriorityBadge priority={selected.priority} />
+                  <StatusBadge status={selected.status} />
+                  {selected.slaHot && (
+                    <span style={{
+                      background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444',
+                      padding: '2px 8px', borderRadius: 5, fontSize: 10, fontWeight: 700,
+                      display: 'flex', alignItems: 'center', gap: 3,
+                    }}>
+                      <AlertTriangle size={10} /> SLA {selected.sla}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+                {selected.messages.length === 0 ? (
+                  <div style={{ color: MUTED, textAlign: 'center', padding: 40 }}>Aucun message encore.</div>
+                ) : (
+                  selected.messages.map((m, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        marginBottom: 14,
+                        display: 'flex',
+                        justifyContent: m.from === 'admin' ? 'flex-end' : 'flex-start',
+                      }}
+                    >
+                      <div style={{
+                        maxWidth: '78%',
+                        background: m.from === 'admin' ? 'rgba(167,139,250,0.15)' : BG,
+                        border: `1px solid ${m.from === 'admin' ? ACCENT + '40' : BORDER}`,
+                        borderRadius: 10, padding: 12,
+                      }}>
+                        <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>
+                          {m.author} • {m.time}
+                        </div>
+                        <div style={{ fontSize: 13 }}>{m.text}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div style={{ padding: 14, borderTop: `1px solid ${BORDER}` }}>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                  {cannedResponses.map((c) => (
+                    <button
+                      key={c.name}
+                      onClick={() => setReply(c.text)}
+                      style={{
+                        background: BG, border: `1px solid ${BORDER}`, color: MUTED,
+                        padding: '4px 8px', borderRadius: 5, fontSize: 10,
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                      }}
+                    >
+                      <BookOpen size={10} /> {c.name}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                  <textarea
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                    placeholder="Votre réponse..."
+                    rows={2}
+                    style={{
+                      flex: 1, background: BG, border: `1px solid ${BORDER}`,
+                      borderRadius: 7, color: TEXT, padding: 10, fontSize: 13,
+                      resize: 'none', fontFamily: 'inherit',
+                    }}
+                  />
+                  <button style={{
+                    background: 'transparent', border: `1px solid ${BORDER}`,
+                    color: MUTED, padding: 9, borderRadius: 7, cursor: 'pointer',
+                  }}><Paperclip size={14} /></button>
+                  <button
+                    onClick={() => setReply('')}
+                    style={{
+                      background: ACCENT, border: 'none', color: '#fff',
+                      padding: '9px 14px', borderRadius: 7, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600,
+                    }}
+                  >
+                    <Send size={13} /> Envoyer
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={{ padding: 40, color: MUTED, textAlign: 'center' }}>
+              Sélectionnez un ticket à gauche
+            </div>
+          )}
+        </div>
+
+        {selected && (
+          <div style={{
+            background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12,
+            padding: 18, overflow: 'auto',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+              <div style={{
+                width: 48, height: 48, borderRadius: 12,
+                background: 'linear-gradient(135deg, #a78bfa, #7c3aed)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 700, color: '#fff', fontSize: 16,
+              }}>{selected.client.slice(0, 2).toUpperCase()}</div>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#e2e8f0' }}>{selected.subject}</div>
-                <div style={{ fontSize: 12, color: '#94a3b8' }}>{selected.id} · {selected.client} · Assigné à {selected.assignee}</div>
-              </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button style={iconBtn} title="Escalader"><ArrowUp size={14} /></button>
-                <button style={iconBtn} title="Marquer résolu"><CheckCircle size={14} /></button>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{selected.client}</div>
+                <div style={{ fontSize: 11, color: MUTED }}>{selected.plan}</div>
               </div>
             </div>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <AnimatePresence>
-              {selected.messages.map((m, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                  style={{
-                    alignSelf: m.from === 'support' ? 'flex-end' : 'flex-start',
-                    maxWidth: '80%',
-                    background: m.from === 'support' ? 'linear-gradient(135deg, #a78bfa, #7c3aed)' : '#0a0a0f',
-                    color: m.from === 'support' ? '#fff' : '#e2e8f0',
-                    padding: '10px 14px', borderRadius: 10, fontSize: 13, lineHeight: 1.5,
-                    border: m.from === 'client' ? '1px solid #2a2a35' : 'none',
-                  }}
-                >
-                  <div style={{ marginBottom: 4 }}>{m.text}</div>
-                  <div style={{ fontSize: 10, opacity: 0.7 }}>{m.time}</div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-          <div style={{ padding: 14, borderTop: '1px solid #2a2a35' }}>
-            <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
-              {TEMPLATES.map(t => (
-                <button key={t.label} onClick={() => setReply(t.text)} style={{
-                  padding: '4px 8px', background: '#0a0a0f', border: '1px solid #2a2a35',
-                  borderRadius: 4, color: '#94a3b8', fontSize: 10, cursor: 'pointer',
-                }}>{t.label}</button>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                value={reply} onChange={e => setReply(e.target.value)}
-                placeholder="Écrire une réponse..."
-                style={{
-                  flex: 1, padding: '10px 12px', background: '#0a0a0f',
-                  border: '1px solid #2a2a35', borderRadius: 8,
-                  color: '#e2e8f0', fontSize: 13, outline: 'none',
-                }}
-              />
-              <button
-                onClick={() => { setReply(''); alert('Réponse envoyée (mock)'); }}
-                style={{
-                  background: 'linear-gradient(135deg, #a78bfa, #7c3aed)',
-                  color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 8,
-                  fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 6,
-                }}
-              >
-                <Send size={14} /> Envoyer
-              </button>
-            </div>
-          </div>
-        </div>
 
-        {/* Client sidebar */}
-        <div style={{
-          background: '#13131a', border: '1px solid #2a2a35', borderRadius: 12,
-          padding: 16, overflowY: 'auto',
-        }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
-            paddingBottom: 14, borderBottom: '1px solid #2a2a35',
-          }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #a78bfa, #7c3aed)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#fff', fontWeight: 700, fontSize: 18,
-            }}>{selected.client.charAt(0)}</div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>{selected.client}</div>
-              <div style={{ fontSize: 11, color: '#94a3b8' }}>Client Pro · Depuis 2025</div>
+            <SideRow icon={Mail} label="Email" value={selected.clientEmail} />
+            <SideRow icon={Phone} label="Téléphone" value={selected.clientPhone} />
+            <SideRow icon={Building2} label="Plan" value={selected.plan} />
+            <SideRow icon={User} label="Assigné à" value={selected.assignee} />
+            <SideRow icon={Clock} label="Créé" value={selected.created} />
+
+            <div style={{ marginTop: 18, paddingTop: 18, borderTop: `1px solid ${BORDER}` }}>
+              <div style={{ fontSize: 12, color: MUTED, marginBottom: 10 }}>Actions rapides</div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                <button style={sideBtn}>Voir le client</button>
+                <button style={sideBtn}>Impersonnifier</button>
+                <button style={sideBtn}>Assigner à...</button>
+                <button style={{ ...sideBtn, color: '#10b981', borderColor: '#10b98140' }}>Marquer résolu</button>
+              </div>
             </div>
           </div>
-
-          <SideRow label="Plan" value="Pro" />
-          <SideRow label="MRR" value="129 €" />
-          <SideRow label="Tickets ouverts" value="1" />
-          <SideRow label="Tickets total" value="7" />
-          <SideRow label="NPS" value="+8" color="#4ade80" />
-          <SideRow label="Statut paiement" value="À jour" color="#4ade80" />
-
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #2a2a35', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <button style={sideBtn}><Mail size={13} /> Envoyer email direct</button>
-            <button style={sideBtn}><Phone size={13} /> Appeler</button>
-            <button style={sideBtn}><User size={13} /> Voir fiche client</button>
-          </div>
-
-          <div style={{
-            marginTop: 16, padding: 12, background: 'rgba(167,139,250,0.08)',
-            border: '1px solid rgba(167,139,250,0.3)', borderRadius: 8,
-          }}>
-            <div style={{ fontSize: 11, color: '#a78bfa', fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <AlertTriangle size={11} /> Règle d'escalation
-            </div>
-            <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>
-              Si SLA dépassé &gt; 1h, notifier Bryan L. automatiquement.
-            </div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
-function KPI({ label, value, icon: Icon, color, onClick }: any) {
+function TicketRow({ ticket, active, onClick }: { ticket: Ticket; active: boolean; onClick: () => void }) {
   return (
-    <div onClick={onClick} style={{
-      background: '#13131a', border: '1px solid #2a2a35', borderRadius: 12, padding: 18,
-      cursor: onClick ? 'pointer' : 'default',
-    }}>
-      <div style={{
-        width: 36, height: 36, borderRadius: 8, marginBottom: 10,
-        background: `${color}22`, display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-      }}>
-        <Icon size={18} color={color} />
+    <button
+      onClick={onClick}
+      style={{
+        width: '100%', textAlign: 'left', background: active ? 'rgba(167,139,250,0.08)' : 'transparent',
+        border: 'none', borderBottom: `1px solid ${BORDER}`, borderLeft: active ? `3px solid ${ACCENT}` : '3px solid transparent',
+        padding: '12px 14px', cursor: 'pointer', color: TEXT,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <span style={{ fontSize: 11, color: MUTED }}>{ticket.id}</span>
+        <PriorityBadge priority={ticket.priority} />
       </div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0' }}>{value}</div>
-      <div style={{ fontSize: 12, color: '#94a3b8' }}>{label}</div>
-    </div>
+      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 3 }}>{ticket.client}</div>
+      <div style={{ fontSize: 12, color: MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {ticket.subject}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 10, color: MUTED }}>
+        <span>{ticket.assignee}</span>
+        {ticket.sla !== '—' && (
+          <span style={{ color: ticket.slaHot ? '#ef4444' : MUTED, fontWeight: 600 }}>
+            SLA {ticket.sla}
+          </span>
+        )}
+      </div>
+    </button>
   );
 }
 
-function PriorityBadge({ p }: { p: string }) {
-  const C: Record<string, string> = { Urgente: '#f87171', Haute: '#fb923c', Normale: '#60a5fa', Basse: '#94a3b8' };
+function PriorityBadge({ priority }: { priority: string }) {
+  const map: Record<string, { c: string; l: string }> = {
+    low: { c: '#64748b', l: 'Basse' },
+    medium: { c: '#3b82f6', l: 'Moyenne' },
+    high: { c: '#f59e0b', l: 'Haute' },
+    urgent: { c: '#ef4444', l: 'Urgent' },
+  };
+  const p = map[priority];
   return (
     <span style={{
-      fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
-      background: `${C[p]}22`, color: C[p],
-    }}>{p}</span>
+      background: `${p.c}26`, color: p.c, padding: '2px 8px',
+      borderRadius: 4, fontSize: 10, fontWeight: 700,
+    }}>{p.l}</span>
   );
 }
 
-function SideRow({ label, value, color = '#e2e8f0' }: any) {
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    'Nouveau': '#f59e0b',
+    'En cours': '#3b82f6',
+    'Attente client': '#94a3b8',
+    'Résolu': '#10b981',
+  };
+  const c = map[status] || MUTED;
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 12 }}>
-      <span style={{ color: '#94a3b8' }}>{label}</span>
-      <span style={{ color, fontWeight: 600 }}>{value}</span>
+    <span style={{
+      background: `${c}26`, color: c, padding: '2px 8px',
+      borderRadius: 4, fontSize: 10, fontWeight: 700,
+    }}>{status}</span>
+  );
+}
+
+function StatCard({ label, value, icon: Icon, color }: any) {
+  return (
+    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 12, color: MUTED, marginBottom: 6 }}>{label}</div>
+          <div style={{ fontSize: 24, fontWeight: 700 }}>{value}</div>
+        </div>
+        <div style={{
+          width: 36, height: 36, borderRadius: 9,
+          background: `${color}20`, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Icon size={18} color={color} />
+        </div>
+      </div>
     </div>
   );
 }
 
-const iconBtn: React.CSSProperties = {
-  width: 30, height: 30, borderRadius: 6,
-  background: '#0a0a0f', border: '1px solid #2a2a35',
-  color: '#94a3b8', cursor: 'pointer',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-};
+function SideRow({ icon: Icon, label, value }: any) {
+  return (
+    <div style={{ display: 'flex', gap: 10, padding: '8px 0', fontSize: 12, alignItems: 'center' }}>
+      <Icon size={14} color={MUTED} />
+      <div style={{ flex: 1 }}>
+        <div style={{ color: MUTED, fontSize: 10 }}>{label}</div>
+        <div style={{ color: TEXT }}>{value}</div>
+      </div>
+    </div>
+  );
+}
 
 const sideBtn: React.CSSProperties = {
-  width: '100%', padding: '8px 10px',
-  background: '#0a0a0f', border: '1px solid #2a2a35',
-  color: '#e2e8f0', borderRadius: 6,
-  fontSize: 12, cursor: 'pointer',
-  display: 'flex', alignItems: 'center', gap: 8,
+  background: BG, border: `1px solid ${BORDER}`, color: TEXT,
+  padding: '8px 12px', borderRadius: 6, cursor: 'pointer',
+  fontSize: 12, fontWeight: 500, textAlign: 'left',
 };

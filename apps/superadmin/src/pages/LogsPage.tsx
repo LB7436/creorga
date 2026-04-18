@@ -1,220 +1,299 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-  AlertTriangle, AlertCircle, Info, XCircle, Search,
-  Shield, CreditCard, LogIn, Bug, Download,
+  ShieldAlert, AlertCircle, CreditCard, Lock,
+  Search, Download, Bell, Filter,
 } from 'lucide-react';
 
+const BG = '#0a0a0f';
+const CARD = '#13131a';
+const BORDER = '#2a2a35';
+const TEXT = '#e2e8f0';
+const MUTED = '#94a3b8';
+const ACCENT = '#a78bfa';
+
 type Severity = 'info' | 'warn' | 'error' | 'critical';
-type Category = 'Auth' | 'API' | 'Paiement' | 'Sécurité' | 'Système';
-
 interface LogEntry {
-  id: string;
-  time: string;
+  timestamp: string;
+  client: string;
+  event: string;
   severity: Severity;
-  category: Category;
-  client?: string;
-  message: string;
-  ip?: string;
+  details: string;
 }
 
-function genLogs(): LogEntry[] {
-  const now = new Date();
-  const out: LogEntry[] = [];
-  const templates: [Category, Severity, string][] = [
-    ['Auth', 'info', 'Connexion réussie'],
-    ['Auth', 'warn', 'Tentative de connexion échouée (mauvais mot de passe)'],
-    ['Auth', 'error', '5 tentatives échouées consécutives — compte temporairement bloqué'],
-    ['Auth', 'info', 'Déconnexion'],
-    ['API', 'error', 'Timeout sur endpoint /api/orders (>5s)'],
-    ['API', 'warn', 'Rate limit proche du seuil (450/500 req/min)'],
-    ['API', 'info', 'Déploiement v2.14.3 effectué avec succès'],
-    ['API', 'error', 'Exception non gérée : TypeError in orders.service.ts:142'],
-    ['Paiement', 'info', 'Paiement reçu 129 €'],
-    ['Paiement', 'error', 'Échec de paiement — carte expirée'],
-    ['Paiement', 'warn', 'Paiement nécessite authentification 3DS'],
-    ['Paiement', 'critical', 'Dispute ouverte par client Visa •••• 4242'],
-    ['Sécurité', 'critical', 'Activité suspecte détectée : 20 connexions depuis 20 IPs différentes'],
-    ['Sécurité', 'warn', 'Accès API depuis IP non autorisée (blockée)'],
-    ['Sécurité', 'error', 'Token JWT expiré présenté 12 fois'],
-    ['Système', 'info', 'Backup DB terminé (4.2 GB)'],
-    ['Système', 'warn', 'Utilisation CPU > 80% pendant 5min'],
-    ['Système', 'info', 'Cache Redis purgé'],
-  ];
-  const clients = ['Brasserie LU', 'Le Gourmand', 'Chez Marco', 'Café Central', 'Pizzeria Bella', null];
-  const ips = ['85.93.118.42', '194.154.200.11', '89.212.44.89', '213.208.160.22', '185.22.144.67'];
-  for (let i = 0; i < 120; i++) {
-    const [cat, sev, msg] = templates[Math.floor(Math.random() * templates.length)];
-    const t = new Date(now.getTime() - i * 1000 * 60 * Math.random() * 30);
-    out.push({
-      id: `log_${(1_000_000 - i).toString(36)}`,
-      time: t.toLocaleString('fr-FR'),
-      severity: sev, category: cat, message: msg,
-      client: clients[Math.floor(Math.random() * clients.length)] || undefined,
-      ip: cat === 'Auth' || cat === 'Sécurité' ? ips[Math.floor(Math.random() * ips.length)] : undefined,
-    });
-  }
-  return out;
+const clients = ['Café Rond-Point', 'Bistro Maxim', 'Chez Marie', 'Brasserie Nord', 'Pizza Napoli', 'Le Gourmet', 'Snack Corner', 'Café Central', 'Taverne du Parc'];
+
+function gen(type: string, count: number): LogEntry[] {
+  const eventsMap: Record<string, { event: string; details: string; sev: Severity }[]> = {
+    auth: [
+      { event: 'login_success', details: 'Connexion réussie depuis 91.214.xx.xx', sev: 'info' },
+      { event: 'login_failed', details: 'Mot de passe incorrect', sev: 'warn' },
+      { event: 'password_reset', details: 'Email de reset envoyé', sev: 'info' },
+      { event: 'logout', details: 'Session terminée', sev: 'info' },
+      { event: '2fa_bypass_attempt', details: 'Tentative contournement 2FA', sev: 'critical' },
+      { event: 'account_locked', details: '5 échecs consécutifs', sev: 'error' },
+    ],
+    api: [
+      { event: 'endpoint_error', details: '/api/orders a répondu 500', sev: 'error' },
+      { event: 'rate_limit', details: 'Rate limit dépassé (429)', sev: 'warn' },
+      { event: 'validation_error', details: 'Payload invalide POST /menu', sev: 'warn' },
+      { event: 'timeout', details: 'Timeout 30s sur /reports/generate', sev: 'error' },
+      { event: 'db_connection_lost', details: 'Pool DB épuisé', sev: 'critical' },
+    ],
+    payments: [
+      { event: 'charge_success', details: 'Facture payée 149€', sev: 'info' },
+      { event: 'charge_failed', details: 'Carte refusée (insufficient_funds)', sev: 'error' },
+      { event: 'refund_issued', details: 'Remboursement 49€', sev: 'info' },
+      { event: 'webhook_failed', details: 'Stripe webhook 500', sev: 'warn' },
+      { event: 'dispute_opened', details: 'Chargeback ouvert', sev: 'critical' },
+    ],
+    security: [
+      { event: 'suspicious_ip', details: 'Connexion depuis IP blacklistée', sev: 'critical' },
+      { event: 'bruteforce_detected', details: '50+ tentatives en 2 min', sev: 'critical' },
+      { event: 'admin_privilege_granted', details: 'Nouveau super-admin ajouté', sev: 'warn' },
+      { event: 'csrf_token_invalid', details: 'Token CSRF invalide', sev: 'error' },
+      { event: 'unauthorized_scope', details: 'Accès non autorisé à /admin', sev: 'error' },
+    ],
+  };
+  const list = eventsMap[type];
+  return Array.from({ length: count }).map((_, i) => {
+    const e = list[i % list.length];
+    const d = new Date(Date.now() - i * 1000 * 60 * (((i * 7) % 45) + 2));
+    return {
+      timestamp: d.toISOString().replace('T', ' ').slice(0, 19),
+      client: clients[i % clients.length],
+      event: e.event,
+      severity: e.sev,
+      details: e.details,
+    };
+  });
 }
 
-const LOGS = genLogs();
-
-const SEV_CONFIG: Record<Severity, { color: string; icon: any; label: string }> = {
-  info: { color: '#60a5fa', icon: Info, label: 'INFO' },
-  warn: { color: '#fbbf24', icon: AlertTriangle, label: 'WARN' },
-  error: { color: '#f87171', icon: XCircle, label: 'ERROR' },
-  critical: { color: '#dc2626', icon: AlertCircle, label: 'CRITICAL' },
+const LOGS = {
+  auth: gen('auth', 50),
+  api: gen('api', 50),
+  payments: gen('payments', 50),
+  security: gen('security', 50),
 };
 
-const CAT_ICONS: Record<Category, any> = {
-  Auth: LogIn, API: Bug, Paiement: CreditCard, Sécurité: Shield, Système: Info,
-};
+const TABS = [
+  { key: 'auth', label: 'Authentification', icon: Lock },
+  { key: 'api', label: 'API / Erreurs', icon: AlertCircle },
+  { key: 'payments', label: 'Paiements', icon: CreditCard },
+  { key: 'security', label: 'Sécurité', icon: ShieldAlert },
+] as const;
 
 export default function LogsPage() {
-  const [q, setQ] = useState('');
-  const [sevFilter, setSevFilter] = useState<Severity | ''>('');
-  const [catFilter, setCatFilter] = useState<Category | ''>('');
+  const [tab, setTab] = useState<'auth' | 'api' | 'payments' | 'security'>('auth');
+  const [severity, setSeverity] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const [showAlerts, setShowAlerts] = useState(false);
 
-  const filtered = useMemo(() => LOGS.filter(l =>
-    (!q || l.message.toLowerCase().includes(q.toLowerCase()) || l.client?.toLowerCase().includes(q.toLowerCase())) &&
-    (!sevFilter || l.severity === sevFilter) &&
-    (!catFilter || l.category === catFilter)
-  ), [q, sevFilter, catFilter]);
+  const filtered = useMemo(() => {
+    return LOGS[tab].filter((l) => {
+      if (severity !== 'all' && l.severity !== severity) return false;
+      if (search && !`${l.event} ${l.client} ${l.details}`.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    });
+  }, [tab, severity, search]);
 
-  const stats = {
-    info: LOGS.filter(l => l.severity === 'info').length,
-    warn: LOGS.filter(l => l.severity === 'warn').length,
-    error: LOGS.filter(l => l.severity === 'error').length,
-    critical: LOGS.filter(l => l.severity === 'critical').length,
+  const counts = {
+    info: LOGS[tab].filter((l) => l.severity === 'info').length,
+    warn: LOGS[tab].filter((l) => l.severity === 'warn').length,
+    error: LOGS[tab].filter((l) => l.severity === 'error').length,
+    critical: LOGS[tab].filter((l) => l.severity === 'critical').length,
   };
 
   return (
-    <div style={{ padding: 32 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+    <div style={{ padding: '32px 40px', background: BG, minHeight: '100vh', color: TEXT }}>
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ margin: '0 0 6px', fontSize: 26, fontWeight: 700, color: '#e2e8f0' }}>Logs Système</h1>
-          <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
-            {LOGS.length} événements · Temps réel · Rétention 90 jours
+          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>Logs système</h1>
+          <p style={{ margin: '6px 0 0', color: MUTED, fontSize: 14 }}>
+            Événements authentification, API, paiements et sécurité
           </p>
         </div>
-        <button style={{
-          background: '#13131a', border: '1px solid #2a2a35', color: '#e2e8f0',
-          padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', gap: 6,
-        }}>
-          <Download size={14} /> Exporter
-        </button>
-      </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={() => setShowAlerts(!showAlerts)} style={btnSec}>
+            <Bell size={14} /> Alertes
+          </button>
+          <button style={btnSec}><Download size={14} /> Exporter</button>
+        </div>
+      </motion.div>
 
-      {/* Severity stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 20 }}>
-        {(['info', 'warn', 'error', 'critical'] as Severity[]).map(s => {
-          const c = SEV_CONFIG[s];
-          const active = sevFilter === s;
-          return (
-            <button
-              key={s}
-              onClick={() => setSevFilter(active ? '' : s)}
-              style={{
-                background: '#13131a', textAlign: 'left',
-                border: `1px solid ${active ? c.color : '#2a2a35'}`,
-                borderRadius: 12, padding: 18, cursor: 'pointer',
-              }}
-            >
-              <div style={{
-                width: 36, height: 36, borderRadius: 8, marginBottom: 10,
-                background: `${c.color}22`, display: 'flex',
-                alignItems: 'center', justifyContent: 'center',
-              }}>
-                <c.icon size={18} color={c.color} />
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0' }}>{stats[s]}</div>
-              <div style={{ fontSize: 12, color: '#94a3b8' }}>{c.label}</div>
-            </button>
-          );
-        })}
-      </div>
+      {showAlerts && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          style={{
+            background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12,
+            padding: 20, marginBottom: 20, overflow: 'hidden',
+          }}
+        >
+          <h3 style={{ margin: '0 0 14px', fontSize: 15 }}>Seuils d'alerte</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+            <AlertThreshold label="Erreurs API / minute" value="> 10" />
+            <AlertThreshold label="Logins échoués / heure" value="> 50" />
+            <AlertThreshold label="Paiements échoués / jour" value="> 5" />
+            <AlertThreshold label="IPs suspectes" value="> 3" />
+          </div>
+        </motion.div>
+      )}
 
-      {/* Filters */}
       <div style={{
-        background: '#13131a', border: '1px solid #2a2a35', borderRadius: 12,
-        padding: 14, marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap',
+        display: 'flex', gap: 4, borderBottom: `1px solid ${BORDER}`, marginBottom: 20,
       }}>
-        <div style={{ position: 'relative', flex: '1 1 280px' }}>
-          <Search size={14} style={{ position: 'absolute', left: 10, top: 10, color: '#64748b' }} />
-          <input
-            value={q} onChange={e => setQ(e.target.value)}
-            placeholder="Rechercher dans les logs..."
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
             style={{
-              width: '100%', padding: '8px 12px 8px 32px',
-              background: '#0a0a0f', border: '1px solid #2a2a35',
-              borderRadius: 6, color: '#e2e8f0', fontSize: 13, outline: 'none',
+              background: 'transparent', border: 'none',
+              padding: '12px 18px', cursor: 'pointer',
+              color: tab === t.key ? ACCENT : MUTED,
+              borderBottom: `2px solid ${tab === t.key ? ACCENT : 'transparent'}`,
+              fontSize: 13, fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 8,
+              marginBottom: -1,
             }}
-          />
-        </div>
-        <select value={catFilter} onChange={e => setCatFilter(e.target.value as Category | '')} style={{
-          padding: '8px 12px', background: '#0a0a0f', border: '1px solid #2a2a35',
-          borderRadius: 6, color: '#e2e8f0', fontSize: 13, outline: 'none', cursor: 'pointer',
-        }}>
-          <option value="">Toutes catégories</option>
-          {['Auth', 'API', 'Paiement', 'Sécurité', 'Système'].map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <button onClick={() => { setQ(''); setSevFilter(''); setCatFilter(''); }} style={{
-          background: 'transparent', border: '1px solid #2a2a35', color: '#94a3b8',
-          padding: '8px 14px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
-        }}>Réinitialiser</button>
+          >
+            <t.icon size={14} /> {t.label}
+          </button>
+        ))}
       </div>
 
-      {/* Logs feed */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+        <SeverityPill label="Info" value={counts.info} color="#3b82f6" onClick={() => setSeverity('info')} />
+        <SeverityPill label="Warnings" value={counts.warn} color="#f59e0b" onClick={() => setSeverity('warn')} />
+        <SeverityPill label="Erreurs" value={counts.error} color="#ef4444" onClick={() => setSeverity('error')} />
+        <SeverityPill label="Critiques" value={counts.critical} color="#dc2626" onClick={() => setSeverity('critical')} />
+      </div>
+
       <div style={{
-        background: '#13131a', border: '1px solid #2a2a35',
-        borderRadius: 12, overflow: 'hidden',
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10,
+        padding: 10, display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16,
       }}>
-        <div style={{ padding: '10px 14px', background: '#0f0f16', borderBottom: '1px solid #2a2a35', fontSize: 11, color: '#64748b' }}>
-          {filtered.length} résultats — stream live ⚡
+        <Search size={14} color={MUTED} />
+        <input
+          placeholder="Rechercher un événement, client, détail..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{
+            flex: 1, background: 'transparent', border: 'none',
+            color: TEXT, fontSize: 13, outline: 'none',
+          }}
+        />
+        <select
+          value={severity}
+          onChange={(e) => setSeverity(e.target.value)}
+          style={{
+            background: BG, border: `1px solid ${BORDER}`, color: TEXT,
+            padding: '6px 10px', borderRadius: 6, fontSize: 12,
+          }}
+        >
+          <option value="all">Toutes sévérités</option>
+          <option value="info">Info</option>
+          <option value="warn">Warning</option>
+          <option value="error">Erreur</option>
+          <option value="critical">Critique</option>
+        </select>
+      </div>
+
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead style={{ position: 'sticky', top: 0, background: CARD, zIndex: 1 }}>
+              <tr style={{ color: MUTED, textAlign: 'left', borderBottom: `1px solid ${BORDER}` }}>
+                <th style={thStyle}>Horodatage</th>
+                <th style={thStyle}>Sévérité</th>
+                <th style={thStyle}>Client</th>
+                <th style={thStyle}>Événement</th>
+                <th style={thStyle}>Détails</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((l, i) => (
+                <tr key={i} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                  <td style={{ ...tdStyle, fontFamily: 'monospace', color: MUTED, whiteSpace: 'nowrap' }}>{l.timestamp}</td>
+                  <td style={tdStyle}><SeverityBadge sev={l.severity} /></td>
+                  <td style={{ ...tdStyle, fontWeight: 500 }}>{l.client}</td>
+                  <td style={{ ...tdStyle, fontFamily: 'monospace', color: ACCENT }}>{l.event}</td>
+                  <td style={{ ...tdStyle, color: MUTED }}>{l.details}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <div style={{ maxHeight: 640, overflowY: 'auto' }}>
-          {filtered.slice(0, 80).map((l, i) => {
-            const cfg = SEV_CONFIG[l.severity];
-            const CatIcon = CAT_ICONS[l.category];
-            return (
-              <motion.div
-                key={l.id}
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                transition={{ delay: Math.min(i * 0.01, 0.25) }}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '140px 80px 110px 1fr 140px 140px',
-                  gap: 12, padding: '10px 14px',
-                  borderBottom: '1px solid #1e1e28',
-                  fontSize: 12, alignItems: 'center',
-                }}
-              >
-                <span style={{ color: '#64748b' }}>{l.time}</span>
-                <span style={{
-                  color: cfg.color, fontWeight: 700,
-                  background: `${cfg.color}15`, padding: '2px 6px',
-                  borderRadius: 3, textAlign: 'center', fontSize: 10,
-                }}>{cfg.label}</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#94a3b8' }}>
-                  <CatIcon size={11} /> {l.category}
-                </span>
-                <span style={{ color: '#e2e8f0' }}>{l.message}</span>
-                <span style={{ color: '#a78bfa', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {l.client || '—'}
-                </span>
-                <span style={{ color: '#64748b', fontSize: 11 }}>{l.ip || '—'}</span>
-              </motion.div>
-            );
-          })}
-          {filtered.length === 0 && (
-            <div style={{ padding: 40, textAlign: 'center', color: '#64748b', fontFamily: 'sans-serif' }}>
-              Aucun log ne correspond aux filtres.
-            </div>
-          )}
+        <div style={{ padding: 10, borderTop: `1px solid ${BORDER}`, fontSize: 11, color: MUTED, textAlign: 'center' }}>
+          {filtered.length} événements affichés
         </div>
       </div>
     </div>
   );
 }
+
+function SeverityBadge({ sev }: { sev: Severity }) {
+  const map = {
+    info: { c: '#3b82f6', l: 'INFO' },
+    warn: { c: '#f59e0b', l: 'WARN' },
+    error: { c: '#ef4444', l: 'ERROR' },
+    critical: { c: '#dc2626', l: 'CRITIQUE' },
+  };
+  const s = map[sev];
+  return (
+    <span style={{
+      background: `${s.c}26`, color: s.c, padding: '2px 7px',
+      borderRadius: 4, fontSize: 10, fontWeight: 700,
+      fontFamily: 'monospace',
+    }}>{s.l}</span>
+  );
+}
+
+function SeverityPill({ label, value, color, onClick }: any) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: CARD, border: `1px solid ${BORDER}`, borderLeft: `3px solid ${color}`,
+        padding: 12, borderRadius: 8, cursor: 'pointer', color: TEXT,
+        textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}
+    >
+      <div>
+        <div style={{ fontSize: 11, color: MUTED }}>{label}</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
+      </div>
+      <Filter size={14} color={MUTED} />
+    </button>
+  );
+}
+
+function AlertThreshold({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{
+      padding: 12, background: BG, borderRadius: 8,
+      border: `1px solid ${BORDER}`, display: 'flex',
+      justifyContent: 'space-between', alignItems: 'center',
+    }}>
+      <div style={{ fontSize: 12 }}>{label}</div>
+      <input
+        defaultValue={value}
+        style={{
+          background: CARD, border: `1px solid ${BORDER}`,
+          color: ACCENT, padding: '4px 8px', borderRadius: 5,
+          fontSize: 12, width: 80, textAlign: 'center',
+          fontWeight: 600,
+        }}
+      />
+    </div>
+  );
+}
+
+const thStyle: React.CSSProperties = { padding: '10px 12px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' };
+const tdStyle: React.CSSProperties = { padding: '10px 12px' };
+const btnSec: React.CSSProperties = {
+  background: CARD, border: `1px solid ${BORDER}`, color: TEXT,
+  padding: '9px 14px', borderRadius: 7, cursor: 'pointer',
+  fontSize: 13, fontWeight: 600, display: 'inline-flex',
+  alignItems: 'center', gap: 6,
+};

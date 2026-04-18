@@ -1,258 +1,313 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell,
+  TrendingUp, TrendingDown, AlertTriangle, Download, FileSpreadsheet,
+  BarChart3, Users,
+} from 'lucide-react';
+import {
+  BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { Download, TrendingUp, AlertTriangle, FileSpreadsheet } from 'lucide-react';
 
-const COHORTS = [
-  { month: 'Oct 25', m0: 100, m1: 92, m2: 88, m3: 86, m4: 84, m5: 82, m6: 81 },
-  { month: 'Nov 25', m0: 100, m1: 94, m2: 90, m3: 87, m4: 85, m5: 83, m6: null },
-  { month: 'Déc 25', m0: 100, m1: 91, m2: 86, m3: 84, m4: 82, m5: null, m6: null },
-  { month: 'Jan 26', m0: 100, m1: 95, m2: 91, m3: 89, m4: null, m5: null, m6: null },
-  { month: 'Fév 26', m0: 100, m1: 93, m2: 89, m3: null, m4: null, m5: null, m6: null },
-  { month: 'Mar 26', m0: 100, m1: 96, m2: null, m3: null, m4: null, m5: null, m6: null },
-  { month: 'Avr 26', m0: 100, m1: null, m2: null, m3: null, m4: null, m5: null, m6: null },
+const BG = '#0a0a0f';
+const CARD = '#13131a';
+const BORDER = '#2a2a35';
+const TEXT = '#e2e8f0';
+const MUTED = '#94a3b8';
+const ACCENT = '#a78bfa';
+
+const cohortData = [
+  { cohort: 'Oct 2025', size: 12, r: [100, 92, 83, 83, 75, 75, 67] },
+  { cohort: 'Nov 2025', size: 18, r: [100, 89, 83, 78, 78, 72, 72] },
+  { cohort: 'Déc 2025', size: 23, r: [100, 91, 87, 78, 74, 70] },
+  { cohort: 'Jan 2026', size: 27, r: [100, 93, 85, 81, 74] },
+  { cohort: 'Fév 2026', size: 31, r: [100, 90, 84, 77] },
+  { cohort: 'Mar 2026', size: 38, r: [100, 92, 87] },
+  { cohort: 'Avr 2026', size: 29, r: [100, 93] },
 ];
 
-const FUNNEL = [
-  { step: 'Signup', count: 420, pct: 100 },
-  { step: 'Trial activé', count: 312, pct: 74 },
-  { step: 'Payant', count: 178, pct: 42 },
-  { step: 'Actif 30j', count: 162, pct: 39 },
-  { step: 'Expansion', count: 48, pct: 11 },
+const funnelSteps = [
+  { label: 'Signups', value: 1000, color: '#a78bfa' },
+  { label: 'Trial démarré', value: 650, color: '#8b5cf6' },
+  { label: 'Payant', value: 127, color: '#7c3aed' },
+  { label: 'Actif (30j)', value: 119, color: '#6d28d9' },
+  { label: 'Expansion', value: 43, color: '#5b21b6' },
 ];
 
-const HEATMAP_MODULES = [
-  { name: 'POS Caisse', Starter: 95, Pro: 98, Business: 99, Enterprise: 100 },
-  { name: 'Réservations', Starter: 42, Pro: 78, Business: 91, Enterprise: 96 },
-  { name: 'Loyalty', Starter: 18, Pro: 54, Business: 82, Enterprise: 94 },
-  { name: 'Delivery', Starter: 12, Pro: 48, Business: 74, Enterprise: 89 },
-  { name: 'Stocks', Starter: 28, Pro: 61, Business: 85, Enterprise: 93 },
-  { name: 'AI Assistant', Starter: 4, Pro: 18, Business: 42, Enterprise: 78 },
-  { name: 'Multi-sites', Starter: 0, Pro: 8, Business: 52, Enterprise: 91 },
+const featureUsageHeatmap = [
+  'POS', 'Stocks', 'Menu', 'Analytique', 'Personnel', 'Marketing', 'Compta',
+  'Tables', 'Commandes', 'Livraison', 'Clients', 'Fidélité', 'Planning', 'Réservations',
+  'Promotions', 'Fournisseurs', 'Rapports', 'TVA', 'Happy Hour', 'QR Menu',
+  'Click & Collect', 'Caisse X/Z', 'Pourboires', 'Tickets', 'Formation', 'API', 'Multi-sites',
 ];
 
-const REVENUE_PLAN = [
-  { name: 'Starter', value: 1470, color: '#64748b' },
-  { name: 'Pro', value: 4902, color: '#60a5fa' },
-  { name: 'Business', value: 4335, color: '#a78bfa' },
-  { name: 'Enterprise', value: 1797, color: '#f472b6' },
+const planRevenue = [
+  { name: 'Starter', value: 2450, color: '#3b82f6' },
+  { name: 'Pro', value: 7890, color: '#a78bfa' },
+  { name: 'Business', value: 1890, color: '#8b5cf6' },
+  { name: 'Enterprise', value: 220, color: '#ec4899' },
 ];
 
-const CHURN_PRED = [
-  { name: 'Pizzeria Bella', risk: 87, reason: 'Usage -60%, pas de connexion 14j' },
-  { name: 'Bar Le Coin', risk: 72, reason: 'Tickets support x3, aucune résolution' },
-  { name: 'Resto Panorama', risk: 68, reason: 'Paiement en retard 30j+' },
-  { name: 'Café Namur', risk: 54, reason: 'NPS passé de 9 à 4' },
-  { name: 'Le Jardin Secret', risk: 48, reason: 'Désactivation modules' },
+const countryRevenue = [
+  { name: 'LU', value: 8420 },
+  { name: 'FR', value: 2340 },
+  { name: 'BE', value: 1120 },
+  { name: 'DE', value: 570 },
 ];
 
-function Card({ title, children, action }: any) {
+const churnRisk = [
+  { client: 'Bistro Maxim', score: 87, reason: 'Aucune connexion 14j', mrr: 149 },
+  { client: 'Chez Marie', score: 82, reason: 'Ticket support non résolu', mrr: 99 },
+  { client: 'Brasserie Nord', score: 76, reason: 'Utilisation -45% sur 30j', mrr: 149 },
+  { client: 'Pizza Napoli', score: 71, reason: 'Impayé 15j', mrr: 49 },
+  { client: 'Le Gourmet', score: 68, reason: 'Plan trop grand', mrr: 149 },
+  { client: 'Snack Corner', score: 64, reason: 'Modules inutilisés', mrr: 99 },
+  { client: 'Café Central', score: 61, reason: 'Pas de nouveaux users', mrr: 49 },
+  { client: 'Taverne du Parc', score: 58, reason: 'Baisse de CA', mrr: 149 },
+];
+
+export default function AnalyticsPage() {
+  const [period, setPeriod] = useState('12m');
+
   return (
-    <div style={{
-      background: '#13131a', border: '1px solid #2a2a35',
-      borderRadius: 12, padding: 20,
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e2e8f0' }}>{title}</h3>
-        {action}
+    <div style={{ padding: '32px 40px', background: BG, minHeight: '100vh', color: TEXT }}>
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}
+      >
+        <div>
+          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>Analytiques SaaS</h1>
+          <p style={{ margin: '6px 0 0', color: MUTED, fontSize: 14 }}>
+            Cohortes, funnel, churn, et santé globale du SaaS
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+            style={{
+              background: CARD, border: `1px solid ${BORDER}`, color: TEXT,
+              padding: '9px 14px', borderRadius: 7, fontSize: 13, cursor: 'pointer',
+            }}
+          >
+            <option value="3m">3 mois</option>
+            <option value="6m">6 mois</option>
+            <option value="12m">12 mois</option>
+          </select>
+          <button style={btnSec}><Download size={14} /> CSV</button>
+          <button style={btnSec}><FileSpreadsheet size={14} /> Excel</button>
+        </div>
+      </motion.div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
+        <Kpi label="Conversion Trial→Paid" value="19.5%" delta="+2.3%" up icon={TrendingUp} />
+        <Kpi label="Rétention M3" value="86%" delta="+1.1%" up icon={Users} />
+        <Kpi label="Churn mensuel" value="2.8%" delta="-0.4%" up icon={TrendingDown} />
+        <Kpi label="LTV" value="2 340€" delta="+180€" up icon={BarChart3} />
       </div>
+
+      <Card title="Funnel de conversion">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {funnelSteps.map((s, i) => {
+            const pct = (s.value / funnelSteps[0].value) * 100;
+            const convFromPrev = i > 0 ? ((s.value / funnelSteps[i - 1].value) * 100).toFixed(1) : '100';
+            return (
+              <motion.div
+                key={s.label}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.08 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 14 }}
+              >
+                <div style={{ minWidth: 140, fontSize: 13, fontWeight: 600 }}>{s.label}</div>
+                <div style={{ flex: 1, height: 40, background: BG, borderRadius: 8, overflow: 'hidden', position: 'relative' }}>
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${pct}%` }}
+                    transition={{ duration: 0.8, delay: i * 0.08 }}
+                    style={{
+                      height: '100%', background: `linear-gradient(90deg, ${s.color}, ${s.color}aa)`,
+                      display: 'flex', alignItems: 'center', paddingLeft: 14, color: '#fff',
+                      fontWeight: 700, fontSize: 13,
+                    }}
+                  >
+                    {s.value.toLocaleString()}
+                  </motion.div>
+                </div>
+                <div style={{ minWidth: 100, textAlign: 'right', fontSize: 12, color: MUTED }}>
+                  {convFromPrev}%
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card title="Matrice de rétention (cohortes)" style={{ marginTop: 20 }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 3, fontSize: 12 }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left', padding: 6, color: MUTED, fontWeight: 500 }}>Cohorte</th>
+                <th style={{ textAlign: 'left', padding: 6, color: MUTED, fontWeight: 500 }}>N</th>
+                {Array.from({ length: 7 }).map((_, i) => (
+                  <th key={i} style={{ textAlign: 'center', padding: 6, color: MUTED, fontWeight: 500 }}>M{i}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {cohortData.map((c) => (
+                <tr key={c.cohort}>
+                  <td style={{ padding: 6, fontWeight: 600 }}>{c.cohort}</td>
+                  <td style={{ padding: 6, color: MUTED }}>{c.size}</td>
+                  {c.r.map((v, i) => (
+                    <td key={i} style={{ padding: 0 }}>
+                      <div style={{
+                        background: `rgba(167, 139, 250, ${v / 100})`,
+                        padding: '10px 6px', borderRadius: 5,
+                        textAlign: 'center', color: v > 60 ? '#fff' : TEXT,
+                        fontWeight: 600,
+                      }}>{v}%</div>
+                    </td>
+                  ))}
+                  {Array.from({ length: 7 - c.r.length }).map((_, i) => (
+                    <td key={`e${i}`} style={{ padding: 0 }}>
+                      <div style={{ padding: '10px 6px', background: BG, borderRadius: 5 }}></div>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card title="Heatmap usage modules (7 derniers jours)" style={{ marginTop: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '140px repeat(7, 1fr)', gap: 4 }}>
+          <div></div>
+          {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => (
+            <div key={i} style={{ textAlign: 'center', fontSize: 11, color: MUTED, fontWeight: 600 }}>{d}</div>
+          ))}
+          {featureUsageHeatmap.map((m, mi) => (
+            <HeatmapRow key={m} name={m} seed={mi} />
+          ))}
+        </div>
+      </Card>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 20 }}>
+        <Card title="Revenu par plan">
+          <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+              <Pie data={planRevenue} dataKey="value" nameKey="name" innerRadius={55} outerRadius={95} paddingAngle={2}>
+                {planRevenue.map((p) => <Cell key={p.name} fill={p.color} />)}
+              </Pie>
+              <Tooltip contentStyle={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8 }} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </Card>
+
+        <Card title="Revenu par pays">
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={countryRevenue} layout="vertical">
+              <CartesianGrid stroke={BORDER} strokeDasharray="3 3" />
+              <XAxis type="number" stroke={MUTED} fontSize={11} />
+              <YAxis dataKey="name" type="category" stroke={MUTED} fontSize={11} />
+              <Tooltip contentStyle={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8 }} />
+              <Bar dataKey="value" fill={ACCENT} radius={[0, 6, 6, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+      </div>
+
+      <Card title="Clients à risque de churn" style={{ marginTop: 20 }}>
+        <div style={{ display: 'grid', gap: 8 }}>
+          {churnRisk.map((c, i) => (
+            <motion.div
+              key={c.client}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.04 }}
+              style={{
+                padding: 14, background: BG, borderRadius: 8,
+                border: `1px solid ${BORDER}`, display: 'grid',
+                gridTemplateColumns: '40px 1fr auto auto auto', gap: 14,
+                alignItems: 'center',
+              }}
+            >
+              <AlertTriangle size={20} color={c.score > 75 ? '#ef4444' : c.score > 60 ? '#f59e0b' : '#facc15'} />
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{c.client}</div>
+                <div style={{ fontSize: 12, color: MUTED }}>{c.reason}</div>
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#ef4444' }}>{c.score}/100</div>
+              <div style={{ fontSize: 13, color: MUTED }}>{c.mrr}€/mo</div>
+              <button style={btnSec}>Agir</button>
+            </motion.div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function HeatmapRow({ name, seed }: { name: string; seed: number }) {
+  return (
+    <>
+      <div style={{ fontSize: 11, padding: '4px 0' }}>{name}</div>
+      {Array.from({ length: 7 }).map((_, d) => {
+        const intensity = ((Math.sin(seed * 7 + d * 13) + 1) / 2) * 0.85 + 0.12;
+        return (
+          <div
+            key={d}
+            style={{
+              height: 20, borderRadius: 3,
+              background: `rgba(167, 139, 250, ${intensity})`,
+            }}
+            title={`${name} j${d + 1}: ${Math.round(intensity * 100)}%`}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function Kpi({ label, value, delta, up, icon: Icon }: any) {
+  return (
+    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 12, color: MUTED, marginBottom: 6 }}>{label}</div>
+          <div style={{ fontSize: 24, fontWeight: 700 }}>{value}</div>
+          <div style={{ fontSize: 12, color: up ? '#10b981' : '#ef4444', marginTop: 4, fontWeight: 600 }}>
+            {delta}
+          </div>
+        </div>
+        <div style={{
+          width: 36, height: 36, borderRadius: 9,
+          background: 'rgba(167, 139, 250, 0.15)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Icon size={18} color={ACCENT} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Card({ title, children, style }: any) {
+  return (
+    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 20, ...style }}>
+      {title && <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 700 }}>{title}</h3>}
       {children}
     </div>
   );
 }
 
-function retentionColor(v: number | null): string {
-  if (v === null) return 'transparent';
-  if (v >= 90) return 'rgba(74, 222, 128, 0.35)';
-  if (v >= 80) return 'rgba(167, 139, 250, 0.35)';
-  if (v >= 70) return 'rgba(251, 191, 36, 0.3)';
-  return 'rgba(248, 113, 113, 0.3)';
-}
-
-function heatColor(v: number): string {
-  if (v >= 80) return 'rgba(74, 222, 128, 0.4)';
-  if (v >= 50) return 'rgba(167, 139, 250, 0.4)';
-  if (v >= 20) return 'rgba(251, 191, 36, 0.3)';
-  return 'rgba(248, 113, 113, 0.2)';
-}
-
-export default function AnalyticsPage() {
-  return (
-    <div style={{ padding: 32 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ margin: '0 0 6px', fontSize: 26, fontWeight: 700, color: '#e2e8f0' }}>Analytiques avancées</h1>
-          <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>Cohortes, funnels, prédictions churn — tous les KPIs business</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button style={actBtn}><Download size={14} /> CSV</button>
-          <button style={actBtn}><FileSpreadsheet size={14} /> Excel</button>
-        </div>
-      </div>
-
-      {/* Cohort analysis */}
-      <Card title="Analyse de cohortes · Rétention mensuelle" action={<span style={{ fontSize: 11, color: '#94a3b8' }}>% clients actifs N mois après inscription</span>}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'left', padding: 8, color: '#64748b', fontWeight: 600 }}>COHORTE</th>
-                {['M0', 'M+1', 'M+2', 'M+3', 'M+4', 'M+5', 'M+6'].map(l => (
-                  <th key={l} style={{ padding: 8, color: '#64748b', fontWeight: 600 }}>{l}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {COHORTS.map(c => (
-                <tr key={c.month}>
-                  <td style={{ padding: 8, color: '#e2e8f0', fontWeight: 600 }}>{c.month}</td>
-                  {[c.m0, c.m1, c.m2, c.m3, c.m4, c.m5, c.m6].map((v, i) => (
-                    <td key={i} style={{ padding: 4 }}>
-                      <div style={{
-                        padding: '10px 6px', textAlign: 'center',
-                        background: retentionColor(v), borderRadius: 4,
-                        color: v ? '#e2e8f0' : 'transparent',
-                        fontWeight: 600,
-                      }}>{v ?? '—'}%</div>
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, margin: '20px 0' }}>
-        {/* Funnel */}
-        <Card title="Funnel de conversion">
-          {FUNNEL.map((f, i) => (
-            <motion.div
-              key={f.step}
-              initial={{ opacity: 0, x: -12 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.1 }}
-              style={{ marginBottom: 14 }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{f.step}</span>
-                <span style={{ color: '#94a3b8' }}>{f.count} ({f.pct}%)</span>
-              </div>
-              <div style={{ height: 28, background: '#0a0a0f', borderRadius: 6, overflow: 'hidden', position: 'relative' }}>
-                <motion.div
-                  initial={{ width: 0 }} animate={{ width: `${f.pct}%` }}
-                  transition={{ delay: i * 0.1 + 0.1, duration: 0.6 }}
-                  style={{
-                    height: '100%',
-                    background: `linear-gradient(90deg, #a78bfa ${f.pct - 20}%, #7c3aed)`,
-                  }}
-                />
-              </div>
-            </motion.div>
-          ))}
-        </Card>
-
-        {/* Revenue by plan */}
-        <Card title="Revenu par plan (MRR)">
-          <ResponsiveContainer width="100%" height={240}>
-            <PieChart>
-              <Pie data={REVENUE_PLAN} dataKey="value" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={2}>
-                {REVENUE_PLAN.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}
-              </Pie>
-              <Tooltip contentStyle={{ background: '#13131a', border: '1px solid #2a2a35', borderRadius: 8 }} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
-            {REVENUE_PLAN.map(r => (
-              <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#e2e8f0' }}>
-                <div style={{ width: 10, height: 10, borderRadius: 2, background: r.color }} />
-                {r.name} — {r.value} €
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      {/* Feature usage heatmap */}
-      <Card title="Heatmap d'usage des modules (% adoption par plan)">
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'left', padding: 8, color: '#64748b', fontWeight: 600 }}>MODULE</th>
-                {['Starter', 'Pro', 'Business', 'Enterprise'].map(p => (
-                  <th key={p} style={{ padding: 8, color: '#64748b', fontWeight: 600 }}>{p.toUpperCase()}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {HEATMAP_MODULES.map(m => (
-                <tr key={m.name}>
-                  <td style={{ padding: 8, color: '#e2e8f0', fontWeight: 600 }}>{m.name}</td>
-                  {(['Starter', 'Pro', 'Business', 'Enterprise'] as const).map(p => (
-                    <td key={p} style={{ padding: 4 }}>
-                      <div style={{
-                        padding: '10px 6px', textAlign: 'center',
-                        background: heatColor(m[p]), borderRadius: 4,
-                        color: '#e2e8f0', fontWeight: 600,
-                      }}>{m[p]}%</div>
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 20 }}>
-        <Card title="Prédiction de churn (ML)" action={<span style={{ fontSize: 11, color: '#f87171', display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={12} /> {CHURN_PRED.length} à risque</span>}>
-          {CHURN_PRED.map((c, i) => (
-            <div key={i} style={{
-              padding: 12, borderBottom: i < CHURN_PRED.length - 1 ? '1px solid #2a2a35' : 'none',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 600 }}>{c.name}</span>
-                <span style={{
-                  fontSize: 11, fontWeight: 700, color: c.risk > 70 ? '#f87171' : '#fbbf24',
-                  background: c.risk > 70 ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
-                  padding: '2px 8px', borderRadius: 4,
-                }}>Risque {c.risk}%</span>
-              </div>
-              <div style={{ fontSize: 11, color: '#94a3b8' }}>{c.reason}</div>
-              <div style={{ height: 4, background: '#0a0a0f', borderRadius: 2, marginTop: 6, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${c.risk}%`, background: c.risk > 70 ? '#f87171' : '#fbbf24' }} />
-              </div>
-            </div>
-          ))}
-        </Card>
-
-        <Card title="Revenu par taille de client">
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={[
-              { size: '1 site', rev: 4200, count: 72 },
-              { size: '2-5 sites', rev: 5800, count: 38 },
-              { size: '6-10 sites', rev: 1900, count: 12 },
-              { size: '10+ sites', rev: 550, count: 5 },
-            ]}>
-              <CartesianGrid stroke="#2a2a35" strokeDasharray="3 3" />
-              <XAxis dataKey="size" stroke="#64748b" style={{ fontSize: 11 }} />
-              <YAxis stroke="#64748b" style={{ fontSize: 11 }} />
-              <Tooltip contentStyle={{ background: '#13131a', border: '1px solid #2a2a35', borderRadius: 8 }} />
-              <Bar dataKey="rev" fill="#a78bfa" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-const actBtn: React.CSSProperties = {
-  background: '#13131a', border: '1px solid #2a2a35',
-  color: '#e2e8f0', padding: '8px 14px', borderRadius: 8,
-  fontSize: 12, fontWeight: 600, cursor: 'pointer',
-  display: 'flex', alignItems: 'center', gap: 6,
+const btnSec: React.CSSProperties = {
+  background: CARD, border: `1px solid ${BORDER}`, color: TEXT,
+  padding: '9px 14px', borderRadius: 7, cursor: 'pointer',
+  fontSize: 13, fontWeight: 600, display: 'inline-flex',
+  alignItems: 'center', gap: 6,
 };
