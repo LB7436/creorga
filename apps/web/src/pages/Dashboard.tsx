@@ -12,6 +12,8 @@ import {
   Mic, Sparkles, Plus, X, Settings, Cloud, CloudRain, Sun,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
+import { useSocketEvent } from '@/hooks/useSocket'
+import { toastInfo, toastSuccess } from '@/lib/toast'
 
 /* ─────────────────────── MOCK DATA ─────────────────────── */
 
@@ -412,6 +414,43 @@ export default function Dashboard() {
     return () => clearInterval(t)
   }, [])
 
+  // ── Realtime order notifications ──────────────────────────────
+  const [realtimeOrders, setRealtimeOrders] = useState<typeof liveOrders>([])
+
+  useSocketEvent<{ id: number | string; table?: string; total?: number; items?: number }>(
+    'order:new',
+    (data) => {
+      toastSuccess(`Nouvelle commande reçue${data?.table ? ` — ${data.table}` : ''}`)
+      setRealtimeOrders((prev) => {
+        const incoming = {
+          id: Number(data?.id) || Date.now(),
+          table: data?.table ?? 'Table ?',
+          items: data?.items ?? 1,
+          total: data?.total ?? 0,
+          elapsed: 0,
+          status: 'En préparation',
+        }
+        return [incoming, ...prev].slice(0, 10)
+      })
+    },
+  )
+
+  useSocketEvent<{ id: number | string; status?: string }>('order:updated', (data) => {
+    if (data?.status) toastInfo(`Commande #${data.id} — ${data.status}`)
+    setRealtimeOrders((prev) =>
+      prev.map((o) =>
+        String(o.id) === String(data?.id) && data?.status
+          ? { ...o, status: data.status as string }
+          : o,
+      ),
+    )
+  })
+
+  // Merge realtime orders with mock list for display (realtime first).
+  const ordersToDisplay = realtimeOrders.length > 0
+    ? [...realtimeOrders, ...liveOrders].slice(0, 8)
+    : liveOrders
+
   const greeting = now.getHours() < 12 ? 'Bonjour' : now.getHours() < 18 ? 'Bon après-midi' : 'Bonsoir'
   const firstName = user?.firstName ?? 'Admin'
 
@@ -649,7 +688,7 @@ export default function Dashboard() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {liveOrders.map((o) => {
+                {ordersToDisplay.map((o) => {
                   const sc = statusColor(o.status)
                   return (
                     <div key={o.id} style={{
