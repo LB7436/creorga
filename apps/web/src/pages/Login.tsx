@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/stores/authStore'
+import api from '@/lib/api'
 
 const loginSchema = z.object({
   email: z.string().email('Adresse email invalide'),
@@ -80,31 +81,22 @@ export default function Login() {
     formState: { errors, isSubmitting },
   } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: 'demo@creorga.lu', password: 'demo' },
+    defaultValues: { email: 'admin@creorga.local', password: 'Admin1234!' },
   })
 
-  const onSubmit = async (_data: LoginForm) => {
-    await new Promise((r) => setTimeout(r, 900))
+  const onSubmit = async (data: LoginForm) => {
     try {
-      setAuth({
-        accessToken: 'dev-bypass-token',
-        refreshToken: 'dev-bypass-refresh',
-        user: {
-          id: 'dev-user',
-          email: _data.email,
-          firstName: 'Marc',
-          lastName: 'Weber',
-          role: 'ADMIN',
-        } as unknown as never,
-        company: {
-          id: 'dev-co',
-          name: 'Café um Rond-Point',
-        } as unknown as never,
-      } as never)
-      toast.success('Connexion réussie')
+      const res = await api.post('/auth/login', {
+        email: data.email,
+        password: data.password,
+      })
+      const { accessToken, user, companies } = res.data
+      setAuth({ accessToken, user, companies })
+      toast.success(`Bienvenue ${user.firstName} !`)
       navigate('/welcome')
-    } catch {
-      toast.error('Erreur de connexion')
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || 'Identifiants incorrects'
+      toast.error(msg)
     }
   }
 
