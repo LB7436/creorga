@@ -1,19 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import Slots from './Slots'
+import Blackjack from './Blackjack'
+import Roulette from './Roulette'
+import Tetris from './Tetris'
+import Demineur from './Demineur'
+import Poker from './Poker'
+import Sueca from './Sueca'
 
 /**
  * Game launcher — fullscreen modal hosting playable games.
  * Mobile-first: touch controls, responsive canvas, no scroll.
  *
  * Games included (real, playable):
- *   - morpion   (Tic-tac-toe — vs CPU)
- *   - snake     (classic Snake — touch swipe + arrow keys)
- *   - 2048      (slide tiles to merge)
- *   - memory    (flip cards, find pairs)
- *   - pong      (paddle vs CPU)
- *   - puissance4 (Connect 4 vs CPU)
- *   - quiz      (5 random questions)
- *   - flechettes (target throwing)
+ *   - morpion / snake / 2048 / memory / pong / puissance4 / quiz / flechettes (in this file)
+ *   - slots / blackjack / roulette / tetris / demineur / poker / sueca (separate files)
  *
  * All other game IDs fall back to "Coming soon".
  */
@@ -72,6 +73,13 @@ function getTitle(id: string): string {
     quiz: '❓ Quiz',
     flechettes: '🎯 Fléchettes',
     darts: '🎯 Fléchettes',
+    slots: '🎰 Slots Premium',
+    blackjack: '🂡 Blackjack',
+    roulette: '🎡 Roulette',
+    tetris: '🟦 Tetris',
+    demineur: '💣 Démineur',
+    poker: '♠ Poker 5-card',
+    sueca: '🇵🇹 Sueca',
   }
   return t[id] || '🎮 ' + id
 }
@@ -87,6 +95,14 @@ function pickGame(id: string): React.FC<{ accent: string }> {
     case 'quiz':       return Quiz
     case 'flechettes':
     case 'darts':      return Flechettes
+    case 'slots':      return Slots
+    case 'blackjack':  return Blackjack
+    case 'roulette':   return Roulette
+    case 'tetris':     return Tetris
+    case 'demineur':   return Demineur
+    case 'poker':      return Poker
+    case 'sueca':
+    case 'skoopa':     return Sueca
     default:           return ComingSoon
   }
 }

@@ -9,34 +9,32 @@ import GameLauncher from '../games/GameLauncher'
  */
 
 const ALL_GAMES = [
-  { id: 'morpion',    name: 'Morpion',     emoji: '⭕', desc: 'Tic-tac-toe vs CPU',     playable: true  },
+  // Casino premium
+  { id: 'slots',      name: 'Slots',       emoji: '🎰', desc: '3 reels, jackpot ×100',  playable: true  },
+  { id: 'blackjack',  name: 'Blackjack',   emoji: '🂡', desc: '21 ou rien',             playable: true  },
+  { id: 'roulette',   name: 'Roulette',    emoji: '🎡', desc: 'Européenne 0-36',        playable: true  },
+  { id: 'poker',      name: 'Poker',       emoji: '♠', desc: '5-card draw',             playable: true  },
+  // Cartes
+  { id: 'sueca',      name: 'Sueca',       emoji: '🇵🇹', desc: 'Skoopa portugaise',     playable: true  },
+  // Arcade
+  { id: 'tetris',     name: 'Tetris',      emoji: '🟦', desc: 'Lignes complètes',       playable: true  },
+  { id: 'demineur',   name: 'Démineur',    emoji: '💣', desc: 'Bombes et logique',      playable: true  },
   { id: 'snake',      name: 'Snake',       emoji: '🐍', desc: 'Le serpent culte',       playable: true  },
   { id: '2048',       name: '2048',        emoji: '🔢', desc: 'Glissez et fusionnez',   playable: true  },
-  { id: 'memory',     name: 'Memory',      emoji: '🧠', desc: 'Paires de cartes',       playable: true  },
-  { id: 'pong',       name: 'Pong',        emoji: '🏓', desc: 'Le pong original',       playable: true  },
+  { id: 'pong',       name: 'Pong',        emoji: '🏓', desc: 'Paddle vs CPU',          playable: true  },
+  // Réflexion
+  { id: 'morpion',    name: 'Morpion',     emoji: '⭕', desc: 'Tic-tac-toe vs CPU',     playable: true  },
   { id: 'puissance4', name: 'Puissance 4', emoji: '🔵', desc: 'Aligner 4 jetons',       playable: true  },
+  { id: 'memory',     name: 'Memory',      emoji: '🧠', desc: 'Paires de cartes',       playable: true  },
   { id: 'quiz',       name: 'Quiz',        emoji: '❓', desc: 'Culture générale',       playable: true  },
   { id: 'darts',      name: 'Fléchettes',  emoji: '🎯', desc: 'Visez le centre',        playable: true  },
-  { id: 'echecs',     name: 'Échecs',      emoji: '♟', desc: 'Le classique stratégique', playable: false },
-  { id: 'solitaire',  name: 'Solitaire',   emoji: '🃏', desc: 'Cartes en solo',         playable: false },
-  { id: 'blackjack',  name: 'Blackjack',   emoji: '🂡', desc: '21 ou rien',             playable: false },
-  { id: 'demineur',   name: 'Démineur',    emoji: '💣', desc: 'Bombes et logique',      playable: false },
-  { id: 'bingo',      name: 'Bingo',       emoji: '🎱', desc: 'Cartons et hasard',      playable: false },
-  { id: 'simon',      name: 'Simon',       emoji: '🔴', desc: 'Mémorisez la séquence',  playable: false },
-  { id: 'pendu',      name: 'Le Pendu',    emoji: '🪢', desc: 'Devinez le mot',         playable: false },
-  { id: 'dames',      name: 'Dames',       emoji: '⬛', desc: 'Manger les pièces',      playable: false },
-  { id: 'puzzle',     name: 'Puzzle',      emoji: '🧩', desc: 'Reconstituez',           playable: false },
-  { id: 'tetris',     name: 'Tetris',      emoji: '🟦', desc: 'Lignes complètes',       playable: false },
-  { id: 'flappy',     name: 'Flappy',      emoji: '🐦', desc: 'Évitez les obstacles',   playable: false },
-  { id: 'sudoku',     name: 'Sudoku',      emoji: '🔢', desc: 'Logique 9×9',            playable: false },
-  { id: 'mots',       name: 'Mots cachés', emoji: '🔤', desc: 'Trouvez les mots',       playable: false },
-  { id: 'billiard',   name: 'Billard',     emoji: '🎱', desc: 'Empochez les boules',    playable: false },
-  { id: 'foot',       name: 'Penalty',     emoji: '⚽', desc: 'Tirs au but',            playable: false },
-  { id: 'racing',     name: 'Racing',      emoji: '🏎', desc: 'Course rapide',          playable: false },
-  { id: 'pacman',     name: 'Pac-Man',     emoji: '👻', desc: 'Mangez les fantômes',    playable: false },
-  { id: 'mahjong',    name: 'Mahjong',     emoji: '🀄', desc: 'Tuiles solitaire',       playable: false },
-  { id: 'reversi',    name: 'Reversi',     emoji: '⚪', desc: 'Othello / Reversi',      playable: false },
-  { id: 'morpion',    name: 'Morpion',     emoji: '⭕', desc: 'Doublon',                 playable: false },
+  // Coming soon
+  { id: 'echecs',     name: 'Échecs',      emoji: '♟', desc: 'Bientôt',                 playable: false },
+  { id: 'solitaire',  name: 'Solitaire',   emoji: '🃏', desc: 'Bientôt',                playable: false },
+  { id: 'bingo',      name: 'Bingo',       emoji: '🎱', desc: 'Bientôt',                playable: false },
+  { id: 'simon',      name: 'Simon',       emoji: '🔴', desc: 'Bientôt',                playable: false },
+  { id: 'pendu',      name: 'Le Pendu',    emoji: '🪢', desc: 'Bientôt',                playable: false },
+  { id: 'sudoku',     name: 'Sudoku',      emoji: '🔢', desc: 'Bientôt',                playable: false },
 ]
 
 export default function GamesPage() {
