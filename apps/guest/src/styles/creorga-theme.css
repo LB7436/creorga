@@ -1,0 +1,67 @@
+/* ════════════════════════════════════════════════════════════════════════
+ * Creorga guest portal — dark theme overlay
+ * Applied when <html data-guest-theme="mauve|dark"> is set.
+ * Override white backgrounds in legacy pages (GuestHome, MenuPage, OrderPage…).
+ * ════════════════════════════════════════════════════════════════════════ */
+
+:root[data-guest-theme="mauve"],
+:root[data-guest-theme="dark"] {
+  background: #0a0a14;
+}
+
+:root[data-guest-theme="mauve"] body,
+:root[data-guest-theme="dark"] body {
+  background: linear-gradient(180deg, #0a0a14 0%, #1a0a2e 100%) !important;
+  color: #f1f5f9 !important;
+}
+
+/* Force white surfaces to dark — covers GuestHome, MenuPage, OrderPage cards */
+:root[data-guest-theme="mauve"] [style*="background: #fff"],
+:root[data-guest-theme="mauve"] [style*="background:#fff"],
+:root[data-guest-theme="mauve"] [style*="background: white"],
+:root[data-guest-theme="mauve"] [style*="background: '#fff'"],
+:root[data-guest-theme="dark"] [style*="background: #fff"],
+:root[data-guest-theme="dark"] [style*="background:#fff"],
+:root[data-guest-theme="dark"] [style*="background: white"],
+:root[data-guest-theme="dark"] [style*="background: '#fff'"] {
+  background: rgba(255,255,255,0.04) !important;
+  color: #f1f5f9 !important;
+}
+
+:root[data-guest-theme="mauve"] [style*="background: #f8fafc"],
+:root[data-guest-theme="mauve"] [style*="background: #fafbff"],
+:root[data-guest-theme="dark"] [style*="background: #f8fafc"],
+:root[data-guest-theme="dark"] [style*="background: #fafbff"] {
+  background: rgba(255,255,255,0.06) !important;
+}
+
+:root[data-guest-theme="mauve"] [style*="border: 1px solid #e"],
+:root[data-guest-theme="dark"] [style*="border: 1px solid #e"] {
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+:root[data-guest-theme="mauve"] [style*="color: #1e293b"],
+:root[data-guest-theme="mauve"] [style*="color: #0f172a"],
+:root[data-guest-theme="mauve"] [style*="color: #1f2937"],
+:root[data-guest-theme="dark"] [style*="color: #1e293b"],
+:root[data-guest-theme="dark"] [style*="color: #0f172a"],
+:root[data-guest-theme="dark"] [style*="color: #1f2937"] {
+  color: #f1f5f9 !important;
+}
+
+/* Inputs */
+:root[data-guest-theme="mauve"] input,
+:root[data-guest-theme="mauve"] select,
+:root[data-guest-theme="mauve"] textarea,
+:root[data-guest-theme="dark"] input,
+:root[data-guest-theme="dark"] select,
+:root[data-guest-theme="dark"] textarea {
+  background: rgba(0,0,0,0.3) !important;
+  color: #f1f5f9 !important;
+  border-color: rgba(255,255,255,0.1) !important;
+}
+
+/* Smooth transitions */
+:root[data-guest-theme] * {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}

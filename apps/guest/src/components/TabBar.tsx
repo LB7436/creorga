@@ -21,8 +21,9 @@ const S = {
     justifyContent: 'space-around' as const,
     alignItems: 'center' as const,
     height: 64,
-    background: '#fff',
-    borderTop: '1px solid #e5e7eb',
+    background: 'rgba(15,15,30,0.95)',
+    backdropFilter: 'blur(14px)',
+    borderTop: '1px solid rgba(255,255,255,0.08)',
     zIndex: 50,
   },
   tab: (active: boolean) => ({

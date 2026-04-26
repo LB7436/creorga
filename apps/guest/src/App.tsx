@@ -30,12 +30,21 @@ export default function App() {
   const toggles = config?.toggles || {}
 
   // Client-side theme picker (independent of admin) — persisted localStorage
+  // Default: 'mauve' (Creorga signature dark theme — matches main app)
   const [clientTheme, setClientTheme] = useState<ClientTheme>(() => {
     const saved = localStorage.getItem('creorga-guest-theme')
-    return (saved as ClientTheme) || 'light'
+    return (saved as ClientTheme) || 'mauve'
   })
   useEffect(() => {
     localStorage.setItem('creorga-guest-theme', clientTheme)
+    // Apply theme on <body> + <html> so all child pages (Menu, Order…) inherit dark bg
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-guest-theme', clientTheme)
+      const styles = THEME_STYLES[clientTheme]
+      document.body.style.background = styles.bg
+      document.body.style.color = styles.text
+      document.body.style.minHeight = '100vh'
+    }
   }, [clientTheme])
 
   // If admin hides the current tab, snap back to home.
