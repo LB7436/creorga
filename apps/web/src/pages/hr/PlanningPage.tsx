@@ -12,6 +12,7 @@ import {
   Send, Zap, Heart, ClipboardList, TrendingUp, CheckCircle2, Layers,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import PlanningAssistant from '@/components/PlanningAssistant'
 
 const C = {
   bg: '#f8fafc',
@@ -753,6 +754,9 @@ function MonthView({ days, currentDate, shifts, getHoliday }: {
           )
         })}
       </div>
+
+      {/* Planning assistant — multi-select / OCR / IA / events */}
+      <PlanningAssistant />
     </div>
   )
 }

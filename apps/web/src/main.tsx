@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import './index.css'
+import './styles/dark-overlay.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -427,6 +427,35 @@ Demande : ${prompt}`
   }
 })
 
+// ─── Zones (salles) — CRUD ─────────────────────────────────────────────────
+router.post('/zones', (req, res) => {
+  const { name, color, emoji } = req.body || {}
+  if (!name || typeof name !== 'string') return res.status(400).json({ error: 'name required' })
+  const id = name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 32) + '-' + uid().slice(0, 4)
+  state.zones.push({ id, name, color: color || '#8b5cf6', backgroundImage: undefined })
+  state.updatedAt = Date.now()
+  res.json(state)
+})
+
+router.patch('/zones/:id', (req, res) => {
+  const z = state.zones.find((x) => x.id === req.params.id)
+  if (!z) return res.status(404).json({ error: 'zone not found' })
+  Object.assign(z, req.body)
+  state.updatedAt = Date.now()
+  res.json(state)
+})
+
+router.delete('/zones/:id', (req, res) => {
+  // Prevent delete if any table is in this section
+  const zone = state.zones.find((z) => z.id === req.params.id)
+  if (!zone) return res.status(404).json({ error: 'zone not found' })
+  const used = state.tables.some((t) => t.section === zone.name)
+  if (used) return res.status(400).json({ error: 'zone non vide — déplacez d\'abord les tables' })
+  state.zones = state.zones.filter((z) => z.id !== req.params.id)
+  state.updatedAt = Date.now()
+  res.json(state)
+})
+
 // ─── Reset (dev helper) ────────────────────────────────────────────────────
 router.post('/reset', (_req, res) => {
   state = JSON.parse(JSON.stringify(DEFAULT_STATE))

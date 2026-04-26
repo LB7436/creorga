@@ -7,6 +7,8 @@ import { useTheme, THEMES } from '@/stores/themeStore'
 export default function SettingsTheme() {
   const current = useTheme((s) => s.themeId)
   const setTheme = useTheme((s) => s.setTheme)
+  const darkMode = useTheme((s) => s.darkMode)
+  const setDarkMode = useTheme((s) => s.setDarkMode)
 
   return (
     <div style={{ maxWidth: 960 }}>
@@ -16,6 +18,36 @@ export default function SettingsTheme() {
           Choisissez le design de l'interface. Le thème <strong>Mauve</strong> restaure le look original du POS 5175.
         </p>
       </header>
+
+      {/* Dark mode toggle global */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 14, padding: 16, marginBottom: 20,
+        background: darkMode ? 'linear-gradient(135deg,#1e293b,#0f172a)' : '#fff',
+        color: darkMode ? '#f1f5f9' : '#1e293b',
+        border: darkMode ? '1px solid rgba(167,139,250,0.4)' : '1px solid #e2e8f0',
+        borderRadius: 14,
+      }}>
+        <div style={{ fontSize: 32 }}>{darkMode ? '🌙' : '☀️'}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 800, fontSize: 16 }}>Mode {darkMode ? 'sombre' : 'clair'}</div>
+          <div style={{ fontSize: 13, opacity: 0.8, marginTop: 2 }}>
+            {darkMode
+              ? 'Tous les modules en sombre (102 fichiers concernés)'
+              : 'Affichage par défaut (clair)'}
+          </div>
+        </div>
+        <button onClick={() => setDarkMode(!darkMode)} style={{
+          position: 'relative', width: 52, height: 28, borderRadius: 999,
+          background: darkMode ? '#a78bfa' : '#cbd5e1',
+          border: 'none', cursor: 'pointer', transition: 'all .2s',
+        }}>
+          <span style={{
+            position: 'absolute', top: 2, left: darkMode ? 26 : 2,
+            width: 24, height: 24, borderRadius: '50%', background: '#fff',
+            transition: 'all .2s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+          }} />
+        </button>
+      </div>
 
       <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
         {THEMES.map((t) => {

@@ -6,9 +6,18 @@ import MenuPage from './pages/MenuPage'
 import OrderPage from './pages/OrderPage'
 import AccountPage from './pages/AccountPage'
 import FeedbackPage from './pages/FeedbackPage'
+import GamesPage from './pages/GamesPage'
 import { usePortalConfig } from './usePortalConfig'
 
-export type GuestTab = 'home' | 'menu' | 'order' | 'account' | 'feedback'
+export type GuestTab = 'home' | 'menu' | 'order' | 'games' | 'account' | 'feedback'
+
+type ClientTheme = 'light' | 'dark' | 'mauve'
+
+const THEME_STYLES: Record<ClientTheme, { bg: string; text: string }> = {
+  light: { bg: '#fff', text: '#1e293b' },
+  dark:  { bg: '#0f0f1f', text: '#e2e8f0' },
+  mauve: { bg: 'linear-gradient(135deg,#1a0a2e,#0d0b24)', text: '#f1f5f9' },
+}
 
 export default function App() {
   const [tab, setTab] = useState<GuestTab>('home')
@@ -20,16 +29,47 @@ export default function App() {
   const accent = config?.accentColor || '#6366f1'
   const toggles = config?.toggles || {}
 
+  // Client-side theme picker (independent of admin) — persisted localStorage
+  const [clientTheme, setClientTheme] = useState<ClientTheme>(() => {
+    const saved = localStorage.getItem('creorga-guest-theme')
+    return (saved as ClientTheme) || 'light'
+  })
+  useEffect(() => {
+    localStorage.setItem('creorga-guest-theme', clientTheme)
+  }, [clientTheme])
+
   // If admin hides the current tab, snap back to home.
   useEffect(() => {
     if (tab === 'menu' && toggles.menu === false) setTab('home')
     if (tab === 'order' && toggles.order === false) setTab('home')
     if (tab === 'feedback' && toggles.reviews === false) setTab('home')
+    if (tab === 'games' && toggles.games === false) setTab('home')
   }, [toggles, tab])
 
+  const themeStyle = THEME_STYLES[clientTheme]
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', maxWidth: 480, margin: '0 auto', background: '#fff', position: 'relative' }}>
-      {/* Live sync chip so you can see admin changes land in real time */}
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      height: '100vh', maxWidth: 480, margin: '0 auto',
+      background: themeStyle.bg, color: themeStyle.text,
+      position: 'relative',
+    }}>
+      {/* Theme picker (top-right floating) */}
+      <div style={{
+        position: 'absolute', top: 8, left: 12, zIndex: 100,
+        display: 'flex', gap: 4,
+      }}>
+        {(['light', 'dark', 'mauve'] as ClientTheme[]).map((t) => (
+          <button key={t} onClick={() => setClientTheme(t)} style={{
+            width: 22, height: 22, borderRadius: 999, border: 'none', cursor: 'pointer',
+            background: t === 'light' ? '#fff' : t === 'dark' ? '#0f0f1f' : 'linear-gradient(135deg,#8b5cf6,#ec4899)',
+            outline: clientTheme === t ? `2px solid ${accent}` : `1px solid rgba(148,163,184,0.3)`,
+          }} title={t === 'light' ? 'Clair' : t === 'dark' ? 'Sombre' : 'Mauve'} />
+        ))}
+      </div>
+
+      {/* Live sync chip */}
       {config && (
         <div style={{
           position: 'absolute', top: 8, right: 12, zIndex: 100,
@@ -43,6 +83,7 @@ export default function App() {
         {tab === 'home' && <GuestHome onNavigate={setTab} />}
         {tab === 'menu' && toggles.menu !== false && <MenuPage />}
         {tab === 'order' && toggles.order !== false && <OrderPage />}
+        {tab === 'games' && toggles.games !== false && <GamesPage />}
         {tab === 'account' && <AccountPage />}
         {tab === 'feedback' && toggles.reviews !== false && <FeedbackPage />}
       </div>
@@ -54,6 +95,7 @@ export default function App() {
         hide={{
           menu: toggles.menu === false,
           order: toggles.order === false,
+          games: toggles.games === false,
           feedback: toggles.reviews === false,
         }}
         accent={accent}

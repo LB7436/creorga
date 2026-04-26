@@ -8,6 +8,7 @@ import AIFloorPlanner from '@/components/AIFloorPlanner'
 import FloorPhotoManager from '@/components/FloorPhotoManager'
 import { computeHeat, HeatmapPicker, type HeatMode, type HeatValue } from '@/components/FloorHeatmap'
 import { PresetPicker, FLOOR_PRESETS, type FloorPreset } from '@/components/FloorPresets'
+import RoomManager from '@/components/RoomManager'
 import { useTheme, THEMES } from '@/stores/themeStore'
 
 /**
@@ -65,6 +66,7 @@ export default function UnifiedFloorPlan() {
   // ── Améliorations 2026-04 ────────────────────────────────────────
   const [heatMode, setHeatMode] = useState<HeatMode>('off')
   const [showPresets, setShowPresets] = useState(false)
+  const [showRooms, setShowRooms] = useState(false)
   const [view3D, setView3D] = useState(false)
   const [showRuler, setShowRuler] = useState(false)
   const [draggingTableId, setDraggingTableId] = useState<string | null>(null)
@@ -232,6 +234,18 @@ export default function UnifiedFloorPlan() {
 
           {/* Heatmap toggle row */}
           <HeatmapPicker mode={heatMode} onChange={setHeatMode} theme={theme} />
+
+          <button
+            onClick={() => setShowRooms(true)}
+            title="Gérer les salles (ajouter, renommer, supprimer)"
+            style={{
+              padding: '8px 14px', borderRadius: 10,
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'rgba(255,255,255,0.04)',
+              color: theme.text, cursor: 'pointer', fontWeight: 700, fontSize: 13,
+            }}>
+            🏛 Salles
+          </button>
 
           <button
             onClick={() => setShowPresets(true)}
@@ -497,6 +511,17 @@ export default function UnifiedFloorPlan() {
           )}
         </aside>
       )}
+
+      {/* Room manager (zones) */}
+      <RoomManager
+        open={showRooms}
+        onClose={() => setShowRooms(false)}
+        zones={floor.state?.zones || []}
+        onAdd={floor.addZone}
+        onPatch={floor.patchZone}
+        onDelete={floor.deleteZone}
+        theme={theme}
+      />
 
       {/* Preset picker — load a pre-built layout */}
       <PresetPicker

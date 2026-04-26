@@ -20,6 +20,10 @@ import SettingsEnvMode from '@/pages/settings/SettingsEnvMode'
 import AIModulePage from '@/pages/ai/AIModulePage'
 import EnvModeBanner from '@/components/EnvModeBanner'
 import SettingsTheme from '@/pages/settings/SettingsTheme'
+import SettingsLanguage from '@/pages/settings/SettingsLanguage'
+import AdsAdminPage from '@/pages/ads/AdsAdminPage'
+import TVDisplayPage from '@/pages/ads/TVDisplayPage'
+import MusicPage from '@/pages/music/MusicPage'
 import SetupWizard from '@/pages/onboarding/SetupWizard'
 import UnifiedFloorPlan from '@/pages/pos/UnifiedFloorPlan'
 import GuestHome from '@/pages/guest/GuestHome'
@@ -184,6 +188,9 @@ function App() {
       <Route path="/demo" element={<DemoLanding />} />
       <Route path="/c" element={<GuestHome />} />
 
+      {/* TV Display — fullscreen, no AppShell */}
+      <Route path="/ads/tv" element={<TVDisplayPage />} />
+
       {/* Auth-only without AppShell */}
       <Route path="/welcome" element={<RequireAuth><Welcome /></RequireAuth>} />
       <Route path="/setup" element={<RequireAuth><SetupWizard /></RequireAuth>} />
@@ -321,6 +328,13 @@ function App() {
         <Route path="/settings/modules" element={<SettingsModules />} />
         <Route path="/settings/env-mode" element={<SettingsEnvMode />} />
         <Route path="/settings/theme" element={<SettingsTheme />} />
+        <Route path="/settings/language" element={<SettingsLanguage />} />
+
+        {/* Régie publicitaire TV (admin) */}
+        <Route path="/ads" element={<AdsAdminPage />} />
+
+        {/* Music & Radio module */}
+        <Route path="/music" element={<MusicPage />} />
 
         {/* Sauvegarde & Sécurité Module */}
         <Route path="/backup" element={<BackupPage />} />

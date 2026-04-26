@@ -135,6 +135,66 @@ router.delete('/stock', (_req, res) => {
   res.json({ ok: true, total: 0 })
 })
 
+// ─── Backups (real disk, not mock) ─────────────────────────────────────────
+const BACKUP_DIR = path.join(STORE_DIR, 'backups')
+function ensureBackupDir() { if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true }) }
+
+router.get('/backups', (_req, res) => {
+  ensureBackupDir()
+  const files = fs.readdirSync(BACKUP_DIR)
+    .filter((f) => f.endsWith('.bak.json'))
+    .map((f) => {
+      const stat = fs.statSync(path.join(BACKUP_DIR, f))
+      return {
+        filename: f,
+        size: stat.size,
+        createdAt: stat.mtimeMs,
+        items: (() => {
+          try { return JSON.parse(fs.readFileSync(path.join(BACKUP_DIR, f), 'utf8')).length }
+          catch { return 0 }
+        })(),
+      }
+    })
+    .sort((a, b) => b.createdAt - a.createdAt)
+  res.json({ backups: files, total: files.length })
+})
+
+router.post('/backups', (_req, res) => {
+  ensureBackupDir()
+  const filename = `inventory-${new Date().toISOString().replace(/[:.]/g, '-')}.bak.json`
+  fs.writeFileSync(path.join(BACKUP_DIR, filename), JSON.stringify(stock, null, 2), 'utf8')
+  res.json({ ok: true, filename, items: stock.length })
+})
+
+router.post('/restore/:filename', (req, res) => {
+  ensureBackupDir()
+  const f = path.join(BACKUP_DIR, req.params.filename)
+  if (!fs.existsSync(f)) return res.status(404).json({ error: 'backup not found' })
+  try {
+    const content = JSON.parse(fs.readFileSync(f, 'utf8'))
+    if (!Array.isArray(content)) return res.status(400).json({ error: 'invalid backup format' })
+    stock = content
+    saveStock(stock)
+    res.json({ ok: true, restored: stock.length })
+  } catch (e: any) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+router.delete('/backups/:filename', (req, res) => {
+  ensureBackupDir()
+  const f = path.join(BACKUP_DIR, req.params.filename)
+  if (!fs.existsSync(f)) return res.status(404).json({ error: 'backup not found' })
+  fs.unlinkSync(f)
+  res.json({ ok: true })
+})
+
+router.get('/backups/:filename/download', (req, res) => {
+  const f = path.join(BACKUP_DIR, req.params.filename)
+  if (!fs.existsSync(f)) return res.status(404).json({ error: 'backup not found' })
+  res.download(f)
+})
+
 // ─── POST OCR parse with Gemma ──────────────────────────────────────────────
 router.post('/ai-parse-receipt', async (req, res) => {
   const { rawText } = req.body as { rawText: string }

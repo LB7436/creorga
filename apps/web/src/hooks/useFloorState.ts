@@ -141,6 +141,14 @@ export function useFloorState(pollMs = 2000) {
     moveChair: async (id: string, x: number, y: number) =>
       apply(await fetchFn(`${BASE}/chairs/${id}/position`, 'PATCH', { x, y })),
 
+    // Zones (salles) CRUD
+    addZone: async (data: { name: string; color?: string; emoji?: string }) =>
+      apply(await fetchFn(`${BASE}/zones`, 'POST', data)),
+    patchZone: async (id: string, data: { name?: string; color?: string }) =>
+      apply(await fetchFn(`${BASE}/zones/${id}`, 'PATCH', data)),
+    deleteZone: async (id: string) =>
+      apply(await fetchFn(`${BASE}/zones/${id}`, 'DELETE')),
+
     transferItems: async (fromType: 'chair' | 'table', fromId: string, toType: 'chair' | 'table', toId: string, itemIds: string[]) =>
       apply(await fetchFn(`${BASE}/transfer/items`, 'POST', { fromType, fromId, toType, toId, itemIds })),
 

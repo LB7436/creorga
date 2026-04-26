@@ -59,6 +59,8 @@ import portalConfigRoutes from './routes/portalConfig'
 import floorStateRoutes from './routes/floorState'
 import moduleConfigRoutes from './routes/moduleConfig'
 import inventoryAIRoutes from './routes/inventory-ai'
+import adsRoutes from './routes/ads'
+import aiActionsRoutes from './routes/ai-actions'
 
 const app = express()
 const httpServer = createServer(app)
@@ -123,6 +125,8 @@ app.use('/api/floor-state', floorStateRoutes)
 app.use('/api/module-config', moduleConfigRoutes)
 // Mounted on /api/inventory-ocr to avoid clash with the auth-protected /api/inventory
 app.use('/api/inventory-ocr', inventoryAIRoutes)
+app.use('/api/ads', adsRoutes)
+app.use('/api/ai', aiActionsRoutes)
 
 // Error handler
 app.use(errorHandler)

@@ -4,6 +4,7 @@ const tabs: { id: GuestTab; label: string; icon: string }[] = [
   { id: 'home', label: 'Accueil', icon: '🏠' },
   { id: 'menu', label: 'Menu', icon: '📋' },
   { id: 'order', label: 'Commande', icon: '🛒' },
+  { id: 'games', label: 'Jeux', icon: '🎮' },
   { id: 'feedback', label: 'Avis', icon: '⭐' },
   { id: 'account', label: 'Compte', icon: '👤' },
 ]

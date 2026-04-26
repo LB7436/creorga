@@ -176,6 +176,24 @@ export default function AIModulePage() {
         <p style={{ color: '#64748b', marginTop: 4 }}>
           Optimisé pour Raspberry Pi 5 16 GB via Ollama. Modèles Gemma de Google.
         </p>
+
+        {/* Provider switcher (Local Ollama vs Cloud) */}
+        <div style={{
+          marginTop: 14, padding: 12, background: 'linear-gradient(135deg,#eef2ff,#faf5ff)',
+          borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12, border: '1px solid #c7d2fe',
+        }}>
+          <div style={{ fontSize: 22 }}>🔀</div>
+          <div style={{ flex: 1, fontSize: 13 }}>
+            <strong style={{ color: '#4338ca' }}>Provider IA actif : Ollama local</strong>
+            <div style={{ color: '#64748b', marginTop: 2 }}>
+              Pour utiliser Claude / GPT-4 cloud → ouvrez l'Assistant cloud ↗
+            </div>
+          </div>
+          <a href="/ai" style={{
+            padding: '8px 14px', borderRadius: 8, background: '#6366f1', color: '#fff',
+            textDecoration: 'none', fontWeight: 700, fontSize: 12,
+          }}>Cloud →</a>
+        </div>
       </header>
 
       {status === 'checking' && (

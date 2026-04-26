@@ -115,7 +115,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
 
   // Data state
   const [selectedClient, setSelectedClient] = useState<MockClient | null>(null)
-  const [discount, setDiscount] = useState<{ type: 'percent' | 'amount'; value: number } | null>(null)
+  const [discount, setDiscount] = useState<{ type: 'percent' | 'amount' | 'free'; value: number } | null>(null)
   const [offeredItems, setOfferedItems] = useState<Set<string>>(new Set())
   const [itemModifiers, setItemModifiers] = useState<Record<string, Modifier[]>>({})
   const [itemWeights, setItemWeights] = useState<Record<string, number>>({})
@@ -206,7 +206,9 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
   // ── Totals
   const rawTotal = tableTotal(table)
   const discountAmount = discount
-    ? discount.type === 'percent' ? rawTotal * discount.value / 100 : Math.min(discount.value, rawTotal)
+    ? discount.type === 'free'
+      ? rawTotal
+      : discount.type === 'percent' ? rawTotal * discount.value / 100 : Math.min(discount.value, rawTotal)
     : 0
   const offeredAmount = Array.from(offeredItems).reduce((s, id) => {
     for (const c of table.covers) {
@@ -417,7 +419,13 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>
             <span>Sous-total</span><span>{fmt(rawTotal)} €</span>
           </div>
-          {discountAmount > 0 && (
+          {discountAmount > 0 && discount?.type === 'free' && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#fbbf24', marginBottom: 4, fontWeight: 700 }}>
+              <span>🎁 Offert (commande complète)</span>
+              <span>− {fmt(discountAmount)} €</span>
+            </div>
+          )}
+          {discountAmount > 0 && discount?.type !== 'free' && (
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#a78bfa', marginBottom: 4 }}>
               <span>Remise{discount?.type === 'percent' ? ` (${discount.value}%)` : ''}</span>
               <span>− {fmt(discountAmount)} €</span>
@@ -817,13 +825,21 @@ function ClientSearchModal({ clients, onClose, onSelect }: { clients: MockClient
   )
 }
 
-function RemiseModal({ onClose, onConfirm, rawTotal }: { onClose: () => void; onConfirm: (d: { type: 'percent' | 'amount'; value: number }) => void; rawTotal: number }) {
-  const [type, setType] = useState<'percent' | 'amount'>('percent')
+function RemiseModal({ onClose, onConfirm, rawTotal }: { onClose: () => void; onConfirm: (d: { type: 'percent' | 'amount' | 'free'; value: number }) => void; rawTotal: number }) {
+  const [type, setType] = useState<'percent' | 'amount' | 'free'>('percent')
   const [val, setVal] = useState('')
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
 
   const submit = () => {
+    if (type === 'free') {
+      // Free entire order — manager PIN required
+      if (pin !== '9999') {
+        setError('PIN manager requis pour offrir une commande complète (indice : 9999)'); return
+      }
+      onConfirm({ type: 'free', value: rawTotal })
+      return
+    }
     const v = parseFloat(val.replace(',', '.'))
     if (!v || v <= 0) { setError('Valeur invalide'); return }
     // Manager PIN required for > 20%
@@ -838,28 +854,39 @@ function RemiseModal({ onClose, onConfirm, rawTotal }: { onClose: () => void; on
   return (
     <ModalShell onClose={onClose} title="Appliquer une remise" icon="💸" color="#a78bfa">
       <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-        {(['percent', 'amount'] as const).map(t => (
+        {(['percent', 'amount', 'free'] as const).map(t => (
           <button key={t} onClick={() => setType(t)} style={{
             flex: 1, padding: 8, borderRadius: 8, fontSize: 12, fontWeight: 700,
-            background: type === t ? 'rgba(167,139,250,0.2)' : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${type === t ? 'rgba(167,139,250,0.4)' : 'rgba(255,255,255,0.08)'}`,
-            color: type === t ? '#a78bfa' : '#94a3b8', cursor: 'pointer',
-          }}>{t === 'percent' ? 'En %' : 'En €'}</button>
+            background: type === t ? (t === 'free' ? 'rgba(251,191,36,0.2)' : 'rgba(167,139,250,0.2)') : 'rgba(255,255,255,0.04)',
+            border: `1px solid ${type === t ? (t === 'free' ? 'rgba(251,191,36,0.5)' : 'rgba(167,139,250,0.4)') : 'rgba(255,255,255,0.08)'}`,
+            color: type === t ? (t === 'free' ? '#fbbf24' : '#a78bfa') : '#94a3b8', cursor: 'pointer',
+          }}>{t === 'percent' ? 'En %' : t === 'amount' ? 'En €' : '🎁 Offert'}</button>
         ))}
       </div>
-      <input
-        autoFocus value={val} onChange={e => { setVal(e.target.value); setError('') }}
-        placeholder={type === 'percent' ? '10' : '5,00'}
-        style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: 18, fontWeight: 800, outline: 'none', boxSizing: 'border-box', textAlign: 'center' }}
-      />
+      {type !== 'free' && (
+        <input
+          autoFocus value={val} onChange={e => { setVal(e.target.value); setError('') }}
+          placeholder={type === 'percent' ? '10' : '5,00'}
+          style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: 18, fontWeight: 800, outline: 'none', boxSizing: 'border-box', textAlign: 'center' }}
+        />
+      )}
+      {type === 'free' && (
+        <div style={{ padding: 14, borderRadius: 10, background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)', textAlign: 'center' }}>
+          <div style={{ fontSize: 28, marginBottom: 4 }}>🎁</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#fbbf24' }}>Offrir TOUTE la commande</div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+            {fmt(rawTotal)} € seront comptés en geste commercial (hors revenu)
+          </div>
+        </div>
+      )}
       <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center', marginTop: 6 }}>
         Sous-total : {fmt(rawTotal)} €
       </div>
 
-      {percentThreshold && (
+      {(percentThreshold || type === 'free') && (
         <>
           <div style={{ fontSize: 11, color: '#fbbf24', marginTop: 10, fontWeight: 600 }}>
-            ⚠ Remise supérieure à 20% — PIN manager requis
+            ⚠ {type === 'free' ? 'Commande complète offerte' : 'Remise supérieure à 20%'} — PIN manager requis
           </div>
           <input
             type="password" value={pin} onChange={e => { setPin(e.target.value); setError('') }}

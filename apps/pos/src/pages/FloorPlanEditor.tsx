@@ -663,6 +663,7 @@ export default function FloorPlanEditor({ onBack }: Props) {
 
   /* ── View mode */
   const [viewMode, setViewMode] = useState<ViewMode>('2d')
+  const [fullscreen, setFullscreen] = useState(false)
 
   /* ── Grid settings */
   const [gridSize, setGridSize] = useState<GridSize>(20)
@@ -1340,6 +1341,20 @@ export default function FloorPlanEditor({ onBack }: Props) {
               </button>
             ))}
           </div>
+
+          {/* Fullscreen toggle — cache panneaux pour canvas plein écran */}
+          <button
+            onClick={() => setFullscreen(!fullscreen)}
+            title={fullscreen ? 'Quitter plein écran (Esc)' : 'Plein écran canvas'}
+            style={{
+              marginLeft: 8, padding: '5px 12px', borderRadius: 7,
+              background: fullscreen ? `${accent}30` : surfaceBg,
+              border: `1px solid ${fullscreen ? accent : borderColor}`,
+              color: fullscreen ? accent : textSecondary,
+              fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+            {fullscreen ? '⛶ Réduire' : '⛶ Plein écran'}
+          </button>
         </div>
 
         <div style={{
@@ -1392,9 +1407,10 @@ export default function FloorPlanEditor({ onBack }: Props) {
 
         {/* ═════ LEFT TOOLBAR ═════ */}
         <div style={{
-          width: 252, minWidth: 252,
-          background: panelBg, borderRight: `1px solid ${borderColor}`,
+          width: fullscreen ? 0 : 252, minWidth: fullscreen ? 0 : 252,
+          background: panelBg, borderRight: fullscreen ? 'none' : `1px solid ${borderColor}`,
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          transition: 'width .25s ease',
         }}>
           <div style={{
             flex: 1, overflowY: 'auto', padding: '16px 14px',
@@ -1758,8 +1774,8 @@ export default function FloorPlanEditor({ onBack }: Props) {
           )}
         </div>
 
-        {/* ═════ RIGHT PANEL (Properties) ═════ */}
-        <PropertiesPanel
+        {/* ═════ RIGHT PANEL (Properties) — masqué en plein écran ═════ */}
+        {!fullscreen && <PropertiesPanel
           panelBg={panelBg} borderColor={borderColor}
           textPrimary={textPrimary} textSecondary={textSecondary} textMuted={textMuted}
           accent={accent} surfaceBg={surfaceBg} inputStyle={inputStyle} smallBtnStyle={smallBtnStyle}
@@ -1770,7 +1786,7 @@ export default function FloorPlanEditor({ onBack }: Props) {
           handleDelete={handleDelete} deleteConfirm={deleteConfirm}
           handleFixtureDelete={handleFixtureDelete} fixtureDeleteConfirm={fixtureDeleteConfirm}
           rooms={rooms}
-        />
+        />}
       </div>
 
       {/* ═════ MODALS ═════ */}

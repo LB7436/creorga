@@ -35,6 +35,8 @@ export type ModuleId =
   | 'status'
   | 'changelog'
   | 'referral'
+  | 'ads'
+  | 'music'
 
 export interface ModuleDef {
   id: ModuleId
@@ -377,6 +379,26 @@ export const MODULES: ModuleDef[] = [
     path: '/referral',
     available: true,
     category: 'business',
+  },
+  {
+    id: 'ads',
+    name: 'Régie publicitaire TV',
+    tagline: 'Pubs sur écrans TV avec IA',
+    color: '#ef4444',
+    colorLight: '#fee2e2',
+    path: '/ads',
+    available: true,
+    category: 'digital',
+  },
+  {
+    id: 'music',
+    name: 'Musique & Radio',
+    tagline: 'Radio · Spotify · Apple · YouTube',
+    color: '#8b5cf6',
+    colorLight: '#ede9fe',
+    path: '/music',
+    available: true,
+    category: 'digital',
   },
 ]
 

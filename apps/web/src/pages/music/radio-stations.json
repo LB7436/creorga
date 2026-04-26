@@ -1,0 +1,44 @@
+[
+  { "id": "fip", "name": "FIP", "country": "FR", "lang": "fr", "genre": "Éclectique", "stream": "https://icecast.radiofrance.fr/fip-hifi.aac" },
+  { "id": "france-inter", "name": "France Inter", "country": "FR", "lang": "fr", "genre": "Généraliste", "stream": "https://icecast.radiofrance.fr/franceinter-hifi.aac" },
+  { "id": "france-info", "name": "France Info", "country": "FR", "lang": "fr", "genre": "Info", "stream": "https://icecast.radiofrance.fr/franceinfo-hifi.aac" },
+  { "id": "france-musique", "name": "France Musique", "country": "FR", "lang": "fr", "genre": "Classique / Jazz", "stream": "https://icecast.radiofrance.fr/francemusique-hifi.aac" },
+  { "id": "france-culture", "name": "France Culture", "country": "FR", "lang": "fr", "genre": "Culture", "stream": "https://icecast.radiofrance.fr/franceculture-hifi.aac" },
+  { "id": "nrj", "name": "NRJ", "country": "FR", "lang": "fr", "genre": "Pop / Hits", "stream": "https://scdn.nrjaudio.fm/audio1/fr/30001/aac_64.mp3" },
+  { "id": "skyrock", "name": "Skyrock", "country": "FR", "lang": "fr", "genre": "Rap / Hip-Hop", "stream": "https://icecast.skyrock.net/s/natio_aac_64k" },
+  { "id": "nostalgie", "name": "Nostalgie", "country": "FR", "lang": "fr", "genre": "Années 60-90", "stream": "https://scdn.nrjaudio.fm/audio1/fr/30601/aac_64.mp3" },
+  { "id": "fun-radio", "name": "Fun Radio", "country": "FR", "lang": "fr", "genre": "Dance / Hits", "stream": "https://streaming.radio.funradio.fr/fun-1-44-128" },
+  { "id": "rtl-fr", "name": "RTL France", "country": "FR", "lang": "fr", "genre": "Généraliste", "stream": "https://streaming.radio.rtl.fr/rtl-1-48-192" },
+
+  { "id": "rtl-lu", "name": "RTL Lëtzebuerg", "country": "LU", "lang": "lu", "genre": "Généraliste", "stream": "https://shoutcast.rtl.lu/rtllive_hd" },
+  { "id": "ara-lu", "name": "Radio ARA", "country": "LU", "lang": "lu", "genre": "Alternative", "stream": "https://radio.ara.lu/ara-hi.mp3" },
+  { "id": "eldoradio", "name": "Eldoradio", "country": "LU", "lang": "lu", "genre": "Pop / Hits", "stream": "https://shoutcast.eldoradio.lu/eldoradio_hd" },
+  { "id": "100komma7", "name": "100komma7", "country": "LU", "lang": "lu", "genre": "Public service", "stream": "https://shoutcast.100komma7.lu/lpr_main" },
+
+  { "id": "pure-fm", "name": "Pure FM", "country": "BE", "lang": "fr", "genre": "Hits / Dance", "stream": "https://radios.rtbf.be/purefm-128.mp3" },
+  { "id": "classic21", "name": "Classic 21", "country": "BE", "lang": "fr", "genre": "Rock classique", "stream": "https://radios.rtbf.be/classic21-128.mp3" },
+  { "id": "la-premiere", "name": "La Première", "country": "BE", "lang": "fr", "genre": "Info / Culture", "stream": "https://radios.rtbf.be/lapremiere-128.mp3" },
+  { "id": "tipik", "name": "Tipik", "country": "BE", "lang": "fr", "genre": "Jeune / Pop", "stream": "https://radios.rtbf.be/tipik-128.mp3" },
+
+  { "id": "cidade-fm", "name": "Cidade FM", "country": "PT", "lang": "pt", "genre": "Pop / Hits", "stream": "https://20853.live.streamtheworld.com/CIDADEFM.mp3" },
+  { "id": "antena-3", "name": "Antena 3", "country": "PT", "lang": "pt", "genre": "Alternative", "stream": "https://radiocast.rtp.pt/antena320a.mp3" },
+  { "id": "radio-comercial", "name": "Rádio Comercial", "country": "PT", "lang": "pt", "genre": "Hits", "stream": "https://livestreaming.atomatic.com/radiocomercial48k.aac" },
+  { "id": "rfm-pt", "name": "RFM Portugal", "country": "PT", "lang": "pt", "genre": "Pop / Adult", "stream": "https://livestreaming.atomatic.com/rfmaac96.aac" },
+
+  { "id": "band-fm", "name": "BandFM", "country": "BR", "lang": "pt", "genre": "Brésilien", "stream": "https://playerservices.streamtheworld.com/api/livestream-redirect/BANDFM_SP_ADP.aac" },
+  { "id": "jovem-pan", "name": "Jovem Pan", "country": "BR", "lang": "pt", "genre": "Hits / Talk", "stream": "https://playerservices.streamtheworld.com/api/livestream-redirect/JOVEMPAN_SP_ADP.aac" },
+  { "id": "antena-1-br", "name": "Antena 1 Brasil", "country": "BR", "lang": "pt", "genre": "Adult Contemporary", "stream": "https://playerservices.streamtheworld.com/api/livestream-redirect/ANTENA1FM_ADP.aac" },
+
+  { "id": "wdr-2", "name": "WDR 2", "country": "DE", "lang": "de", "genre": "Pop / Info", "stream": "https://wdr-wdr2-aachenundregion.icecastssl.wdr.de/wdr/wdr2/aachenundregion/mp3/128/stream.mp3" },
+  { "id": "radio-eins", "name": "Radio Eins", "country": "DE", "lang": "de", "genre": "Indie / Talk", "stream": "https://rbb-radioeins-live.cast.addradio.de/rbb/radioeins/live/mp3/128/stream.mp3" },
+  { "id": "deutschlandfunk", "name": "Deutschlandfunk", "country": "DE", "lang": "de", "genre": "Public", "stream": "https://st01.sslstream.dlf.de/dlf/01/128/mp3/stream.mp3" },
+
+  { "id": "cadena-ser", "name": "Cadena SER", "country": "ES", "lang": "es", "genre": "Info / Talk", "stream": "https://playerservices.streamtheworld.com/api/livestream-redirect/CADENASER.mp3" },
+  { "id": "los40", "name": "Los 40", "country": "ES", "lang": "es", "genre": "Pop / Hits", "stream": "https://20543.live.streamtheworld.com/LOS40.mp3" },
+  { "id": "cadena-100", "name": "Cadena 100", "country": "ES", "lang": "es", "genre": "Adult Contemporary", "stream": "https://flucast07-cloud.flumotion.com:8443/cope/c100" },
+
+  { "id": "bbc-radio-1", "name": "BBC Radio 1", "country": "GB", "lang": "en", "genre": "Pop / Dance", "stream": "https://stream.live.vc.bbcmedia.co.uk/bbc_radio_one" },
+  { "id": "bbc-radio-2", "name": "BBC Radio 2", "country": "GB", "lang": "en", "genre": "Pop / MOR", "stream": "https://stream.live.vc.bbcmedia.co.uk/bbc_radio_two" },
+  { "id": "kiss-fm-uk", "name": "Kiss FM UK", "country": "GB", "lang": "en", "genre": "Dance / Urban", "stream": "https://stream-mz.planetradio.co.uk/kissnational.mp3" },
+  { "id": "lounge-fm", "name": "Lounge FM", "country": "GB", "lang": "en", "genre": "Lounge / Chill", "stream": "https://radio.streemlion.com:1320/stream" }
+]
