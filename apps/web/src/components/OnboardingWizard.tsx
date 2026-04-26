@@ -23,16 +23,16 @@ interface StaffInvite {
 const STORAGE_KEY = 'creorga-onboarding-progress'
 
 const MENU_TEMPLATES = [
-  { id: 'cafe', name: 'Café', emoji: '\u2615', desc: 'Boissons, pâtisseries, snacks' },
-  { id: 'brasserie', name: 'Brasserie', emoji: '\u{1F37D}\uFE0F', desc: 'Plats du jour, bières, vins' },
+  { id: 'cafe', name: 'Café', emoji: '☕', desc: 'Boissons, pâtisseries, snacks' },
+  { id: 'brasserie', name: 'Brasserie', emoji: '\u{1F37D}️', desc: 'Plats du jour, bières, vins' },
   { id: 'gastro', name: 'Restaurant gastronomique', emoji: '\u{1F37E}', desc: 'Menus dégustation, carte étoilée' },
   { id: 'cocktails', name: 'Bar à cocktails', emoji: '\u{1F378}', desc: 'Mixologie, tapas, ambiance' },
 ]
 
 const DEFAULT_ROLES = [
   { id: 'manager', label: 'Manager', emoji: '\u{1F464}', color: '#6366f1' },
-  { id: 'serveur', label: 'Serveur', emoji: '\u{1F9D1}\u200D\u{1F373}', color: '#10b981' },
-  { id: 'cuisine', label: 'Cuisine', emoji: '\u{1F468}\u200D\u{1F373}', color: '#f59e0b' },
+  { id: 'serveur', label: 'Serveur', emoji: '\u{1F9D1}‍\u{1F373}', color: '#10b981' },
+  { id: 'cuisine', label: 'Cuisine', emoji: '\u{1F468}‍\u{1F373}', color: '#f59e0b' },
 ]
 
 /* ── Confetti burst ── */
@@ -142,8 +142,8 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
     { label: 'Entreprise', icon: '\u{1F3E2}' },
     { label: 'Tables', icon: '\u{1FA91}' },
     { label: 'Menu', icon: '\u{1F4DD}' },
-    { label: '\u00C9quipe', icon: '\u{1F465}' },
-    { label: 'Pr\u00EAt!', icon: '\u{1F389}' },
+    { label: 'Équipe', icon: '\u{1F465}' },
+    { label: 'Prêt!', icon: '\u{1F389}' },
   ]
 
   const next = () => {
@@ -350,7 +350,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                   Installation Creorga
                 </div>
                 <div style={{ fontSize: 12, color: '#94a3b8' }}>
-                  {'\u00C9tape'} {step + 1} sur {steps.length}
+                  {'Étape'} {step + 1} sur {steps.length}
                 </div>
               </div>
             </div>
@@ -467,7 +467,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                         color: '#6366f1',
                       }}
                     >
-                      {'\u25B6'}
+                      {'▶'}
                     </div>
                     <span
                       style={{
@@ -558,7 +558,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                     <div>
-                      <label style={labelStyle}>{"Nom de l'\u00e9tablissement"}</label>
+                      <label style={labelStyle}>{"Nom de l'établissement"}</label>
                       <input
                         style={inputStyle}
                         value={company.name}
@@ -566,7 +566,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                       />
                     </div>
                     <div>
-                      <label style={labelStyle}>{'N\u00B0 TVA'}</label>
+                      <label style={labelStyle}>{'N° TVA'}</label>
                       <input
                         style={inputStyle}
                         value={company.vat}
@@ -582,7 +582,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                       />
                     </div>
                     <div>
-                      <label style={labelStyle}>{'T\u00E9l\u00E9phone'}</label>
+                      <label style={labelStyle}>{'Téléphone'}</label>
                       <input
                         style={inputStyle}
                         value={company.phone}
@@ -613,13 +613,13 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
 
                   <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
                     <button style={btnSecondary} onClick={() => addTable('round')}>
-                      {'\u26AA'} Table ronde
+                      {'⚪'} Table ronde
                     </button>
                     <button style={btnSecondary} onClick={() => addTable('square')}>
-                      {'\u25FC\uFE0F'} Table carrée
+                      {'◼️'} Table carrée
                     </button>
                     <button style={btnSecondary} onClick={() => addTable('rect')}>
-                      {'\u25AC'} Table rectangulaire
+                      {'▬'} Table rectangulaire
                     </button>
                     <div style={{ flex: 1 }} />
                     <span style={{ fontSize: 13, color: '#94a3b8', alignSelf: 'center' }}>
@@ -728,7 +728,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                         <span style={{ fontSize: 13, fontWeight: 600, width: 36 }}>
                           {t.name}
                         </span>
-                        <span style={{ fontSize: 11, color: '#94a3b8' }}>{'Capacit\u00E9'}</span>
+                        <span style={{ fontSize: 11, color: '#94a3b8' }}>{'Capacité'}</span>
                         <input
                           type="number"
                           min={1}
@@ -770,7 +770,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                     {[
                       { id: 'csv', emoji: '\u{1F4C4}', label: 'Uploader CSV/Excel', desc: 'Fichier .csv, .xlsx' },
                       { id: 'paste', emoji: '\u{1F4CB}', label: 'Copier-coller', desc: 'Liste depuis un document' },
-                      { id: 'template', emoji: '\u{1F3AF}', label: 'Mod\u00e8le pr\u00eat', desc: 'Choisir un type d\'activit\u00e9' },
+                      { id: 'template', emoji: '\u{1F3AF}', label: 'Modèle prêt', desc: 'Choisir un type d\'activité' },
                     ].map((opt) => (
                       <button
                         key={opt.id}
@@ -830,7 +830,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                       <label style={labelStyle}>Collez votre liste de produits</label>
                       <textarea
                         rows={8}
-                        placeholder={'Espresso\u00092.50\nCappuccino\u00093.50\nTarte du jour\u00095.00'}
+                        placeholder={'Espresso	2.50\nCappuccino	3.50\nTarte du jour	5.00'}
                         value={pasteText}
                         onChange={(e) => setPasteText(e.target.value)}
                         style={{
@@ -1044,7 +1044,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                       boxShadow: '0 20px 40px rgba(16,185,129,0.35)',
                     }}
                   >
-                    {'\u2713'}
+                    {'✓'}
                   </motion.div>
                   <h1 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 10px' }}>
                     C'est prêt !
@@ -1064,10 +1064,10 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                     }}
                   >
                     {[
-                      { icon: '\u{1F4B3}', text: 'Prendre votre premi\u00e8re commande sur la caisse' },
-                      { icon: '\u{1F4CA}', text: 'Consulter votre tableau de bord en temps r\u00e9el' },
-                      { icon: '\u{1F4C5}', text: 'Cr\u00e9er une r\u00e9servation ou un \u00e9v\u00e9nement' },
-                      { icon: '\u{1F4E6}', text: 'Recevoir et g\u00e9rer votre stock' },
+                      { icon: '\u{1F4B3}', text: 'Prendre votre première commande sur la caisse' },
+                      { icon: '\u{1F4CA}', text: 'Consulter votre tableau de bord en temps réel' },
+                      { icon: '\u{1F4C5}', text: 'Créer une réservation ou un événement' },
+                      { icon: '\u{1F4E6}', text: 'Recevoir et gérer votre stock' },
                       { icon: '\u{1F4F1}', text: 'Installer l\'application sur vos tablettes' },
                     ].map((item, i) => (
                       <motion.div
@@ -1087,7 +1087,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                         <span style={{ fontSize: 20 }}>{item.icon}</span>
                         <span style={{ fontSize: 14, color: '#0f172a' }}>{item.text}</span>
                         <span style={{ marginLeft: 'auto', color: '#10b981', fontSize: 16 }}>
-                          {'\u2713'}
+                          {'✓'}
                         </span>
                       </motion.div>
                     ))}
@@ -1106,11 +1106,11 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
           <div style={{ display: 'flex', gap: 10 }}>
             {step > 0 && (
               <button onClick={prev} style={btnSecondary}>
-                {'\u2190'} Précédent
+                {'←'} Précédent
               </button>
             )}
             <button onClick={next} style={btnPrimary}>
-              {step === steps.length - 1 ? 'Terminer ' + '\u{1F389}' : 'Suivant \u2192'}
+              {step === steps.length - 1 ? 'Terminer ' + '\u{1F389}' : 'Suivant →'}
             </button>
           </div>
         </div>

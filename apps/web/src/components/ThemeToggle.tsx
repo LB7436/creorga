@@ -2,9 +2,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme, useThemeColors, type Theme } from '@/lib/theme'
 
 const MODES: { key: Theme; icon: string; label: string }[] = [
-  { key: 'light', icon: '\u2600\uFE0F', label: 'Light' },
-  { key: 'dark', icon: '\uD83C\uDF19', label: 'Dark' },
-  { key: 'auto', icon: '\uD83D\uDCBB', label: 'System' },
+  { key: 'light', icon: '☀️', label: 'Light' },
+  { key: 'dark', icon: '🌙', label: 'Dark' },
+  { key: 'auto', icon: '💻', label: 'System' },
 ]
 
 export default function ThemeToggle() {

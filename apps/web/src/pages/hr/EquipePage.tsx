@@ -269,7 +269,7 @@ export default function EquipePage() {
               background: '#fff', border: '1px solid #e2e8f0', color: '#1e293b',
               fontSize: 14, outline: 'none', boxSizing: 'border-box',
             }}
-            placeholder="Rechercher par nom, email, r\u00f4le..."
+            placeholder="Rechercher par nom, email, rôle..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -308,12 +308,12 @@ export default function EquipePage() {
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                   {[
-                    { label: 'Employ\u00e9', field: 'nom' as SortField, width: undefined },
-                    { label: 'R\u00f4le', field: 'role' as SortField, width: undefined },
+                    { label: 'Employé', field: 'nom' as SortField, width: undefined },
+                    { label: 'Rôle', field: 'role' as SortField, width: undefined },
                     { label: 'Contrat', field: 'contrat' as SortField, width: undefined },
                     { label: 'H/sem', field: 'heures' as SortField, width: 70 },
                     { label: 'Salaire brut', field: 'salaire' as SortField, width: undefined },
-                    { label: 'Embauch\u00e9(e)', field: 'embauche' as SortField, width: undefined },
+                    { label: 'Embauché(e)', field: 'embauche' as SortField, width: undefined },
                     { label: 'Statut', field: 'statut' as SortField, width: 90 },
                     { label: 'Actions', field: null, width: 90 },
                   ].map((col, ci) => (
@@ -520,9 +520,9 @@ export default function EquipePage() {
                     { icon: <Mail size={14} />, text: selectedEmployee.email },
                     { icon: <Phone size={14} />, text: selectedEmployee.phone },
                     { icon: <MapPin size={14} />, text: selectedEmployee.adresse },
-                    { icon: <Calendar size={14} />, text: `N\u00e9(e) le ${selectedEmployee.dateNaissance.split('-').reverse().join('/')}` },
-                    { icon: <CreditCard size={14} />, text: `S\u00e9cu: ${selectedEmployee.numSecu}` },
-                    { icon: <Euro size={14} />, text: `${selectedEmployee.salaireBrut.toLocaleString('fr-LU')} \u20ac brut/mois` },
+                    { icon: <Calendar size={14} />, text: `Né(e) le ${selectedEmployee.dateNaissance.split('-').reverse().join('/')}` },
+                    { icon: <CreditCard size={14} />, text: `Sécu: ${selectedEmployee.numSecu}` },
+                    { icon: <Euro size={14} />, text: `${selectedEmployee.salaireBrut.toLocaleString('fr-LU')} € brut/mois` },
                     { icon: <Clock size={14} />, text: `${selectedEmployee.heuresHebdo}h / semaine` },
                   ].map((item, idx) => (
                     <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', fontSize: 13, color: '#475569' }}>
@@ -574,8 +574,8 @@ export default function EquipePage() {
                         <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{c.type}</span>
                         <span style={{
                           fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                          background: c.statut === 'Approuv\u00e9' ? '#dcfce7' : '#fef9c3',
-                          color: c.statut === 'Approuv\u00e9' ? '#16a34a' : '#ca8a04',
+                          background: c.statut === 'Approuvé' ? '#dcfce7' : '#fef9c3',
+                          color: c.statut === 'Approuvé' ? '#16a34a' : '#ca8a04',
                         }}>
                           {c.statut}
                         </span>
@@ -717,7 +717,7 @@ function EmployeeModal({ isOpen, onClose, onSave, employee }: {
             padding: '18px 24px', borderBottom: '1px solid #f1f5f9',
           }}>
             <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#0f172a' }}>
-              {employee ? 'Modifier l\u2019employ\u00e9' : 'Ajouter un employ\u00e9'}
+              {employee ? 'Modifier l’employé' : 'Ajouter un employé'}
             </h2>
             <button onClick={onClose} style={{
               background: '#f1f5f9', border: 'none', borderRadius: 8,
@@ -774,7 +774,7 @@ function EmployeeModal({ isOpen, onClose, onSave, employee }: {
               <div>
                 <label style={labelCss}>R&ocirc;le *</label>
                 <select style={selectCss} value={form.role} onChange={e => update('role', e.target.value)}>
-                  {(['Serveur', 'Cuisinier', 'Femme de m\u00e9nage', 'Manager', 'Barman'] as RoleType[]).map(r => (
+                  {(['Serveur', 'Cuisinier', 'Femme de ménage', 'Manager', 'Barman'] as RoleType[]).map(r => (
                     <option key={r} value={r}>{r}</option>
                   ))}
                 </select>
@@ -782,7 +782,7 @@ function EmployeeModal({ isOpen, onClose, onSave, employee }: {
               <div>
                 <label style={labelCss}>Type de contrat *</label>
                 <select style={selectCss} value={form.contrat} onChange={e => update('contrat', e.target.value)}>
-                  {(['CDI', 'CDD', 'Extra/Int\u00e9rimaire'] as ContratType[]).map(c => (
+                  {(['CDI', 'CDD', 'Extra/Intérimaire'] as ContratType[]).map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>

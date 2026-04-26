@@ -4,6 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/stores/authStore'
 import { useModuleStore, MODULES } from '@/stores/moduleStore'
 import type { ModuleId, ModuleDef } from '@/stores/moduleStore'
+import AdminQuickMenu from '@/components/AdminQuickMenu'
+import { useModuleConfig } from '@/stores/moduleConfigStore'
+import { useEnvMode } from '@/stores/envModeStore'
+import { useSharedModuleConfig } from '@/hooks/useSharedModuleConfig'
 
 /* ── emoji map (replaces lucide) ── */
 const MODULE_ICONS: Record<ModuleId, string> = {
@@ -252,9 +256,26 @@ export default function ModuleSelector() {
 
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<CategoryFilter>('all')
+  const localModuleConfig = useModuleConfig((s) => s.config)
+  const { config: remoteModuleConfig } = useSharedModuleConfig(1500)
+  // Remote wins (backend) — falls back to local if no remote entry
+  const moduleConfig = useMemo(() => {
+    const merged: Record<string, any> = {}
+    for (const id of Object.keys({ ...localModuleConfig, ...remoteModuleConfig })) {
+      merged[id] = { ...(localModuleConfig[id] || {}), ...(remoteModuleConfig[id] || {}) }
+    }
+    return merged
+  }, [localModuleConfig, remoteModuleConfig])
+  const comingSoonMode = useEnvMode((s) => s.comingSoonMode)
 
+  // Apply display-mode filter from SettingsModules:
+  //   - "hidden"     → exclude completely
+  //   - "coming_soon" → show with overlay but not clickable
+  //   - "visible"    → normal
   const filteredModules = useMemo(() => {
     return MODULES.filter((m) => {
+      const cfg = moduleConfig[m.id]
+      if (cfg?.displayMode === 'hidden') return false
       const matchCategory = category === 'all' || m.category === category
       const matchSearch =
         !search ||
@@ -262,9 +283,15 @@ export default function ModuleSelector() {
         m.tagline.toLowerCase().includes(search.toLowerCase())
       return matchCategory && matchSearch
     })
-  }, [category, search])
+  }, [category, search, moduleConfig])
 
   const handleModule = (mod: ModuleDef) => {
+    const cfg = moduleConfig[mod.id]
+    if (cfg?.displayMode === 'coming_soon') {
+      // Block navigation + show toast-like hint
+      alert(`🚧 ${cfg.customLabel || mod.name} est marqué "Bientôt disponible"`)
+      return
+    }
     setActiveModule(mod.id)
     navigate(mod.path)
   }
@@ -325,8 +352,10 @@ export default function ModuleSelector() {
           </div>
         </div>
 
-        {/* right: user + logout */}
+        {/* right: admin panel quick access + user + logout */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <AdminQuickMenu />
+
           <div
             style={{
               display: 'flex',
@@ -555,7 +584,34 @@ export default function ModuleSelector() {
               gap: 16,
             }}
           >
-            {filteredModules.map((mod) => (
+            {filteredModules.map((mod) => {
+              const cfg = moduleConfig[mod.id]
+              const isComingSoon = cfg?.displayMode === 'coming_soon'
+              // Apply customLabel if set — swap the module name
+              const displayMod = cfg?.customLabel ? { ...mod, name: cfg.customLabel } : mod
+              return (
+                <div key={mod.id} style={{ position: 'relative' }}>
+                  <ModuleCard mod={displayMod} onClick={() => handleModule(mod)} />
+                  {isComingSoon && (
+                    <div style={{
+                      position: 'absolute', inset: 0, borderRadius: 18,
+                      background: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(4px)',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      gap: 4, pointerEvents: 'none',
+                      border: '1px solid rgba(245,158,11,0.4)',
+                    }}>
+                      <div style={{ fontSize: 32 }}>🚧</div>
+                      <div style={{ fontSize: 13, color: '#fcd34d', fontWeight: 800, letterSpacing: 1 }}>
+                        BIENTÔT
+                      </div>
+                      <div style={{ fontSize: 11, color: '#94a3b8' }}>Module verrouillé</div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            {/* legacy render slot replaced by above block */}
+            {false && filteredModules.map((mod) => (
               <ModuleCard key={mod.id} mod={mod} onClick={() => handleModule(mod)} />
             ))}
 

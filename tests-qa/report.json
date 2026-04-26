@@ -1,0 +1,254 @@
+{
+  "timestamp": "2026-04-23T17:00:02.057Z",
+  "passed": 41,
+  "failed": 0,
+  "total": 41,
+  "results": [
+    {
+      "module": "Infra",
+      "test": "backend :3002",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "module": "Infra",
+      "test": "web :5174",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "module": "Infra",
+      "test": "pos :5175",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "module": "Infra",
+      "test": "marketing :5176",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "module": "Infra",
+      "test": "superadmin :5177",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "module": "Infra",
+      "test": "guest :5178",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "module": "Infra",
+      "test": "ollama :11434",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "module": "Auth",
+      "test": "login admin",
+      "ok": true,
+      "notes": "token acquis"
+    },
+    {
+      "module": "Auth",
+      "test": "fallback mode",
+      "ok": true,
+      "notes": "DB indisponible → fallback"
+    },
+    {
+      "module": "Payments",
+      "test": "6 gateways listés",
+      "ok": true,
+      "notes": "6 providers"
+    },
+    {
+      "module": "FloorState",
+      "test": "GET state",
+      "ok": true,
+      "notes": "12 tables"
+    },
+    {
+      "module": "FloorState",
+      "test": "addChair",
+      "ok": true,
+      "notes": "id=yf3g3l2o"
+    },
+    {
+      "module": "FloorState",
+      "test": "addItemToChair",
+      "ok": true,
+      "notes": "1 items"
+    },
+    {
+      "module": "FloorState",
+      "test": "transfer chair t2→t5",
+      "ok": true,
+      "notes": "tableId=t5"
+    },
+    {
+      "module": "FloorState",
+      "test": "transfer item ch→ch",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "module": "Portal",
+      "test": "PATCH admin→backend",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "module": "Portal",
+      "test": "GET guest side",
+      "ok": true,
+      "notes": "sync confirmé"
+    },
+    {
+      "module": "AI",
+      "test": "ollama running",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "module": "AI",
+      "test": "gemma2:2b installed",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "module": "AI",
+      "test": "inference responds",
+      "ok": true,
+      "notes": "okay"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/login",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/modules",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/setup",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/pos/floor",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/pos/design",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/pos/dashboard",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/clients",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/crm/clients",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/invoices/devis",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/hr/planning",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/haccp/journee",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/accounting/caisse",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/ai",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/ai/local",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/settings/modules",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/settings/env-mode",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "FrontEnd",
+      "test": "/settings/theme",
+      "ok": true,
+      "notes": "status 200"
+    },
+    {
+      "module": "CORS",
+      "test": "origin http://localhost:5174",
+      "ok": true,
+      "notes": "allow=http://localhost:5174"
+    },
+    {
+      "module": "CORS",
+      "test": "origin http://localhost:5175",
+      "ok": true,
+      "notes": "allow=http://localhost:5175"
+    },
+    {
+      "module": "CORS",
+      "test": "origin http://localhost:5178",
+      "ok": true,
+      "notes": "allow=http://localhost:5178"
+    }
+  ]
+}

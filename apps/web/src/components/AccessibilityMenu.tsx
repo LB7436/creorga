@@ -150,7 +150,7 @@ function AccessibilityMenu() {
           justifyContent: 'center',
         }}
       >
-        {'\u267F'}
+        {'♿'}
       </button>
 
       <AnimatePresence>
@@ -236,7 +236,7 @@ function AccessibilityMenu() {
                     cursor: 'pointer',
                   }}
                 >
-                  {'\u2715'}
+                  {'✕'}
                 </button>
               </div>
 

@@ -55,38 +55,38 @@ const buildInitialBlocks = (): TimeBlock[] => [
     id: 'ouverture',
     title: 'Ouverture',
     time: '06:00',
-    icon: '\u2600\uFE0F',
+    icon: '☀️',
     color: '#f59e0b',
     tasks: [
       {
-        id: 'o1', label: 'V\u00e9rifier temp\u00e9ratures frigos',
-        description: 'Relev\u00e9 des temp\u00e9ratures de tous les r\u00e9frig\u00e9rateurs. Plage conforme : 0 \u00e0 8\u00b0C.',
+        id: 'o1', label: 'Vérifier températures frigos',
+        description: 'Relevé des températures de tous les réfrigérateurs. Plage conforme : 0 à 8°C.',
         checked: true, requiresPhoto: false, requiresValue: true,
-        valueRange: { min: 0, max: 8, unit: '\u00b0C' },
+        valueRange: { min: 0, max: 8, unit: '°C' },
         value: '4.2', completedAt: '06:12', operator: OPERATOR, conforme: true,
       },
       {
-        id: 'o2', label: 'V\u00e9rifier temp\u00e9rature cong\u00e9lateur',
-        description: 'Relev\u00e9 cong\u00e9lateur. Plage conforme : -25 \u00e0 -15\u00b0C.',
+        id: 'o2', label: 'Vérifier température congélateur',
+        description: 'Relevé congélateur. Plage conforme : -25 à -15°C.',
         checked: true, requiresPhoto: false, requiresValue: true,
-        valueRange: { min: -25, max: -15, unit: '\u00b0C' },
+        valueRange: { min: -25, max: -15, unit: '°C' },
         value: '-18.5', completedAt: '06:14', operator: OPERATOR, conforme: true,
       },
       {
-        id: 'o3', label: 'Contr\u00f4le DLC produits',
-        description: 'V\u00e9rifier les dates limites de consommation de tous les produits en stock.',
+        id: 'o3', label: 'Contrôle DLC produits',
+        description: 'Vérifier les dates limites de consommation de tous les produits en stock.',
         checked: false, requiresPhoto: false, requiresValue: false,
         conforme: null,
       },
       {
         id: 'o4', label: 'Nettoyage plan de travail',
-        description: 'Nettoyer et d\u00e9sinfecter toutes les surfaces de travail. Photo obligatoire.',
+        description: 'Nettoyer et désinfecter toutes les surfaces de travail. Photo obligatoire.',
         checked: true, requiresPhoto: true, requiresValue: false,
         photoUrl: '/mock/nettoyage-plan.jpg', completedAt: '06:22', operator: OPERATOR, conforme: true,
       },
       {
         id: 'o5', label: 'Lavage des mains',
-        description: 'Tous les op\u00e9rateurs doivent se laver les mains avant de commencer.',
+        description: 'Tous les opérateurs doivent se laver les mains avant de commencer.',
         checked: true, requiresPhoto: false, requiresValue: false,
         completedAt: '06:25', operator: OPERATOR, conforme: true,
       },
@@ -96,32 +96,32 @@ const buildInitialBlocks = (): TimeBlock[] => [
     id: 'midi',
     title: 'Midi',
     time: '12:00',
-    icon: '\u2614',
+    icon: '☔',
     color: '#3b82f6',
     tasks: [
       {
-        id: 'm1', label: 'Re-contr\u00f4le temp\u00e9ratures',
-        description: 'Deuxi\u00e8me relev\u00e9 de la journ\u00e9e. Plage conforme : 0 \u00e0 8\u00b0C.',
+        id: 'm1', label: 'Re-contrôle températures',
+        description: 'Deuxième relevé de la journée. Plage conforme : 0 à 8°C.',
         checked: true, requiresPhoto: false, requiresValue: true,
-        valueRange: { min: 0, max: 8, unit: '\u00b0C' },
+        valueRange: { min: 0, max: 8, unit: '°C' },
         value: '9.2', completedAt: '12:05', operator: OPERATOR, conforme: false,
       },
       {
-        id: 'm2', label: 'V\u00e9rification plats chauds >63\u00b0C',
-        description: 'Les plats chauds doivent \u00eatre maintenus au-dessus de 63\u00b0C.',
+        id: 'm2', label: 'Vérification plats chauds >63°C',
+        description: 'Les plats chauds doivent être maintenus au-dessus de 63°C.',
         checked: false, requiresPhoto: false, requiresValue: true,
-        valueRange: { min: 63, max: 100, unit: '\u00b0C' },
+        valueRange: { min: 63, max: 100, unit: '°C' },
         conforme: null,
       },
       {
         id: 'm3', label: 'Nettoyage poste de travail',
-        description: 'Nettoyage mi-journ\u00e9e des postes. Photo obligatoire.',
+        description: 'Nettoyage mi-journée des postes. Photo obligatoire.',
         checked: false, requiresPhoto: true, requiresValue: false,
         conforme: null,
       },
       {
-        id: 'm4', label: 'V\u00e9rification huile de friture',
-        description: 'Contr\u00f4ler la qualit\u00e9 et la temp\u00e9rature de l\u2019huile de friture.',
+        id: 'm4', label: 'Vérification huile de friture',
+        description: 'Contrôler la qualité et la température de l’huile de friture.',
         checked: false, requiresPhoto: false, requiresValue: false,
         conforme: null,
       },
@@ -131,37 +131,37 @@ const buildInitialBlocks = (): TimeBlock[] => [
     id: 'fermeture',
     title: 'Fermeture',
     time: '22:00',
-    icon: '\uD83C\uDF19',
+    icon: '🌙',
     color: '#8b5cf6',
     tasks: [
       {
         id: 'f1', label: 'Nettoyage complet cuisine',
-        description: 'Nettoyage int\u00e9gral de la cuisine en fin de service. Photo obligatoire.',
+        description: 'Nettoyage intégral de la cuisine en fin de service. Photo obligatoire.',
         checked: false, requiresPhoto: true, requiresValue: false,
         conforme: null,
       },
       {
         id: 'f2', label: 'Sortie poubelles',
-        description: '\u00c9vacuer toutes les poubelles et remplacer les sacs.',
+        description: 'Évacuer toutes les poubelles et remplacer les sacs.',
         checked: false, requiresPhoto: false, requiresValue: false,
         conforme: null,
       },
       {
-        id: 'f3', label: 'Contr\u00f4le DLC fin de journ\u00e9e',
-        description: 'V\u00e9rification finale des DLC. Retirer les produits p\u00e9rim\u00e9s.',
+        id: 'f3', label: 'Contrôle DLC fin de journée',
+        description: 'Vérification finale des DLC. Retirer les produits périmés.',
         checked: false, requiresPhoto: false, requiresValue: false,
         conforme: null,
       },
       {
-        id: 'f4', label: 'Temp\u00e9rature frigo fin de journ\u00e9e',
-        description: 'Dernier relev\u00e9 de temp\u00e9rature. Plage conforme : 0 \u00e0 8\u00b0C.',
+        id: 'f4', label: 'Température frigo fin de journée',
+        description: 'Dernier relevé de température. Plage conforme : 0 à 8°C.',
         checked: false, requiresPhoto: false, requiresValue: true,
-        valueRange: { min: 0, max: 8, unit: '\u00b0C' },
+        valueRange: { min: 0, max: 8, unit: '°C' },
         conforme: null,
       },
       {
-        id: 'f5', label: 'Fermeture et s\u00e9curisation',
-        description: 'V\u00e9rifier la fermeture de toutes les portes, fen\u00eatres et \u00e9quipements.',
+        id: 'f5', label: 'Fermeture et sécurisation',
+        description: 'Vérifier la fermeture de toutes les portes, fenêtres et équipements.',
         checked: false, requiresPhoto: false, requiresValue: false,
         conforme: null,
       },
@@ -170,11 +170,11 @@ const buildInitialBlocks = (): TimeBlock[] => [
 ]
 
 const initialAlerts: Alert[] = [
-  { id: 'a1', type: 'danger', message: 'Frigo 2 hors norme (9.2\u00b0C)', timestamp: '12:05' },
-  { id: 'a2', type: 'warning', message: 'T\u00e2che midi non compl\u00e9t\u00e9e', timestamp: '13:30' },
-  { id: 'a3', type: 'info', message: 'Ouverture valid\u00e9e \u00e0 80%', timestamp: '07:00' },
-  { id: 'a4', type: 'warning', message: 'Photo manquante \u2014 Nettoyage poste midi', timestamp: '13:45' },
-  { id: 'a5', type: 'info', message: 'Cong\u00e9lateur conforme (-18.5\u00b0C)', timestamp: '06:14' },
+  { id: 'a1', type: 'danger', message: 'Frigo 2 hors norme (9.2°C)', timestamp: '12:05' },
+  { id: 'a2', type: 'warning', message: 'Tâche midi non complétée', timestamp: '13:30' },
+  { id: 'a3', type: 'info', message: 'Ouverture validée à 80%', timestamp: '07:00' },
+  { id: 'a4', type: 'warning', message: 'Photo manquante — Nettoyage poste midi', timestamp: '13:45' },
+  { id: 'a5', type: 'info', message: 'Congélateur conforme (-18.5°C)', timestamp: '06:14' },
 ]
 
 /* ------------------------------------------------------------------ */
@@ -183,7 +183,7 @@ const initialAlerts: Alert[] = [
 
 const PLACEHOLDER_PHOTOS = [
   { color: '#e0f2fe', label: 'Nettoyage plan' },
-  { color: '#fef3c7', label: 'Surface d\u00e9sinfect\u00e9e' },
+  { color: '#fef3c7', label: 'Surface désinfectée' },
   { color: '#f0fdf4', label: 'Frigo propre' },
 ]
 
@@ -297,13 +297,13 @@ function PhotoUploadArea({ photoUrl, onUpload }: { photoUrl?: string; onUpload: 
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         border: '1px solid #e2e8f0', position: 'relative', overflow: 'hidden',
       }}>
-        <span style={{ fontSize: 28 }}>{'\uD83D\uDCF7'}</span>
+        <span style={{ fontSize: 28 }}>{'📷'}</span>
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
           background: 'rgba(0,0,0,0.5)', padding: '2px 4px',
           fontSize: 9, color: '#fff', textAlign: 'center',
         }}>
-          Photo ajout\u00e9e
+          Photo ajoutée
         </div>
       </div>
     )
@@ -322,7 +322,7 @@ function PhotoUploadArea({ photoUrl, onUpload }: { photoUrl?: string; onUpload: 
         fontFamily: 'inherit',
       }}
     >
-      <span>{'\uD83D\uDCF7'}</span> Ajouter une photo
+      <span>{'📷'}</span> Ajouter une photo
     </motion.button>
   )
 }
@@ -341,7 +341,7 @@ function ComplianceBadge({ conforme }: { conforme: boolean | null | undefined })
       color: conforme ? '#16a34a' : '#dc2626',
       border: `1px solid ${conforme ? '#bbf7d0' : '#fecaca'}`,
     }}>
-      {conforme ? '\u2705 Conforme' : '\u274C Non conforme'}
+      {conforme ? '✅ Conforme' : '❌ Non conforme'}
     </span>
   )
 }
@@ -373,7 +373,7 @@ function ValueInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          placeholder={`${range.min} \u00e0 ${range.max}`}
+          placeholder={`${range.min} à ${range.max}`}
           style={{
             width: 90, padding: '6px 10px', border: 'none', outline: 'none',
             fontSize: 14, fontWeight: 600, color: '#1e293b',
@@ -390,7 +390,7 @@ function ValueInput({
       </div>
       {hasVal && (
         <span style={{ fontSize: 11, color: isValid ? '#16a34a' : '#dc2626', fontWeight: 500 }}>
-          {isValid ? `${range.min}\u2013${range.max} ${range.unit}` : 'Hors plage !'}
+          {isValid ? `${range.min}–${range.max} ${range.unit}` : 'Hors plage !'}
         </span>
       )}
     </div>
@@ -403,9 +403,9 @@ function ValueInput({
 
 function AlertCard({ alert }: { alert: Alert }) {
   const cfg = {
-    danger: { bg: '#fef2f2', border: '#fecaca', color: '#dc2626', icon: '\u26A0\uFE0F' },
-    warning: { bg: '#fffbeb', border: '#fde68a', color: '#d97706', icon: '\uD83D\uDD14' },
-    info: { bg: '#eff6ff', border: '#bfdbfe', color: '#2563eb', icon: '\u2139\uFE0F' },
+    danger: { bg: '#fef2f2', border: '#fecaca', color: '#dc2626', icon: '⚠️' },
+    warning: { bg: '#fffbeb', border: '#fde68a', color: '#d97706', icon: '🔔' },
+    info: { bg: '#eff6ff', border: '#bfdbfe', color: '#2563eb', icon: 'ℹ️' },
   }[alert.type]
 
   return (
@@ -451,7 +451,7 @@ export default function JourneePage() {
   const doneTasks = useMemo(() => blocks.reduce((s, b) => s + b.tasks.filter(t => t.checked).length, 0), [blocks])
   const pct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0
 
-  const statusLabel = validated ? 'Valid\u00e9' : pct === 0 ? 'Non commenc\u00e9' : 'En cours'
+  const statusLabel = validated ? 'Validé' : pct === 0 ? 'Non commencé' : 'En cours'
   const statusColor = validated ? '#16a34a' : pct === 0 ? '#ef4444' : '#f59e0b'
   const statusBg = validated ? '#f0fdf4' : pct === 0 ? '#fef2f2' : '#fffbeb'
 
@@ -564,7 +564,7 @@ export default function JourneePage() {
             {/* Text info */}
             <div style={{ flex: 1, minWidth: 220 }}>
               <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0, letterSpacing: -0.5 }}>
-                Journ\u00e9e HACCP
+                Journée HACCP
               </h1>
               <p style={{ fontSize: 16, margin: '4px 0 0', opacity: 0.85, fontWeight: 500 }}>
                 {capitalizedDate}
@@ -593,7 +593,7 @@ export default function JourneePage() {
                   background: 'rgba(255,255,255,0.12)',
                   fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.8)',
                 }}>
-                  {'\u23F0'} Fermeture dans {hoursLeft}h
+                  {'⏰'} Fermeture dans {hoursLeft}h
                 </span>
 
                 {/* Task counter */}
@@ -602,7 +602,7 @@ export default function JourneePage() {
                   background: 'rgba(255,255,255,0.12)',
                   fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.8)',
                 }}>
-                  {doneTasks}/{totalTasks} t\u00e2ches
+                  {doneTasks}/{totalTasks} tâches
                 </span>
               </div>
             </div>
@@ -626,7 +626,7 @@ export default function JourneePage() {
                 transition: 'opacity 0.2s, background 0.3s',
               }}
             >
-              {validated ? '\u2705 Journ\u00e9e valid\u00e9e' : 'Valider la journ\u00e9e'}
+              {validated ? '✅ Journée validée' : 'Valider la journée'}
             </motion.button>
           </div>
         </motion.div>
@@ -675,7 +675,7 @@ export default function JourneePage() {
                         color: blockPct === 100 ? '#16a34a' : '#64748b',
                         border: `1px solid ${blockPct === 100 ? '#bbf7d0' : '#e2e8f0'}`,
                       }}>
-                        {blockDone}/{blockTotal} t\u00e2ches
+                        {blockDone}/{blockTotal} tâches
                       </span>
 
                       {/* Chevron */}
@@ -684,7 +684,7 @@ export default function JourneePage() {
                         transition={{ duration: 0.25 }}
                         style={{ fontSize: 18, color: '#94a3b8', lineHeight: 1 }}
                       >
-                        {'\u25BC'}
+                        {'▼'}
                       </motion.span>
                     </div>
                   </div>
@@ -768,8 +768,8 @@ export default function JourneePage() {
                                       display: 'flex', alignItems: 'center', gap: 12,
                                       marginTop: 8, fontSize: 11, color: '#94a3b8',
                                     }}>
-                                      <span>{'\u23F0'} {task.completedAt}</span>
-                                      {task.operator && <span>{'\uD83D\uDC64'} {task.operator}</span>}
+                                      <span>{'⏰'} {task.completedAt}</span>
+                                      {task.operator && <span>{'👤'} {task.operator}</span>}
                                     </div>
                                   )}
                                 </div>
@@ -814,9 +814,9 @@ export default function JourneePage() {
               }}>
                 <div style={{ padding: '16px 20px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <span style={{ fontSize: 16 }}>{'\uD83D\uDEA8'}</span>
+                    <span style={{ fontSize: 16 }}>{'🚨'}</span>
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#dc2626' }}>
-                      Non-conformit\u00e9s ({nonConformeTasks.length})
+                      Non-conformités ({nonConformeTasks.length})
                     </span>
                   </div>
                   {nonConformeTasks.map(t => (
@@ -839,7 +839,7 @@ export default function JourneePage() {
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 16 }}>{'\uD83D\uDD14'}</span>
+                  <span style={{ fontSize: 16 }}>{'🔔'}</span>
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>
                     Alertes du jour
                   </span>
@@ -863,7 +863,7 @@ export default function JourneePage() {
                   color: '#64748b', fontSize: 12, fontWeight: 600,
                   cursor: 'pointer', fontFamily: 'inherit',
                 }}>
-                  {'\u2699\uFE0F'} Configurer les alertes
+                  {'⚙️'} Configurer les alertes
                 </button>
               </div>
             </motion.div>
@@ -875,7 +875,7 @@ export default function JourneePage() {
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 16 }}>{'\uD83D\uDCF7'}</span>
+                  <span style={{ fontSize: 16 }}>{'📷'}</span>
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>
                     Preuves photos
                   </span>
@@ -904,7 +904,7 @@ export default function JourneePage() {
                       border: '1px solid #e2e8f0', position: 'relative', overflow: 'hidden',
                     }}
                   >
-                    <span style={{ fontSize: 24, marginBottom: 4 }}>{'\uD83D\uDCF7'}</span>
+                    <span style={{ fontSize: 24, marginBottom: 4 }}>{'📷'}</span>
                     <div style={{
                       position: 'absolute', bottom: 0, left: 0, right: 0,
                       background: 'rgba(0,0,0,0.55)', padding: '4px 6px',
@@ -945,20 +945,20 @@ export default function JourneePage() {
           <div style={{ padding: '24px 28px' }}>
             {validated ? (
               <>
-                <span style={{ fontSize: 40 }}>{'\u2705'}</span>
+                <span style={{ fontSize: 40 }}>{'✅'}</span>
                 <h2 style={{ fontSize: 18, fontWeight: 700, color: '#16a34a', margin: '8px 0 4px' }}>
-                  Journ\u00e9e valid\u00e9e avec succ\u00e8s
+                  Journée validée avec succès
                 </h2>
                 <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
-                  Valid\u00e9e par {OPERATOR} le {capitalizedDate} \u00e0 {format(now, 'HH:mm')}
+                  Validée par {OPERATOR} le {capitalizedDate} à {format(now, 'HH:mm')}
                 </p>
               </>
             ) : (
               <>
                 <p style={{ fontSize: 14, color: '#64748b', margin: '0 0 12px', fontWeight: 500 }}>
                   {pct < 100
-                    ? `Compl\u00e9tez toutes les t\u00e2ches pour valider la journ\u00e9e (${doneTasks}/${totalTasks})`
-                    : 'Toutes les t\u00e2ches sont compl\u00e9t\u00e9es. Vous pouvez valider la journ\u00e9e.'
+                    ? `Complétez toutes les tâches pour valider la journée (${doneTasks}/${totalTasks})`
+                    : 'Toutes les tâches sont complétées. Vous pouvez valider la journée.'
                   }
                 </p>
                 <div style={{

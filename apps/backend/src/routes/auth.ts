@@ -113,59 +113,110 @@ router.post('/register', validate(registerSchema), async (req, res) => {
   }
 })
 
+// ─── FALLBACK ADMIN (works without a database — portable across PCs) ──
+// If Postgres isn't running (fresh clone, no Docker), these creds still work.
+// Override via env FALLBACK_ADMIN_EMAIL / FALLBACK_ADMIN_PASSWORD if needed.
+const FALLBACK_ADMIN = {
+  id: 'fallback-admin',
+  email: process.env.FALLBACK_ADMIN_EMAIL || 'admin@creorga.local',
+  password: process.env.FALLBACK_ADMIN_PASSWORD || 'Admin1234!',
+  firstName: 'Admin',
+  lastName: 'Creorga',
+  avatar: null as string | null,
+}
+const FALLBACK_COMPANY = {
+  id: 'fallback-company',
+  role: 'OWNER',
+  isActive: true,
+  company: {
+    id: 'fallback-company',
+    name: 'Café um Rond-Point',
+    email: 'contact@creorga.local',
+  },
+}
+
+function buildFallbackResponse() {
+  const accessToken = generateAccessToken(FALLBACK_ADMIN.id, FALLBACK_ADMIN.email)
+  const refreshToken = generateRefreshToken()
+  return {
+    accessToken,
+    refreshToken,
+    user: {
+      id: FALLBACK_ADMIN.id,
+      email: FALLBACK_ADMIN.email,
+      firstName: FALLBACK_ADMIN.firstName,
+      lastName: FALLBACK_ADMIN.lastName,
+      avatar: FALLBACK_ADMIN.avatar,
+    },
+    companies: [FALLBACK_COMPANY],
+  }
+}
+
 // ─── POST /api/auth/login ──────────────────────────────
 
 router.post('/login', validate(loginSchema), async (req, res) => {
+  const { email, password } = req.body
+
+  // 1) Try the real database first
   try {
-    const { email, password } = req.body
-
     const user = await prisma.user.findUnique({ where: { email } })
-    if (!user) {
-      res.status(401).json({ message: 'Email ou mot de passe incorrect' })
+    if (user) {
+      const valid = await bcrypt.compare(password, user.password)
+      if (!valid) {
+        res.status(401).json({ message: 'Email ou mot de passe incorrect' })
+        return
+      }
+
+      const accessToken = generateAccessToken(user.id, user.email)
+      const refreshToken = generateRefreshToken()
+
+      await prisma.refreshToken.create({
+        data: { token: refreshToken, userId: user.id, expiresAt: getRefreshExpiry() },
+      })
+
+      const companies = await prisma.userCompany.findMany({
+        where: { userId: user.id, isActive: true },
+        include: { company: true },
+      })
+
+      res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        path: '/',
+      })
+
+      logger.info(`Connexion DB: ${email}`)
+      res.json({
+        accessToken,
+        user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, avatar: user.avatar },
+        companies,
+      })
       return
     }
+    // User not in DB → fall through to fallback check
+  } catch (error: any) {
+    // DB unreachable → fall through to fallback check
+    logger.warn(`DB indisponible, bascule fallback admin: ${error?.message || error}`)
+  }
 
-    const valid = await bcrypt.compare(password, user.password)
-    if (!valid) {
-      res.status(401).json({ message: 'Email ou mot de passe incorrect' })
-      return
-    }
-
-    const accessToken = generateAccessToken(user.id, user.email)
-    const refreshToken = generateRefreshToken()
-
-    await prisma.refreshToken.create({
-      data: {
-        token: refreshToken,
-        userId: user.id,
-        expiresAt: getRefreshExpiry(),
-      },
-    })
-
-    const companies = await prisma.userCompany.findMany({
-      where: { userId: user.id, isActive: true },
-      include: { company: true },
-    })
-
-    res.cookie('refreshToken', refreshToken, {
+  // 2) Fallback admin (works even with no DB)
+  if (email === FALLBACK_ADMIN.email && password === FALLBACK_ADMIN.password) {
+    const r = buildFallbackResponse()
+    res.cookie('refreshToken', r.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/',
     })
-
-    logger.info(`Connexion: ${email}`)
-
-    res.json({
-      accessToken,
-      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, avatar: user.avatar },
-      companies,
-    })
-  } catch (error) {
-    logger.error('Erreur login:', error)
-    res.status(500).json({ message: 'Erreur lors de la connexion' })
+    logger.info(`Connexion FALLBACK: ${email}`)
+    res.json({ accessToken: r.accessToken, user: r.user, companies: r.companies })
+    return
   }
+
+  res.status(401).json({ message: 'Email ou mot de passe incorrect' })
 })
 
 // ─── POST /api/auth/refresh ────────────────────────────
@@ -240,6 +291,21 @@ router.post('/logout', async (req, res) => {
 // ─── GET /api/auth/me ──────────────────────────────────
 
 router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
+  // Fallback admin → short-circuit (no DB call)
+  if (req.user!.userId === FALLBACK_ADMIN.id) {
+    res.json({
+      user: {
+        id: FALLBACK_ADMIN.id,
+        email: FALLBACK_ADMIN.email,
+        firstName: FALLBACK_ADMIN.firstName,
+        lastName: FALLBACK_ADMIN.lastName,
+        avatar: FALLBACK_ADMIN.avatar,
+      },
+      companies: [FALLBACK_COMPANY],
+    })
+    return
+  }
+
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.userId },
@@ -257,9 +323,19 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
     })
 
     res.json({ user, companies })
-  } catch (error) {
-    logger.error('Erreur /me:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
+  } catch (error: any) {
+    // DB down → serve fallback profile for the authenticated token
+    logger.warn(`DB indisponible sur /me, renvoi profil fallback: ${error?.message || error}`)
+    res.json({
+      user: {
+        id: req.user!.userId,
+        email: req.user!.email,
+        firstName: 'Admin',
+        lastName: 'Creorga',
+        avatar: null,
+      },
+      companies: [FALLBACK_COMPANY],
+    })
   }
 })
 

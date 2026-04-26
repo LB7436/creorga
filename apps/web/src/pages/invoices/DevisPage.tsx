@@ -72,7 +72,7 @@ interface CGVItem {
 const mockDevis: Devis[] = [
   { id: 1, numero: 'DEV-2026-042', client: 'Restaurant Le Pavillon', date: '2026-04-12', validite: '2026-05-12', montant: 2450, statut: 'ACCEPTED', opened: true, openedAt: '2026-04-13 10:24', signed: true, signedAt: '2026-04-14 15:02', version: 2 },
   { id: 2, numero: 'DEV-2026-041', client: 'Brasserie Mansfeld', date: '2026-04-10', validite: '2026-04-25', montant: 1280, statut: 'SENT', opened: true, openedAt: '2026-04-11 08:45', reminderScheduled: true },
-  { id: 3, numero: 'DEV-2026-040', client: 'Caf\u00e9 des Artistes', date: '2026-04-08', validite: '2026-05-08', montant: 890, statut: 'DRAFT' },
+  { id: 3, numero: 'DEV-2026-040', client: 'Café des Artistes', date: '2026-04-08', validite: '2026-05-08', montant: 890, statut: 'DRAFT' },
   { id: 4, numero: 'DEV-2026-039', client: 'Hotel Parc Belair', date: '2026-04-05', validite: '2026-05-05', montant: 3200, statut: 'ACCEPTED', opened: true, openedAt: '2026-04-06 14:12', signed: true, signedAt: '2026-04-08 09:30' },
   { id: 5, numero: 'DEV-2026-038', client: 'Trattoria Roma', date: '2026-04-02', validite: '2026-05-02', montant: 630, statut: 'REJECTED', opened: true, openedAt: '2026-04-03 11:08' },
   { id: 6, numero: 'DEV-2026-037', client: 'Wine Bar Clausen', date: '2026-03-28', validite: '2026-04-11', montant: 1750, statut: 'EXPIRED', opened: false },
@@ -81,10 +81,10 @@ const mockDevis: Devis[] = [
 
 const statutConfig: Record<Statut, { label: string; color: string }> = {
   DRAFT: { label: 'Brouillon', color: '#64748b' },
-  SENT: { label: 'Envoy\u00e9', color: '#3b82f6' },
-  ACCEPTED: { label: 'Accept\u00e9', color: '#10b981' },
-  REJECTED: { label: 'Refus\u00e9', color: '#ef4444' },
-  EXPIRED: { label: 'Expir\u00e9', color: '#f59e0b' },
+  SENT: { label: 'Envoyé', color: '#3b82f6' },
+  ACCEPTED: { label: 'Accepté', color: '#10b981' },
+  REJECTED: { label: 'Refusé', color: '#ef4444' },
+  EXPIRED: { label: 'Expiré', color: '#f59e0b' },
 }
 
 const TAUX_TVA = [3, 8, 14, 17]
@@ -92,27 +92,27 @@ const TAUX_TVA = [3, 8, 14, 17]
 const DESIGNS: QuoteDesign[] = [
   { id: 'classique', nom: 'Classique', headerBg: '#ffffff', headerColor: '#1e293b', accentColor: '#1e293b', fontFamily: 'system-ui, sans-serif', description: 'Noir et blanc, lignes nettes' },
   { id: 'moderne', nom: 'Moderne', headerBg: '#4338ca', headerColor: '#ffffff', accentColor: '#4338ca', fontFamily: 'system-ui, sans-serif', description: 'Accent indigo, contemporain' },
-  { id: 'elegant', nom: '\u00c9l\u00e9gant', headerBg: '#1a1a2e', headerColor: '#d4af37', accentColor: '#d4af37', fontFamily: 'Georgia, serif', description: 'Serif, accents dor\u00e9s' },
+  { id: 'elegant', nom: 'Élégant', headerBg: '#1a1a2e', headerColor: '#d4af37', accentColor: '#d4af37', fontFamily: 'Georgia, serif', description: 'Serif, accents dorés' },
   { id: 'compact', nom: 'Compact', headerBg: '#f8fafc', headerColor: '#334155', accentColor: '#64748b', fontFamily: 'system-ui, sans-serif', description: 'Minimal, dense, efficace' },
   { id: 'luxembourg', nom: 'Luxembourg', headerBg: '#00A1DE', headerColor: '#ffffff', accentColor: '#EF4135', fontFamily: 'system-ui, sans-serif', description: 'Couleurs du Luxembourg' },
 ]
 
 const TEMPLATES: Template[] = [
-  { id: 't1', nom: 'Traiteur \u00e9v\u00e9nement', description: 'Menu complet pour 50 pers.', articles: 8, montant: 2200 },
+  { id: 't1', nom: 'Traiteur événement', description: 'Menu complet pour 50 pers.', articles: 8, montant: 2200 },
   { id: 't2', nom: 'Buffet mariage', description: 'Buffet + vin + service', articles: 12, montant: 4800 },
-  { id: 't3', nom: 'Coffee break entreprise', description: 'Caf\u00e9, viennoiseries, jus', articles: 5, montant: 350 },
-  { id: 't4', nom: 'Menu d\u00e9gustation', description: '5 plats + accord mets/vins', articles: 10, montant: 1650 },
+  { id: 't3', nom: 'Coffee break entreprise', description: 'Café, viennoiseries, jus', articles: 5, montant: 350 },
+  { id: 't4', nom: 'Menu dégustation', description: '5 plats + accord mets/vins', articles: 10, montant: 1650 },
 ]
 
 const CGV_LIBRARY: CGVItem[] = [
-  { id: 'std', nom: 'Standard Luxembourg', texte: 'Devis valable 30 jours. Paiement \u00e0 30 jours date de facture. TVA luxembourgeoise applicable. Retard : int\u00e9r\u00eats l\u00e9gaux + 40\u20ac forfait recouvrement (loi du 18/04/2004).' },
-  { id: 'event', nom: '\u00c9v\u00e9nementiel', texte: 'Acompte 30% \u00e0 la commande, solde J-7. Annulation : 50% si < 15j, 100% si < 72h. Force majeure : report sans frais.' },
-  { id: 'catering', nom: 'Traiteur', texte: 'Confirmation d\u00e9finitive J-7. Nombre de couverts ajustable \u00b110% jusque J-3. Vaisselle cass\u00e9e factur\u00e9e au prix catalogue.' },
-  { id: 'corporate', nom: 'Corporate B2B', texte: 'Paiement 60 jours fin de mois. Bon de commande requis. Facturation \u00e9lectronique via Peppol accept\u00e9e.' },
+  { id: 'std', nom: 'Standard Luxembourg', texte: 'Devis valable 30 jours. Paiement à 30 jours date de facture. TVA luxembourgeoise applicable. Retard : intérêts légaux + 40€ forfait recouvrement (loi du 18/04/2004).' },
+  { id: 'event', nom: 'Événementiel', texte: 'Acompte 30% à la commande, solde J-7. Annulation : 50% si < 15j, 100% si < 72h. Force majeure : report sans frais.' },
+  { id: 'catering', nom: 'Traiteur', texte: 'Confirmation définitive J-7. Nombre de couverts ajustable ±10% jusque J-3. Vaisselle cassée facturée au prix catalogue.' },
+  { id: 'corporate', nom: 'Corporate B2B', texte: 'Paiement 60 jours fin de mois. Bon de commande requis. Facturation électronique via Peppol acceptée.' },
 ]
 
 const ENTREPRISE = {
-  nom: 'Caf\u00e9 um Rond-Point',
+  nom: 'Café um Rond-Point',
   adresse: '12 Rue du Rond-Point, L-3750 Rumelange',
   tel: '+352 26 56 12 34',
   tva: 'LU12345678',
@@ -120,9 +120,9 @@ const ENTREPRISE = {
 
 const acceptanceMonths = [
   { mois: 'Nov', envoyes: 12, acceptes: 7, refuses: 3, expires: 2 },
-  { mois: 'D\u00e9c', envoyes: 18, acceptes: 11, refuses: 4, expires: 3 },
+  { mois: 'Déc', envoyes: 18, acceptes: 11, refuses: 4, expires: 3 },
   { mois: 'Jan', envoyes: 15, acceptes: 10, refuses: 3, expires: 2 },
-  { mois: 'F\u00e9v', envoyes: 22, acceptes: 15, refuses: 4, expires: 3 },
+  { mois: 'Fév', envoyes: 22, acceptes: 15, refuses: 4, expires: 3 },
   { mois: 'Mar', envoyes: 19, acceptes: 13, refuses: 4, expires: 2 },
   { mois: 'Avr', envoyes: 14, acceptes: 9, refuses: 3, expires: 2 },
 ]
@@ -245,19 +245,19 @@ function QuotePreview({ design, client, articles, numero, validite }: {
       <div style={{ padding: '16px 22px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14, fontSize: 10 }}>
           <div>
-            <div style={{ color: '#94a3b8', fontSize: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Destin\u00e9 \u00e0</div>
+            <div style={{ color: '#94a3b8', fontSize: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Destiné à</div>
             <div style={{ fontWeight: 700, fontSize: 12, marginTop: 3 }}>{client.nom || 'Client'}</div>
             {client.adresse && <div style={{ color: '#64748b', marginTop: 2 }}>{client.adresse}</div>}
           </div>
           <div style={{ textAlign: 'right', color: '#64748b' }}>
-            Validit\u00e9 : <strong>{validite || '\u2014'}</strong>
+            Validité : <strong>{validite || '—'}</strong>
           </div>
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
           <thead>
             <tr style={{ borderBottom: `2px solid ${design.accentColor}` }}>
               <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: 9, color: design.accentColor }}>Description</th>
-              <th style={{ textAlign: 'right', padding: '6px 4px', fontSize: 9, color: design.accentColor }}>Qt\u00e9</th>
+              <th style={{ textAlign: 'right', padding: '6px 4px', fontSize: 9, color: design.accentColor }}>Qté</th>
               <th style={{ textAlign: 'right', padding: '6px 4px', fontSize: 9, color: design.accentColor }}>Prix</th>
               <th style={{ textAlign: 'right', padding: '6px 4px', fontSize: 9, color: design.accentColor }}>Total</th>
             </tr>
@@ -270,8 +270,8 @@ function QuotePreview({ design, client, articles, numero, validite }: {
               <tr key={a.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                 <td style={{ padding: '6px 4px' }}>{a.description || 'Article'}</td>
                 <td style={{ padding: '6px 4px', textAlign: 'right' }}>{a.quantite}</td>
-                <td style={{ padding: '6px 4px', textAlign: 'right' }}>{fmt(a.prixHT)}\u20ac</td>
-                <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 600 }}>{fmt(a.quantite * a.prixHT)}\u20ac</td>
+                <td style={{ padding: '6px 4px', textAlign: 'right' }}>{fmt(a.prixHT)}€</td>
+                <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 600 }}>{fmt(a.quantite * a.prixHT)}€</td>
               </tr>
             ))}
           </tbody>
@@ -279,16 +279,16 @@ function QuotePreview({ design, client, articles, numero, validite }: {
         <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
           <div style={{ width: 180 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b', padding: '3px 0' }}>
-              <span>Sous-total HT</span><span>{fmt(sousTotal)}\u20ac</span>
+              <span>Sous-total HT</span><span>{fmt(sousTotal)}€</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#94a3b8', padding: '3px 0' }}>
-              <span>TVA</span><span>{fmt(totalTVA)}\u20ac</span>
+              <span>TVA</span><span>{fmt(totalTVA)}€</span>
             </div>
             <div style={{
               display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 800,
               color: design.accentColor, padding: '6px 0 2px', borderTop: `2px solid ${design.accentColor}`, marginTop: 4,
             }}>
-              <span>Total TTC</span><span>{fmt(totalTTC)}\u20ac</span>
+              <span>Total TTC</span><span>{fmt(totalTTC)}€</span>
             </div>
           </div>
         </div>
@@ -344,14 +344,14 @@ function DevisModal({ onClose, onToast }: { onClose: () => void; onToast: (m: st
   const applyTemplate = (t: Template) => {
     const sample: LigneArticle[] = Array.from({ length: Math.min(t.articles, 4) }, (_, i) => ({
       id: i + 1,
-      description: `${t.nom} \u2013 \u00e9l\u00e9ment ${i + 1}`,
+      description: `${t.nom} – élément ${i + 1}`,
       quantite: 1,
       prixHT: Math.round((t.montant / t.articles) * 100) / 100,
       tauxTVA: 17,
     }))
     setArticles(sample)
     setNextId(sample.length + 1)
-    onToast(`Template "${t.nom}" appliqu\u00e9`)
+    onToast(`Template "${t.nom}" appliqué`)
   }
 
   const totals = useMemo(() => {
@@ -379,12 +379,12 @@ function DevisModal({ onClose, onToast }: { onClose: () => void; onToast: (m: st
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 22px', borderBottom: '1px solid #e2e8f0', background: '#ffffff' }}>
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', margin: 0 }}>Nouveau devis</h2>
-            <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>{numero} \u2022 Validit\u00e9 : {validiteDate}</p>
+            <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>{numero} • Validité : {validiteDate}</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => onToast('Brouillon enregistr\u00e9')} style={smallBtnStyle}><Save size={13} /> Brouillon</button>
-            <button onClick={() => onToast('Devis envoy\u00e9 par email')} style={{ ...smallBtnStyle, background: '#065F46', color: '#fff', border: 'none' }}><Send size={13} /> Envoyer</button>
-            <button onClick={() => onToast('G\u00e9n\u00e9ration du PDF...')} style={{ ...smallBtnStyle, background: '#4338ca', color: '#fff', border: 'none' }}><Download size={13} /> PDF</button>
+            <button onClick={() => onToast('Brouillon enregistré')} style={smallBtnStyle}><Save size={13} /> Brouillon</button>
+            <button onClick={() => onToast('Devis envoyé par email')} style={{ ...smallBtnStyle, background: '#065F46', color: '#fff', border: 'none' }}><Send size={13} /> Envoyer</button>
+            <button onClick={() => onToast('Génération du PDF...')} style={{ ...smallBtnStyle, background: '#4338ca', color: '#fff', border: 'none' }}><Download size={13} /> PDF</button>
             <button onClick={onClose} style={{ ...smallBtnStyle, width: 34, padding: 0, justifyContent: 'center' }}><X size={14} /></button>
           </div>
         </div>
@@ -395,7 +395,7 @@ function DevisModal({ onClose, onToast }: { onClose: () => void; onToast: (m: st
               <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px', color: '#1e293b' }}>Client</h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={labelStyle}>Nom / Soci\u00e9t\u00e9</label>
+                  <label style={labelStyle}>Nom / Société</label>
                   <input style={inputStyle} value={client.nom} onChange={e => setClient({ ...client, nom: e.target.value })} placeholder="Restaurant Le Pavillon" />
                 </div>
                 <div>
@@ -411,10 +411,10 @@ function DevisModal({ onClose, onToast }: { onClose: () => void; onToast: (m: st
 
             <div style={cardStyle}>
               <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <CalendarClock size={14} /> Validit\u00e9
+                <CalendarClock size={14} /> Validité
               </h3>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {[{ d: 7, l: '7 jours' }, { d: 15, l: '15 jours' }, { d: 30, l: '30 jours' }, { d: 60, l: '60 jours' }, { d: -1, l: 'Personnalis\u00e9' }].map(opt => (
+                {[{ d: 7, l: '7 jours' }, { d: 15, l: '15 jours' }, { d: 30, l: '30 jours' }, { d: 60, l: '60 jours' }, { d: -1, l: 'Personnalisé' }].map(opt => (
                   <button
                     key={opt.d}
                     onClick={() => setValidityDays(opt.d)}
@@ -458,20 +458,20 @@ function DevisModal({ onClose, onToast }: { onClose: () => void; onToast: (m: st
               </div>
               <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b' }}>
-                  <span>Sous-total HT</span><span style={{ fontWeight: 600 }}>{fmt(totals.st)} \u20ac</span>
+                  <span>Sous-total HT</span><span style={{ fontWeight: 600 }}>{fmt(totals.st)} €</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', marginTop: 3 }}>
-                  <span>TVA</span><span style={{ fontWeight: 600 }}>{fmt(totals.tv)} \u20ac</span>
+                  <span>TVA</span><span style={{ fontWeight: 600 }}>{fmt(totals.tv)} €</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, color: '#1e293b', marginTop: 8, paddingTop: 8, borderTop: '2px solid #1e293b' }}>
-                  <span>Total TTC</span><span>{fmt(totals.tt)} \u20ac</span>
+                  <span>Total TTC</span><span>{fmt(totals.tt)} €</span>
                 </div>
               </div>
             </div>
 
             <div style={cardStyle}>
               <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 10px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <BookOpen size={14} /> Conditions g\u00e9n\u00e9rales
+                <BookOpen size={14} /> Conditions générales
               </h3>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                 {CGV_LIBRARY.map(c => (
@@ -487,7 +487,7 @@ function DevisModal({ onClose, onToast }: { onClose: () => void; onToast: (m: st
                   border: selectedCGV === 'custom' ? '1px solid #4338ca' : '1px solid #e2e8f0',
                   background: selectedCGV === 'custom' ? '#eef2ff' : '#fff',
                   color: selectedCGV === 'custom' ? '#4338ca' : '#475569', cursor: 'pointer',
-                }}>Personnalis\u00e9</button>
+                }}>Personnalisé</button>
               </div>
               {selectedCGV === 'custom' ? (
                 <textarea style={{ ...inputStyle, minHeight: 80, fontFamily: 'inherit', resize: 'vertical' }} value={customCGV} onChange={e => setCustomCGV(e.target.value)} />
@@ -530,7 +530,7 @@ function DevisModal({ onClose, onToast }: { onClose: () => void; onToast: (m: st
           </div>
 
           <div style={{ width: 500, minWidth: 420, background: '#eef1f6', borderLeft: '1px solid #e2e8f0', overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 18px' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 1 }}>Aper\u00e7u en direct</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 1 }}>Aperçu en direct</div>
             <QuotePreview design={design} client={client} articles={articles} numero={numero} validite={validiteDate} />
           </div>
         </div>
@@ -558,7 +558,7 @@ function CompareModal({ devis, onClose }: { devis: Devis[]; onClose: () => void 
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
           <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <GitCompare size={18} /> Comparaison c\u00f4te \u00e0 c\u00f4te
+            <GitCompare size={18} /> Comparaison côte à côte
           </h2>
           <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
         </div>
@@ -568,19 +568,19 @@ function CompareModal({ devis, onClose }: { devis: Devis[]; onClose: () => void 
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <div style={{ width: 26, height: 26, borderRadius: 8, background: '#4338ca', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800 }}>{tag}</div>
                 <select value={val ?? ''} onChange={e => set(Number(e.target.value))} style={{ ...inputStyle, flex: 1 }}>
-                  {devis.map(x => <option key={x.id} value={x.id}>{x.numero} \u2013 {x.client}</option>)}
+                  {devis.map(x => <option key={x.id} value={x.id}>{x.numero} – {x.client}</option>)}
                 </select>
               </div>
               {d && (
                 <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.9 }}>
                   <div><strong>Client :</strong> {d.client}</div>
                   <div><strong>Date :</strong> {d.date}</div>
-                  <div><strong>Validit\u00e9 :</strong> {d.validite}</div>
+                  <div><strong>Validité :</strong> {d.validite}</div>
                   <div><strong>Statut :</strong> <span style={{ color: statutConfig[d.statut].color, fontWeight: 600 }}>{statutConfig[d.statut].label}</span></div>
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
                     <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1 }}>Montant TTC</div>
                     <div style={{ fontSize: 22, fontWeight: 800, color: '#1e293b', marginTop: 4 }}>
-                      {d.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} \u20ac
+                      {d.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                     </div>
                   </div>
                 </div>
@@ -590,9 +590,9 @@ function CompareModal({ devis, onClose }: { devis: Devis[]; onClose: () => void 
         </div>
         {devisA && devisB && (
           <div style={{ marginTop: 16, padding: 14, background: '#f0fdf4', borderRadius: 12, border: '1px solid #bbf7d0' }}>
-            <div style={{ fontSize: 12, color: '#166534', fontWeight: 700, marginBottom: 4 }}>\u00c9cart</div>
+            <div style={{ fontSize: 12, color: '#166534', fontWeight: 700, marginBottom: 4 }}>Écart</div>
             <div style={{ fontSize: 15, color: '#1e293b', fontWeight: 600 }}>
-              {Math.abs(devisA.montant - devisB.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} \u20ac
+              {Math.abs(devisA.montant - devisB.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
               ({(devisA.montant > devisB.montant ? 'A' : 'B')} est plus cher de {Math.round(Math.abs(devisA.montant - devisB.montant) / Math.min(devisA.montant, devisB.montant) * 100)}%)
             </div>
           </div>
@@ -609,7 +609,7 @@ function CompareModal({ devis, onClose }: { devis: Devis[]; onClose: () => void 
 function HistoryModal({ devis, onClose }: { devis: Devis; onClose: () => void }) {
   const versions = [
     { v: devis.version || 1, date: devis.date, montant: devis.montant, note: 'Version actuelle' },
-    { v: (devis.version || 1) - 1, date: '2026-04-10', montant: devis.montant - 120, note: 'R\u00e9vision prix' },
+    { v: (devis.version || 1) - 1, date: '2026-04-10', montant: devis.montant - 120, note: 'Révision prix' },
     { v: (devis.version || 1) - 2, date: '2026-04-08', montant: devis.montant - 300, note: 'Version initiale' },
   ].filter(v => v.v > 0)
 
@@ -638,7 +638,7 @@ function HistoryModal({ devis, onClose }: { devis: Devis; onClose: () => void })
                 </div>
                 <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>{v.note}</div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginTop: 6 }}>
-                  {v.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} \u20ac
+                  {v.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                 </div>
               </div>
             </div>
@@ -666,12 +666,12 @@ function SignatureModal({ devis, onClose, onSign }: { devis: Devis; onClose: () 
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
           <h2 style={{ fontSize: 17, fontWeight: 800, margin: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <PenTool size={17} /> Signature \u00e9lectronique
+            <PenTool size={17} /> Signature électronique
           </h2>
           <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
         </div>
         <div style={{ padding: 14, background: '#eef2ff', borderRadius: 12, marginBottom: 16, fontSize: 13, color: '#3730a3' }}>
-          <strong>{devis.numero}</strong> \u2022 {devis.client} \u2022 {devis.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} \u20ac
+          <strong>{devis.numero}</strong> • {devis.client} • {devis.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
         </div>
         <label style={labelStyle}>Nom du signataire</label>
         <input style={inputStyle} value={name} onChange={e => setName(e.target.value)} placeholder="Jean Dupont" />
@@ -687,8 +687,8 @@ function SignatureModal({ devis, onClose, onSign }: { devis: Devis; onClose: () 
           >
             {signed ? (
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontFamily: 'cursive', fontSize: 28, color: '#065f46' }}>{name || 'Sign\u00e9'}</div>
-                <div style={{ fontSize: 11, color: '#10b981', marginTop: 4 }}>Sign\u00e9 le {new Date().toLocaleString('fr-FR')}</div>
+                <div style={{ fontFamily: 'cursive', fontSize: 28, color: '#065f46' }}>{name || 'Signé'}</div>
+                <div style={{ fontSize: 11, color: '#10b981', marginTop: 4 }}>Signé le {new Date().toLocaleString('fr-FR')}</div>
               </div>
             ) : (
               <div style={{ textAlign: 'center', color: '#64748b', fontSize: 13 }}>
@@ -744,7 +744,7 @@ function TemplatesModal({ onClose, onApply }: { onClose: () => void; onApply: (t
               <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{t.description}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
                 <span style={{ fontSize: 11, color: '#94a3b8' }}>{t.articles} articles</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#4338ca' }}>{t.montant.toLocaleString('fr-FR')} \u20ac</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#4338ca' }}>{t.montant.toLocaleString('fr-FR')} €</span>
               </div>
             </motion.div>
           ))}
@@ -808,19 +808,19 @@ export default function DevisPage() {
       signed: false,
     }
     setDevisList([copy, ...devisList])
-    showToast(`Devis dupliqu\u00e9 : ${copy.numero}`)
+    showToast(`Devis dupliqué : ${copy.numero}`)
   }
 
   const signDevisHandler = (d: Devis) => {
     setDevisList(prev => prev.map(x => x.id === d.id ? { ...x, signed: true, statut: 'ACCEPTED', signedAt: new Date().toLocaleString('fr-FR') } : x))
-    showToast(`${d.numero} sign\u00e9 et accept\u00e9`)
+    showToast(`${d.numero} signé et accepté`)
   }
 
   const pieData = [
-    { name: 'Accept\u00e9s', value: stats.acceptes, color: '#10b981' },
+    { name: 'Acceptés', value: stats.acceptes, color: '#10b981' },
     { name: 'En cours', value: stats.encours, color: '#3b82f6' },
-    { name: 'Refus\u00e9s', value: stats.refuses, color: '#ef4444' },
-    { name: 'Expir\u00e9s', value: stats.expires, color: '#f59e0b' },
+    { name: 'Refusés', value: stats.refuses, color: '#ef4444' },
+    { name: 'Expirés', value: stats.expires, color: '#f59e0b' },
   ].filter(p => p.value > 0)
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -831,7 +831,7 @@ export default function DevisPage() {
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
           <div>
             <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1e293b', margin: 0 }}>Devis</h1>
-            <p style={{ fontSize: 14, color: '#475569', margin: '4px 0 0' }}>Gestion, suivi et signature \u00e9lectronique des devis clients</p>
+            <p style={{ fontSize: 14, color: '#475569', margin: '4px 0 0' }}>Gestion, suivi et signature électronique des devis clients</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setShowTemplates(true)} style={smallBtnStyle}><Sparkles size={13} /> Templates</button>
@@ -846,9 +846,9 @@ export default function DevisPage() {
           {[
             { label: 'Total', value: stats.total, icon: FileText, color: '#64748b' },
             { label: 'En cours', value: stats.encours, icon: Clock, color: '#3b82f6' },
-            { label: 'Accept\u00e9s', value: stats.acceptes, icon: CheckCircle2, color: '#10b981' },
+            { label: 'Acceptés', value: stats.acceptes, icon: CheckCircle2, color: '#10b981' },
             { label: 'Taux acceptation', value: `${stats.tauxAcceptation}%`, icon: FileCheck2, color: '#8b5cf6' },
-            { label: 'CA devis accept\u00e9s', value: `${Math.round(stats.montant).toLocaleString('fr-FR')} \u20ac`, icon: Euro, color: '#4338ca' },
+            { label: 'CA devis acceptés', value: `${Math.round(stats.montant).toLocaleString('fr-FR')} €`, icon: Euro, color: '#4338ca' },
           ].map(s => (
             <div key={s.label} style={cardStyle}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -864,7 +864,7 @@ export default function DevisPage() {
 
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginBottom: 20 }}>
           <div style={cardStyle}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: '0 0 14px' }}>\u00c9volution envoy\u00e9s / accept\u00e9s</h3>
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: '0 0 14px' }}>Évolution envoyés / acceptés</h3>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={acceptanceMonths}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -872,15 +872,15 @@ export default function DevisPage() {
                 <YAxis stroke="#94a3b8" fontSize={11} />
                 <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="envoyes" fill="#3b82f6" name="Envoy\u00e9s" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="acceptes" fill="#10b981" name="Accept\u00e9s" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="refuses" fill="#ef4444" name="Refus\u00e9s" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expires" fill="#f59e0b" name="Expir\u00e9s" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="envoyes" fill="#3b82f6" name="Envoyés" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="acceptes" fill="#10b981" name="Acceptés" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="refuses" fill="#ef4444" name="Refusés" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expires" fill="#f59e0b" name="Expirés" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
           <div style={cardStyle}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: '0 0 14px' }}>R\u00e9partition des statuts</h3>
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: '0 0 14px' }}>Répartition des statuts</h3>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={80} paddingAngle={3} dataKey="value">
@@ -897,7 +897,7 @@ export default function DevisPage() {
           <div style={{ padding: 16, display: 'flex', gap: 10, borderBottom: '1px solid #e2e8f0', flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
               <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-              <input style={{ ...inputStyle, paddingLeft: 34 }} placeholder="Rechercher num\u00e9ro ou client..." value={search} onChange={e => setSearch(e.target.value)} />
+              <input style={{ ...inputStyle, paddingLeft: 34 }} placeholder="Rechercher numéro ou client..." value={search} onChange={e => setSearch(e.target.value)} />
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button onClick={() => setFilter(null)} style={{
@@ -919,7 +919,7 @@ export default function DevisPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
               <thead>
                 <tr style={{ background: '#f8fafc' }}>
-                  {['Num\u00e9ro', 'Client', 'Date', 'Validit\u00e9', 'Montant', 'Tracking', 'Statut', 'Actions'].map(h => (
+                  {['Numéro', 'Client', 'Date', 'Validité', 'Montant', 'Tracking', 'Statut', 'Actions'].map(h => (
                     <th key={h} style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: '1px solid #e2e8f0' }}>
                       {h}
                     </th>
@@ -955,7 +955,7 @@ export default function DevisPage() {
                           )}
                         </td>
                         <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
-                          {devis.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} \u20ac
+                          {devis.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                         </td>
                         <td style={{ padding: '12px 16px' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -970,7 +970,7 @@ export default function DevisPage() {
                             ) : null}
                             {devis.signed && (
                               <span style={{ fontSize: 11, color: '#4338ca', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <PenTool size={10} /> Sign\u00e9
+                                <PenTool size={10} /> Signé
                               </span>
                             )}
                           </div>
@@ -1013,7 +1013,7 @@ export default function DevisPage() {
       <AnimatePresence>
         {showModal && <DevisModal onClose={() => setShowModal(false)} onToast={showToast} />}
         {showCompare && <CompareModal devis={devisList} onClose={() => setShowCompare(false)} />}
-        {showTemplates && <TemplatesModal onClose={() => setShowTemplates(false)} onApply={(t) => showToast(`Template "${t.nom}" pr\u00eat`)} />}
+        {showTemplates && <TemplatesModal onClose={() => setShowTemplates(false)} onApply={(t) => showToast(`Template "${t.nom}" prêt`)} />}
         {historyDevis && <HistoryModal devis={historyDevis} onClose={() => setHistoryDevis(null)} />}
         {signDevis && <SignatureModal devis={signDevis} onClose={() => setSignDevis(null)} onSign={() => signDevisHandler(signDevis)} />}
         {toast && <Toast message={toast} onClose={() => setToast(null)} />}

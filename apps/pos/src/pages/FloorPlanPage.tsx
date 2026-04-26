@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePOS, Table, TableStatus, STATUS_COLORS, STATUS_LABELS, elapsed, tableTotal } from '../store/posStore'
+import { useSeats, seatTotal, type Seat } from '../store/seatStore'
+import SeatPanel from '../components/SeatPanel'
 
 interface Props {
   onOpenOrder: (tableId: string) => void
@@ -59,8 +61,14 @@ function tableGeometry(t: Pick<Table, 'shape' | 'seats'>) {
   }
 }
 
-// ─── Seat dots ──────────────────────────────────────────────────────────────
-function SeatDots({ table, hover }: { table: Table; hover: boolean }) {
+// ─── Seat dots — interactive, each chair is clickable ─────────────────────
+function SeatDots({
+  table, hover, onSeatClick, selectedSeatId,
+}: {
+  table: Table; hover: boolean
+  onSeatClick?: (position: number) => void
+  selectedSeatId?: string | null
+}) {
   const g = tableGeometry(table)
   const dots: { cx: number; cy: number }[] = []
   const n = table.seats
@@ -83,18 +91,93 @@ function SeatDots({ table, hover }: { table: Table; hover: boolean }) {
   }
 
   const color = STATUS_COLORS[table.status]
+  const seats = useSeats((s) => s.seats)
 
   return (
     <g>
-      {dots.map((d, i) => (
-        <circle
-          key={i} cx={d.cx} cy={d.cy} r={5.5}
-          fill={hover ? `${color}40` : '#1e1e36'}
-          stroke={hover ? color : '#2a2a48'}
-          strokeWidth={1.5}
-          style={{ transition: 'all 0.25s ease' }}
-        />
-      ))}
+      {dots.map((d, i) => {
+        const seat = seats.find((s) => s.tableId === table.id && s.position === i)
+        const hasOrder = seat && seat.items.length > 0
+        const isSelected = seat?.id && selectedSeatId === seat.id
+        const dotColor = isSelected ? '#ec4899'
+          : hasOrder ? '#f59e0b'
+          : seat?.status === 'reserved' ? '#3b82f6'
+          : (hover ? `${color}40` : '#1e1e36')
+        const stroke = isSelected ? '#ec4899'
+          : hasOrder ? '#fcd34d'
+          : (hover ? color : '#2a2a48')
+
+        return (
+          <g key={i} style={{ cursor: 'pointer' }}
+             onClick={(e) => { e.stopPropagation(); onSeatClick?.(i) }}>
+            {/* Larger invisible hitbox for easier tap */}
+            <circle cx={d.cx} cy={d.cy} r={11} fill="transparent" />
+            <circle
+              cx={d.cx} cy={d.cy}
+              r={isSelected ? 7.5 : hasOrder ? 7 : 5.5}
+              fill={dotColor}
+              stroke={stroke}
+              strokeWidth={isSelected ? 2.5 : hasOrder ? 2 : 1.5}
+              style={{
+                transition: 'all 0.2s ease',
+                filter: hasOrder || isSelected ? `drop-shadow(0 0 6px ${stroke})` : undefined,
+              }}
+            />
+            {hasOrder && (
+              <text
+                x={d.cx} y={d.cy + 1}
+                textAnchor="middle" dominantBaseline="middle"
+                fontSize={8} fontWeight={800} fill="#0a0a18"
+                style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                {seat!.items.reduce((n, it) => n + it.qty, 0)}
+              </text>
+            )}
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+// ─── Standalone seats (chaises libres hors table) ───────────────────────────
+function StandaloneSeats({
+  selectedSeatId, onSeatClick,
+}: {
+  selectedSeatId: string | null
+  onSeatClick: (seatId: string) => void
+}) {
+  const standalone = useSeats((s) => s.seats.filter((x) => x.tableId === null))
+  return (
+    <g>
+      {standalone.map((seat) => {
+        const hasOrder = seat.items.length > 0
+        const isSelected = selectedSeatId === seat.id
+        return (
+          <g key={seat.id}
+             style={{ cursor: 'pointer' }}
+             onClick={(e) => { e.stopPropagation(); onSeatClick(seat.id) }}>
+            <circle cx={seat.x ?? 100} cy={seat.y ?? 100} r={14} fill="transparent" />
+            <circle
+              cx={seat.x ?? 100} cy={seat.y ?? 100}
+              r={isSelected ? 11 : 9}
+              fill={hasOrder ? '#f59e0b' : '#a78bfa'}
+              stroke={isSelected ? '#fff' : hasOrder ? '#fcd34d' : '#c4b5fd'}
+              strokeWidth={isSelected ? 3 : 2}
+              style={{
+                filter: `drop-shadow(0 0 8px ${hasOrder ? '#f59e0b' : '#a78bfa'})`,
+              }}
+            />
+            <text
+              x={seat.x ?? 100}
+              y={(seat.y ?? 100) + 1}
+              textAnchor="middle" dominantBaseline="middle"
+              fontSize={9} fontWeight={800} fill="#0a0a18"
+              style={{ pointerEvents: 'none', userSelect: 'none' }}>
+              {hasOrder ? seat.items.reduce((n, it) => n + it.qty, 0) : '🪑'}
+            </text>
+          </g>
+        )
+      })}
     </g>
   )
 }
@@ -164,12 +247,15 @@ function VIPStar({ x, y }: { x: number; y: number }) {
 // ─── Single table card ──────────────────────────────────────────────────────
 function TableCard({
   table, onClick, onContextMenu, selected, transferTarget,
+  onSeatClick, selectedSeatId,
 }: {
   table: Table
   onClick: (e: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent) => void
   selected: boolean
   transferTarget: boolean
+  onSeatClick?: (tableId: string, position: number) => void
+  selectedSeatId?: string | null
 }) {
   const [hover, setHover] = useState(false)
   const g = tableGeometry(table)
@@ -233,7 +319,12 @@ function TableCard({
         transformOrigin: '0 0',
         transition: 'transform 0.25s cubic-bezier(0.34,1.56,0.64,1)',
       }}>
-        <SeatDots table={table} hover={hover} />
+        <SeatDots
+          table={table}
+          hover={hover}
+          onSeatClick={(pos) => onSeatClick?.(table.id, pos)}
+          selectedSeatId={selectedSeatId}
+        />
         <TableShape table={table} hover={hover} filterId={filterId} timeColor={tc.color} />
 
         {table.mergedWith.length > 0 && (
@@ -865,6 +956,8 @@ function useGhosts(show: boolean, tables: Table[]): Ghost[] {
 export default function FloorPlanPage({ onOpenOrder }: Props) {
   const tables = usePOS(s => s.tables)
   const setTableStatus = usePOS(s => s.setTableStatus)
+  const ensureSeat = useSeats(s => s.ensureSeat)
+  const [selectedSeatId, setSelectedSeatId] = useState<string | null>(null)
   const [selectedTable, setSelectedTable] = useState<Table | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; table: Table } | null>(null)
   const [reassignFor, setReassignFor] = useState<Table | null>(null)
@@ -1076,9 +1169,20 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
               onContextMenu={e => handleContextMenu(table, e)}
               selected={selectedIds.has(table.id)}
               transferTarget={transferFrom === table.id || transferTo === table.id}
+              onSeatClick={(tableId, position) => {
+                const seat = ensureSeat(tableId, position)
+                setSelectedSeatId(seat.id === selectedSeatId ? null : seat.id)
+              }}
+              selectedSeatId={selectedSeatId}
             />
           </g>
         ))}
+
+        {/* Standalone seats (chairs detached from any table) */}
+        <StandaloneSeats
+          selectedSeatId={selectedSeatId}
+          onSeatClick={(seatId) => setSelectedSeatId(seatId === selectedSeatId ? null : seatId)}
+        />
 
         {/* Selection rectangle */}
         {dragRect && (
@@ -1175,6 +1279,16 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
             table={syncedSelected}
             onClose={() => setSelectedTable(null)}
             onOpenOrder={(id) => { setSelectedTable(null); onOpenOrder(id) }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Per-seat order panel — chaque chaise = entité indépendante */}
+      <AnimatePresence>
+        {selectedSeatId && (
+          <SeatPanel
+            seatId={selectedSeatId}
+            onClose={() => setSelectedSeatId(null)}
           />
         )}
       </AnimatePresence>

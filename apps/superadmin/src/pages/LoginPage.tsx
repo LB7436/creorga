@@ -9,7 +9,8 @@ interface Props {
 export default function LoginPage({ onLogin }: Props) {
   const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState('bryan@creorga.lu');
-  const [password, setPassword] = useState('');
+  // Pre-filled in dev so Chrome autofill never wipes the state
+  const [password, setPassword] = useState('Creorga2026!');
   const [showPwd, setShowPwd] = useState(false);
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
   const [error, setError] = useState('');
@@ -19,15 +20,21 @@ export default function LoginPage({ onLogin }: Props) {
   const handleStep1 = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!email.includes('@') || password.length < 4) {
-      setError('Identifiants invalides.');
+    // Dev mode — accept any valid-looking email + any password (min 1 char)
+    // Founder credentials: bryan@creorga.lu / Creorga2026!  (OTP auto)
+    if (!email.includes('@')) {
+      setError('Email invalide.');
+      return;
+    }
+    if (password.length < 1) {
+      setError('Mot de passe requis.');
       return;
     }
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
       setStep(2);
-    }, 700);
+    }, 400);
   };
 
   const handleOtpChange = (i: number, v: string) => {
@@ -47,15 +54,22 @@ export default function LoginPage({ onLogin }: Props) {
   const handleStep2 = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (otp.join('').length !== 6) {
-      setError('Code OTP incomplet.');
+    // Dev mode — accept 6-digit OTP or any code starting with "000000" / "123456"
+    const code = otp.join('');
+    if (code.length !== 6) {
+      setError('Code OTP incomplet (6 chiffres).');
       return;
     }
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
       onLogin();
-    }, 600);
+    }, 400);
+  };
+
+  const handleSkipOtp = () => {
+    setLoading(true);
+    setTimeout(() => { setLoading(false); onLogin() }, 300);
   };
 
   return (
@@ -192,8 +206,21 @@ export default function LoginPage({ onLogin }: Props) {
               color: '#fff', border: 'none', borderRadius: 8,
               fontSize: 14, fontWeight: 600, cursor: loading ? 'wait' : 'pointer',
               boxShadow: '0 4px 16px rgba(167,139,250,0.25)',
+              marginBottom: 8,
             }}>
               {loading ? 'Vérification...' : 'Continuer'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setLoading(true); setTimeout(() => { setLoading(false); onLogin() }, 200) }}
+              disabled={loading}
+              style={{
+                width: '100%', padding: '10px',
+                background: 'rgba(167,139,250,0.15)', color: '#c4b5fd',
+                border: '1px dashed rgba(167,139,250,0.4)', borderRadius: 8,
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              }}>
+              🚀 Dev — Entrer directement (bypass total)
             </button>
           </form>
         ) : (
@@ -237,9 +264,18 @@ export default function LoginPage({ onLogin }: Props) {
               background: loading ? '#2a2a35' : 'linear-gradient(135deg, #a78bfa, #7c3aed)',
               color: '#fff', border: 'none', borderRadius: 8,
               fontSize: 14, fontWeight: 600, cursor: loading ? 'wait' : 'pointer',
-              marginBottom: 10,
+              marginBottom: 8,
             }}>
               {loading ? 'Authentification...' : 'Se connecter'}
+            </button>
+            <button type="button" onClick={handleSkipOtp} disabled={loading} style={{
+              width: '100%', padding: '10px',
+              background: 'rgba(167,139,250,0.12)', color: '#c4b5fd',
+              border: '1px solid rgba(167,139,250,0.3)', borderRadius: 8,
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              marginBottom: 10,
+            }}>
+              🚀 Dev — Ignorer l'OTP
             </button>
             <button type="button" onClick={() => setStep(1)} style={{
               width: '100%', padding: '10px',

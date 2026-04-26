@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -69,9 +70,9 @@ const fmt = (n: number) => new Intl.NumberFormat('fr-LU', { style: 'currency', c
 
 /* ─── types ─── */
 type Statut = 'OK' | 'Bas' | 'Rupture'
-type Categorie = 'Boissons' | 'Produits laitiers' | '\u00c9picerie' | 'L\u00e9gumes' | 'Viande'
-type Location = 'R\u00e9serve' | 'Bar' | 'Cuisine'
-type Season = 'Aucune' | '\u00c9t\u00e9' | 'Hiver'
+type Categorie = 'Boissons' | 'Produits laitiers' | 'Épicerie' | 'Légumes' | 'Viande'
+type Location = 'Réserve' | 'Bar' | 'Cuisine'
+type Season = 'Aucune' | 'Été' | 'Hiver'
 
 interface Ingredient {
   id: string
@@ -96,7 +97,7 @@ interface Movement {
   date: string
   time: string
   ingredient: string
-  type: 'Entr\u00e9e' | 'Sortie' | 'Transfert' | 'Perte'
+  type: 'Entrée' | 'Sortie' | 'Transfert' | 'Perte'
   quantite: number
   user: string
   raison: string
@@ -109,7 +110,7 @@ interface Waste {
   ingredient: string
   quantite: number
   unite: string
-  raison: 'Expiration' | 'Casse' | 'Avari\u00e9' | 'Vol'
+  raison: 'Expiration' | 'Casse' | 'Avarié' | 'Vol'
   cout: number
 }
 
@@ -120,39 +121,41 @@ interface SupplierPrice {
   note: number
 }
 
-/* ─── mock data ─── */
-const INITIAL_DATA: Ingredient[] = [
-  { id: '1',  nom: 'Caf\u00e9 en grains',   barcode: '3560070891234', categorie: 'Boissons', stockActuel: 2.5,  unite: 'kg',         seuilMinimum: 5,  valeur: 37.50, dernierAppro: '2026-04-08', fournisseur: 'Bofrost Luxembourg', dluo: '2026-10-15', location: 'Bar',      saison: 'Aucune', cogs: 15.0 },
+/* ─── mock data (kept for fallback if backend offline) ─── */
+const INITIAL_DATA: Ingredient[] = []
+// Demo data — moved to fallback only:
+const _DEMO_DATA: Ingredient[] = [
+  { id: '1',  nom: 'Café en grains',   barcode: '3560070891234', categorie: 'Boissons', stockActuel: 2.5,  unite: 'kg',         seuilMinimum: 5,  valeur: 37.50, dernierAppro: '2026-04-08', fournisseur: 'Bofrost Luxembourg', dluo: '2026-10-15', location: 'Bar',      saison: 'Aucune', cogs: 15.0 },
   { id: '2',  nom: 'Lait entier',           barcode: '3228021400019', categorie: 'Produits laitiers', stockActuel: 8,    unite: 'L',          seuilMinimum: 15, valeur: 9.60,  dernierAppro: '2026-04-10', fournisseur: 'Luxlait', dluo: '2026-04-22', dluoCritique: true, location: 'Cuisine', saison: 'Aucune', cogs: 1.20 },
   { id: '3',  nom: 'Beurre',                barcode: '3228021500108', categorie: 'Produits laitiers', stockActuel: 1.2,  unite: 'kg',         seuilMinimum: 3,  valeur: 10.80, dernierAppro: '2026-04-07', fournisseur: 'Luxlait', dluo: '2026-05-03', location: 'Cuisine', saison: 'Aucune', cogs: 9.0 },
-  { id: '4',  nom: 'Farine T55',            barcode: '3017620422003', categorie: '\u00c9picerie', stockActuel: 0,    unite: 'kg',         seuilMinimum: 5,  valeur: 0,     dernierAppro: '2026-03-28', fournisseur: 'Metro Luxembourg', dluo: '2026-12-01', location: 'R\u00e9serve', saison: 'Aucune', cogs: 1.5 },
-  { id: '5',  nom: 'Sucre',                 barcode: '3258561024567', categorie: '\u00c9picerie', stockActuel: 3,    unite: 'kg',         seuilMinimum: 5,  valeur: 4.50,  dernierAppro: '2026-04-05', fournisseur: 'Metro Luxembourg', dluo: '2027-06-01', location: 'R\u00e9serve', saison: 'Aucune', cogs: 1.5 },
-  { id: '6',  nom: 'Bi\u00e8re Diekirch',   barcode: '5420005671234', categorie: 'Boissons', stockActuel: 24,   unite: 'bouteilles', seuilMinimum: 48, valeur: 38.40, dernierAppro: '2026-04-09', fournisseur: 'Brasserie de Luxembourg', dluo: '2026-09-30', location: 'Bar',      saison: '\u00c9t\u00e9', cogs: 1.60 },
+  { id: '4',  nom: 'Farine T55',            barcode: '3017620422003', categorie: 'Épicerie', stockActuel: 0,    unite: 'kg',         seuilMinimum: 5,  valeur: 0,     dernierAppro: '2026-03-28', fournisseur: 'Metro Luxembourg', dluo: '2026-12-01', location: 'Réserve', saison: 'Aucune', cogs: 1.5 },
+  { id: '5',  nom: 'Sucre',                 barcode: '3258561024567', categorie: 'Épicerie', stockActuel: 3,    unite: 'kg',         seuilMinimum: 5,  valeur: 4.50,  dernierAppro: '2026-04-05', fournisseur: 'Metro Luxembourg', dluo: '2027-06-01', location: 'Réserve', saison: 'Aucune', cogs: 1.5 },
+  { id: '6',  nom: 'Bière Diekirch',   barcode: '5420005671234', categorie: 'Boissons', stockActuel: 24,   unite: 'bouteilles', seuilMinimum: 48, valeur: 38.40, dernierAppro: '2026-04-09', fournisseur: 'Brasserie de Luxembourg', dluo: '2026-09-30', location: 'Bar',      saison: 'Été', cogs: 1.60 },
   { id: '7',  nom: 'Vin Moselle',           barcode: '3760123456789', categorie: 'Boissons', stockActuel: 6,    unite: 'bouteilles', seuilMinimum: 12, valeur: 66.00, dernierAppro: '2026-04-03', fournisseur: 'Domaines Vinsmoselle', dluo: '2028-12-31', location: 'Bar', saison: 'Aucune', cogs: 11.0 },
-  { id: '8',  nom: 'Coca-Cola',             barcode: '5449000131805', categorie: 'Boissons', stockActuel: 0,    unite: 'canettes',   seuilMinimum: 24, valeur: 0,     dernierAppro: '2026-03-30', fournisseur: 'Metro Luxembourg', dluo: '2026-08-15', location: 'Bar', saison: '\u00c9t\u00e9', cogs: 0.8 },
-  { id: '9',  nom: 'Tomates',               barcode: '2000010010001', categorie: 'L\u00e9gumes', stockActuel: 4,    unite: 'kg',         seuilMinimum: 3,  valeur: 11.60, dernierAppro: '2026-04-12', fournisseur: 'March\u00e9 Gros Luxembourg', dluo: '2026-04-20', dluoCritique: true, location: 'Cuisine', saison: '\u00c9t\u00e9', cogs: 2.90 },
-  { id: '10', nom: 'Oignons',               barcode: '2000010020002', categorie: 'L\u00e9gumes', stockActuel: 3,    unite: 'kg',         seuilMinimum: 2,  valeur: 3.90,  dernierAppro: '2026-04-11', fournisseur: 'March\u00e9 Gros Luxembourg', dluo: '2026-05-10', location: 'R\u00e9serve', saison: 'Aucune', cogs: 1.30 },
-  { id: '11', nom: 'Pommes de terre',       barcode: '2000010030003', categorie: 'L\u00e9gumes', stockActuel: 12,   unite: 'kg',         seuilMinimum: 8,  valeur: 14.40, dernierAppro: '2026-04-10', fournisseur: 'March\u00e9 Gros Luxembourg', dluo: '2026-06-01', location: 'R\u00e9serve', saison: 'Hiver', cogs: 1.20 },
-  { id: '12', nom: 'Cr\u00e8me fra\u00eeche', barcode: '3228021400224', categorie: 'Produits laitiers', stockActuel: 2,    unite: 'L',          seuilMinimum: 1,  valeur: 7.00,  dernierAppro: '2026-04-11', fournisseur: 'Luxlait', dluo: '2026-04-28', location: 'Cuisine', saison: 'Aucune', cogs: 3.50 },
-  { id: '13', nom: 'Huile d\'olive',        barcode: '8410188012003', categorie: '\u00c9picerie', stockActuel: 3,    unite: 'L',          seuilMinimum: 2,  valeur: 23.70, dernierAppro: '2026-04-06', fournisseur: 'Metro Luxembourg', dluo: '2027-03-15', location: 'Cuisine', saison: 'Aucune', cogs: 7.90 },
-  { id: '14', nom: 'Sel',                   barcode: '3166330114567', categorie: '\u00c9picerie', stockActuel: 5,    unite: 'kg',         seuilMinimum: 1,  valeur: 2.50,  dernierAppro: '2026-04-01', fournisseur: 'Metro Luxembourg', dluo: '2030-01-01', location: 'Cuisine', saison: 'Aucune', cogs: 0.50 },
+  { id: '8',  nom: 'Coca-Cola',             barcode: '5449000131805', categorie: 'Boissons', stockActuel: 0,    unite: 'canettes',   seuilMinimum: 24, valeur: 0,     dernierAppro: '2026-03-30', fournisseur: 'Metro Luxembourg', dluo: '2026-08-15', location: 'Bar', saison: 'Été', cogs: 0.8 },
+  { id: '9',  nom: 'Tomates',               barcode: '2000010010001', categorie: 'Légumes', stockActuel: 4,    unite: 'kg',         seuilMinimum: 3,  valeur: 11.60, dernierAppro: '2026-04-12', fournisseur: 'Marché Gros Luxembourg', dluo: '2026-04-20', dluoCritique: true, location: 'Cuisine', saison: 'Été', cogs: 2.90 },
+  { id: '10', nom: 'Oignons',               barcode: '2000010020002', categorie: 'Légumes', stockActuel: 3,    unite: 'kg',         seuilMinimum: 2,  valeur: 3.90,  dernierAppro: '2026-04-11', fournisseur: 'Marché Gros Luxembourg', dluo: '2026-05-10', location: 'Réserve', saison: 'Aucune', cogs: 1.30 },
+  { id: '11', nom: 'Pommes de terre',       barcode: '2000010030003', categorie: 'Légumes', stockActuel: 12,   unite: 'kg',         seuilMinimum: 8,  valeur: 14.40, dernierAppro: '2026-04-10', fournisseur: 'Marché Gros Luxembourg', dluo: '2026-06-01', location: 'Réserve', saison: 'Hiver', cogs: 1.20 },
+  { id: '12', nom: 'Crème fraîche', barcode: '3228021400224', categorie: 'Produits laitiers', stockActuel: 2,    unite: 'L',          seuilMinimum: 1,  valeur: 7.00,  dernierAppro: '2026-04-11', fournisseur: 'Luxlait', dluo: '2026-04-28', location: 'Cuisine', saison: 'Aucune', cogs: 3.50 },
+  { id: '13', nom: 'Huile d\'olive',        barcode: '8410188012003', categorie: 'Épicerie', stockActuel: 3,    unite: 'L',          seuilMinimum: 2,  valeur: 23.70, dernierAppro: '2026-04-06', fournisseur: 'Metro Luxembourg', dluo: '2027-03-15', location: 'Cuisine', saison: 'Aucune', cogs: 7.90 },
+  { id: '14', nom: 'Sel',                   barcode: '3166330114567', categorie: 'Épicerie', stockActuel: 5,    unite: 'kg',         seuilMinimum: 1,  valeur: 2.50,  dernierAppro: '2026-04-01', fournisseur: 'Metro Luxembourg', dluo: '2030-01-01', location: 'Cuisine', saison: 'Aucune', cogs: 0.50 },
   { id: '15', nom: 'Poulet',                barcode: '2000200010005', categorie: 'Viande', stockActuel: 4,    unite: 'kg',         seuilMinimum: 3,  valeur: 35.60, dernierAppro: '2026-04-13', fournisseur: 'Bofrost Luxembourg', dluo: '2026-04-19', dluoCritique: true, location: 'Cuisine', saison: 'Aucune', cogs: 8.90 },
-  { id: '16', nom: 'Soupe potiron',         barcode: '3017620100123', categorie: '\u00c9picerie', stockActuel: 15,   unite: 'bo\u00eetes', seuilMinimum: 20, valeur: 22.50, dernierAppro: '2026-04-01', fournisseur: 'Metro Luxembourg', dluo: '2027-10-01', location: 'R\u00e9serve', saison: 'Hiver', cogs: 1.50 },
+  { id: '16', nom: 'Soupe potiron',         barcode: '3017620100123', categorie: 'Épicerie', stockActuel: 15,   unite: 'boîtes', seuilMinimum: 20, valeur: 22.50, dernierAppro: '2026-04-01', fournisseur: 'Metro Luxembourg', dluo: '2027-10-01', location: 'Réserve', saison: 'Hiver', cogs: 1.50 },
 ]
 
 const MOVEMENTS: Movement[] = [
-  { id: 'm1', date: '2026-04-17', time: '09:14', ingredient: 'Lait entier',     type: 'Sortie',    quantite: 2,   user: 'Sophie', raison: 'Service petit-d\u00e9j', location: 'Cuisine' },
-  { id: 'm2', date: '2026-04-17', time: '08:45', ingredient: 'Caf\u00e9 en grains', type: 'Sortie', quantite: 0.5, user: 'Marc',   raison: 'Service matin',       location: 'Bar' },
-  { id: 'm3', date: '2026-04-16', time: '17:30', ingredient: 'Bi\u00e8re Diekirch', type: 'Entr\u00e9e', quantite: 24, user: 'Paul', raison: 'R\u00e9ception cde',    location: 'Bar' },
-  { id: 'm4', date: '2026-04-16', time: '14:22', ingredient: 'Tomates',         type: 'Transfert', quantite: 2,   user: 'Sophie', raison: 'R\u00e9serve \u2192 Cuisine' },
-  { id: 'm5', date: '2026-04-16', time: '11:02', ingredient: 'Beurre',          type: 'Perte',     quantite: 0.3, user: 'Marc',   raison: 'DLUO d\u00e9pass\u00e9e' },
-  { id: 'm6', date: '2026-04-15', time: '16:45', ingredient: 'Poulet',          type: 'Entr\u00e9e', quantite: 5,  user: 'Paul',   raison: 'Livraison Bofrost' },
+  { id: 'm1', date: '2026-04-17', time: '09:14', ingredient: 'Lait entier',     type: 'Sortie',    quantite: 2,   user: 'Sophie', raison: 'Service petit-déj', location: 'Cuisine' },
+  { id: 'm2', date: '2026-04-17', time: '08:45', ingredient: 'Café en grains', type: 'Sortie', quantite: 0.5, user: 'Marc',   raison: 'Service matin',       location: 'Bar' },
+  { id: 'm3', date: '2026-04-16', time: '17:30', ingredient: 'Bière Diekirch', type: 'Entrée', quantite: 24, user: 'Paul', raison: 'Réception cde',    location: 'Bar' },
+  { id: 'm4', date: '2026-04-16', time: '14:22', ingredient: 'Tomates',         type: 'Transfert', quantite: 2,   user: 'Sophie', raison: 'Réserve → Cuisine' },
+  { id: 'm5', date: '2026-04-16', time: '11:02', ingredient: 'Beurre',          type: 'Perte',     quantite: 0.3, user: 'Marc',   raison: 'DLUO dépassée' },
+  { id: 'm6', date: '2026-04-15', time: '16:45', ingredient: 'Poulet',          type: 'Entrée', quantite: 5,  user: 'Paul',   raison: 'Livraison Bofrost' },
   { id: 'm7', date: '2026-04-15', time: '10:18', ingredient: 'Vin Moselle',     type: 'Sortie',    quantite: 3,   user: 'Sophie', raison: 'Consommation' },
 ]
 
 const WASTE_LOG: Waste[] = [
   { id: 'w1', date: '2026-04-16', ingredient: 'Beurre',  quantite: 0.3, unite: 'kg', raison: 'Expiration', cout: 2.70 },
-  { id: 'w2', date: '2026-04-14', ingredient: 'Tomates', quantite: 1.2, unite: 'kg', raison: 'Avari\u00e9', cout: 3.48 },
+  { id: 'w2', date: '2026-04-14', ingredient: 'Tomates', quantite: 1.2, unite: 'kg', raison: 'Avarié', cout: 3.48 },
   { id: 'w3', date: '2026-04-12', ingredient: 'Lait entier', quantite: 2, unite: 'L', raison: 'Expiration', cout: 2.40 },
   { id: 'w4', date: '2026-04-10', ingredient: 'Vin Moselle', quantite: 1, unite: 'bt', raison: 'Casse', cout: 11.00 },
 ]
@@ -161,18 +164,18 @@ const SUPPLIER_COMPARE: Record<string, SupplierPrice[]> = {
   default: [
     { fournisseur: 'Metro Luxembourg', prix: 12.50, delai: '24h', note: 4.5 },
     { fournisseur: 'Bofrost Luxembourg', prix: 13.20, delai: '48h', note: 4.7 },
-    { fournisseur: 'March\u00e9 Gros',   prix: 11.90, delai: '24h', note: 4.2 },
+    { fournisseur: 'Marché Gros',   prix: 11.90, delai: '24h', note: 4.2 },
   ],
 }
 
-const CATEGORIES: Categorie[] = ['Boissons', 'Produits laitiers', '\u00c9picerie', 'L\u00e9gumes', 'Viande']
-const LOCATIONS: Location[] = ['R\u00e9serve', 'Bar', 'Cuisine']
+const CATEGORIES: Categorie[] = ['Boissons', 'Produits laitiers', 'Épicerie', 'Légumes', 'Viande']
+const LOCATIONS: Location[] = ['Réserve', 'Bar', 'Cuisine']
 
 const CATEGORY_COLORS: Record<Categorie, { bg: string; text: string }> = {
   'Boissons':          { bg: '#dbeafe', text: '#1d4ed8' },
   'Produits laitiers': { bg: '#fce7f3', text: '#be185d' },
-  '\u00c9picerie':     { bg: '#fef3c7', text: '#92400e' },
-  'L\u00e9gumes':      { bg: '#dcfce7', text: '#166534' },
+  'Épicerie':     { bg: '#fef3c7', text: '#92400e' },
+  'Légumes':      { bg: '#dcfce7', text: '#166534' },
   'Viande':            { bg: '#fee2e2', text: '#991b1b' },
 }
 
@@ -212,9 +215,9 @@ const consumptionHistory = [
 
 const cogsMonthly = [
   { mois: 'Nov', cogs: 3200, ventes: 12500 },
-  { mois: 'D\u00e9c', cogs: 4100, ventes: 16200 },
+  { mois: 'Déc', cogs: 4100, ventes: 16200 },
   { mois: 'Jan', cogs: 2900, ventes: 11000 },
-  { mois: 'F\u00e9v', cogs: 3300, ventes: 12800 },
+  { mois: 'Fév', cogs: 3300, ventes: 12800 },
   { mois: 'Mar', cogs: 3700, ventes: 14400 },
   { mois: 'Avr', cogs: 2200, ventes: 8900 },
 ]
@@ -284,14 +287,14 @@ function BarcodeScanner({ onClose, onScan }: { onClose: () => void; onScan: (cod
             />
           </div>
           <div style={{ color: '#94a3b8', fontSize: 11, position: 'absolute', bottom: 10, left: 16 }}>
-            {scanning ? 'Recherche en cours...' : 'Code d\u00e9tect\u00e9'}
+            {scanning ? 'Recherche en cours...' : 'Code détecté'}
           </div>
         </div>
         {!scanning && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ marginTop: 16, padding: 14, background: '#f0fdf4', borderRadius: 12, border: '1px solid #bbf7d0' }}>
-            <div style={{ fontSize: 11, color: '#166534', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Produit identifi\u00e9</div>
+            <div style={{ fontSize: 11, color: '#166534', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Produit identifié</div>
             <div style={{ fontFamily: 'monospace', fontSize: 14, color: '#1e293b', marginTop: 6 }}>{code}</div>
-            <div style={{ fontSize: 13, color: '#475569', marginTop: 4 }}>Lait entier \u2022 Luxlait \u2022 Brique 1L</div>
+            <div style={{ fontSize: 13, color: '#475569', marginTop: 4 }}>Lait entier • Luxlait • Brique 1L</div>
             <button
               onClick={() => { onScan(code); onClose() }}
               style={{ marginTop: 12, width: '100%', padding: '10px 14px', borderRadius: 10, border: 'none', background: '#10b981', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}
@@ -322,7 +325,7 @@ function SupplierModal({ ingredient, onClose }: { ingredient: Ingredient; onClos
           <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
         </div>
         <div style={{ marginBottom: 14, fontSize: 13, color: '#475569' }}>
-          <strong>{ingredient.nom}</strong> \u2022 {ingredient.unite} \u2022 commande pour atteindre le seuil
+          <strong>{ingredient.nom}</strong> • {ingredient.unite} • commande pour atteindre le seuil
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {prices.map(p => (
@@ -338,7 +341,7 @@ function SupplierModal({ ingredient, onClose }: { ingredient: Ingredient; onClos
                     <span style={{ fontSize: 10, padding: '2px 8px', background: '#10b981', color: '#fff', borderRadius: 10, fontWeight: 800 }}>MEILLEUR PRIX</span>
                   )}
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Livraison : {p.delai} \u2022 Note : {p.note}/5 \u2b50</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Livraison : {p.delai} • Note : {p.note}/5 ⭐</div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: 20, fontWeight: 800, color: '#1e293b' }}>{fmt(p.prix)}</div>
@@ -369,7 +372,7 @@ function WasteModal({ onClose, onToast }: { onClose: () => void; onToast: (m: st
     }
     setList([w, ...list])
     setIngredient(''); setQuantite('')
-    onToast(`Perte enregistr\u00e9e : ${ingredient}`)
+    onToast(`Perte enregistrée : ${ingredient}`)
   }
 
   return (
@@ -386,14 +389,14 @@ function WasteModal({ onClose, onToast }: { onClose: () => void; onToast: (m: st
           <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
         </div>
         <div style={{ padding: 14, background: '#fef2f2', borderRadius: 12, marginBottom: 16, border: '1px solid #fecaca' }}>
-          <div style={{ fontSize: 11, color: '#991b1b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Co\u00fbt total pertes ce mois</div>
+          <div style={{ fontSize: 11, color: '#991b1b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Coût total pertes ce mois</div>
           <div style={{ fontSize: 26, fontWeight: 800, color: '#dc2626', marginTop: 4 }}>{fmt(total)}</div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 8, marginBottom: 16 }}>
-          <input style={inputStyle} placeholder="Ingr\u00e9dient" value={ingredient} onChange={e => setIngredient(e.target.value)} />
-          <input style={inputStyle} placeholder="Qt\u00e9" type="number" value={quantite} onChange={e => setQuantite(e.target.value)} />
+          <input style={inputStyle} placeholder="Ingrédient" value={ingredient} onChange={e => setIngredient(e.target.value)} />
+          <input style={inputStyle} placeholder="Qté" type="number" value={quantite} onChange={e => setQuantite(e.target.value)} />
           <select style={inputStyle} value={raison} onChange={e => setRaison(e.target.value as Waste['raison'])}>
-            <option>Expiration</option><option>Casse</option><option>Avari\u00e9</option><option>Vol</option>
+            <option>Expiration</option><option>Casse</option><option>Avarié</option><option>Vol</option>
           </select>
           <button onClick={add} style={{ ...smallBtnStyle, background: '#065F46', color: '#fff', border: 'none' }}>
             <Plus size={13} /> Ajouter
@@ -403,7 +406,7 @@ function WasteModal({ onClose, onToast }: { onClose: () => void; onToast: (m: st
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ background: '#f8fafc' }}>
-                {['Date', 'Ingr\u00e9dient', 'Qt\u00e9', 'Raison', 'Co\u00fbt'].map(h => (
+                {['Date', 'Ingrédient', 'Qté', 'Raison', 'Coût'].map(h => (
                   <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 10, color: '#475569', fontWeight: 700, textTransform: 'uppercase' }}>{h}</th>
                 ))}
               </tr>
@@ -434,7 +437,7 @@ function MovementsModal({ onClose }: { onClose: () => void }) {
   const filtered = MOVEMENTS.filter(m => filter === 'all' || m.type === filter)
 
   const typeColors: Record<string, { bg: string; fg: string }> = {
-    'Entr\u00e9e':   { bg: '#dcfce7', fg: '#166534' },
+    'Entrée':   { bg: '#dcfce7', fg: '#166534' },
     'Sortie':    { bg: '#dbeafe', fg: '#1d4ed8' },
     'Transfert': { bg: '#ede9fe', fg: '#6d28d9' },
     'Perte':     { bg: '#fee2e2', fg: '#991b1b' },
@@ -454,7 +457,7 @@ function MovementsModal({ onClose }: { onClose: () => void }) {
           <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
         </div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-          {['all', 'Entr\u00e9e', 'Sortie', 'Transfert', 'Perte'].map(t => (
+          {['all', 'Entrée', 'Sortie', 'Transfert', 'Perte'].map(t => (
             <button key={t} onClick={() => setFilter(t)} style={{
               padding: '6px 12px', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer',
               border: filter === t ? '1px solid #4338ca' : '1px solid #e2e8f0',
@@ -467,7 +470,7 @@ function MovementsModal({ onClose }: { onClose: () => void }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ background: '#f8fafc' }}>
-                {['Date', 'Heure', 'Type', 'Ingr\u00e9dient', 'Qt\u00e9', 'Utilisateur', 'Raison'].map(h => (
+                {['Date', 'Heure', 'Type', 'Ingrédient', 'Qté', 'Utilisateur', 'Raison'].map(h => (
                   <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 10, color: '#475569', fontWeight: 700, textTransform: 'uppercase' }}>{h}</th>
                 ))}
               </tr>
@@ -504,7 +507,7 @@ function BulkPriceModal({ onClose, onToast }: { onClose: () => void; onToast: (m
   const [direction, setDirection] = useState<'up' | 'down'>('up')
 
   const apply = () => {
-    onToast(`Prix mis \u00e0 jour pour ${supplier} : ${direction === 'up' ? '+' : '-'}${adjust}%`)
+    onToast(`Prix mis à jour pour ${supplier} : ${direction === 'up' ? '+' : '-'}${adjust}%`)
     onClose()
   }
 
@@ -517,7 +520,7 @@ function BulkPriceModal({ onClose, onToast }: { onClose: () => void; onToast: (m
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
           <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Edit3 size={17} /> Mise \u00e0 jour prix en masse
+            <Edit3 size={17} /> Mise à jour prix en masse
           </h2>
           <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
         </div>
@@ -528,7 +531,7 @@ function BulkPriceModal({ onClose, onToast }: { onClose: () => void; onToast: (m
               <option>Metro Luxembourg</option>
               <option>Luxlait</option>
               <option>Bofrost Luxembourg</option>
-              <option>March\u00e9 Gros Luxembourg</option>
+              <option>Marché Gros Luxembourg</option>
             </select>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -544,7 +547,7 @@ function BulkPriceModal({ onClose, onToast }: { onClose: () => void; onToast: (m
                   flex: 1, padding: 10, borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 600,
                   border: direction === 'down' ? '1px solid #16a34a' : '1px solid #e2e8f0',
                   background: direction === 'down' ? '#f0fdf4' : '#fff', color: direction === 'down' ? '#16a34a' : '#64748b',
-                }}>\u2212 Baisse</button>
+                }}>− Baisse</button>
               </div>
             </div>
             <div>
@@ -565,8 +568,67 @@ function BulkPriceModal({ onClose, onToast }: { onClose: () => void; onToast: (m
 }
 
 /* ═══════════════════════════════════════════════════════════════ */
+const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
+
+// Map backend StockEntry → UI Ingredient
+function backendToIngredient(b: any): Ingredient {
+  return {
+    id: b.id,
+    nom: b.name,
+    barcode: b.barcode || '',
+    categorie: (b.category || 'Épicerie') as Categorie,
+    stockActuel: b.quantity || 0,
+    unite: (b.unit || 'unité') as Unite,
+    seuilMinimum: b.lowStockThreshold || 0,
+    valeur: (b.quantity || 0) * (b.avgUnitPrice || 0),
+    dernierAppro: new Date(b.lastUpdated || Date.now()).toISOString().slice(0, 10),
+    fournisseur: b.lastSupplier || 'Inconnu',
+    dluo: undefined,
+    location: 'Réserve' as Location,
+    saison: 'Aucune' as Saison,
+    cogs: b.avgUnitPrice || 0,
+  }
+}
+
 export default function StockPage() {
-  const [data, setData] = useState<Ingredient[]>(INITIAL_DATA)
+  const navigate = useNavigate()
+  const [data, setData] = useState<Ingredient[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Fetch from persistent backend on mount + every 3 s (live sync after OCR)
+  useEffect(() => {
+    let alive = true
+    const fetchStock = async () => {
+      try {
+        const r = await fetch(`${BACKEND}/api/inventory-ocr/stock`)
+        if (!r.ok) throw new Error('fetch failed')
+        const j = await r.json()
+        if (!alive) return
+        setData((j.stock || []).map(backendToIngredient))
+        setLoading(false)
+      } catch {
+        if (alive) setLoading(false)
+      }
+    }
+    fetchStock()
+    const id = setInterval(fetchStock, 3000)
+    return () => { alive = false; clearInterval(id) }
+  }, [])
+
+  // Manual delete one item (persisted)
+  const deleteItem = async (id: string) => {
+    if (!confirm('Supprimer cet article du stock ?')) return
+    await fetch(`${BACKEND}/api/inventory-ocr/stock/${id}`, { method: 'DELETE' })
+    setData((d) => d.filter((i) => i.id !== id))
+  }
+
+  // Manual reset all (persisted)
+  const resetAll = async () => {
+    if (!confirm('⚠ Vider TOUT le stock ? Cette action est irréversible.')) return
+    await fetch(`${BACKEND}/api/inventory-ocr/stock`, { method: 'DELETE' })
+    setData([])
+  }
+
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<Categorie | null>(null)
   const [locationFilter, setLocationFilter] = useState<Location | null>(null)
@@ -622,7 +684,7 @@ export default function StockPage() {
     const ing = data.find(i => i.barcode === code)
     if (ing) {
       setData(prev => prev.map(i => i.id === ing.id ? { ...i, stockActuel: i.stockActuel + 1 } : i))
-      showToast(`+1 ${ing.unite} de ${ing.nom} ajout\u00e9`)
+      showToast(`+1 ${ing.unite} de ${ing.nom} ajouté`)
     }
   }
 
@@ -633,9 +695,30 @@ export default function StockPage() {
         <motion.div variants={item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
           <div>
             <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1e293b', margin: 0 }}>Stock & inventaire</h1>
-            <p style={{ fontSize: 14, color: '#475569', margin: '4px 0 0' }}>Suivi temps r\u00e9el, DLUO, co\u00fbts et pr\u00e9dictions ML</p>
+            <p style={{ fontSize: 14, color: '#475569', margin: '4px 0 0' }}>Suivi temps réel, DLUO, coûts et prédictions ML</p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => navigate('/inventory/ocr')}
+              style={{
+                ...smallBtnStyle,
+                background: 'linear-gradient(135deg,#10b981,#059669)',
+                color: '#fff', border: 'none',
+                boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
+              }}>
+              📸 OCR Reçu IA
+            </button>
+            {data.length > 0 && (
+              <button
+                onClick={resetAll}
+                style={{
+                  ...smallBtnStyle,
+                  background: 'rgba(239,68,68,0.1)',
+                  color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)',
+                }}>
+                🗑 Vider tout
+              </button>
+            )}
             <button onClick={() => setShowScanner(true)} style={{ ...smallBtnStyle, background: '#4338ca', color: '#fff', border: 'none' }}>
               <ScanLine size={13} /> Scanner
             </button>
@@ -676,7 +759,7 @@ export default function StockPage() {
         {/* Charts row */}
         <motion.div variants={item} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
           <div style={cardStyle}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px', color: '#1e293b' }}>Entr\u00e9es / Sorties cette semaine</h3>
+            <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px', color: '#1e293b' }}>Entrées / Sorties cette semaine</h3>
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={consumptionHistory}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -690,7 +773,7 @@ export default function StockPage() {
           </div>
           <div style={cardStyle}>
             <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <BarChart3 size={14} /> Co\u00fbt des marchandises (COGS)
+              <BarChart3 size={14} /> Coût des marchandises (COGS)
             </h3>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={cogsMonthly}>
@@ -710,10 +793,10 @@ export default function StockPage() {
         <motion.div variants={item} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
           <div style={cardStyle}>
             <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 14px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Zap size={14} style={{ color: '#8b5cf6' }} /> Pr\u00e9dictions rupture (ML)
+              <Zap size={14} style={{ color: '#8b5cf6' }} /> Prédictions rupture (ML)
             </h3>
             {predictions.length === 0 ? (
-              <div style={{ fontSize: 12, color: '#64748b', padding: 16, textAlign: 'center' }}>Aucune rupture pr\u00e9vue</div>
+              <div style={{ fontSize: 12, color: '#64748b', padding: 16, textAlign: 'center' }}>Aucune rupture prévue</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {predictions.map(p => (
@@ -724,7 +807,7 @@ export default function StockPage() {
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: 16, fontWeight: 800, color: '#8b5cf6' }}>J+{p.days}</div>
-                      <div style={{ fontSize: 10, color: '#64748b' }}>rupture estim\u00e9e</div>
+                      <div style={{ fontSize: 10, color: '#64748b' }}>rupture estimée</div>
                     </div>
                   </div>
                 ))}
@@ -745,7 +828,7 @@ export default function StockPage() {
                     <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: days <= 3 ? '#fef2f2' : '#fff7ed', borderRadius: 10, border: `1px solid ${days <= 3 ? '#fecaca' : '#fed7aa'}` }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{i.nom}</div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>DLUO : {i.dluo} \u2022 {i.stockActuel} {i.unite}</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>DLUO : {i.dluo} • {i.stockActuel} {i.unite}</div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: 16, fontWeight: 800, color: days <= 3 ? '#dc2626' : '#f97316' }}>J{days >= 0 ? `+${days}` : days}</div>
@@ -806,7 +889,7 @@ export default function StockPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1200 }}>
               <thead>
                 <tr style={{ background: '#f8fafc' }}>
-                  {['Article', 'Cat\u00e9gorie', 'Lieu', 'Stock', 'Seuil', 'DLUO', 'COGS/u', 'Statut', 'Actions'].map(h => (
+                  {['Article', 'Catégorie', 'Lieu', 'Stock', 'Seuil', 'DLUO', 'COGS/u', 'Statut', 'Actions'].map(h => (
                     <th key={h} style={{ textAlign: 'left', padding: '12px 14px', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: '1px solid #e2e8f0' }}>
                       {h}
                     </th>
@@ -824,7 +907,7 @@ export default function StockPage() {
                       <td style={{ padding: '12px 14px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{i.nom}</span>
-                          {i.saison === '\u00c9t\u00e9' && <Leaf size={11} style={{ color: '#16a34a' }} />}
+                          {i.saison === 'Été' && <Leaf size={11} style={{ color: '#16a34a' }} />}
                           {i.saison === 'Hiver' && <Snowflake size={11} style={{ color: '#0ea5e9' }} />}
                         </div>
                         <div style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace', marginTop: 2 }}>{i.barcode}</div>
@@ -863,7 +946,7 @@ export default function StockPage() {
                           <button onClick={() => setSupplierCompare(i)} title="Comparer fournisseurs" style={{ ...smallBtnStyle, padding: '5px 8px' }}>
                             <ArrowRightLeft size={11} />
                           </button>
-                          <button onClick={() => showToast(`Commande lanc\u00e9e : ${i.nom}`)} title="Commander" style={{ ...smallBtnStyle, padding: '5px 8px', background: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe' }}>
+                          <button onClick={() => showToast(`Commande lancée : ${i.nom}`)} title="Commander" style={{ ...smallBtnStyle, padding: '5px 8px', background: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe' }}>
                             <ShoppingCart size={11} />
                           </button>
                         </div>

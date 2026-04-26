@@ -372,6 +372,9 @@ interface POSStore {
   mergeTables: (fromId: string, intoId: string) => void
   unmergeTable: (tableId: string) => void
 
+  // ── Transfer entire table (swap orders from A to B)
+  transferTable: (fromId: string, toId: string) => void
+
   // ── Payment
   processPayment: (tableId: string, method: PayMethod, tip: number, coverIds?: string[]) => void
 
@@ -594,6 +597,32 @@ export const usePOS = create<POSStore>()(
           tables: s.tables.map(t => {
             if (t.id === tableId) return { ...t, mergedWith: [] }
             if (table.mergedWith.includes(t.id)) return { ...t, isMergedInto: undefined }
+            return t
+          })
+        }
+      }),
+
+      // ── Transfer entire table ─────────────────────────────────────────────
+
+      transferTable: (fromId, toId) => set(s => {
+        if (fromId === toId) return s
+        const from = s.tables.find(t => t.id === fromId)
+        const to = s.tables.find(t => t.id === toId)
+        if (!from || !to) return s
+        return {
+          tables: s.tables.map(t => {
+            if (t.id === toId) return {
+              ...t,
+              status: 'occupied',
+              openedAt: from.openedAt ?? Date.now(),
+              covers: [...t.covers, ...from.covers],
+            }
+            if (t.id === fromId) return {
+              ...t,
+              status: 'dirty',
+              covers: [],
+              openedAt: undefined,
+            }
             return t
           })
         }

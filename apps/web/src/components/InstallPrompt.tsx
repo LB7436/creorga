@@ -93,7 +93,7 @@ export default function InstallPrompt() {
                 color: isDark ? '#e2e2e8' : '#1a1a2e',
               }}
             >
-              Installer Creorga OS sur votre appareil pour un acc\u00e8s rapide
+              Installer Creorga OS sur votre appareil pour un accès rapide
             </span>
             <button
               onClick={handleInstall}

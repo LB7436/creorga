@@ -5,6 +5,22 @@ import {
   Eye, Sparkles, DoorOpen, Circle, Loader2,
 } from 'lucide-react'
 import { useTables, useUpdateTableStatus } from '@/hooks/api/useTables'
+import ChairsOverlay from '@/components/ChairsOverlay'
+import { useTheme, THEMES } from '@/stores/themeStore'
+
+// Quick menu for per-chair ordering — pulls from POS default menu if available
+const FLOOR_MENU = [
+  { id: 'm1', name: 'Café',           price: 2.80 },
+  { id: 'm2', name: 'Espresso',       price: 2.50 },
+  { id: 'm3', name: 'Bière Bofferding', price: 3.20 },
+  { id: 'm4', name: 'Verre de vin',   price: 4.40 },
+  { id: 'm5', name: 'Crémant',        price: 6.70 },
+  { id: 'm6', name: 'Hamburger',      price: 4.50 },
+  { id: 'm7', name: 'Frites',         price: 4.50 },
+  { id: 'm8', name: 'Cordon Bleu',    price: 26.50 },
+  { id: 'm9', name: 'Plancha Mixte',  price: 25.50 },
+  { id: 'm10', name: 'Dessert',       price: 5.00 },
+]
 import { useOrders } from '@/hooks/api/useOrders'
 import { useSocketEvent } from '@/hooks/useSocket'
 import { useQueryClient } from '@tanstack/react-query'
@@ -108,7 +124,7 @@ const sections: { key: Section; label: string; width: number; height: number; co
 /*  FORMAT HELPERS                                                     */
 /* ------------------------------------------------------------------ */
 function fmtEuro(v: number) {
-  return v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0\u20ac'
+  return v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 }
 function fmtElapsed(ts: number) {
   const mins = Math.floor((Date.now() - ts) / 60000)
@@ -126,6 +142,10 @@ export default function FloorPlan() {
   const { data: tablesData, isLoading: tablesLoading, isError: tablesError } = useTables()
   const { data: ordersData, isLoading: ordersLoading } = useOrders()
   const updateStatus = useUpdateTableStatus()
+  const themeId = useTheme((s) => s.themeId)
+  const setTheme = useTheme((s) => s.setTheme)
+  const theme = THEMES.find((t) => t.id === themeId) || THEMES[1]
+  const isDark = themeId !== 'light'
 
   // Realtime: any table or order event triggers a cache refresh.
   useSocketEvent('table:updated', () => {
@@ -242,25 +262,37 @@ export default function FloorPlan() {
     )
   }
 
-  /* ---- shared card style ---- */
+  /* ---- shared card style (theme-aware) ---- */
   const card: React.CSSProperties = {
-    background: '#ffffff',
+    background: isDark ? theme.surface : '#ffffff',
     borderRadius: 12,
-    border: '1px solid #e2e8f0',
+    border: isDark ? `1px solid ${theme.primary}30` : '1px solid #e2e8f0',
     padding: 20,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    boxShadow: isDark ? `0 4px 20px ${theme.primary}20` : '0 1px 3px rgba(0,0,0,0.04)',
+    color: isDark ? theme.text : '#0f172a',
+    backdropFilter: isDark ? 'blur(14px)' : undefined,
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 1400, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{
+      padding: 24, maxWidth: 1400, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20,
+      background: isDark ? theme.bg : 'transparent',
+      minHeight: isDark ? '100vh' : undefined,
+      borderRadius: isDark ? 18 : 0,
+      color: isDark ? theme.text : '#0f172a',
+    }}>
       {/* =============== TOP BAR =============== */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0 }}>Plan de salle</h1>
-          <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: isDark ? theme.text : '#0f172a', margin: 0 }}>Plan de salle</h1>
+          <p style={{ fontSize: 13, color: isDark ? theme.textMuted : '#64748b', margin: '4px 0 0' }}>
             Vue temps réel — {stats.total} tables sur 3 sections
           </p>
         </div>
+
+        {/* Theme picker — inline dropdown */}
+        <ThemeQuickPicker themeId={themeId} setTheme={setTheme} />
+
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <StatPill color="#f59e0b" label={`${stats.occ} occupées`} />
@@ -310,7 +342,7 @@ export default function FloorPlan() {
           <div style={{ textAlign: 'right' }}>
             <div style={{ opacity: 0.7 }}>Taux d'occupation</div>
             <div style={{ fontSize: 18, fontWeight: 700 }}>
-              {Math.round((stats.occ / stats.total) * 100)}\u00a0%
+              {Math.round((stats.occ / stats.total) * 100)} %
             </div>
           </div>
         </div>
@@ -385,7 +417,7 @@ export default function FloorPlan() {
                             {t.name}
                           </text>
                           <text x={w / 2} y={h / 2 + 12} textAnchor="middle" fontSize="10" fill={s.text} opacity="0.75">
-                            {t.seats}\u00a0pl.
+                            {t.seats} pl.
                           </text>
                           {t.status === 'OCCUPEE' && (
                             <circle cx={w - 8} cy={8} r={5} fill="#f59e0b">
@@ -464,7 +496,7 @@ export default function FloorPlan() {
                     </span>
                   </div>
                   <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>
-                    {selected.seats} places \u00b7 {selected.section}
+                    {selected.seats} places · {selected.section}
                   </p>
                 </div>
                 <button
@@ -490,7 +522,7 @@ export default function FloorPlan() {
                       {selected.orderItems?.map((it, i) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                           <span style={{ color: '#1e293b' }}>
-                            <strong>{it.qty}\u00d7</strong> {it.name}
+                            <strong>{it.qty}×</strong> {it.name}
                           </span>
                           <span style={{ fontFamily: 'ui-monospace, monospace', color: '#475569' }}>
                             {fmtEuro(it.qty * it.price)}
@@ -576,6 +608,16 @@ export default function FloorPlan() {
                   Fermer
                 </button>
               </div>
+
+              {/* Chairs manager — orders per chair + transfer */}
+              <div style={{ marginTop: 16 }}>
+                <ChairsOverlay
+                  tableId={selected.id}
+                  tableName={selected.name}
+                  menu={FLOOR_MENU}
+                  otherTables={tables.map((tt) => ({ id: tt.id, name: tt.name }))}
+                />
+              </div>
             </motion.div>
           </>
         )}
@@ -628,3 +670,35 @@ const btnPrimary: React.CSSProperties = { ...btnBase, background: '#1E3A5F', col
 const btnAccent: React.CSSProperties = { ...btnBase, background: '#10b981', color: '#fff' }
 const btnSecondary: React.CSSProperties = { ...btnBase, background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0' }
 const btnGhost: React.CSSProperties = { ...btnBase, background: 'transparent', color: '#475569', border: '1px solid #e2e8f0' }
+
+/* ------------------------------------------------------------------ */
+/*  THEME QUICK PICKER                                                 */
+/* ------------------------------------------------------------------ */
+function ThemeQuickPicker({ themeId, setTheme }: { themeId: string; setTheme: (id: any) => void }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 6,
+      background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(10px)',
+      borderRadius: 999, padding: 4, border: '1px solid rgba(148,163,184,0.2)',
+    }}>
+      <span style={{ fontSize: 11, color: '#64748b', padding: '0 8px', fontWeight: 600 }}>🎨</span>
+      {THEMES.map((t) => {
+        const active = themeId === t.id
+        return (
+          <button
+            key={t.id}
+            onClick={() => setTheme(t.id)}
+            title={t.name}
+            style={{
+              width: 28, height: 28, borderRadius: '50%', border: 'none', cursor: 'pointer',
+              background: t.gradient,
+              boxShadow: active ? `0 0 0 3px #fff, 0 0 0 5px ${t.primary}` : 'none',
+              transform: active ? 'scale(1.08)' : 'scale(1)',
+              transition: 'all .15s',
+            }}
+          />
+        )
+      })}
+    </div>
+  )
+}

@@ -57,16 +57,32 @@ const S = {
   },
 }
 
-export default function TabBar({ active, onChange, cartCount }: { active: GuestTab; onChange: (t: GuestTab) => void; cartCount: number }) {
+interface TabBarProps {
+  active: GuestTab
+  onChange: (t: GuestTab) => void
+  cartCount: number
+  hide?: Partial<Record<GuestTab, boolean>>
+  accent?: string
+}
+
+export default function TabBar({ active, onChange, cartCount, hide = {}, accent = '#6366f1' }: TabBarProps) {
+  const visible = tabs.filter((t) => !hide[t.id])
   return (
     <nav style={S.bar}>
-      {tabs.map(t => (
-        <button key={t.id} style={S.tab(active === t.id)} onClick={() => onChange(t.id)}>
-          <span style={S.icon}>{t.icon}</span>
-          {t.id === 'order' && cartCount > 0 && <span style={S.badge}>{cartCount}</span>}
-          <span>{t.label}</span>
-        </button>
-      ))}
+      {visible.map(t => {
+        const isActive = active === t.id
+        return (
+          <button
+            key={t.id}
+            style={{ ...S.tab(isActive), color: isActive ? accent : '#9ca3af' }}
+            onClick={() => onChange(t.id)}
+          >
+            <span style={S.icon}>{t.icon}</span>
+            {t.id === 'order' && cartCount > 0 && <span style={{ ...S.badge, background: accent }}>{cartCount}</span>}
+            <span>{t.label}</span>
+          </button>
+        )
+      })}
     </nav>
   )
 }

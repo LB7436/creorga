@@ -35,39 +35,39 @@ interface Client {
 /*  CATEGORIES                                                         */
 /* ------------------------------------------------------------------ */
 const categories: { key: CategoryKey | 'all'; label: string; emoji: string }[] = [
-  { key: 'all',      label: 'Tous',      emoji: '\u2728' },
-  { key: 'entrees',  label: 'Entrées',   emoji: '\ud83e\udd57' },
-  { key: 'plats',    label: 'Plats',     emoji: '\ud83c\udf7d\ufe0f' },
-  { key: 'desserts', label: 'Desserts',  emoji: '\ud83c\udf70' },
-  { key: 'boissons', label: 'Boissons',  emoji: '\ud83e\uddc3' },
-  { key: 'vins',     label: 'Vins',      emoji: '\ud83c\udf77' },
-  { key: 'cafes',    label: 'Cafés',     emoji: '\u2615' },
+  { key: 'all',      label: 'Tous',      emoji: '✨' },
+  { key: 'entrees',  label: 'Entrées',   emoji: '🥗' },
+  { key: 'plats',    label: 'Plats',     emoji: '🍽️' },
+  { key: 'desserts', label: 'Desserts',  emoji: '🍰' },
+  { key: 'boissons', label: 'Boissons',  emoji: '🧃' },
+  { key: 'vins',     label: 'Vins',      emoji: '🍷' },
+  { key: 'cafes',    label: 'Cafés',     emoji: '☕' },
 ]
 
 /* ------------------------------------------------------------------ */
 /*  MOCK PRODUCTS (20)                                                 */
 /* ------------------------------------------------------------------ */
 const products: Product[] = [
-  { id: 'p1',  name: 'Salade César',        price: 12.00, category: 'entrees',  emoji: '\ud83e\udd57' },
-  { id: 'p2',  name: 'Soupe du jour',       price:  7.50, category: 'entrees',  emoji: '\ud83c\udf72' },
-  { id: 'p3',  name: 'Carpaccio de bœuf',   price: 14.00, category: 'entrees',  emoji: '\ud83e\udd69' },
-  { id: 'p4',  name: 'Entrecôte grillée',   price: 24.00, category: 'plats',    emoji: '\ud83e\udd69' },
-  { id: 'p5',  name: 'Saumon mi-cuit',      price: 22.00, category: 'plats',    emoji: '\ud83d\udc1f' },
-  { id: 'p6',  name: 'Burger maison',       price: 18.50, category: 'plats',    emoji: '\ud83c\udf54' },
-  { id: 'p7',  name: 'Risotto truffe',      price: 21.00, category: 'plats',    emoji: '\ud83c\udf5a' },
-  { id: 'p8',  name: 'Pizza margherita',    price: 14.00, category: 'plats',    emoji: '\ud83c\udf55' },
-  { id: 'p9',  name: 'Crème brûlée',        price:  8.00, category: 'desserts', emoji: '\ud83c\udf6e' },
-  { id: 'p10', name: 'Tiramisu',            price:  7.50, category: 'desserts', emoji: '\ud83c\udf70' },
-  { id: 'p11', name: 'Mousse au chocolat',  price:  6.50, category: 'desserts', emoji: '\ud83c\udf6b' },
-  { id: 'p12', name: 'Coca-Cola 33cl',      price:  3.50, category: 'boissons', emoji: '\ud83e\udd64' },
-  { id: 'p13', name: 'Eau plate 50cl',      price:  3.00, category: 'boissons', emoji: '\ud83d\udca7' },
-  { id: 'p14', name: 'Jus orange pressé',   price:  5.00, category: 'boissons', emoji: '\ud83c\udf4a' },
-  { id: 'p15', name: 'Bière pression 50cl', price:  5.50, category: 'boissons', emoji: '\ud83c\udf7a' },
-  { id: 'p16', name: 'Verre vin rouge',     price:  6.50, category: 'vins',     emoji: '\ud83c\udf77' },
-  { id: 'p17', name: 'Verre vin blanc',     price:  6.50, category: 'vins',     emoji: '\ud83e\udd42' },
-  { id: 'p18', name: 'Bouteille Bordeaux',  price: 32.00, category: 'vins',     emoji: '\ud83c\udf77' },
-  { id: 'p19', name: 'Espresso',            price:  2.50, category: 'cafes',    emoji: '\u2615' },
-  { id: 'p20', name: 'Cappuccino',          price:  4.00, category: 'cafes',    emoji: '\u2615' },
+  { id: 'p1',  name: 'Salade César',        price: 12.00, category: 'entrees',  emoji: '🥗' },
+  { id: 'p2',  name: 'Soupe du jour',       price:  7.50, category: 'entrees',  emoji: '🍲' },
+  { id: 'p3',  name: 'Carpaccio de bœuf',   price: 14.00, category: 'entrees',  emoji: '🥩' },
+  { id: 'p4',  name: 'Entrecôte grillée',   price: 24.00, category: 'plats',    emoji: '🥩' },
+  { id: 'p5',  name: 'Saumon mi-cuit',      price: 22.00, category: 'plats',    emoji: '🐟' },
+  { id: 'p6',  name: 'Burger maison',       price: 18.50, category: 'plats',    emoji: '🍔' },
+  { id: 'p7',  name: 'Risotto truffe',      price: 21.00, category: 'plats',    emoji: '🍚' },
+  { id: 'p8',  name: 'Pizza margherita',    price: 14.00, category: 'plats',    emoji: '🍕' },
+  { id: 'p9',  name: 'Crème brûlée',        price:  8.00, category: 'desserts', emoji: '🍮' },
+  { id: 'p10', name: 'Tiramisu',            price:  7.50, category: 'desserts', emoji: '🍰' },
+  { id: 'p11', name: 'Mousse au chocolat',  price:  6.50, category: 'desserts', emoji: '🍫' },
+  { id: 'p12', name: 'Coca-Cola 33cl',      price:  3.50, category: 'boissons', emoji: '🥤' },
+  { id: 'p13', name: 'Eau plate 50cl',      price:  3.00, category: 'boissons', emoji: '💧' },
+  { id: 'p14', name: 'Jus orange pressé',   price:  5.00, category: 'boissons', emoji: '🍊' },
+  { id: 'p15', name: 'Bière pression 50cl', price:  5.50, category: 'boissons', emoji: '🍺' },
+  { id: 'p16', name: 'Verre vin rouge',     price:  6.50, category: 'vins',     emoji: '🍷' },
+  { id: 'p17', name: 'Verre vin blanc',     price:  6.50, category: 'vins',     emoji: '🥂' },
+  { id: 'p18', name: 'Bouteille Bordeaux',  price: 32.00, category: 'vins',     emoji: '🍷' },
+  { id: 'p19', name: 'Espresso',            price:  2.50, category: 'cafes',    emoji: '☕' },
+  { id: 'p20', name: 'Cappuccino',          price:  4.00, category: 'cafes',    emoji: '☕' },
 ]
 
 /* ------------------------------------------------------------------ */
@@ -85,7 +85,7 @@ const mockClients: Client[] = [
 /* ------------------------------------------------------------------ */
 const TVA_RATE = 0.17 // Luxembourg standard TVA
 function fmtEuro(v: number) {
-  return v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0\u20ac'
+  return v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 }
 
 /* ================================================================== */
@@ -187,7 +187,7 @@ export default function OrderPage() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
             {cart.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '32px 16px' }}>
-                <div style={{ fontSize: 40, marginBottom: 8 }}>\ud83d\udcdd</div>
+                <div style={{ fontSize: 40, marginBottom: 8 }}>📝</div>
                 <div style={{ fontSize: 13, color: '#94a3b8' }}>Aucun article. Sélectionnez un produit.</div>
               </div>
             ) : (
@@ -271,7 +271,7 @@ export default function OrderPage() {
                     )}
                     {item.note && editingNote !== item.product.id && (
                       <div style={{ marginTop: 6, fontSize: 11, color: '#b45309', fontStyle: 'italic' }}>
-                        \u270e {item.note}
+                        ✎ {item.note}
                       </div>
                     )}
                   </motion.div>

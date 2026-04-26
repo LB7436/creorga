@@ -13,6 +13,15 @@ import ModuleSelector from '@/pages/ModuleSelector'
 import NotFound from '@/pages/NotFound'
 import Dashboard from '@/pages/Dashboard'
 import Kitchen from '@/pages/pos/Kitchen'
+import BackToStart from '@/components/BackToStart'
+import RoomDesignerPage from '@/pages/pos/RoomDesignerPage'
+import SettingsModules from '@/pages/settings/SettingsModules'
+import SettingsEnvMode from '@/pages/settings/SettingsEnvMode'
+import AIModulePage from '@/pages/ai/AIModulePage'
+import EnvModeBanner from '@/components/EnvModeBanner'
+import SettingsTheme from '@/pages/settings/SettingsTheme'
+import SetupWizard from '@/pages/onboarding/SetupWizard'
+import UnifiedFloorPlan from '@/pages/pos/UnifiedFloorPlan'
 import GuestHome from '@/pages/guest/GuestHome'
 import AdminLayout from '@/pages/admin/AdminLayout'
 import AdminCompany from '@/pages/admin/AdminCompany'
@@ -68,6 +77,7 @@ import ReservConfigPage from '@/pages/reservations/ConfigPage'
 
 // Inventory Pages
 import StockPage from '@/pages/inventory/StockPage'
+import ReceiptOCR from '@/pages/inventory/ReceiptOCR'
 import RecettesPage from '@/pages/inventory/RecettesPage'
 import FournisseursPage from '@/pages/inventory/FournisseursPage'
 import CommandesPage from '@/pages/inventory/CommandesPage'
@@ -152,9 +162,17 @@ function App() {
   const demoSeconds = Math.floor((demoRemaining % 60000) / 1000)
 
   useEffect(() => {
-    if (user && location.pathname !== '/login') {
+    if (user && location.pathname !== '/login' && location.pathname !== '/setup' && location.pathname !== '/demo') {
       const done = localStorage.getItem('creorga-onboarded')
-      if (!done) setShowOnboarding(true)
+      if (!done) {
+        // Full setup wizard on first boot — has floor plan editor + Ollama step
+        if (location.pathname === '/' || location.pathname === '/modules') {
+          // Nav via window to avoid loops; the Routes will pick up
+          if (!window.location.pathname.startsWith('/setup')) {
+            window.location.href = '/setup'
+          }
+        }
+      }
     }
   }, [user, location.pathname])
 
@@ -168,6 +186,7 @@ function App() {
 
       {/* Auth-only without AppShell */}
       <Route path="/welcome" element={<RequireAuth><Welcome /></RequireAuth>} />
+      <Route path="/setup" element={<RequireAuth><SetupWizard /></RequireAuth>} />
       <Route path="/modules" element={<RequireAuth><ModuleSelector /></RequireAuth>} />
       <Route path="/pos/kitchen" element={<RequireAuth><Kitchen /></RequireAuth>} />
       <Route path="/qrmenu" element={<RequireAuth><QrMenuPage /></RequireAuth>} />
@@ -194,8 +213,11 @@ function App() {
         <Route path="/pos" element={<PosLayout />}>
           <Route index element={<Navigate to="/pos/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="floor" element={<FloorPlan />} />
+          <Route path="floor" element={<UnifiedFloorPlan />} />
+          <Route path="floor-classic" element={<FloorPlan />} />
+          <Route path="design" element={<RoomDesignerPage />} />
           <Route path="order/:tableId" element={<OrderPage />} />
+          <Route path="checkout" element={<Navigate to="/pos/floor" replace />} />
           <Route path="checkout/:orderId" element={<Checkout />} />
           <Route path="orders" element={<DashboardPage />} />
           <Route path="config" element={<DashboardPage />} />
@@ -240,6 +262,7 @@ function App() {
           <Route path="recettes" element={<RecettesPage />} />
           <Route path="fournisseurs" element={<FournisseursPage />} />
           <Route path="commandes" element={<CommandesPage />} />
+          <Route path="ocr" element={<ReceiptOCR />} />
         </Route>
 
         {/* HR Module */}
@@ -289,8 +312,15 @@ function App() {
         {/* API & Intégrations Module */}
         <Route path="/api" element={<ApiPage />} />
 
-        {/* Assistant IA Module */}
+        {/* Assistant IA Module (cloud) */}
         <Route path="/ai" element={<AiAssistantPage />} />
+        {/* Assistant IA Local (Gemma/Ollama pour Raspberry Pi 5) */}
+        <Route path="/ai/local" element={<AIModulePage />} />
+
+        {/* Settings — Configurateur de modules + Env modes */}
+        <Route path="/settings/modules" element={<SettingsModules />} />
+        <Route path="/settings/env-mode" element={<SettingsEnvMode />} />
+        <Route path="/settings/theme" element={<SettingsTheme />} />
 
         {/* Sauvegarde & Sécurité Module */}
         <Route path="/backup" element={<BackupPage />} />
@@ -425,6 +455,8 @@ function App() {
       </>
     )}
 
+    <EnvModeBanner />
+    <BackToStart />
     <InstallPrompt />
     {showOnboarding && (
       <OnboardingWizard

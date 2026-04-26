@@ -22,51 +22,51 @@ const RECENT_KEY = 'creorga-cmdk-recent'
 
 const PAGES: Omit<CommandItem, 'type'>[] = [
   { id: 'p-dash', title: 'Tableau de bord', subtitle: 'Vue d\'ensemble', emoji: '\u{1F4CA}', path: '/' },
-  { id: 'p-modules', title: 'Modules', subtitle: 'S\u00e9lecteur de modules', emoji: '\u{1F9F1}', path: '/modules' },
+  { id: 'p-modules', title: 'Modules', subtitle: 'Sélecteur de modules', emoji: '\u{1F9F1}', path: '/modules' },
   { id: 'p-pos', title: 'Caisse POS', subtitle: 'Prendre une commande', emoji: '\u{1F4B3}', path: '/pos' },
   { id: 'p-pos-floor', title: 'Plan de salle', subtitle: 'Tables et serveurs', emoji: '\u{1FA91}', path: '/pos/floor' },
   { id: 'p-pos-kitchen', title: 'Cuisine', subtitle: 'Kitchen display', emoji: '\u{1F373}', path: '/pos/kitchen' },
   { id: 'p-crm', title: 'CRM & Clients', subtitle: 'Fichier clients', emoji: '\u{1F465}', path: '/crm/clients' },
-  { id: 'p-fidelite', title: 'Fid\u00e9lit\u00e9', subtitle: 'Programme de fid\u00e9lit\u00e9', emoji: '\u{1F381}', path: '/crm/fidelite' },
-  { id: 'p-invoices', title: 'Factures', subtitle: 'Factures \u00e9mises', emoji: '\u{1F4C4}', path: '/invoices/factures' },
+  { id: 'p-fidelite', title: 'Fidélité', subtitle: 'Programme de fidélité', emoji: '\u{1F381}', path: '/crm/fidelite' },
+  { id: 'p-invoices', title: 'Factures', subtitle: 'Factures émises', emoji: '\u{1F4C4}', path: '/invoices/factures' },
   { id: 'p-devis', title: 'Devis', subtitle: 'Devis et propositions', emoji: '\u{1F4DD}', path: '/invoices/devis' },
   { id: 'p-inventory', title: 'Stock', subtitle: 'Inventaire', emoji: '\u{1F4E6}', path: '/inventory/stock' },
   { id: 'p-recettes', title: 'Recettes', subtitle: 'Fiches techniques', emoji: '\u{1F4D6}', path: '/inventory/recettes' },
   { id: 'p-fournisseurs', title: 'Fournisseurs', subtitle: 'Contacts fournisseurs', emoji: '\u{1F69A}', path: '/inventory/fournisseurs' },
-  { id: 'p-hr-planning', title: 'Planning RH', subtitle: 'Horaires de l\'\u00e9quipe', emoji: '\u{1F4C5}', path: '/hr/planning' },
-  { id: 'p-hr-equipe', title: '\u00c9quipe', subtitle: 'Gestion du personnel', emoji: '\u{1F46A}', path: '/hr/equipe' },
-  { id: 'p-haccp', title: 'HACCP', subtitle: 'Hygi\u00e8ne et s\u00e9curit\u00e9', emoji: '\u{1F9EA}', path: '/haccp/journee' },
+  { id: 'p-hr-planning', title: 'Planning RH', subtitle: 'Horaires de l\'équipe', emoji: '\u{1F4C5}', path: '/hr/planning' },
+  { id: 'p-hr-equipe', title: 'Équipe', subtitle: 'Gestion du personnel', emoji: '\u{1F46A}', path: '/hr/equipe' },
+  { id: 'p-haccp', title: 'HACCP', subtitle: 'Hygiène et sécurité', emoji: '\u{1F9EA}', path: '/haccp/journee' },
   { id: 'p-acc-caisse', title: 'Caisse comptable', subtitle: 'Fond de caisse', emoji: '\u{1F4B0}', path: '/accounting/caisse' },
-  { id: 'p-acc-tva', title: 'TVA', subtitle: 'D\u00e9clarations TVA', emoji: '\u{1F4B6}', path: '/accounting/tva' },
+  { id: 'p-acc-tva', title: 'TVA', subtitle: 'Déclarations TVA', emoji: '\u{1F4B6}', path: '/accounting/tva' },
   { id: 'p-acc-rapports', title: 'Rapports', subtitle: 'Rapports financiers', emoji: '\u{1F4C8}', path: '/accounting/rapports' },
   { id: 'p-marketing', title: 'Campagnes marketing', subtitle: 'Emailing et SMS', emoji: '\u{1F4E3}', path: '/crm/campagnes' },
-  { id: 'p-agenda', title: 'Agenda', subtitle: 'Calendrier global', emoji: '\u{1F5D3}\uFE0F', path: '/agenda/calendrier' },
-  { id: 'p-reputation', title: 'R\u00e9putation', subtitle: 'Avis clients', emoji: '\u2B50', path: '/reputation/avis' },
+  { id: 'p-agenda', title: 'Agenda', subtitle: 'Calendrier global', emoji: '\u{1F5D3}️', path: '/agenda/calendrier' },
+  { id: 'p-reputation', title: 'Réputation', subtitle: 'Avis clients', emoji: '⭐', path: '/reputation/avis' },
   { id: 'p-formation', title: 'Formation', subtitle: 'Tutoriels et guides', emoji: '\u{1F393}', path: '/formation' },
-  { id: 'p-maintenance', title: 'Maintenance', subtitle: '\u00c9quipements', emoji: '\u{1F527}', path: '/maintenance' },
+  { id: 'p-maintenance', title: 'Maintenance', subtitle: 'Équipements', emoji: '\u{1F527}', path: '/maintenance' },
   { id: 'p-licences', title: 'Licences', subtitle: 'Assurances et licences', emoji: '\u{1F4DC}', path: '/licences' },
-  { id: 'p-rgpd', title: 'RGPD', subtitle: 'Conformit\u00e9 et donn\u00e9es', emoji: '\u{1F512}', path: '/rgpd' },
-  { id: 'p-sites', title: 'Multi-\u00e9tablissements', subtitle: 'Vos sites', emoji: '\u{1F3E2}', path: '/sites' },
-  { id: 'p-api', title: 'API & Int\u00e9grations', subtitle: 'Connexions tierces', emoji: '\u{1F517}', path: '/api' },
+  { id: 'p-rgpd', title: 'RGPD', subtitle: 'Conformité et données', emoji: '\u{1F512}', path: '/rgpd' },
+  { id: 'p-sites', title: 'Multi-établissements', subtitle: 'Vos sites', emoji: '\u{1F3E2}', path: '/sites' },
+  { id: 'p-api', title: 'API & Intégrations', subtitle: 'Connexions tierces', emoji: '\u{1F517}', path: '/api' },
   { id: 'p-ai', title: 'Assistant IA', subtitle: 'Votre copilote', emoji: '\u{1F916}', path: '/ai' },
-  { id: 'p-backup', title: 'Sauvegarde', subtitle: 'Backup & s\u00e9curit\u00e9', emoji: '\u{1F4BE}', path: '/backup' },
-  { id: 'p-owner', title: 'Rapport Patron', subtitle: 'R\u00e9sum\u00e9 direction', emoji: '\u{1F4CB}', path: '/owner' },
+  { id: 'p-backup', title: 'Sauvegarde', subtitle: 'Backup & sécurité', emoji: '\u{1F4BE}', path: '/backup' },
+  { id: 'p-owner', title: 'Rapport Patron', subtitle: 'Résumé direction', emoji: '\u{1F4CB}', path: '/owner' },
   { id: 'p-delivery', title: 'Livraison', subtitle: 'Courses et delivery', emoji: '\u{1F6F5}', path: '/delivery' },
-  { id: 'p-clickcollect', title: 'Click & Collect', subtitle: 'Commandes \u00e0 emporter', emoji: '\u{1F6CD}\uFE0F', path: '/clickcollect' },
+  { id: 'p-clickcollect', title: 'Click & Collect', subtitle: 'Commandes à emporter', emoji: '\u{1F6CD}️', path: '/clickcollect' },
   { id: 'p-catering', title: 'Traiteur', subtitle: 'Service traiteur', emoji: '\u{1F371}', path: '/catering' },
-  { id: 'p-centralkitchen', title: 'Cuisine centrale', subtitle: 'Production group\u00e9e', emoji: '\u{1F3ED}', path: '/centralkitchen' },
-  { id: 'p-qrmenu', title: 'Menu QR', subtitle: 'Carte num\u00e9rique', emoji: '\u{1F4F1}', path: '/qrmenu' },
+  { id: 'p-centralkitchen', title: 'Cuisine centrale', subtitle: 'Production groupée', emoji: '\u{1F3ED}', path: '/centralkitchen' },
+  { id: 'p-qrmenu', title: 'Menu QR', subtitle: 'Carte numérique', emoji: '\u{1F4F1}', path: '/qrmenu' },
 ]
 
 const ACTIONS: Omit<CommandItem, 'type'>[] = [
   { id: 'a-new-order', title: 'Nouvelle commande', subtitle: 'Ouvrir la caisse', emoji: '\u{1F4B3}', path: '/pos/floor' },
-  { id: 'a-new-client', title: 'Ajouter un client', subtitle: 'Cr\u00e9er une fiche client', emoji: '\u{1F465}', path: '/crm/clients' },
+  { id: 'a-new-client', title: 'Ajouter un client', subtitle: 'Créer une fiche client', emoji: '\u{1F465}', path: '/crm/clients' },
   { id: 'a-new-product', title: 'Ajouter un produit', subtitle: 'Nouveau produit au menu', emoji: '\u{1F354}', path: '/admin/catalog' },
-  { id: 'a-view-reviews', title: 'Voir les avis', subtitle: 'Avis clients r\u00e9cents', emoji: '\u{1F4AC}', path: '/reputation/avis' },
+  { id: 'a-view-reviews', title: 'Voir les avis', subtitle: 'Avis clients récents', emoji: '\u{1F4AC}', path: '/reputation/avis' },
   { id: 'a-reports', title: 'Voir rapports', subtitle: 'Rapports financiers', emoji: '\u{1F4C8}', path: '/accounting/rapports' },
-  { id: 'a-new-reservation', title: 'Nouvelle r\u00e9servation', subtitle: 'Bloquer une table', emoji: '\u{1F4C5}', path: '/agenda/calendrier' },
+  { id: 'a-new-reservation', title: 'Nouvelle réservation', subtitle: 'Bloquer une table', emoji: '\u{1F4C5}', path: '/agenda/calendrier' },
   { id: 'a-support', title: 'Contacter le support', subtitle: 'Aide et assistance', emoji: '\u{1F4DE}' },
-  { id: 'a-cloture', title: 'Cl\u00f4ture de caisse', subtitle: 'Fermer la journ\u00e9e', emoji: '\u{1F512}', path: '/accounting/cloture' },
+  { id: 'a-cloture', title: 'Clôture de caisse', subtitle: 'Fermer la journée', emoji: '\u{1F512}', path: '/accounting/cloture' },
   { id: 'a-invite-staff', title: 'Inviter un collaborateur', subtitle: 'Ajouter un membre', emoji: '\u{1F4E7}', path: '/hr/equipe' },
   { id: 'a-install-app', title: 'Installer l\'application', subtitle: 'PWA sur mobile/tablette', emoji: '\u{1F4F2}' },
 ]
@@ -85,9 +85,9 @@ const MOCK_CLIENTS = [
 const MOCK_PRODUCTS = [
   { id: 'pr1', name: 'Espresso', price: 2.5, cat: 'Boisson' },
   { id: 'pr2', name: 'Cappuccino', price: 3.8, cat: 'Boisson' },
-  { id: 'pr3', name: 'Croissant', price: 1.8, cat: 'P\u00e2tisserie' },
-  { id: 'pr4', name: 'Tarte du jour', price: 5.0, cat: 'P\u00e2tisserie' },
-  { id: 'pr5', name: 'Salade C\u00e9sar', price: 13.5, cat: 'Plat' },
+  { id: 'pr3', name: 'Croissant', price: 1.8, cat: 'Pâtisserie' },
+  { id: 'pr4', name: 'Tarte du jour', price: 5.0, cat: 'Pâtisserie' },
+  { id: 'pr5', name: 'Salade César', price: 13.5, cat: 'Plat' },
   { id: 'pr6', name: 'Burger maison', price: 16.0, cat: 'Plat' },
   { id: 'pr7', name: 'Pasta truffe', price: 22.0, cat: 'Plat' },
   { id: 'pr8', name: 'Mojito classique', price: 11.0, cat: 'Cocktail' },
@@ -112,11 +112,11 @@ function fuzzyMatch(query: string, text: string): number {
 
 function getTimeGreeting(): string {
   const h = new Date().getHours()
-  if (h < 11) return 'Bon matin, voici votre r\u00e9sum\u00e9 journalier'
-  if (h < 14) return 'Bon midi, pr\u00eat pour le service de midi ?'
-  if (h < 18) return 'Bon apr\u00e8s-midi, comment s\'est pass\u00e9 le midi ?'
-  if (h < 23) return 'Bonne soir\u00e9e, service du soir en cours'
-  return 'Bonne nuit, pensez \u00e0 cl\u00f4turer votre journ\u00e9e'
+  if (h < 11) return 'Bon matin, voici votre résumé journalier'
+  if (h < 14) return 'Bon midi, prêt pour le service de midi ?'
+  if (h < 18) return 'Bon après-midi, comment s\'est passé le midi ?'
+  if (h < 23) return 'Bonne soirée, service du soir en cours'
+  return 'Bonne nuit, pensez à clôturer votre journée'
 }
 
 export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
@@ -164,8 +164,8 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
         id: p.id,
         type: 'product',
         title: p.name,
-        subtitle: `${p.cat} \u00b7 ${p.price.toFixed(2)} \u20ac`,
-        emoji: '\u{1F37D}\uFE0F',
+        subtitle: `${p.cat} · ${p.price.toFixed(2)} €`,
+        emoji: '\u{1F37D}️',
         path: '/admin/catalog',
       })
     )
@@ -173,8 +173,8 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   }, [])
 
   const quickItems: CommandItem[] = [
-    { id: 'q1', type: 'quick', title: 'Nouvelle commande', emoji: '\u{1F4B3}', subtitle: 'Sauter \u00e0 la caisse', path: '/pos/floor' },
-    { id: 'q2', type: 'quick', title: 'Voir rapports', emoji: '\u{1F4C8}', subtitle: 'Analyses financi\u00e8res', path: '/accounting/rapports' },
+    { id: 'q1', type: 'quick', title: 'Nouvelle commande', emoji: '\u{1F4B3}', subtitle: 'Sauter à la caisse', path: '/pos/floor' },
+    { id: 'q2', type: 'quick', title: 'Voir rapports', emoji: '\u{1F4C8}', subtitle: 'Analyses financières', path: '/accounting/rapports' },
     { id: 'q3', type: 'quick', title: 'Ajouter un produit', emoji: '\u{1F354}', subtitle: 'Catalogue', path: '/admin/catalog' },
     { id: 'q4', type: 'quick', title: 'Contacter support', emoji: '\u{1F4DE}', subtitle: 'Aide Creorga' },
   ]
@@ -368,7 +368,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
               fontWeight: 600,
             }}
           >
-            {'\u21B5 Ouvrir'}
+            {'↵ Ouvrir'}
           </span>
         )}
       </button>
@@ -471,7 +471,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
                       fontWeight: 600,
                     }}
                   >
-                    {'\u2728 '} {getTimeGreeting()}
+                    {'✨ '} {getTimeGreeting()}
                   </div>
 
                   {/* Quick actions */}
@@ -502,7 +502,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
                           padding: '14px 14px 4px',
                         }}
                       >
-                        {'R\u00E9cent'}
+                        {'Récent'}
                       </div>
                       {recent
                         .map((id) => allItems.find((x) => x.id === id))
@@ -521,7 +521,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
                 >
                   <div style={{ fontSize: 32, marginBottom: 8 }}>{'\u{1F50D}'}</div>
                   <div style={{ fontSize: 14, color: '#64748b', fontWeight: 500 }}>
-                    {'Aucun r\u00E9sultat pour'}
+                    {'Aucun résultat pour'}
                     <span style={{ color: '#0f172a', marginLeft: 6 }}>"{query}"</span>
                   </div>
                   <div style={{ fontSize: 12, marginTop: 4 }}>
@@ -580,13 +580,13 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <kbd style={kbdStyle}>{'\u2191'}</kbd>
-                  <kbd style={kbdStyle}>{'\u2193'}</kbd>
+                  <kbd style={kbdStyle}>{'↑'}</kbd>
+                  <kbd style={kbdStyle}>{'↓'}</kbd>
                   Naviguer
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <kbd style={kbdStyle}>{'\u21B5'}</kbd>
-                  {'S\u00E9lectionner'}
+                  <kbd style={kbdStyle}>{'↵'}</kbd>
+                  {'Sélectionner'}
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <kbd style={kbdStyle}>Esc</kbd>
@@ -594,7 +594,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <kbd style={kbdStyle}>{'\u2318K'}</kbd>
+                <kbd style={kbdStyle}>{'⌘K'}</kbd>
                 <span>Creorga</span>
               </div>
             </div>

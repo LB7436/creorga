@@ -457,7 +457,7 @@ export default function ParamsPage() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {[
                 'Liste du personnel', 'Salaires bruts', 'Cotisations sociales',
-                'Heures travaill\u00e9es', 'Cong\u00e9s utilis\u00e9s', 'Historique absences',
+                'Heures travaillées', 'Congés utilisés', 'Historique absences',
               ].map(item => (
                 <span key={item} style={{
                   display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -522,10 +522,10 @@ export default function ParamsPage() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
           {[
             { label: 'Heures/sem', value: `${heuresStandard}h`, color: '#6366f1' },
-            { label: 'Cong\u00e9s/an', value: `${joursConges}j`, color: '#10b981' },
+            { label: 'Congés/an', value: `${joursConges}j`, color: '#10b981' },
             { label: 'Pause', value: `${pauseObligatoire} min`, color: '#f97316' },
             { label: 'Paie', value: jourPaie === 'dernier' ? 'Fin de mois' : `Le ${jourPaie}`, color: '#ca8a04' },
-            { label: 'Cotisations', value: `${[toggles.cns && 'CNS', toggles.pension && 'Pension', toggles.assuranceDependance && 'D\u00e9p.'].filter(Boolean).join(', ') || 'Aucune'}`, color: '#ec4899' },
+            { label: 'Cotisations', value: `${[toggles.cns && 'CNS', toggles.pension && 'Pension', toggles.assuranceDependance && 'Dép.'].filter(Boolean).join(', ') || 'Aucune'}`, color: '#ec4899' },
           ].map(item => (
             <div key={item.label}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>

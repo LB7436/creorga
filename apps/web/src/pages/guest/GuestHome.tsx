@@ -53,10 +53,10 @@ function AnnouncementsBanner({ items }: { items: Announcement[] }) {
 // ─── Language picker ─────────────────────────────────────
 
 const LANGS = [
-  { code: 'fr', flag: '\🇫\🇷', name: 'Fran\u00e7ais' },
+  { code: 'fr', flag: '\🇫\🇷', name: 'Français' },
   { code: 'en', flag: '\🇬\🇧', name: 'English' },
   { code: 'de', flag: '\🇩\🇪', name: 'Deutsch' },
-  { code: 'pt', flag: '\🇵\🇹', name: 'Portugu\u00eas' },
+  { code: 'pt', flag: '\🇵\🇹', name: 'Português' },
 ]
 
 function LangPicker({ lang, setLang }: { lang: string; setLang: (l: string) => void }) {
@@ -287,29 +287,29 @@ const MOCK_MENU: MenuCategory[] = [
   {
     id: 'boissons', name: 'Boissons', emoji: '\🍹',
     products: [
-      { id: 'b1', name: 'Eau min\u00e9rale', price: 2.50, description: 'Plate ou gazeuse, 50cl', emoji: '\💧' },
+      { id: 'b1', name: 'Eau minérale', price: 2.50, description: 'Plate ou gazeuse, 50cl', emoji: '\💧' },
       { id: 'b2', name: 'Coca-Cola', price: 3.00, description: 'Classique, 33cl bien frais', emoji: '\🥤' },
-      { id: 'b3', name: 'Jus d\'orange frais', price: 3.50, description: 'Press\u00e9 minute, 100% fruits', emoji: '\🍊' },
-      { id: 'b4', name: 'Bi\u00e8re pression', price: 4.50, description: 'Blonde locale, 25cl', emoji: '\🍺' },
+      { id: 'b3', name: 'Jus d\'orange frais', price: 3.50, description: 'Pressé minute, 100% fruits', emoji: '\🍊' },
+      { id: 'b4', name: 'Bière pression', price: 4.50, description: 'Blonde locale, 25cl', emoji: '\🍺' },
       { id: 'b5', name: 'Cocktail maison', price: 8.00, description: 'Mojito, Spritz ou Margarita', emoji: '\🍸' },
     ],
   },
   {
     id: 'cuisine', name: 'Cuisine', emoji: '\🍔',
     products: [
-      { id: 'c1', name: 'Burger classique', price: 12.50, description: 'B\u0153uf 180g, cheddar, salade, tomate', emoji: '\🍔' },
+      { id: 'c1', name: 'Burger classique', price: 12.50, description: 'Bœuf 180g, cheddar, salade, tomate', emoji: '\🍔' },
       { id: 'c2', name: 'Pizza Margherita', price: 11.00, description: 'Tomate, mozzarella, basilic frais', emoji: '\🍕' },
-      { id: 'c3', name: 'Salade C\u00e9sar', price: 9.50, description: 'Poulet grill\u00e9, parmesan, cro\u00fbtons', emoji: '\🥗' },
-      { id: 'c4', name: 'Fish & Chips', price: 13.00, description: 'Cabillaud pan\u00e9, frites maison', emoji: '\🍟' },
-      { id: 'c5', name: 'Poke Bowl saumon', price: 14.00, description: 'Riz, saumon cru, avocat, \u00e9damame', emoji: '\🍣' },
-      { id: 'c6', name: 'Nachos & Guacamole', price: 7.50, description: 'Tortilla chips, guac maison, cr\u00e8me', emoji: '\🌮' },
+      { id: 'c3', name: 'Salade César', price: 9.50, description: 'Poulet grillé, parmesan, croûtons', emoji: '\🥗' },
+      { id: 'c4', name: 'Fish & Chips', price: 13.00, description: 'Cabillaud pané, frites maison', emoji: '\🍟' },
+      { id: 'c5', name: 'Poke Bowl saumon', price: 14.00, description: 'Riz, saumon cru, avocat, édamame', emoji: '\🍣' },
+      { id: 'c6', name: 'Nachos & Guacamole', price: 7.50, description: 'Tortilla chips, guac maison, crème', emoji: '\🌮' },
     ],
   },
   {
     id: 'desserts', name: 'Desserts', emoji: '\🍰',
     products: [
-      { id: 'd1', name: 'Brownie chocolat', price: 5.50, description: 'Coulant au c\u0153ur, glace vanille', emoji: '\🍫' },
-      { id: 'd2', name: 'Cr\u00e8me br\u00fbl\u00e9e', price: 6.00, description: 'Vanille de Madagascar', emoji: '\🍮' },
+      { id: 'd1', name: 'Brownie chocolat', price: 5.50, description: 'Coulant au cœur, glace vanille', emoji: '\🍫' },
+      { id: 'd2', name: 'Crème brûlée', price: 6.00, description: 'Vanille de Madagascar', emoji: '\🍮' },
       { id: 'd3', name: 'Tiramisu', price: 6.50, description: 'Recette italienne traditionnelle', emoji: '\☕' },
       { id: 'd4', name: 'Glace artisanale 3 boules', price: 5.00, description: 'Chocolat, vanille, fraise', emoji: '\🍨' },
     ],
@@ -425,10 +425,10 @@ function GuestMenu({
         style={{ textAlign: 'center' }}
       >
         <h3 style={{ fontSize: 20, fontWeight: 700, color: TEXT, marginBottom: 6 }}>
-          Commande envoy\u00e9e !
+          Commande envoyée !
         </h3>
         <p style={{ fontSize: 14, color: MUTED, lineHeight: 1.5 }}>
-          Votre serveur est pr\u00e9venu.{'\n'}Merci pour votre patience !
+          Votre serveur est prévenu.{'\n'}Merci pour votre patience !
         </p>
       </motion.div>
       {/* Floating dots animation */}
@@ -518,7 +518,7 @@ function GuestMenu({
                   {p.description}
                 </p>
                 <p style={{ fontSize: 15, fontWeight: 700, color: ACCENT, marginTop: 4 }}>
-                  {p.price.toFixed(2)} \u20ac
+                  {p.price.toFixed(2)} €
                 </p>
               </div>
 
@@ -564,7 +564,7 @@ function GuestMenu({
                     boxShadow: `0 2px 12px ${ACCENT}33`,
                   }}
                 >
-                  {justAdded ? '\u2713' : 'Ajouter'}
+                  {justAdded ? '✓' : 'Ajouter'}
                 </motion.button>
               )}
             </motion.div>
@@ -572,7 +572,7 @@ function GuestMenu({
         })}
         {!active?.products?.length && (
           <p style={{ textAlign: 'center', padding: '32px 0', fontSize: 14, color: MUTED }}>
-            Aucun article dans cette cat\u00e9gorie.
+            Aucun article dans cette catégorie.
           </p>
         )}
       </div>
@@ -595,7 +595,7 @@ function GuestMenu({
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <ShoppingCart size={18} style={{ color: '#fff' }} />
               <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
-                {cartCount} article{cartCount > 1 ? 's' : ''} \u00b7 {cartTotal.toFixed(2)} \u20ac
+                {cartCount} article{cartCount > 1 ? 's' : ''} · {cartTotal.toFixed(2)} €
               </span>
             </div>
             <button
@@ -677,7 +677,7 @@ function GuestMenu({
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <p style={{ fontSize: 13, fontWeight: 600, color: TEXT }}>{item.name}</p>
                           <p style={{ fontSize: 12, color: ACCENT, fontWeight: 600 }}>
-                            {(item.price * item.qty).toFixed(2)} \u20ac
+                            {(item.price * item.qty).toFixed(2)} €
                           </p>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -718,18 +718,18 @@ function GuestMenu({
                 <div style={{ padding: '12px 20px 16px', borderTop: `1px solid ${BORDER}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                     <span style={{ fontSize: 13, color: MUTED }}>Sous-total</span>
-                    <span style={{ fontSize: 13, color: TEXT }}>{subtotal.toFixed(2)} \u20ac</span>
+                    <span style={{ fontSize: 13, color: TEXT }}>{subtotal.toFixed(2)} €</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                     <span style={{ fontSize: 13, color: MUTED }}>TVA (17%)</span>
-                    <span style={{ fontSize: 13, color: TEXT }}>{tva.toFixed(2)} \u20ac</span>
+                    <span style={{ fontSize: 13, color: TEXT }}>{tva.toFixed(2)} €</span>
                   </div>
                   <div style={{
                     display: 'flex', justifyContent: 'space-between',
                     paddingTop: 8, borderTop: `1px solid ${BORDER}`, marginBottom: 14,
                   }}>
                     <span style={{ fontSize: 16, fontWeight: 700, color: TEXT }}>Total</span>
-                    <span style={{ fontSize: 16, fontWeight: 700, color: ACCENT }}>{total.toFixed(2)} \u20ac</span>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: ACCENT }}>{total.toFixed(2)} €</span>
                   </div>
 
                   <motion.button
@@ -781,28 +781,28 @@ const CATEGORY_RATINGS = [
   { key: 'food', label: 'Nourriture', emoji: '\🍝' },
   { key: 'service', label: 'Service', emoji: '\👋' },
   { key: 'ambiance', label: 'Ambiance', emoji: '\🎶' },
-  { key: 'value', label: 'Rapport qualit\u00e9-prix', emoji: '\💰' },
+  { key: 'value', label: 'Rapport qualité-prix', emoji: '\💰' },
 ]
 
 const MOCK_REVIEWS = [
   {
     id: 'r1', name: 'Marie L.', rating: 5, date: 'Il y a 2 jours',
-    comment: 'Excellent service et ambiance au top ! Les jeux de soci\u00e9t\u00e9 rendent l\'exp\u00e9rience unique.',
+    comment: 'Excellent service et ambiance au top ! Les jeux de société rendent l\'expérience unique.',
     avatar: '\👩',
   },
   {
     id: 'r2', name: 'Thomas K.', rating: 4, date: 'Il y a 5 jours',
-    comment: 'Tr\u00e8s bonne cuisine, portions g\u00e9n\u00e9reuses. Le staff est sympa et attentif.',
+    comment: 'Très bonne cuisine, portions généreuses. Le staff est sympa et attentif.',
     avatar: '\👨',
   },
   {
     id: 'r3', name: 'Sophie M.', rating: 5, date: 'Il y a 1 semaine',
-    comment: 'On adore venir ici entre amis. Le concept est g\u00e9nial, on revient bient\u00f4t !',
+    comment: 'On adore venir ici entre amis. Le concept est génial, on revient bientôt !',
     avatar: '\👧',
   },
 ]
 
-const STAR_LABELS = ['', 'Tr\u00e8s insatisfait', 'Insatisfait', 'Correct', 'Satisfait', 'Excellent !']
+const STAR_LABELS = ['', 'Très insatisfait', 'Insatisfait', 'Correct', 'Satisfait', 'Excellent !']
 
 function MiniStars({ rating, onRate, size = 18 }: { rating: number; onRate: (n: number) => void; size?: number }) {
   return (
@@ -814,7 +814,7 @@ function MiniStars({ rating, onRate, size = 18 }: { rating: number; onRate: (n: 
           whileTap={{ scale: 1.3 }}
           style={{ fontSize: size, color: s <= rating ? '#facc15' : 'rgba(255,255,255,0.12)', lineHeight: 1, padding: 0, background: 'none', border: 'none' }}
         >
-          \u2605
+          ★
         </motion.button>
       ))}
     </div>
@@ -929,7 +929,7 @@ function GuestFeedback({ onBack }: { onBack: () => void }) {
             Merci beaucoup !
           </h3>
           <p style={{ fontSize: 14, color: MUTED, lineHeight: 1.5, marginBottom: 8 }}>
-            Votre avis nous aide \u00e0 nous am\u00e9liorer chaque jour.
+            Votre avis nous aide à nous améliorer chaque jour.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
             {Array.from({ length: rating }).map((_, i) => (
@@ -940,7 +940,7 @@ function GuestFeedback({ onBack }: { onBack: () => void }) {
                 transition={{ delay: 0.4 + i * 0.08 }}
                 style={{ fontSize: 24, color: '#facc15' }}
               >
-                \u2605
+                ★
               </motion.span>
             ))}
           </div>
@@ -969,7 +969,7 @@ function GuestFeedback({ onBack }: { onBack: () => void }) {
     <div style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 16 }}>
       {/* Title */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-        <button onClick={onBack} style={{ padding: 6, borderRadius: 8, color: MUTED, background: 'none', border: 'none', fontSize: 18 }}>\u2190</button>
+        <button onClick={onBack} style={{ padding: 6, borderRadius: 8, color: MUTED, background: 'none', border: 'none', fontSize: 18 }}>←</button>
         <h2 style={{ fontSize: 18, fontWeight: 700, color: TEXT }}>Donnez votre avis</h2>
       </div>
 
@@ -979,7 +979,7 @@ function GuestFeedback({ onBack }: { onBack: () => void }) {
         border: `1px solid ${BORDER}`, textAlign: 'center',
       }}>
         <p style={{ fontSize: 14, fontWeight: 600, color: TEXT, marginBottom: 12 }}>
-          Comment \u00e9valuez-vous votre exp\u00e9rience ?
+          Comment évaluez-vous votre expérience ?
         </p>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
           {[1, 2, 3, 4, 5].map((s) => (
@@ -999,7 +999,7 @@ function GuestFeedback({ onBack }: { onBack: () => void }) {
                 transition: 'color 0.15s, filter 0.15s',
               }}
             >
-              \u2605
+              ★
             </motion.button>
           ))}
         </div>
@@ -1020,7 +1020,7 @@ function GuestFeedback({ onBack }: { onBack: () => void }) {
         border: `1px solid ${BORDER}`,
       }}>
         <p style={{ fontSize: 13, fontWeight: 600, color: TEXT, marginBottom: 12 }}>
-          D\u00e9taillez votre exp\u00e9rience
+          Détaillez votre expérience
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {CATEGORY_RATINGS.map(cat => (
@@ -1064,7 +1064,7 @@ function GuestFeedback({ onBack }: { onBack: () => void }) {
         <textarea
           value={comment}
           onChange={(e) => setComment(e.target.value)}
-          placeholder="Partagez votre exp\u00e9rience\u2026"
+          placeholder="Partagez votre expérience…"
           rows={4}
           maxLength={MAX_COMMENT}
           style={{
@@ -1149,7 +1149,7 @@ function GuestFeedback({ onBack }: { onBack: () => void }) {
                 <div style={{ display: 'flex', gap: 1 }}>
                   {Array.from({ length: 5 }).map((_, i) => (
                     <span key={i} style={{ fontSize: 12, color: i < review.rating ? '#facc15' : 'rgba(255,255,255,0.1)' }}>
-                      \u2605
+                      ★
                     </span>
                   ))}
                 </div>

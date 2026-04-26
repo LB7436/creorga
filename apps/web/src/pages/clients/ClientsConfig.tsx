@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/stores/authStore'
+import LogoUploader from '@/components/LogoUploader'
+import QRCodeCanvas from '@/components/QRCodeCanvas'
+import PhotoWall from '@/components/PhotoWall'
+import { useBrand } from '@/stores/brandStore'
+import { usePortalConfig } from '@/hooks/usePortalConfig'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,16 +44,16 @@ const PORTAL_TOGGLES: PortalToggle[] = [
   { id: 'tableOrder', label: 'Commande en ligne', description: 'Permettre la commande depuis la table', emoji: '\u{1F6D2}', previewTab: 'order' },
   { id: 'enableGames', label: 'Activer les jeux', description: 'Section divertissement pour les clients', emoji: '\u{1F3AE}', previewTab: 'games' },
   { id: 'enableChat', label: 'Activer le chat', description: 'Communication directe avec le personnel', emoji: '\u{1F4AC}', previewTab: 'chat' },
-  { id: 'askReviews', label: 'Demander les avis', description: 'Formulaire de notation apr\u00e8s la visite', emoji: '\u2B50', previewTab: 'reviews' },
-  { id: 'showAnnouncements', label: 'Afficher les annonces', description: 'Promotions et actualit\u00e9s', emoji: '\u{1F4E2}', previewTab: 'annonces' },
+  { id: 'askReviews', label: 'Demander les avis', description: 'Formulaire de notation après la visite', emoji: '⭐', previewTab: 'reviews' },
+  { id: 'showAnnouncements', label: 'Afficher les annonces', description: 'Promotions et actualités', emoji: '\u{1F4E2}', previewTab: 'annonces' },
 ]
 
 const GAMES: GameEntry[] = [
-  { id: 'chess', name: '\u00C9checs', emoji: '\u265F\uFE0F' },
+  { id: 'chess', name: 'Échecs', emoji: '♟️' },
   { id: 'solitaire', name: 'Solitaire', emoji: '\u{1F0CF}' },
   { id: 'blackjack', name: 'Blackjack', emoji: '\u{1F0A1}' },
   { id: 'snake', name: 'Snake', emoji: '\u{1F40D}' },
-  { id: 'minesweeper', name: 'D\u00E9mineur', emoji: '\u{1F4A3}' },
+  { id: 'minesweeper', name: 'Démineur', emoji: '\u{1F4A3}' },
   { id: '2048', name: '2048', emoji: '\u{1F522}' },
   { id: 'bingo', name: 'Bingo', emoji: '\u{1F3B1}' },
   { id: 'simon', name: 'Simon', emoji: '\u{1F534}' },
@@ -57,27 +62,27 @@ const GAMES: GameEntry[] = [
   { id: 'poker', name: 'Poker', emoji: '\u{1F0CF}' },
   { id: 'mastermind', name: 'Mastermind', emoji: '\u{1F9E0}' },
   { id: 'hangman', name: 'Pendu', emoji: '\u{1F464}' },
-  { id: 'war', name: 'Bataille', emoji: '\u2694\uFE0F' },
+  { id: 'war', name: 'Bataille', emoji: '⚔️' },
   { id: 'memory', name: 'Memory', emoji: '\u{1F9E9}' },
   { id: 'puzzle', name: 'Puzzle', emoji: '\u{1F9E9}' },
   { id: 'highlow', name: 'Plus ou Moins', emoji: '\u{1F4CA}' },
   { id: 'farkle', name: 'Farkle', emoji: '\u{1F3B2}' },
-  { id: 'tictactoe', name: 'Morpion', emoji: '\u274C' },
-  { id: 'wordsearch', name: 'Mots M\u00EAl\u00E9s', emoji: '\u{1F524}' },
-  { id: 'numbermemory', name: 'M\u00E9moire des Nombres', emoji: '\u{1F4AF}' },
-  { id: 'reaction', name: 'R\u00E9action', emoji: '\u26A1' },
+  { id: 'tictactoe', name: 'Morpion', emoji: '❌' },
+  { id: 'wordsearch', name: 'Mots Mêlés', emoji: '\u{1F524}' },
+  { id: 'numbermemory', name: 'Mémoire des Nombres', emoji: '\u{1F4AF}' },
+  { id: 'reaction', name: 'Réaction', emoji: '⚡' },
   { id: 'pig', name: 'Cochon', emoji: '\u{1F437}' },
   { id: 'connect4', name: 'Puissance 4', emoji: '\u{1F534}' },
   { id: '421', name: '421', emoji: '\u{1F3B2}' },
-  { id: 'quiz', name: 'Quiz', emoji: '\u2753' },
-  { id: 'reversi', name: 'Reversi', emoji: '\u26AB' },
+  { id: 'quiz', name: 'Quiz', emoji: '❓' },
+  { id: 'reversi', name: 'Reversi', emoji: '⚫' },
   { id: 'towerdefense', name: 'Tower Defense', emoji: '\u{1F3F0}' },
 ]
 
 const ACCENT_COLORS = [
   { id: 'indigo', label: 'Indigo', value: '#6366f1' },
   { id: 'purple', label: 'Violet', value: '#a855f7' },
-  { id: 'emerald', label: '\u00C9meraude', value: '#10b981' },
+  { id: 'emerald', label: 'Émeraude', value: '#10b981' },
   { id: 'rose', label: 'Rose', value: '#f43f5e' },
   { id: 'amber', label: 'Ambre', value: '#f59e0b' },
   { id: 'cyan', label: 'Cyan', value: '#06b6d4' },
@@ -176,7 +181,7 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
       return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: 20, textAlign: 'center' }}>
           <div style={{ fontSize: 36, marginBottom: 10 }}>{'\u{1F6AB}'}</div>
-          <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Aucune fonctionnalit\u00e9 activ\u00e9e</p>
+          <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Aucune fonctionnalité activée</p>
           <p style={{ fontSize: 10, color: '#cbd5e1', margin: '4px 0 0' }}>Activez des options dans le panneau de configuration</p>
         </div>
       )
@@ -187,7 +192,7 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
         return (
           <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: '#1e293b', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Notre Carte</p>
-            {['Entr\u00e9es', 'Plats', 'Desserts', 'Boissons'].map((cat, i) => (
+            {['Entrées', 'Plats', 'Desserts', 'Boissons'].map((cat, i) => (
               <div key={cat} style={{
                 background: '#f8fafc', borderRadius: 10, padding: '10px 12px',
                 border: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 10,
@@ -216,7 +221,7 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
                   <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#1e293b' }}>Margherita</p>
                   <p style={{ margin: 0, fontSize: 9, color: '#94a3b8' }}>Tomate, mozzarella, basilic</p>
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 700, color: accent }}>12,50\u20AC</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: accent }}>12,50€</span>
               </div>
             </div>
             <div style={{ background: accent, borderRadius: 10, padding: '8px 0', textAlign: 'center', marginTop: 4 }}>
@@ -268,11 +273,11 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
             <p style={{ fontSize: 11, fontWeight: 700, color: '#1e293b', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Votre avis</p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 4, padding: '8px 0' }}>
               {[1, 2, 3, 4, 5].map((s) => (
-                <span key={s} style={{ fontSize: 22, cursor: 'pointer', filter: s <= 4 ? 'none' : 'grayscale(1) opacity(0.3)' }}>{'\u2B50'}</span>
+                <span key={s} style={{ fontSize: 22, cursor: 'pointer', filter: s <= 4 ? 'none' : 'grayscale(1) opacity(0.3)' }}>{'⭐'}</span>
               ))}
             </div>
             <div style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 10px', border: '1px solid #f1f5f9', minHeight: 40 }}>
-              <p style={{ margin: 0, fontSize: 9, color: '#94a3b8' }}>Racontez-nous votre exp\u00e9rience...</p>
+              <p style={{ margin: 0, fontSize: 9, color: '#94a3b8' }}>Racontez-nous votre expérience...</p>
             </div>
             <div style={{ background: accent, borderRadius: 8, padding: '6px 0', textAlign: 'center' }}>
               <span style={{ fontSize: 10, fontWeight: 600, color: '#fff' }}>Envoyer mon avis</span>
@@ -285,10 +290,10 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
             <p style={{ fontSize: 11, fontWeight: 700, color: '#1e293b', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Annonces</p>
             <div style={{ background: `${accent}12`, borderRadius: 10, padding: 10, border: `1px solid ${accent}30` }}>
               <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: '#1e293b' }}>{'\u{1F389}'} Happy Hour</p>
-              <p style={{ margin: '2px 0 0', fontSize: 9, color: '#64748b' }}>-50% sur les cocktails de 17h \u00e0 19h !</p>
+              <p style={{ margin: '2px 0 0', fontSize: 9, color: '#64748b' }}>-50% sur les cocktails de 17h à 19h !</p>
             </div>
             <div style={{ background: '#f8fafc', borderRadius: 10, padding: 10, border: '1px solid #f1f5f9' }}>
-              <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: '#1e293b' }}>{'\u{1F3B5}'} Soir\u00e9e live</p>
+              <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: '#1e293b' }}>{'\u{1F3B5}'} Soirée live</p>
               <p style={{ margin: '2px 0 0', fontSize: 9, color: '#64748b' }}>Concert acoustique vendredi 20h</p>
             </div>
           </div>
@@ -301,7 +306,7 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
       <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.6, color: '#64748b', margin: 0 }}>
-        Aper\u00e7u en direct
+        Aperçu en direct
       </p>
       {/* Phone frame */}
       <div style={{
@@ -394,7 +399,7 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
         </div>
       </div>
       <p style={{ fontSize: 10, color: '#94a3b8', margin: 0, textAlign: 'center', maxWidth: 240 }}>
-        Les modifications sont refl\u00e9t\u00e9es en temps r\u00e9el
+        Les modifications sont reflétées en temps réel
       </p>
     </div>
   )
@@ -422,10 +427,20 @@ export default function ClientsConfig() {
     } catch { /* ignore */ }
   }, [])
 
+  const { update: updateRemoteConfig } = usePortalConfig(0) // no polling here, we're the writer
+
   const persist = useCallback((next: PortalSettings) => {
     setSettings(next)
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch { /* quota */ }
-  }, [])
+    // Sync to backend so the guest portal (5178) picks it up.
+    updateRemoteConfig({
+      toggles: next.toggles,
+      games: next.games,
+      welcomeMessage: next.welcomeMessage,
+      accentColor: next.accentColor,
+      tableNumber: next.tableNumber,
+    }).catch(() => { /* offline ok */ })
+  }, [updateRemoteConfig])
 
   const toggleFeature = (id: string) => persist({ ...settings, toggles: { ...settings.toggles, [id]: !settings.toggles[id] } })
   const toggleGame = (id: string) => persist({ ...settings, games: { ...settings.games, [id]: !settings.games[id] } })
@@ -472,7 +487,7 @@ export default function ClientsConfig() {
               Portail Client
             </h1>
             <p style={{ margin: 0, fontSize: 13, color: '#64748b', marginTop: 2 }}>
-              Configurez l'exp\u00e9rience de vos clients &mdash; {restaurantName}
+              Configurez l'expérience de vos clients &mdash; {restaurantName}
             </p>
           </div>
         </div>
@@ -485,7 +500,7 @@ export default function ClientsConfig() {
         <div style={{ flex: '0 0 60%', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
           {/* Toggles */}
-          <Section title="Fonctionnalit\u00e9s du portail" delay={0}>
+          <Section title="Fonctionnalités du portail" delay={0}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {PORTAL_TOGGLES.map((toggle, i) => {
                 const isActive = !!settings.toggles[toggle.id]
@@ -520,10 +535,10 @@ export default function ClientsConfig() {
           <Section title="Jeux disponibles" delay={0.1}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <p style={{ margin: 0, fontSize: 13, color: '#64748b', fontWeight: 500 }}>
-                {activeGamesCount} / {GAMES.length} jeux activ\u00e9s
+                {activeGamesCount} / {GAMES.length} jeux activés
               </p>
               <div style={{ display: 'flex', gap: 8 }}>
-                {[{ label: 'Tout activer', fn: selectAllGames }, { label: 'Tout d\u00e9sactiver', fn: deselectAllGames }].map((btn) => (
+                {[{ label: 'Tout activer', fn: selectAllGames }, { label: 'Tout désactiver', fn: deselectAllGames }].map((btn) => (
                   <button
                     key={btn.label}
                     onClick={btn.fn}
@@ -591,7 +606,7 @@ export default function ClientsConfig() {
                 <textarea
                   value={settings.welcomeMessage}
                   onChange={(e) => setWelcome(e.target.value)}
-                  placeholder="Ex: Bienvenue chez nous ! Scannez le QR code pour d\u00e9couvrir notre carte..."
+                  placeholder="Ex: Bienvenue chez nous ! Scannez le QR code pour découvrir notre carte..."
                   rows={3}
                   style={{
                     width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12,
@@ -631,95 +646,19 @@ export default function ClientsConfig() {
                 </div>
               </div>
 
-              {/* Logo upload */}
+              {/* Logo upload — real uploader with persist */}
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#334155' }}>
                   Logo du restaurant
                 </label>
-                <div style={{
-                  border: '2px dashed #d1d5db', borderRadius: 14, padding: '28px 20px',
-                  textAlign: 'center', cursor: 'pointer', transition: 'border-color 0.2s', background: '#fafbfc',
-                }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>{'\u{1F5BC}\uFE0F'}</div>
-                  <p style={{ margin: 0, fontSize: 13, color: '#64748b', fontWeight: 500 }}>
-                    Glissez votre logo ici ou cliquez pour parcourir
-                  </p>
-                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94a3b8' }}>
-                    PNG, JPG ou SVG &mdash; max 2 Mo
-                  </p>
-                </div>
+                <LogoUploader />
               </div>
             </div>
           </Section>
 
-          {/* QR Code */}
+          {/* QR Code — real QR generator */}
           <Section title="QR Code" delay={0.3}>
-            <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              {/* QR placeholder */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-                <div style={{
-                  width: 160, height: 160, borderRadius: 18,
-                  background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(129,140,248,0.04))',
-                  border: '1px solid rgba(99,102,241,0.15)',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10,
-                }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 4 }}>
-                    {Array.from({ length: 25 }).map((_, i) => (
-                      <div key={i} style={{
-                        width: 10, height: 10, borderRadius: 2,
-                        background: [0, 1, 2, 4, 5, 6, 8, 10, 12, 14, 18, 20, 22, 23, 24].includes(i) ? 'rgba(99,102,241,0.6)' : 'rgba(99,102,241,0.12)',
-                      }} />
-                    ))}
-                  </div>
-                  <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500 }}>Aper\u00E7u QR</span>
-                </div>
-                <p style={{ margin: 0, fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>
-                  Scannez pour acc\u00E9der au portail
-                </p>
-              </div>
-
-              {/* Controls */}
-              <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: '#475569' }}>
-                    Num\u00E9ro de table pour le QR Code
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.tableNumber}
-                    onChange={(e) => setTable(e.target.value)}
-                    placeholder="1"
-                    style={{
-                      width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10,
-                      padding: '10px 14px', color: '#1e293b', fontSize: 13, fontFamily: 'inherit',
-                      outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s',
-                    }}
-                    onFocus={(e) => { e.currentTarget.style.borderColor = '#6366f1' }}
-                    onBlur={(e) => { e.currentTarget.style.borderColor = '#e2e8f0' }}
-                  />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <button style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%',
-                    padding: '12px 16px', borderRadius: 12, border: 'none',
-                    background: 'linear-gradient(135deg, #6366f1, #818cf8)', color: '#fff',
-                    fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  }}>
-                    {'\u{1F504}'} G\u00E9n\u00E9rer un nouveau QR Code
-                  </button>
-                  <button style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%',
-                    padding: '12px 16px', borderRadius: 12, border: '1px solid #e2e8f0',
-                    background: '#f8fafc', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  }}>
-                    {'\u2B07\uFE0F'} T\u00E9l\u00E9charger le QR Code
-                  </button>
-                </div>
-                <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
-                  Le QR code g\u00E9n\u00E9r\u00E9 redirigera les clients vers le portail avec la table {settings.tableNumber || '1'} pr\u00E9-s\u00E9lectionn\u00E9e.
-                </p>
-              </div>
-            </div>
+            <QRSection tableNumber={settings.tableNumber} onTableChange={setTable} />
           </Section>
         </div>
 
@@ -735,6 +674,46 @@ export default function ClientsConfig() {
         >
           <PhonePreview settings={settings} restaurantName={restaurantName} />
         </motion.div>
+      </div>
+
+      {/* Photo Wall — album staff + clients + café */}
+      <div style={{ padding: '0 32px 32px' }}>
+        <PhotoWall moduleId="clients" />
+      </div>
+    </div>
+  )
+}
+
+// ─── QR Section ─────────────────────────────────────────────────────────────
+function QRSection({ tableNumber, onTableChange }: { tableNumber: string; onTableChange: (v: string) => void }) {
+  const portalBase = useBrand((s) => s.portalBaseUrl)
+  const url = `${portalBase}${portalBase.includes('?') ? '&' : '?'}table=${encodeURIComponent(tableNumber || '1')}`
+  return (
+    <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      <QRCodeCanvas value={url} size={200} label={`table-${tableNumber || '1'}`} />
+      <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: '#475569' }}>
+            Numéro de table pour le QR Code
+          </label>
+          <input
+            type="text"
+            value={tableNumber}
+            onChange={(e) => onTableChange(e.target.value)}
+            placeholder="1"
+            style={{
+              width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10,
+              padding: '10px 14px', color: '#1e293b', fontSize: 13, outline: 'none', boxSizing: 'border-box',
+            }}
+          />
+        </div>
+        <div style={{ fontSize: 12, color: '#64748b', wordBreak: 'break-all', padding: 10, background: '#f8fafc', borderRadius: 8 }}>
+          <strong>URL :</strong> {url}
+        </div>
+        <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
+          Le QR code redirige les clients vers le portail avec la table {tableNumber || '1'} pré-sélectionnée.
+          Modifiez l'URL de base dans Paramètres → Marque.
+        </p>
       </div>
     </div>
   )

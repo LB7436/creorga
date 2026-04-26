@@ -24,9 +24,9 @@ const CATEGORY_LABELS: Record<ShortcutCategory, string> = {
 const CATEGORY_ICONS: Record<ShortcutCategory, string> = {
   navigation: '\u{1F9ED}',
   modules: '\u{1F9F1}',
-  actions: '\u26A1',
-  general: '\u2728',
-  accessibility: '\u267F',
+  actions: '⚡',
+  general: '✨',
+  accessibility: '♿',
 }
 
 function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
@@ -137,7 +137,7 @@ function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
                   fontSize: 16,
                 }}
               >
-                {'\u2715'}
+                {'✕'}
               </button>
             </div>
 

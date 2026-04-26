@@ -84,7 +84,7 @@ const MODULES: TrainingModule[] = [
   { id: 'service', title: 'Service client', icon: '\u{1F91D}', duration: '2h15', mandatory: true, category: 'Relation client', videos: 5, quizzes: 2 },
   { id: 'caisse', title: 'Gestion caisse', icon: '\u{1F4B3}', duration: '1h45', mandatory: true, category: 'Opérationnel', videos: 4, quizzes: 2 },
   { id: 'securite', title: 'Sécurité', icon: '\u{1F6A8}', duration: '3h00', mandatory: true, category: 'Conformité', videos: 6, quizzes: 2 },
-  { id: 'secours', title: 'Premiers secours', icon: '\u2695\uFE0F', duration: '6h00', mandatory: false, category: 'Santé', videos: 10, quizzes: 4 },
+  { id: 'secours', title: 'Premiers secours', icon: '⚕️', duration: '6h00', mandatory: false, category: 'Santé', videos: 10, quizzes: 4 },
   { id: 'hygiene', title: 'Hygiène', icon: '\u{1F9FC}', duration: '2h30', mandatory: true, category: 'Hygiène', videos: 6, quizzes: 2 },
 ]
 
@@ -316,7 +316,7 @@ export default function FormationPage() {
               <GraduationCap size={28} color={C.violet} /> Formation & Certification
             </h1>
             <p style={{ color: C.muted, margin: '6px 0 0', fontSize: 14 }}>
-              {EMPLOYEES.length} employés {'\u00B7'} {MODULES.length} modules {'\u00B7'} {stats.completionRate}% de complétion
+              {EMPLOYEES.length} employés {'·'} {MODULES.length} modules {'·'} {stats.completionRate}% de complétion
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -395,7 +395,7 @@ export default function FormationPage() {
                             {m.icon} {m.title}
                           </span>
                           <span style={{ color: C.muted }}>
-                            {completed}/{EMPLOYEES.length} {'\u00B7'} {pct}%
+                            {completed}/{EMPLOYEES.length} {'·'} {pct}%
                           </span>
                         </div>
                         <div style={{ height: 8, borderRadius: 4, background: C.border, overflow: 'hidden' }}>
@@ -425,7 +425,7 @@ export default function FormationPage() {
                     >
                       <div style={{ fontSize: 13, fontWeight: 600 }}>{e.title}</div>
                       <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
-                        {formatDate(e.date)} {'\u00B7'} {e.time} {'\u00B7'} {e.attendees} pers.
+                        {formatDate(e.date)} {'·'} {e.time} {'·'} {e.attendees} pers.
                       </div>
                     </div>
                   ))}
@@ -566,7 +566,7 @@ export default function FormationPage() {
                             const s = emp.modules[m.id]
                             const bg = s?.status === 'completed' ? C.greenSoft : s?.status === 'in-progress' ? C.amberSoft : C.redSoft
                             const color = s?.status === 'completed' ? '#065f46' : s?.status === 'in-progress' ? '#92400e' : '#991b1b'
-                            const label = s?.status === 'completed' ? '\u2713' : s?.status === 'in-progress' ? `${s.progress}%` : '\u2717'
+                            const label = s?.status === 'completed' ? '✓' : s?.status === 'in-progress' ? `${s.progress}%` : '✗'
                             return (
                               <td key={m.id} style={{ ...td, textAlign: 'center' }}>
                                 <span
@@ -769,7 +769,7 @@ export default function FormationPage() {
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 14, fontWeight: 600 }}>{e.title}</div>
                         <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
-                          {e.time} {'\u00B7'} {e.attendees} participants
+                          {e.time} {'·'} {e.attendees} participants
                         </div>
                       </div>
                       <span
@@ -897,7 +897,7 @@ export default function FormationPage() {
                           {m.icon} {m.title}
                         </div>
                         <div style={{ fontSize: 12, color: C.muted }}>
-                          {s?.status === 'completed' ? `\u2713 ${s.score}/100` : s?.status === 'in-progress' ? `${s.progress}%` : 'Non démarré'}
+                          {s?.status === 'completed' ? `✓ ${s.score}/100` : s?.status === 'in-progress' ? `${s.progress}%` : 'Non démarré'}
                         </div>
                       </div>
                       <div style={{ height: 6, borderRadius: 3, background: C.border, marginTop: 6, overflow: 'hidden' }}>

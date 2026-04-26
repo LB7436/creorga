@@ -36,11 +36,11 @@ const metrics = {
 }
 
 const topProducts = [
-  { name: 'Entrecôte grillée', emoji: '\ud83e\udd69', qty: 18, revenue: 432, pct: 100 },
-  { name: 'Burger maison',     emoji: '\ud83c\udf54', qty: 15, revenue: 278, pct: 70 },
-  { name: 'Pizza margherita',  emoji: '\ud83c\udf55', qty: 12, revenue: 168, pct: 55 },
-  { name: 'Tiramisu',          emoji: '\ud83c\udf70', qty: 11, revenue: 83,  pct: 48 },
-  { name: 'Verre vin rouge',   emoji: '\ud83c\udf77', qty: 28, revenue: 182, pct: 45 },
+  { name: 'Entrecôte grillée', emoji: '🥩', qty: 18, revenue: 432, pct: 100 },
+  { name: 'Burger maison',     emoji: '🍔', qty: 15, revenue: 278, pct: 70 },
+  { name: 'Pizza margherita',  emoji: '🍕', qty: 12, revenue: 168, pct: 55 },
+  { name: 'Tiramisu',          emoji: '🍰', qty: 11, revenue: 83,  pct: 48 },
+  { name: 'Verre vin rouge',   emoji: '🍷', qty: 28, revenue: 182, pct: 45 },
 ]
 
 type EventType = 'commande' | 'paiement' | 'cuisine' | 'table_ouverte' | 'table_fermee'
@@ -77,10 +77,10 @@ const eventStyles: Record<EventType, { bg: string; color: string; icon: React.Re
 /*  HELPERS                                                            */
 /* ------------------------------------------------------------------ */
 function fmtEuro(v: number) {
-  return v.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '\u00a0\u20ac'
+  return v.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €'
 }
 function fmtEuro2(v: number) {
-  return v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0\u20ac'
+  return v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 }
 function trendPct(current: number, previous: number) {
   if (previous === 0) return 0
@@ -204,7 +204,7 @@ export default function DashboardPage() {
                 style={{ height: '100%', background: '#fff' }}
               />
             </div>
-            <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.9 }}>{occupationPct}\u00a0%</span>
+            <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.9 }}>{occupationPct} %</span>
           </div>
         </motion.div>
 
@@ -315,7 +315,7 @@ export default function DashboardPage() {
                   <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', flex: 1 }}>
                     {p.name}
                   </span>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>{p.qty}\u00d7</span>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>{p.qty}×</span>
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', fontFamily: 'ui-monospace, monospace' }}>
                     {fmtEuro(p.revenue)}
                   </span>
@@ -450,7 +450,7 @@ function Trend({ pct, suffix }: { pct: number; suffix: string }) {
       color: up ? '#059669' : '#dc2626',
     }}>
       {up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-      {up ? '+' : ''}{pct}\u00a0%
+      {up ? '+' : ''}{pct} %
       <span style={{ color: '#94a3b8', fontWeight: 500, marginLeft: 4 }}>{suffix}</span>
     </span>
   )

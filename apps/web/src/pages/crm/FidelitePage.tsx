@@ -38,7 +38,7 @@ interface Reward {
   description: string
   cost: number
   stock: number
-  category: 'Boisson' | 'Remise' | 'Exp\u00e9rience' | 'Goodie'
+  category: 'Boisson' | 'Remise' | 'Expérience' | 'Goodie'
   icon: string
 }
 
@@ -100,19 +100,19 @@ const item = {
 const INITIAL_TIERS: Tier[] = [
   { id: 'bronze', name: 'Bronze',   minPoints: 0,    discount: 5,  color: '#d97706', gradient: 'linear-gradient(135deg, #92400e 0%, #b45309 100%)', perks: ['5% remise'] },
   { id: 'silver', name: 'Silver',   minPoints: 100,  discount: 10, color: '#6b7280', gradient: 'linear-gradient(135deg, #6b7280 0%, #9ca3af 100%)', perks: ['10% remise', 'Boisson offerte'] },
-  { id: 'gold',   name: 'Gold',     minPoints: 500,  discount: 15, color: '#d97706', gradient: 'linear-gradient(135deg, #d97706 0%, #fbbf24 100%)', perks: ['15% remise', 'Dessert offert', 'Priorit\u00e9 r\u00e9servation'] },
-  { id: 'platinum', name: 'Platine', minPoints: 1500, discount: 20, color: '#0ea5e9', gradient: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)', perks: ['20% remise', 'Menu d\u00e9gustation offert', 'Acc\u00e8s VIP', 'Ligne prioritaire'] },
+  { id: 'gold',   name: 'Gold',     minPoints: 500,  discount: 15, color: '#d97706', gradient: 'linear-gradient(135deg, #d97706 0%, #fbbf24 100%)', perks: ['15% remise', 'Dessert offert', 'Priorité réservation'] },
+  { id: 'platinum', name: 'Platine', minPoints: 1500, discount: 20, color: '#0ea5e9', gradient: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)', perks: ['20% remise', 'Menu dégustation offert', 'Accès VIP', 'Ligne prioritaire'] },
 ]
 
 const INITIAL_REWARDS: Reward[] = [
-  { id: 'r1', name: 'Caf\u00e9 offert',       description: 'Un caf\u00e9 au choix',           cost: 50,  stock: 999, category: 'Boisson',       icon: 'coffee' },
+  { id: 'r1', name: 'Café offert',       description: 'Un café au choix',           cost: 50,  stock: 999, category: 'Boisson',       icon: 'coffee' },
   { id: 'r2', name: 'Dessert maison',        description: 'Dessert du jour offert',         cost: 120, stock: 50,  category: 'Boisson',       icon: 'cake' },
-  { id: 'r3', name: 'Remise 10\u20ac',       description: 'R\u00e9duction imm\u00e9diate',    cost: 200, stock: 999, category: 'Remise',        icon: 'tag' },
+  { id: 'r3', name: 'Remise 10€',       description: 'Réduction immédiate',    cost: 200, stock: 999, category: 'Remise',        icon: 'tag' },
   { id: 'r4', name: 'Bouteille Moselle',     description: 'Vin de Moselle offert',          cost: 400, stock: 12,  category: 'Boisson',       icon: 'gift' },
-  { id: 'r5', name: 'Menu d\u00e9gustation', description: 'Men 5 plats pour 2 pers.',        cost: 800, stock: 5,   category: 'Exp\u00e9rience', icon: 'star' },
-  { id: 'r6', name: 'Atelier cuisine',       description: 'Cours avec le chef',             cost: 1200, stock: 3,  category: 'Exp\u00e9rience', icon: 'award' },
-  { id: 'r7', name: 'Mug Caf\u00e9',         description: 'Mug en c\u00e9ramique',            cost: 150, stock: 25,  category: 'Goodie',        icon: 'coffee' },
-  { id: 'r8', name: 'Soir\u00e9e priv\u00e9e', description: 'Privatisation salon +10 invit\u00e9s', cost: 2500, stock: 1, category: 'Exp\u00e9rience', icon: 'crown' },
+  { id: 'r5', name: 'Menu dégustation', description: 'Men 5 plats pour 2 pers.',        cost: 800, stock: 5,   category: 'Expérience', icon: 'star' },
+  { id: 'r6', name: 'Atelier cuisine',       description: 'Cours avec le chef',             cost: 1200, stock: 3,  category: 'Expérience', icon: 'award' },
+  { id: 'r7', name: 'Mug Café',         description: 'Mug en céramique',            cost: 150, stock: 25,  category: 'Goodie',        icon: 'coffee' },
+  { id: 'r8', name: 'Soirée privée', description: 'Privatisation salon +10 invités', cost: 2500, stock: 1, category: 'Expérience', icon: 'crown' },
 ]
 
 const MEMBERS_MOCK: Member[] = [
@@ -125,9 +125,9 @@ const MEMBERS_MOCK: Member[] = [
 
 const analyticsMonthly = [
   { mois: 'Nov', earned: 3200, redeemed: 1800, active: 148 },
-  { mois: 'D\u00e9c', earned: 4800, redeemed: 2400, active: 172 },
+  { mois: 'Déc', earned: 4800, redeemed: 2400, active: 172 },
   { mois: 'Jan', earned: 3900, redeemed: 2100, active: 186 },
-  { mois: 'F\u00e9v', earned: 4200, redeemed: 2600, active: 198 },
+  { mois: 'Fév', earned: 4200, redeemed: 2600, active: 198 },
   { mois: 'Mar', earned: 5100, redeemed: 3200, active: 221 },
   { mois: 'Avr', earned: 4650, redeemed: 2850, active: 248 },
 ]
@@ -175,7 +175,7 @@ function QRModal({ member, onClose }: { member: Member; onClose: () => void }) {
         style={{ background: '#fff', borderRadius: 20, maxWidth: 440, width: '100%', padding: 32 }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#1e293b' }}>QR Code fid\u00e9lit\u00e9</h2>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#1e293b' }}>QR Code fidélité</h2>
           <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
         </div>
         <div style={{ textAlign: 'center' }}>
@@ -193,10 +193,10 @@ function QRModal({ member, onClose }: { member: Member; onClose: () => void }) {
           </div>
         </div>
         <div style={{ padding: 12, background: '#f8fafc', borderRadius: 10, fontSize: 12, color: '#475569', textAlign: 'center' }}>
-          Scannez \u00e0 la caisse pour cumuler ou d\u00e9penser les points
+          Scannez à la caisse pour cumuler ou dépenser les points
         </div>
         <button style={{ marginTop: 14, width: '100%', padding: '10px 14px', borderRadius: 10, border: 'none', background: '#4338ca', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-          T\u00e9l\u00e9charger le QR
+          Télécharger le QR
         </button>
       </motion.div>
     </motion.div>
@@ -222,7 +222,7 @@ function TierEditor({ tier, onClose, onSave }: { tier: Tier | null; onClose: () 
         style={{ background: '#fff', borderRadius: 20, maxWidth: 520, width: '100%', padding: 28 }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#1e293b' }}>{tier ? 'Modifier' : 'Cr\u00e9er'} un palier</h2>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#1e293b' }}>{tier ? 'Modifier' : 'Créer'} un palier</h2>
           <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
         </div>
 
@@ -301,7 +301,7 @@ function ImportModal({ onClose, onToast }: { onClose: () => void; onToast: (m: s
     const count = Math.floor(Math.random() * 80) + 50
     setImported(count)
     setTimeout(() => {
-      onToast(`${count} clients import\u00e9s avec succ\u00e8s`)
+      onToast(`${count} clients importés avec succès`)
       onClose()
     }, 1500)
   }
@@ -349,7 +349,7 @@ function ImportModal({ onClose, onToast }: { onClose: () => void; onToast: (m: s
         )}
         {imported > 0 && (
           <div style={{ marginTop: 16, padding: 14, background: '#f0fdf4', borderRadius: 12, fontSize: 13, color: '#166534', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <CheckCircle2 size={15} /> {imported} clients import\u00e9s
+            <CheckCircle2 size={15} /> {imported} clients importés
           </div>
         )}
       </motion.div>
@@ -366,7 +366,7 @@ export default function FidelitePage() {
   const [rewards, setRewards] = useState<Reward[]>(INITIAL_REWARDS)
   const [members] = useState<Member[]>(MEMBERS_MOCK)
   const [rules, setRules] = useState<PointRule[]>([
-    { id: 'euro', label: '1 point par euro d\u00e9pens\u00e9', description: 'Chaque euro d\u00e9pens\u00e9 rapporte 1 point', enabled: true, icon: Coins },
+    { id: 'euro', label: '1 point par euro dépensé', description: 'Chaque euro dépensé rapporte 1 point', enabled: true, icon: Coins },
     { id: 'birthday', label: 'Bonus anniversaire', description: '+100 points le jour de l\'anniversaire', enabled: true, icon: Cake },
     { id: 'referral', label: 'Parrainage', description: '+50 pts parrain, +50 pts filleul', enabled: false, icon: UserPlus },
     { id: 'upgrade', label: 'Notification upgrade', description: 'Email auto lors d\'un changement de palier', enabled: true, icon: Mail },
@@ -398,12 +398,12 @@ export default function FidelitePage() {
       if (idx >= 0) return prev.map(x => x.id === t.id ? t : x)
       return [...prev, t].sort((a, b) => a.minPoints - b.minPoints)
     })
-    showToast(`Palier "${t.name}" enregistr\u00e9`)
+    showToast(`Palier "${t.name}" enregistré`)
   }
 
   const deleteTier = (id: string) => {
     setTiers(prev => prev.filter(t => t.id !== id))
-    showToast('Palier supprim\u00e9')
+    showToast('Palier supprimé')
   }
 
   const analytics = useMemo(() => {
@@ -431,7 +431,7 @@ export default function FidelitePage() {
   const rewardCatColors: Record<Reward['category'], { bg: string; fg: string }> = {
     'Boisson': { bg: '#dbeafe', fg: '#1d4ed8' },
     'Remise': { bg: '#fef3c7', fg: '#92400e' },
-    'Exp\u00e9rience': { bg: '#ede9fe', fg: '#6d28d9' },
+    'Expérience': { bg: '#ede9fe', fg: '#6d28d9' },
     'Goodie': { bg: '#dcfce7', fg: '#166534' },
   }
 
@@ -447,8 +447,8 @@ export default function FidelitePage() {
         {/* Header */}
         <motion.div variants={item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
           <div>
-            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1e293b', margin: 0 }}>Programme de fid\u00e9lit\u00e9</h1>
-            <p style={{ fontSize: 14, color: '#475569', margin: '4px 0 0' }}>Paliers personnalis\u00e9s, catalogue de r\u00e9compenses et analytics avanc\u00e9s</p>
+            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1e293b', margin: 0 }}>Programme de fidélité</h1>
+            <p style={{ fontSize: 14, color: '#475569', margin: '4px 0 0' }}>Paliers personnalisés, catalogue de récompenses et analytics avancés</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setShowImport(true)} style={smallBtnStyle}>
@@ -464,10 +464,10 @@ export default function FidelitePage() {
         <motion.div variants={item} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 20 }}>
           {[
             { label: 'Membres actifs', value: members.length + 243, icon: Users, color: '#4338ca' },
-            { label: 'Points gagn\u00e9s', value: analytics.totalEarned.toLocaleString('fr-FR'), icon: Star, color: '#f59e0b' },
-            { label: 'Points redeem\u00e9s', value: analytics.totalRedeemed.toLocaleString('fr-FR'), icon: Gift, color: '#10b981' },
+            { label: 'Points gagnés', value: analytics.totalEarned.toLocaleString('fr-FR'), icon: Star, color: '#f59e0b' },
+            { label: 'Points redeemés', value: analytics.totalRedeemed.toLocaleString('fr-FR'), icon: Gift, color: '#10b981' },
             { label: 'Taux redemption', value: `${analytics.redemptionRate}%`, icon: TrendingUp, color: '#8b5cf6' },
-            { label: 'LTV moyen', value: `${Math.round(analytics.avgLTV).toLocaleString('fr-FR')} \u20ac`, icon: Award, color: '#ec4899' },
+            { label: 'LTV moyen', value: `${Math.round(analytics.avgLTV).toLocaleString('fr-FR')} €`, icon: Award, color: '#ec4899' },
           ].map(s => (
             <div key={s.label} style={cardStyle}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -484,7 +484,7 @@ export default function FidelitePage() {
         {/* Charts row */}
         <motion.div variants={item} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginBottom: 20 }}>
           <div style={cardStyle}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px', color: '#1e293b' }}>\u00c9volution points &amp; membres actifs</h3>
+            <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px', color: '#1e293b' }}>Évolution points &amp; membres actifs</h3>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={analyticsMonthly}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -492,14 +492,14 @@ export default function FidelitePage() {
                 <YAxis stroke="#94a3b8" fontSize={11} />
                 <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Line type="monotone" dataKey="earned" stroke="#f59e0b" strokeWidth={2} name="Gagn\u00e9s" />
-                <Line type="monotone" dataKey="redeemed" stroke="#10b981" strokeWidth={2} name="Redeem\u00e9s" />
+                <Line type="monotone" dataKey="earned" stroke="#f59e0b" strokeWidth={2} name="Gagnés" />
+                <Line type="monotone" dataKey="redeemed" stroke="#10b981" strokeWidth={2} name="Redeemés" />
                 <Line type="monotone" dataKey="active" stroke="#4338ca" strokeWidth={2} name="Actifs" />
               </LineChart>
             </ResponsiveContainer>
           </div>
           <div style={cardStyle}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px', color: '#1e293b' }}>R\u00e9partition par palier</h3>
+            <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px', color: '#1e293b' }}>Répartition par palier</h3>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie data={tierPie} cx="50%" cy="50%" innerRadius={45} outerRadius={82} paddingAngle={3} dataKey="value">
@@ -516,7 +516,7 @@ export default function FidelitePage() {
         <motion.div variants={item} style={{ marginBottom: 22 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Crown size={16} /> Paliers de fid\u00e9lit\u00e9
+              <Crown size={16} /> Paliers de fidélité
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12, color: '#64748b' }}>Conversion :</span>
@@ -526,7 +526,7 @@ export default function FidelitePage() {
                 onChange={e => setPointsPerEuro(parseInt(e.target.value) || 1)}
                 style={{ ...inputStyle, width: 60, padding: '6px 10px', textAlign: 'center' }}
               />
-              <span style={{ fontSize: 12, color: '#64748b' }}>pt / \u20ac</span>
+              <span style={{ fontSize: 12, color: '#64748b' }}>pt / €</span>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${tiers.length}, 1fr)`, gap: 14 }}>
@@ -549,7 +549,7 @@ export default function FidelitePage() {
                   ))}
                   <div style={{ display: 'flex', gap: 4, marginTop: 12, paddingTop: 10, borderTop: '1px solid #f1f5f9' }}>
                     <button onClick={() => { setTierToEdit(t); setShowTierEditor(true) }} style={{ ...smallBtnStyle, padding: '5px 10px', flex: 1, justifyContent: 'center' }}>
-                      <Edit3 size={11} /> \u00c9diter
+                      <Edit3 size={11} /> Éditer
                     </button>
                     <button onClick={() => deleteTier(t.id)} style={{ ...smallBtnStyle, padding: '5px 8px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca' }}>
                       <Trash2 size={11} />
@@ -575,7 +575,7 @@ export default function FidelitePage() {
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>D\u00e9pense additionnelle</label>
+                <label style={labelStyle}>Dépense additionnelle</label>
                 <input style={inputStyle} type="number" value={simulateSpend} onChange={e => setSimulateSpend(e.target.value)} />
               </div>
             </div>
@@ -585,7 +585,7 @@ export default function FidelitePage() {
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{simulation.currentPoints}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ fontSize: 12, color: '#475569' }}>Apr\u00e8s cette d\u00e9pense</span>
+                <span style={{ fontSize: 12, color: '#475569' }}>Après cette dépense</span>
                 <span style={{ fontSize: 15, fontWeight: 800, color: simulation.willUpgrade ? '#10b981' : '#4338ca' }}>{simulation.newPoints}</span>
               </div>
               {simulation.nextTier && (
@@ -598,9 +598,9 @@ export default function FidelitePage() {
                   </div>
                   <div style={{ fontSize: 12, color: '#475569', marginTop: 8 }}>
                     {simulation.willUpgrade ? (
-                      <><Sparkles size={11} style={{ display: 'inline', color: '#10b981' }} /> <strong>Passe \u00e0 {simulation.nextTier.name}</strong> avec cette d\u00e9pense</>
+                      <><Sparkles size={11} style={{ display: 'inline', color: '#10b981' }} /> <strong>Passe à {simulation.nextTier.name}</strong> avec cette dépense</>
                     ) : (
-                      <>Encore <strong>{simulation.spendNeeded} \u20ac</strong> pour atteindre <strong>{simulation.nextTier.name}</strong></>
+                      <>Encore <strong>{simulation.spendNeeded} €</strong> pour atteindre <strong>{simulation.nextTier.name}</strong></>
                     )}
                   </div>
                 </>
@@ -615,9 +615,9 @@ export default function FidelitePage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
                 { id: 'never', label: 'Jamais', desc: 'Les points ne s\'expirent jamais' },
-                { id: '6m', label: '6 mois', desc: 'Expiration apr\u00e8s 6 mois d\'inactivit\u00e9' },
-                { id: '1y', label: '1 an', desc: 'Expiration apr\u00e8s 1 an d\'inactivit\u00e9' },
-                { id: '2y', label: '2 ans', desc: 'Expiration apr\u00e8s 2 ans d\'inactivit\u00e9' },
+                { id: '6m', label: '6 mois', desc: 'Expiration après 6 mois d\'inactivité' },
+                { id: '1y', label: '1 an', desc: 'Expiration après 1 an d\'inactivité' },
+                { id: '2y', label: '2 ans', desc: 'Expiration après 2 ans d\'inactivité' },
               ].map(opt => (
                 <div
                   key={opt.id} onClick={() => setExpiration(opt.id as 'never' | '6m' | '1y' | '2y')}
@@ -643,9 +643,9 @@ export default function FidelitePage() {
         <motion.div variants={item} style={{ marginBottom: 22 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Gift size={16} /> Catalogue des r\u00e9compenses
+              <Gift size={16} /> Catalogue des récompenses
             </h2>
-            <button onClick={() => showToast('Cr\u00e9ation de r\u00e9compense...')} style={smallBtnStyle}>
+            <button onClick={() => showToast('Création de récompense...')} style={smallBtnStyle}>
               <Plus size={13} /> Ajouter
             </button>
           </div>
@@ -673,7 +673,7 @@ export default function FidelitePage() {
                       <span style={{ fontSize: 15, fontWeight: 800, color: '#1e293b' }}>{r.cost}</span>
                       <span style={{ fontSize: 11, color: '#64748b' }}>pts</span>
                     </div>
-                    <button onClick={() => showToast(`R\u00e9compense "${r.name}" modifi\u00e9e`)} style={{ ...smallBtnStyle, padding: '4px 8px' }}>
+                    <button onClick={() => showToast(`Récompense "${r.name}" modifiée`)} style={{ ...smallBtnStyle, padding: '4px 8px' }}>
                       <Edit3 size={11} />
                     </button>
                   </div>
@@ -713,7 +713,7 @@ export default function FidelitePage() {
                           </span>
                         </td>
                         <td style={{ padding: '10px 12px', color: '#1e293b', fontWeight: 700 }}>{m.points}</td>
-                        <td style={{ padding: '10px 12px', color: '#475569' }}>{m.lifetimeValue.toLocaleString('fr-FR')} \u20ac</td>
+                        <td style={{ padding: '10px 12px', color: '#475569' }}>{m.lifetimeValue.toLocaleString('fr-FR')} €</td>
                         <td style={{ padding: '10px 12px' }}>
                           <button onClick={() => setShowQR(m)} style={{ ...smallBtnStyle, padding: '5px 8px' }}>
                             <QrCode size={12} />
@@ -728,7 +728,7 @@ export default function FidelitePage() {
           </div>
 
           <div style={cardStyle}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px', color: '#1e293b' }}>R\u00e8gles &amp; automatisations</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px', color: '#1e293b' }}>Règles &amp; automatisations</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {rules.map(rule => {
                 const Icon = rule.icon

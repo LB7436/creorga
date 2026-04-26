@@ -32,23 +32,23 @@ const periodLabels: Record<Period, string> = {
   ce_mois: 'Ce mois',
   mois_dernier: 'Mois dernier',
   ce_trimestre: 'Ce trimestre',
-  cette_annee: 'Cette ann\u00e9e',
+  cette_annee: 'Cette année',
 }
 
 const periodDates: Record<Period, string> = {
-  ce_mois: '1 Avr. \u2014 15 Avr. 2026',
-  mois_dernier: '1 Mars \u2014 31 Mars 2026',
-  ce_trimestre: '1 Jan. \u2014 15 Avr. 2026',
-  cette_annee: '1 Jan. \u2014 15 Avr. 2026',
+  ce_mois: '1 Avr. — 15 Avr. 2026',
+  mois_dernier: '1 Mars — 31 Mars 2026',
+  ce_trimestre: '1 Jan. — 15 Avr. 2026',
+  cette_annee: '1 Jan. — 15 Avr. 2026',
 }
 
 const kpis: KpiCard[] = [
   { label: "Chiffre d'affaires", value: '24 350', trend: 12.3, trendLabel: '+12,3%', sparkline: [18, 20, 19, 22, 21, 24, 23, 25], isCurrency: true },
-  { label: 'Co\u00fbt des marchandises', value: '8 120', trend: 5.1, trendLabel: '+5,1%', sparkline: [6, 7, 6.5, 7.2, 7.8, 8, 7.5, 8.1], isCurrency: true },
+  { label: 'Coût des marchandises', value: '8 120', trend: 5.1, trendLabel: '+5,1%', sparkline: [6, 7, 6.5, 7.2, 7.8, 8, 7.5, 8.1], isCurrency: true },
   { label: 'Marge brute', value: '16 230', trend: 66.7, trendLabel: '66,7%', sparkline: [12, 13, 12.5, 14, 13.5, 15, 15.5, 16.2], isCurrency: true },
   { label: 'Charges de personnel', value: '9 450', trend: -2.1, trendLabel: '-2,1%', sparkline: [9.8, 9.6, 9.5, 9.7, 9.4, 9.5, 9.3, 9.45], isCurrency: true },
   { label: 'Charges fixes', value: '3 200', trend: 0, trendLabel: '0,0%', sparkline: [3.2, 3.2, 3.2, 3.2, 3.2, 3.2, 3.2, 3.2], isCurrency: true },
-  { label: 'R\u00e9sultat net', value: '3 580', trend: 18.2, trendLabel: '+18,2%', sparkline: [2.1, 2.5, 2.8, 3.0, 2.9, 3.2, 3.4, 3.58], isCurrency: true, bold: true },
+  { label: 'Résultat net', value: '3 580', trend: 18.2, trendLabel: '+18,2%', sparkline: [2.1, 2.5, 2.8, 3.0, 2.9, 3.2, 3.4, 3.58], isCurrency: true, bold: true },
 ]
 
 const dailyRevenue = [
@@ -73,20 +73,20 @@ const categoryData = [
   { name: 'Cuisine', value: 40, color: '#6366f1' },
   { name: 'Boissons', value: 35, color: '#06b6d4' },
   { name: 'Desserts', value: 15, color: '#f59e0b' },
-  { name: '\u00c9v\u00e9nements', value: 10, color: '#10b981' },
+  { name: 'Événements', value: 10, color: '#10b981' },
 ]
 
 const topProducts = [
   { name: 'Menu du jour', montant: 4850 },
-  { name: 'Entrec\u00f4te grill\u00e9e', montant: 3920 },
-  { name: 'Cr\u00e9mant Luxembourg', montant: 3180 },
+  { name: 'Entrecôte grillée', montant: 3920 },
+  { name: 'Crémant Luxembourg', montant: 3180 },
   { name: 'Plateau fruits de mer', montant: 2740 },
   { name: 'Dessert du chef', montant: 2100 },
 ]
 
 const monthlyData = [
   { mois: 'Jan.', ca: 21200, couts: 7100, marge: 14100, personnel: 8900, resultat: 2000 },
-  { mois: 'F\u00e9v.', ca: 22800, couts: 7600, marge: 15200, personnel: 9100, resultat: 2800 },
+  { mois: 'Fév.', ca: 22800, couts: 7600, marge: 15200, personnel: 9100, resultat: 2800 },
   { mois: 'Mars', ca: 23500, couts: 7900, marge: 15600, personnel: 9300, resultat: 3100 },
   { mois: 'Avr.', ca: 24350, couts: 8120, marge: 16230, personnel: 9450, resultat: 3580 },
 ]
@@ -161,9 +161,9 @@ function RevenueTooltip({ active, payload, label }: any) {
         <div key={p.dataKey} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color }} />
           <span style={{ color: '#64748b' }}>
-            {p.dataKey === 'courant' ? 'P\u00e9riode actuelle' : 'P\u00e9riode pr\u00e9c\u00e9dente'}:
+            {p.dataKey === 'courant' ? 'Période actuelle' : 'Période précédente'}:
           </span>
-          <span style={{ fontWeight: 600, color: '#1e293b' }}>{p.value.toLocaleString('fr-FR')} \u20ac</span>
+          <span style={{ fontWeight: 600, color: '#1e293b' }}>{p.value.toLocaleString('fr-FR')} €</span>
         </div>
       ))}
     </div>
@@ -330,7 +330,7 @@ export default function RapportsPage() {
                 fontSize: kpi.bold ? 24 : 22, fontWeight: kpi.bold ? 800 : 700,
                 color: kpi.bold ? '#16a34a' : '#1e293b', marginBottom: 8,
               }}>
-                {kpi.value} {kpi.isCurrency ? '\u20ac' : ''}
+                {kpi.value} {kpi.isCurrency ? '€' : ''}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -357,21 +357,21 @@ export default function RapportsPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div>
             <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', margin: 0 }}>
-              \u00c9volution du chiffre d'affaires
+              Évolution du chiffre d'affaires
             </h2>
             <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0' }}>
-              Revenus journaliers \u2014 {periodDates[period]}
+              Revenus journaliers — {periodDates[period]}
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: '#64748b' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 12, height: 3, borderRadius: 2, background: '#6366f1', display: 'inline-block' }} />
-              P\u00e9riode actuelle
+              Période actuelle
             </span>
             {compare && (
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 12, height: 3, borderRadius: 2, background: '#cbd5e1', display: 'inline-block', borderTop: '1px dashed #94a3b8' }} />
-                P\u00e9riode pr\u00e9c\u00e9dente
+                Période précédente
               </span>
             )}
           </div>
@@ -395,7 +395,7 @@ export default function RapportsPage() {
               <YAxis
                 tick={{ fontSize: 12, fill: '#94a3b8' }}
                 axisLine={false} tickLine={false}
-                tickFormatter={(v: number) => `${fmt(v)} \u20ac`}
+                tickFormatter={(v: number) => `${fmt(v)} €`}
                 width={80}
               />
               <Tooltip content={<RevenueTooltip />} />
@@ -433,7 +433,7 @@ export default function RapportsPage() {
         {/* PIE CHART */}
         <div style={cardBase}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', margin: '0 0 20px' }}>
-            R\u00e9partition du CA par cat\u00e9gorie
+            Répartition du CA par catégorie
           </h2>
           <div style={{ width: '100%', height: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -485,7 +485,7 @@ export default function RapportsPage() {
                   type="number"
                   tick={{ fontSize: 12, fill: '#94a3b8' }}
                   axisLine={false} tickLine={false}
-                  tickFormatter={(v: number) => `${fmt(v)} \u20ac`}
+                  tickFormatter={(v: number) => `${fmt(v)} €`}
                 />
                 <YAxis
                   type="category"
@@ -495,7 +495,7 @@ export default function RapportsPage() {
                   width={140}
                 />
                 <Tooltip
-                  formatter={(value: number) => [`${fmt(value)} \u20ac`, 'Montant']}
+                  formatter={(value: number) => [`${fmt(value)} €`, 'Montant']}
                   contentStyle={{
                     background: '#fff', border: '1px solid #e2e8f0',
                     borderRadius: 10, fontSize: 13, boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
@@ -518,9 +518,9 @@ export default function RapportsPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr>
-              {['M\u00e9trique', ...monthlyData.map(m => m.mois), 'Total'].map(h => (
+              {['Métrique', ...monthlyData.map(m => m.mois), 'Total'].map(h => (
                 <th key={h} style={{
-                  textAlign: h === 'M\u00e9trique' ? 'left' : 'right',
+                  textAlign: h === 'Métrique' ? 'left' : 'right',
                   padding: '12px 16px', fontSize: 11, fontWeight: 700,
                   color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5,
                   borderBottom: '2px solid #e2e8f0',
@@ -533,10 +533,10 @@ export default function RapportsPage() {
           <tbody>
             {([
               { label: "Chiffre d'affaires", key: 'ca' as const },
-              { label: 'Co\u00fbts marchandises', key: 'couts' as const },
+              { label: 'Coûts marchandises', key: 'couts' as const },
               { label: 'Marge brute', key: 'marge' as const },
               { label: 'Personnel', key: 'personnel' as const },
-              { label: 'R\u00e9sultat net', key: 'resultat' as const },
+              { label: 'Résultat net', key: 'resultat' as const },
             ]).map((row, ri) => {
               const isResultat = row.key === 'resultat'
               return (
@@ -558,10 +558,10 @@ export default function RapportsPage() {
                         fontWeight: isResultat ? 700 : 400,
                         color: isResultat ? (val > 0 ? '#16a34a' : '#dc2626') : '#1e293b',
                       }}>
-                        <div>{fmt(val)} \u20ac</div>
+                        <div>{fmt(val)} €</div>
                         {compare && prev !== null && (
                           <div style={{ fontSize: 11, color: diffColor, marginTop: 2 }}>
-                            {diff > 0 ? '+' : ''}{fmt(diff)} \u20ac
+                            {diff > 0 ? '+' : ''}{fmt(diff)} €
                           </div>
                         )}
                       </td>
@@ -573,7 +573,7 @@ export default function RapportsPage() {
                     color: isResultat ? '#16a34a' : '#1e293b',
                     borderLeft: '2px solid #e2e8f0',
                   }}>
-                    {fmt(totals[row.key])} \u20ac
+                    {fmt(totals[row.key])} €
                   </td>
                 </tr>
               )
@@ -599,10 +599,10 @@ export default function RapportsPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <TrendingUp size={20} color="#16a34a" />
-            <span style={{ fontSize: 28, fontWeight: 700, color: '#1e293b' }}>26 780 \u20ac</span>
+            <span style={{ fontSize: 28, fontWeight: 700, color: '#1e293b' }}>26 780 €</span>
           </div>
           <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
-            Total des entr\u00e9es
+            Total des entrées
           </div>
         </div>
 
@@ -612,11 +612,11 @@ export default function RapportsPage() {
           display: 'flex', flexDirection: 'column', alignItems: 'center',
         }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>
-            D\u00e9caissements
+            Décaissements
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <TrendingDown size={20} color="#dc2626" />
-            <span style={{ fontSize: 28, fontWeight: 700, color: '#1e293b' }}>23 200 \u20ac</span>
+            <span style={{ fontSize: 28, fontWeight: 700, color: '#1e293b' }}>23 200 €</span>
           </div>
           <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
             Total des sorties
@@ -634,10 +634,10 @@ export default function RapportsPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <ArrowUpRight size={20} color="#16a34a" />
-            <span style={{ fontSize: 28, fontWeight: 800, color: '#16a34a' }}>+3 580 \u20ac</span>
+            <span style={{ fontSize: 28, fontWeight: 800, color: '#16a34a' }}>+3 580 €</span>
           </div>
           <div style={{ fontSize: 12, color: '#16a34a', marginTop: 6, fontWeight: 500 }}>
-            Tr\u00e9sorerie positive
+            Trésorerie positive
           </div>
         </div>
       </motion.div>

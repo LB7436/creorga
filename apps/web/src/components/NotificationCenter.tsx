@@ -27,21 +27,21 @@ const CATEGORY_COLORS: Record<Category, string> = {
 
 /* ── 15 mock notifications ── */
 const INITIAL_NOTIFICATIONS: Notification[] = [
-  { id: 1, icon: '\u{1F37D}', title: 'Nouvelle commande Table 3', description: '4 articles, 34.50 \u20AC', time: 'Il y a 2 min', category: 'Commandes', unread: true },
-  { id: 2, icon: '\u2705', title: 'Commande pr\u00EAte \u2014 Table 1', description: 'Plats pr\u00EAts \u00E0 servir', time: 'Il y a 8 min', category: 'Commandes', unread: false },
+  { id: 1, icon: '\u{1F37D}', title: 'Nouvelle commande Table 3', description: '4 articles, 34.50 €', time: 'Il y a 2 min', category: 'Commandes', unread: true },
+  { id: 2, icon: '✅', title: 'Commande prête — Table 1', description: 'Plats prêts à servir', time: 'Il y a 8 min', category: 'Commandes', unread: false },
   { id: 3, icon: '\u{1F4CB}', title: 'Commande guest portail', description: 'Commande #043 QR menu', time: 'Il y a 15 min', category: 'Commandes', unread: true },
-  { id: 4, icon: '\u{1F4B3}', title: 'Paiement re\u00E7u \u2014 Table 5', description: '48.00 \u20AC carte', time: 'Il y a 32 min', category: 'Commandes', unread: false },
-  { id: 5, icon: '\u26A0\uFE0F', title: 'Commande en attente > 20min', description: 'Table 7, 23 min', time: 'Il y a 5 min', category: 'Commandes', unread: true },
-  { id: 6, icon: '\u{1F534}', title: 'Rupture de stock: Farine', description: 'Stock \u00E0 0', time: 'Il y a 1h', category: 'Stock', unread: true },
-  { id: 7, icon: '\u{1F7E1}', title: 'Stock bas: Caf\u00E9 en grains', description: '2.5 kg restants', time: 'Il y a 2h', category: 'Stock', unread: false },
-  { id: 8, icon: '\u{1F4E6}', title: 'Commande fournisseur re\u00E7ue', description: 'Metro, 12 articles', time: 'Hier', category: 'Stock', unread: false },
-  { id: 9, icon: '\u{1F4C5}', title: 'R\u00E9servation 19:30', description: 'Famille Braun, 6 pers', time: 'Il y a 30 min', category: 'Planning', unread: true },
-  { id: 10, icon: '\u{1F504}', title: 'Changement de shift', description: 'Marie \u2194 Lucas', time: 'Il y a 3h', category: 'Planning', unread: false },
+  { id: 4, icon: '\u{1F4B3}', title: 'Paiement reçu — Table 5', description: '48.00 € carte', time: 'Il y a 32 min', category: 'Commandes', unread: false },
+  { id: 5, icon: '⚠️', title: 'Commande en attente > 20min', description: 'Table 7, 23 min', time: 'Il y a 5 min', category: 'Commandes', unread: true },
+  { id: 6, icon: '\u{1F534}', title: 'Rupture de stock: Farine', description: 'Stock à 0', time: 'Il y a 1h', category: 'Stock', unread: true },
+  { id: 7, icon: '\u{1F7E1}', title: 'Stock bas: Café en grains', description: '2.5 kg restants', time: 'Il y a 2h', category: 'Stock', unread: false },
+  { id: 8, icon: '\u{1F4E6}', title: 'Commande fournisseur reçue', description: 'Metro, 12 articles', time: 'Hier', category: 'Stock', unread: false },
+  { id: 9, icon: '\u{1F4C5}', title: 'Réservation 19:30', description: 'Famille Braun, 6 pers', time: 'Il y a 30 min', category: 'Planning', unread: true },
+  { id: 10, icon: '\u{1F504}', title: 'Changement de shift', description: 'Marie ↔ Lucas', time: 'Il y a 3h', category: 'Planning', unread: false },
   { id: 11, icon: '\u{1F382}', title: 'Anniversaire client', description: 'Marie Weber, 35 ans', time: 'Il y a 4h', category: 'Clients', unread: false },
-  { id: 12, icon: '\u2B50', title: 'Nouvel avis Google', description: '5\u2605 Excellent service!', time: 'Il y a 5h', category: 'Clients', unread: true },
+  { id: 12, icon: '⭐', title: 'Nouvel avis Google', description: '5★ Excellent service!', time: 'Il y a 5h', category: 'Clients', unread: true },
   { id: 13, icon: '\u{1F464}', title: 'Nouveau client inscrit', description: 'Pierre Reuter, QR', time: 'Hier', category: 'Clients', unread: false },
-  { id: 14, icon: '\u{1F321}\uFE0F', title: 'Alerte temp\u00E9rature', description: 'Frigo 2: 9.2\u00B0C (max 8\u00B0C)', time: 'Il y a 45 min', category: 'HACCP', unread: true },
-  { id: 15, icon: '\u2705', title: 'HACCP Midi valid\u00E9', description: 'T\u00E2ches midi OK', time: 'Il y a 2h', category: 'HACCP', unread: false },
+  { id: 14, icon: '\u{1F321}️', title: 'Alerte température', description: 'Frigo 2: 9.2°C (max 8°C)', time: 'Il y a 45 min', category: 'HACCP', unread: true },
+  { id: 15, icon: '✅', title: 'HACCP Midi validé', description: 'Tâches midi OK', time: 'Il y a 2h', category: 'HACCP', unread: false },
 ]
 
 /* ── filter tab type ── */
@@ -199,7 +199,7 @@ export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolea
                     e.currentTarget.style.color = '#6b7280'
                   }}
                 >
-                  {'\u2715'}
+                  {'✕'}
                 </button>
               </div>
 
@@ -284,9 +284,9 @@ export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolea
                   fontWeight: 600,
                 }}
               >
-                <span style={{ fontSize: 18 }}>{'\u26A0\uFE0F'}</span>
+                <span style={{ fontSize: 18 }}>{'⚠️'}</span>
                 <span>
-                  {overdue.totals.invoicesCount} factures impayées {'\u00B7'} {overdue.totals.quotesCount} devis en attente
+                  {overdue.totals.invoicesCount} factures impayées {'·'} {overdue.totals.quotesCount} devis en attente
                 </span>
               </motion.div>
             )}

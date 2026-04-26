@@ -1,0 +1,830 @@
+{
+  "timestamp": "2026-04-23T18:03:48.330Z",
+  "ok": 128,
+  "fail": 0,
+  "total": 128,
+  "byCategory": {
+    "Files": {
+      "ok": 41,
+      "total": 41
+    },
+    "Wiring": {
+      "ok": 22,
+      "total": 22
+    },
+    "Menu": {
+      "ok": 7,
+      "total": 7
+    },
+    "Payments": {
+      "ok": 6,
+      "total": 6
+    },
+    "Theme": {
+      "ok": 7,
+      "total": 7
+    },
+    "Live": {
+      "ok": 7,
+      "total": 7
+    },
+    "Auth": {
+      "ok": 3,
+      "total": 3
+    },
+    "FloorState": {
+      "ok": 5,
+      "total": 5
+    },
+    "Portal": {
+      "ok": 2,
+      "total": 2
+    },
+    "AI": {
+      "ok": 3,
+      "total": 3
+    },
+    "Unicode": {
+      "ok": 1,
+      "total": 1
+    },
+    "Routes": {
+      "ok": 20,
+      "total": 20
+    },
+    "CORS": {
+      "ok": 4,
+      "total": 4
+    }
+  },
+  "results": [
+    {
+      "cat": "Files",
+      "test": "apps/backend/src/lib/payments/gateway.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/backend/src/routes/payments.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/backend/src/routes/portalConfig.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/backend/src/routes/floorState.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/backend/.env.example",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/backend/src/middleware/requireCompany.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/pos/src/components/LoyaltyScanner.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/pos/src/components/RoomsPager.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/pos/src/components/TableSummary.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/pos/src/lib/payments.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/pos/src/lib/floorBridge.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/stores/envModeStore.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/stores/themeStore.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/stores/chairStore.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/stores/brandStore.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/stores/photoWallStore.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/stores/moduleConfigStore.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/stores/roomDesignerStore.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/components/EnvModeBanner.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/components/AdminQuickMenu.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/components/BackToStart.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/components/QRCodeCanvas.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/components/LogoUploader.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/components/PhotoWall.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/components/ChairsOverlay.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/components/TransferSplitModal.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/hooks/usePortalConfig.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/hooks/useFloorState.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/pages/ai/AIModulePage.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/pages/pos/RoomDesignerPage.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/pages/pos/UnifiedFloorPlan.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/pages/settings/SettingsModules.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/pages/settings/SettingsEnvMode.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/pages/settings/SettingsTheme.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/web/src/pages/onboarding/SetupWizard.tsx",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "apps/guest/src/usePortalConfig.ts",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "scripts/fix-unicode.mjs",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "scripts/qa-audit.mjs",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "scripts/test-sync.mjs",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "scripts/test-floor-sync.mjs",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Files",
+      "test": "QA-REPORT.md",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "App.tsx imports UnifiedFloorPlan",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "App.tsx imports SetupWizard",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "App.tsx imports AIModulePage",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "App.tsx imports SettingsTheme",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "App.tsx imports SettingsModules",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "App.tsx imports EnvModeBanner",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "App.tsx imports BackToStart",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "App.tsx route /pos/floor → UnifiedFloorPlan",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "App.tsx route /setup",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "App.tsx route /ai/local",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "AppShell imports AdminQuickMenu",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "ModuleSelector imports AdminQuickMenu",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "ClientsConfig uses usePortalConfig",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "ClientsConfig uses LogoUploader",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "ClientsConfig uses QRCodeCanvas",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "ClientsConfig uses PhotoWall",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "Guest App uses usePortalConfig",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "POS main.tsx starts floorBridge",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "Backend mounts payments route",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "Backend mounts portal-config route",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "Backend mounts floor-state route",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Wiring",
+      "test": "Backend auto-bootstrap .env",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Menu",
+      "test": "Expresso 2.50 €",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Menu",
+      "test": "Café 2.80 €",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Menu",
+      "test": "Bofferding Flute 3.20€",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Menu",
+      "test": "Cordon Bleu 26.50 €",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Menu",
+      "test": "Plancha Mixte 25.50€",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Menu",
+      "test": "Briquet 1.50 €",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Menu",
+      "test": "Gin Hendrix 14.50 €",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Payments",
+      "test": "gateway stripe",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Payments",
+      "test": "gateway sumup",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Payments",
+      "test": "gateway mypos",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Payments",
+      "test": "gateway viva",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Payments",
+      "test": "gateway worldline",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Payments",
+      "test": "gateway servipay",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Theme",
+      "test": "theme mauve",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Theme",
+      "test": "theme indigo",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Theme",
+      "test": "theme slate",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Theme",
+      "test": "theme gold",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Theme",
+      "test": "theme emerald",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Theme",
+      "test": "theme rose",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Theme",
+      "test": "Mauve original restauré",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Live",
+      "test": "backend health",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Live",
+      "test": "web :5174",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Live",
+      "test": "pos :5175",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Live",
+      "test": "marketing :5176",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Live",
+      "test": "superadmin :5177",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Live",
+      "test": "guest :5178",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Live",
+      "test": "ollama :11434",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Auth",
+      "test": "login OK sans DB",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Auth",
+      "test": "fallback admin activé",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Auth",
+      "test": "company fallback retournée",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "FloorState",
+      "test": "GET 12 tables",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "FloorState",
+      "test": "POST /chairs crée une chaise",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "FloorState",
+      "test": "POST /chairs/:id/items",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "FloorState",
+      "test": "transfer chair t2→t5",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "FloorState",
+      "test": "transfer items ch→ch",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Portal",
+      "test": "PATCH depuis admin",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "Portal",
+      "test": "GET depuis guest confirme",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "AI",
+      "test": "ollama up",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "AI",
+      "test": "gemma2:2b installé",
+      "ok": true,
+      "notes": ""
+    },
+    {
+      "cat": "AI",
+      "test": "inférence répond",
+      "ok": true,
+      "notes": "OK 👍"
+    },
+    {
+      "cat": "Unicode",
+      "test": "aucun \\uXXXX dans src",
+      "ok": true,
+      "notes": "0 séquences"
+    },
+    {
+      "cat": "Routes",
+      "test": "/",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/login",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/modules",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/setup",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/pos/floor",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/pos/design",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/pos/dashboard",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/clients",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/crm/clients",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/invoices/devis",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/inventory/stock",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/hr/planning",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/haccp/journee",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/accounting/caisse",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/reputation/avis",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/ai",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/ai/local",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/settings/modules",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/settings/env-mode",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "Routes",
+      "test": "/settings/theme",
+      "ok": true,
+      "notes": "200"
+    },
+    {
+      "cat": "CORS",
+      "test": "http://localhost:5174",
+      "ok": true,
+      "notes": "allow=http://localhost:5174"
+    },
+    {
+      "cat": "CORS",
+      "test": "http://localhost:5175",
+      "ok": true,
+      "notes": "allow=http://localhost:5175"
+    },
+    {
+      "cat": "CORS",
+      "test": "http://localhost:5178",
+      "ok": true,
+      "notes": "allow=http://localhost:5178"
+    },
+    {
+      "cat": "CORS",
+      "test": "http://localhost:5177",
+      "ok": true,
+      "notes": "allow=http://localhost:5177"
+    }
+  ]
+}

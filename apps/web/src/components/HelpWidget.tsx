@@ -112,7 +112,7 @@ function HelpWidget() {
   }
 
   const TABS: Array<{ id: HelpTab; label: string; icon: string }> = [
-    { id: 'faq', label: 'FAQ', icon: '\u2753' },
+    { id: 'faq', label: 'FAQ', icon: '❓' },
     { id: 'docs', label: 'Docs', icon: '\u{1F4D6}' },
     { id: 'videos', label: 'Vidéos', icon: '\u{1F3A5}' },
     { id: 'contact', label: 'Support', icon: '\u{1F4AC}' },
@@ -146,7 +146,7 @@ function HelpWidget() {
           justifyContent: 'center',
         }}
       >
-        {'\u2753'}
+        {'❓'}
       </button>
 
       <AnimatePresence>
@@ -219,7 +219,7 @@ function HelpWidget() {
                     cursor: 'pointer',
                   }}
                 >
-                  {'\u2715'}
+                  {'✕'}
                 </button>
               </div>
 
@@ -335,7 +335,7 @@ function HelpWidget() {
                         }}
                       >
                         <span>{d.title}</span>
-                        <span style={{ color: colors.accent }}>{'\u2192'}</span>
+                        <span style={{ color: colors.accent }}>{'→'}</span>
                       </a>
                     ))}
                   </div>
@@ -362,7 +362,7 @@ function HelpWidget() {
                         }}
                       >
                         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span>{'\u25B6\uFE0F'}</span>
+                          <span>{'▶️'}</span>
                           {v.title}
                         </span>
                         <span style={{ fontSize: 11, color: colors.textLight }}>{v.duration}</span>

@@ -161,7 +161,7 @@ export default function AppShell() {
                 fontFamily: 'inherit',
               }}
             >
-              {'\u2318'}K
+              {'⌘'}K
             </kbd>
           </button>
           {currentModule && (
@@ -402,8 +402,12 @@ export default function AppShell() {
 
                 {/* menu items */}
                 {[
-                  { label: t('profile'), icon: '\u{1F464}', action: () => {} },
-                  { label: t('settings'), icon: '\u2699\uFE0F', action: () => {} },
+                  { label: t('profile'), icon: '\u{1F464}', action: () => navigate('/admin/company') },
+                  { label: 'Configurer les modules', icon: '🧩', action: () => navigate('/settings/modules') },
+                  { label: 'Modes (Test/Dev/Soon)', icon: '🎛', action: () => navigate('/settings/env-mode') },
+                  { label: 'Designer la salle', icon: '📐', action: () => navigate('/pos/design') },
+                  { label: 'Assistant IA local', icon: '🤖', action: () => navigate('/ai/local') },
+                  { label: t('settings'), icon: '⚙️', action: () => navigate('/admin') },
                 ].map((item) => (
                   <button
                     key={item.label}
@@ -473,7 +477,7 @@ export default function AppShell() {
                     e.currentTarget.style.color = 'rgba(248,113,113,0.8)'
                   }}
                 >
-                  <span style={{ fontSize: 14 }}>{'\u2197'}</span>
+                  <span style={{ fontSize: 14 }}>{'↗'}</span>
                   {t('logout')}
                 </button>
               </div>

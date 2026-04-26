@@ -120,7 +120,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
             }}
             aria-hidden="true"
           >
-            {'\u26A0\uFE0F'}
+            {'⚠️'}
           </div>
 
           <h1
