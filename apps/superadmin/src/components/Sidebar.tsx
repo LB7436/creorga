@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Users, BarChart3, CreditCard, Flag,
-  LifeBuoy, ScrollText, Settings, LogOut, ShieldCheck,
+  LifeBuoy, ScrollText, Settings, LogOut, ShieldCheck, Activity,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -11,6 +11,7 @@ interface SidebarProps {
 
 const NAV = [
   { to: '/', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
+  { to: '/health', label: 'Tenant Health', icon: Activity },
   { to: '/clients', label: 'Clients', icon: Users },
   { to: '/analytics', label: 'Analytiques', icon: BarChart3 },
   { to: '/billing', label: 'Facturation', icon: CreditCard },

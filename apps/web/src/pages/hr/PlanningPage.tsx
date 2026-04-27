@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import PlanningAssistant from '@/components/PlanningAssistant'
+import PlanningOCRImport from '@/components/PlanningOCRImport'
 
 const C = {
   bg: '#f8fafc',
@@ -382,6 +383,11 @@ export default function PlanningPage() {
           <button onClick={() => setShowSwapsModal(true)} style={{ ...btnGhost, background: swapRequests > 0 ? C.amberSoft : C.card, color: swapRequests > 0 ? C.amber : C.text, border: `1px solid ${swapRequests > 0 ? C.amber + '55' : C.border}` }}>
             <RefreshCcw size={14} /> Échanges ({swapRequests})
           </button>
+          <PlanningOCRImport onShifts={(parsed) => {
+            // eslint-disable-next-line no-console
+            console.log('[planning-ocr] imported shifts:', parsed)
+            alert(`${parsed.length} shift(s) importés via OCR — à fusionner dans le planning`)
+          }} />
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.border}`, background: C.card }}>

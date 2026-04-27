@@ -148,4 +148,9 @@ const PORT = parseInt(process.env.PORT || '3002', 10)
 httpServer.listen(PORT, () => {
   logger.info(`Serveur Creorga démarré sur http://localhost:${PORT}`)
   logger.info(`Environnement: ${process.env.NODE_ENV || 'development'}`)
+  // Janitor : auto-close any table session opened > 8h sans encaissement
+  import('./jobs/closeStaleFloorSessions').then(({ startStaleSessionJanitor }) => {
+    startStaleSessionJanitor()
+    logger.info('[janitor] auto-close stale floor sessions activé (toutes les 30 min, > 8h)')
+  }).catch((e) => logger.warn('[janitor] non démarré:', e?.message))
 })

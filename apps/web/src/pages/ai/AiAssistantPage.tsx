@@ -42,6 +42,7 @@ import {
   Edit3,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import AIProviderToggle from '@/components/AIProviderToggle'
 
 const C = {
   text: '#0f172a',
@@ -633,6 +634,9 @@ function AiAssistantPage() {
                 En ligne
               </div>
             </div>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <AIProviderToggle />
           </div>
           <button
             onClick={newConversation}

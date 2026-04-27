@@ -209,6 +209,62 @@ Anomalies : ${ctx.anomalies || 'aucune'}
 Réponds en texte uniquement, format compte-rendu.`,
     format: 'text',
   },
+
+  // ── HR : parse OCR planning ──────────────────────────────────────────────
+  {
+    id: 'hr.parse-shifts-ocr', module: 'hr',
+    label: 'Parser planning OCR',
+    description: 'Extrait les shifts d\'un texte OCR de planning manuscrit',
+    buildPrompt: (ctx) => `Tu reçois le texte OCR brut d'une photo de planning de restaurant.
+Extrais les shifts au format JSON STRICT.
+
+Texte OCR :
+"""
+${ctx.rawText || ''}
+"""
+
+Réponds UNIQUEMENT en JSON valide, sans markdown :
+{ "shifts": [ { "employee": "Marie", "day": "lundi", "start": "08:00", "end": "16:00", "role": "service" } ] }
+
+Règles :
+- "day" en minuscules (lundi/mardi/mercredi/jeudi/vendredi/samedi/dimanche) OU date ISO si tu en vois une
+- "start"/"end" en HH:MM (24h)
+- Si OCR ambigu, ajoute "warning" sur le shift
+- Si aucun shift détectable : retourne { "shifts": [] }`,
+    format: 'json',
+    quality: 'best',
+  },
+
+  // ── Help / Agent guide ──────────────────────────────────────────────────
+  {
+    id: 'help.guide', module: 'help',
+    label: 'Aide contextuelle',
+    description: 'Agent qui guide l\'utilisateur dans Creorga OS',
+    buildPrompt: (ctx) => `Tu es l'agent d'aide officiel de Creorga OS, plateforme SaaS pour restaurants au Luxembourg.
+
+Page actuelle : ${ctx.currentPath || '/'}
+Question utilisateur : "${ctx.question || ''}"
+Suggestions liées à la page : ${(ctx.suggestions || []).join(' · ')}
+
+Modules clés de Creorga :
+- /pos = Caisse tactile (offert, fullscreen, plan de salle multi-zones)
+- /crm/clients = Base clients (score VIP, relance IA, RGPD)
+- /marketing = Campagnes email/SMS/push (génération IA)
+- /accounting = Comptabilité (PCN-LU, TVA, FAIA, OCR factures)
+- /reputation/avis = Avis Google/TripAdvisor (réponse IA multilingue)
+- /hr/planning = Planning équipe (auto-IA, OCR import, droit luxembourgeois)
+- /inventory = Stocks (OCR ticket, forecast IA, HACCP)
+- /haccp = Conformité Luxembourg
+- /ads = Publicité TV (génération texte IA)
+- /music = Musique d'ambiance (radios, Spotify embed)
+- /ai = Assistant IA (Gemma local ou Claude cloud)
+
+Réponds en français, 2-4 phrases courtes, ton chaleureux et précis.
+Si la question concerne une action UI : indique le bouton ou menu exact.
+Si tu ne sais pas : dis-le et oriente vers /ai pour aide approfondie.`,
+    format: 'text',
+    quality: 'fast',
+  },
 ]
 
 // GET catalogue (frontend uses this to populate menus)

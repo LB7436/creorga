@@ -10,6 +10,7 @@ import FeatureFlagsPage from './pages/FeatureFlagsPage';
 import SupportPage from './pages/SupportPage';
 import LogsPage from './pages/LogsPage';
 import SettingsPage from './pages/SettingsPage';
+import TenantHealthPage from './pages/TenantHealthPage';
 import Sidebar from './components/Sidebar';
 
 export default function App() {
@@ -45,6 +46,7 @@ export default function App() {
       <main style={{ flex: 1, overflow: 'auto', marginLeft: 260 }}>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/health" element={<TenantHealthPage />} />
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/clients/:id" element={<ClientDetailPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />

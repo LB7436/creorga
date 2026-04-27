@@ -462,4 +462,7 @@ router.post('/reset', (_req, res) => {
   res.json(state)
 })
 
+// Exposed for the janitor (closeStaleFloorSessions) — direct memory access.
+export function getFloorState(): FloorState { return state }
+
 export default router

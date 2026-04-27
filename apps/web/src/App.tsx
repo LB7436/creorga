@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import InstallPrompt from '@/components/InstallPrompt'
+import HelpChatbot from '@/components/HelpChatbot'
 import OnboardingWizard from '@/components/OnboardingWizard'
 import RequireAuth from '@/components/auth/RequireAuth'
 import { useAuthStore } from '@/stores/authStore'
@@ -319,10 +320,10 @@ function App() {
         {/* API & Intégrations Module */}
         <Route path="/api" element={<ApiPage />} />
 
-        {/* Assistant IA Module (cloud) */}
+        {/* Assistant IA — provider switch via AIProviderToggle persisté (local/cloud/auto) */}
         <Route path="/ai" element={<AiAssistantPage />} />
-        {/* Assistant IA Local (Gemma/Ollama pour Raspberry Pi 5) */}
         <Route path="/ai/local" element={<AIModulePage />} />
+        <Route path="/ai/settings" element={<AIModulePage />} />
 
         {/* Settings — Configurateur de modules + Env modes */}
         <Route path="/settings/modules" element={<SettingsModules />} />
@@ -472,6 +473,7 @@ function App() {
     <EnvModeBanner />
     <BackToStart />
     <InstallPrompt />
+    <HelpChatbot />
     {showOnboarding && (
       <OnboardingWizard
         onComplete={() => setShowOnboarding(false)}
