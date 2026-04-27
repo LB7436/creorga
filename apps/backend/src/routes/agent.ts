@@ -498,4 +498,177 @@ router.get('/commands', (_req, res) => {
   res.json({ commands: Object.keys(HANDLERS) })
 })
 
+// ═══════════════════════════════════════════════════════════════════════
+// SMART QUERY — Gemma + auto-loaded DB context based on currentPath
+//
+//   POST /api/agent/smart-query
+//   { question: 'quand a sophie congé', currentPath: '/hr/planning' }
+//
+// 1. Detects entities in the question (names, dates, numbers)
+// 2. Loads relevant data files based on currentPath
+// 3. Filters them by entity match
+// 4. Re-prompts Gemma with the filtered DB slice as context
+// 5. Returns precise, factual answer
+// ═══════════════════════════════════════════════════════════════════════
+
+const OLLAMA_URL = (process.env.OLLAMA_URL as string) || 'http://localhost:11434'
+
+interface SmartContext {
+  shifts?: any[]
+  invoices?: any[]
+  customers?: any[]
+  stock?: any[]
+  expenses?: any[]
+  reviews?: any[]
+  campaigns?: any[]
+  floor?: any
+}
+
+function loadRelevantContext(path: string): SmartContext {
+  const ctx: SmartContext = {}
+  // Load files matching the current module
+  if (path.startsWith('/hr')) {
+    ctx.shifts = loadJson<any[]>('shifts.json', [])
+  }
+  if (path.startsWith('/invoices') || path.startsWith('/accounting')) {
+    ctx.invoices = loadJson<any[]>('invoices.json', [])
+    ctx.expenses = loadJson<any[]>('expenses.json', [])
+  }
+  if (path.startsWith('/crm') || path.startsWith('/marketing')) {
+    ctx.customers = loadJson<any[]>('customers.json', [])
+  }
+  if (path.startsWith('/inventory') || path.startsWith('/haccp')) {
+    ctx.stock = loadJson<any[]>('inventory-stock.json', [])
+  }
+  if (path.startsWith('/reputation')) {
+    ctx.reviews = loadJson<any[]>('reviews.json', [])
+  }
+  if (path.startsWith('/marketing')) {
+    ctx.campaigns = loadJson<any[]>('campaigns.json', [])
+  }
+  if (path.startsWith('/pos') || path.startsWith('/owner') || path === '/' || path.startsWith('/modules')) {
+    try { ctx.floor = getFloorState() } catch { /* skip */ }
+  }
+  return ctx
+}
+
+/** Best-effort entity extraction from user question (names, numbers, dates) */
+function extractEntities(question: string): { names: string[]; numbers: string[] } {
+  const q = question || ''
+  // Names: capitalised words (FR)
+  const nameMatches = q.match(/\b[A-ZÀ-Ý][a-zà-ÿ]{2,}\b/g) || []
+  const stop = new Set(['Comment', 'Quand', 'Quelle', 'Quel', 'Combien', 'Quels', 'Quelles', 'Pourquoi', 'Qui'])
+  const names = nameMatches.filter((n) => !stop.has(n))
+  // Numbers / IDs (e.g. F-2026-0142)
+  const numbers = (q.match(/[A-Z]?-?\d{2,}[\d\-]*/g) || [])
+  return { names, numbers }
+}
+
+/** Filter DB context by entities so we send Gemma a small, relevant slice */
+function filterContext(ctx: SmartContext, entities: { names: string[]; numbers: string[] }): SmartContext {
+  const filtered: SmartContext = {}
+  const names = entities.names.map((n) => n.toLowerCase())
+  const numbers = entities.numbers
+
+  if (ctx.shifts) {
+    if (names.length > 0) {
+      filtered.shifts = ctx.shifts.filter((s: any) =>
+        names.some((n) => String(s.employee || '').toLowerCase().includes(n))
+      ).slice(0, 30)
+    } else {
+      filtered.shifts = ctx.shifts.slice(0, 20)
+    }
+  }
+  if (ctx.invoices) {
+    if (numbers.length > 0) {
+      filtered.invoices = ctx.invoices.filter((i: any) =>
+        numbers.some((n) => String(i.number || i.invoiceNumber || '').includes(n))
+      ).slice(0, 10)
+    } else if (names.length > 0) {
+      filtered.invoices = ctx.invoices.filter((i: any) =>
+        names.some((n) => String(i.customer || i.client || '').toLowerCase().includes(n))
+      ).slice(0, 10)
+    } else {
+      filtered.invoices = ctx.invoices.slice(0, 5)
+    }
+  }
+  if (ctx.customers) {
+    if (names.length > 0) {
+      filtered.customers = ctx.customers.filter((c: any) =>
+        names.some((n) =>
+          String(c.firstName || '').toLowerCase().includes(n) ||
+          String(c.lastName  || '').toLowerCase().includes(n) ||
+          String(c.email     || '').toLowerCase().includes(n)
+        )
+      ).slice(0, 10)
+    } else {
+      filtered.customers = ctx.customers.slice(0, 5)
+    }
+  }
+  if (ctx.stock) {
+    if (names.length > 0) {
+      filtered.stock = ctx.stock.filter((s: any) =>
+        names.some((n) => String(s.name || '').toLowerCase().includes(n))
+      ).slice(0, 20)
+    } else {
+      filtered.stock = ctx.stock.slice(0, 10)
+    }
+  }
+  if (ctx.expenses)  filtered.expenses  = ctx.expenses.slice(0, 5)
+  if (ctx.reviews)   filtered.reviews   = ctx.reviews.slice(0, 5)
+  if (ctx.campaigns) filtered.campaigns = ctx.campaigns.slice(0, 3)
+  if (ctx.floor) {
+    filtered.floor = {
+      tablesOccupied: ctx.floor.tables?.filter((t: any) => t.status === 'OCCUPEE').length || 0,
+      tablesFree:     ctx.floor.tables?.filter((t: any) => t.status === 'LIBRE').length    || 0,
+      openTables:     ctx.floor.tables?.filter((t: any) => t.status === 'OCCUPEE').map((t: any) => ({
+        name: t.name, items: (t.items || []).length, openedAt: t.openedAt,
+      })).slice(0, 10),
+    }
+  }
+  return filtered
+}
+
+router.post('/smart-query', async (req, res) => {
+  const { question, currentPath } = req.body || {}
+  if (!question) return res.status(400).json({ kind: 'error', text: 'Question requise.' })
+
+  const ctx = loadRelevantContext(currentPath || '/')
+  const entities = extractEntities(question)
+  const slice = filterContext(ctx, entities)
+
+  const prompt = `Tu es l'agent IA Creorga, assistant intelligent pour restaurants.
+On te pose une question. Tu as accès à la base de données filtrée ci-dessous.
+Réponds de manière FACTUELLE en t'appuyant sur les données réelles.
+Si l'info n'est pas dans les données, dis-le franchement et propose où chercher.
+
+Page courante : ${currentPath || '/'}
+Question utilisateur : "${question}"
+
+Données disponibles (JSON, déjà filtrées par les entités détectées) :
+${JSON.stringify(slice, null, 2).slice(0, 4000)}
+
+Règles :
+- Maximum 4 phrases
+- Cite les noms / dates / chiffres exacts trouvés dans les données
+- Termine par 1 lien-action si pertinent (ex : "Voir /hr/conges pour gérer.")
+- Si données vides, dis : "Aucune donnée pour répondre. Allez dans /xxx pour créer."`
+
+  try {
+    const ollamaRes = await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma2:2b', prompt, stream: false }),
+    })
+    if (!ollamaRes.ok) {
+      return res.json({ kind: 'error', text: `❌ Ollama indisponible (${ollamaRes.status}). Vérifiez qu'Ollama tourne.` })
+    }
+    const data = await ollamaRes.json() as { response?: string }
+    const text = (data.response || '').trim() || 'Pas de réponse Gemma.'
+    res.json({ kind: 'text', text, debug: { entities, contextSize: JSON.stringify(slice).length } })
+  } catch (e: any) {
+    res.json({ kind: 'error', text: '❌ ' + (e?.message || 'Erreur smart-query') })
+  }
+})
+
 export default router

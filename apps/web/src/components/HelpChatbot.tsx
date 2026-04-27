@@ -6,7 +6,8 @@ import {
   BookOpen, Video, Bot, Download, ChevronRight,
   Play, Zap, ArrowRight,
 } from 'lucide-react'
-import { getHelpForPath, type AgentCommand } from '@/lib/help-content'
+import { getHelpForPath, type AgentCommand, type DemoStep } from '@/lib/help-content'
+import InteractiveTutorial from './InteractiveTutorial'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -37,6 +38,7 @@ export default function HelpChatbot() {
   const [busy, setBusy] = useState(false)
   const [pendingCommand, setPendingCommand] = useState<AgentCommand | null>(null)
   const [pendingInput, setPendingInput] = useState('')
+  const [activeDemo, setActiveDemo] = useState<DemoStep[] | null>(null)
   const location = useLocation()
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -55,22 +57,16 @@ export default function HelpChatbot() {
     setMessages((m) => [...m, { role: 'user', text, ts: Date.now() }])
     setInput('')
     try {
-      const r = await fetch(`${BACKEND}/api/ai/run-action`, {
+      // Use smart-query : auto-loads relevant DB context, filters by entities,
+      // sends a small slice to Gemma, returns precise factual answer.
+      const r = await fetch(`${BACKEND}/api/agent/smart-query`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          actionId: 'help.guide',
-          context: {
-            question: text,
-            currentPath: location.pathname,
-            module: help.module,
-            availableCommands: help.commands.map((c) => `${c.label} (${c.description})`),
-          },
-        }),
+        body: JSON.stringify({ question: text, currentPath: location.pathname }),
       })
       const data = await r.json()
       setMessages((m) => [...m, { role: 'bot', text: data?.text || 'Je n\'ai pas trouvé de réponse claire.', ts: Date.now() }])
     } catch {
-      setMessages((m) => [...m, { role: 'bot', text: '⚠️ Backend IA hors-ligne. Consultez les Articles ou Vidéos.', ts: Date.now() }])
+      setMessages((m) => [...m, { role: 'bot', text: '⚠️ Backend hors-ligne. Consultez les Articles ou Vidéos.', ts: Date.now() }])
     } finally { setBusy(false) }
   }
 
@@ -295,7 +291,9 @@ export default function HelpChatbot() {
                       Aucun article pour ce module pour le moment.
                     </div>
                   )}
-                  {help.articles.map((a) => <ArticleCard key={a.id} article={a} />)}
+                  {help.articles.map((a) => (
+                    <ArticleCard key={a.id} article={a} onPlayDemo={(steps) => { setActiveDemo(steps); setOpen(false) }} />
+                  ))}
                 </div>
               )}
 
@@ -307,6 +305,23 @@ export default function HelpChatbot() {
                       Aucune vidéo pour ce module pour le moment.
                     </div>
                   )}
+                  {/* Bonus : démos interactives extraites des articles */}
+                  {help.articles.filter((a) => a.demo && a.demo.length > 0).map((a) => (
+                    <button key={`demo-${a.id}`} onClick={() => { setActiveDemo(a.demo!); setOpen(false) }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                        borderRadius: 12, border: '1px solid rgba(139,92,246,0.3)',
+                        background: 'linear-gradient(135deg, rgba(139,92,246,0.08), rgba(236,72,153,0.05))',
+                        color: '#1e293b', fontSize: 12, cursor: 'pointer', textAlign: 'left',
+                      }}>
+                      <Zap size={16} color="#8b5cf6" />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700 }}>▶ Démo interactive</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>{a.title} · {a.demo!.length} étapes guidées sur la page courante</div>
+                      </div>
+                      <ArrowRight size={14} color="#8b5cf6" />
+                    </button>
+                  ))}
                   {help.videos.map((v) => <VideoCard key={v.id} video={v} />)}
                 </div>
               )}
@@ -339,6 +354,11 @@ export default function HelpChatbot() {
       </AnimatePresence>
 
       <style>{`@keyframes ai-spin { from { transform: rotate(0) } to { transform: rotate(360deg) } } .ai-spin { animation: ai-spin 1s linear infinite }`}</style>
+
+      {/* Interactive tutorial overlay */}
+      {activeDemo && (
+        <InteractiveTutorial steps={activeDemo} onClose={() => setActiveDemo(null)} />
+      )}
     </>
   )
 }
@@ -386,13 +406,14 @@ function UIRenderer({ ui }: { ui: any }) {
   return null
 }
 
-function ArticleCard({ article }: { article: any }) {
+function ArticleCard({ article, onPlayDemo }: { article: any; onPlayDemo?: (steps: DemoStep[]) => void }) {
   const [open, setOpen] = useState(false)
   const levelColor = {
     beginner: { bg: '#d1fae5', fg: '#047857', label: 'Débutant' },
     intermediate: { bg: '#fef3c7', fg: '#92400e', label: 'Intermédiaire' },
     advanced: { bg: '#fee2e2', fg: '#991b1b', label: 'Avancé' },
   }[article.level as 'beginner' | 'intermediate' | 'advanced'] || { bg: '#e2e8f0', fg: '#475569', label: '?' }
+  const hasDemo = Array.isArray(article.demo) && article.demo.length > 0
   return (
     <div style={{ padding: 12, background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0' }}>
       <div onClick={() => setOpen(!open)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
@@ -400,9 +421,16 @@ function ArticleCard({ article }: { article: any }) {
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
             <span style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{article.title}</span>
-            <span style={{ padding: '1px 6px', borderRadius: 999, background: levelColor.bg, color: levelColor.fg, fontSize: 9, fontWeight: 800 }}>
-              {levelColor.label}
-            </span>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              {hasDemo && (
+                <span style={{ padding: '1px 6px', borderRadius: 999, background: '#ede9fe', color: '#7c3aed', fontSize: 9, fontWeight: 800 }}>
+                  ▶ DÉMO
+                </span>
+              )}
+              <span style={{ padding: '1px 6px', borderRadius: 999, background: levelColor.bg, color: levelColor.fg, fontSize: 9, fontWeight: 800 }}>
+                {levelColor.label}
+              </span>
+            </div>
           </div>
           {!open && <div style={{ fontSize: 11, color: '#64748b', marginTop: 4, lineHeight: 1.4 }}>{article.body.slice(0, 80)}…</div>}
         </div>
@@ -419,6 +447,18 @@ function ArticleCard({ article }: { article: any }) {
                     <li key={i} style={{ marginBottom: 4, fontSize: 11.5 }}>{s}</li>
                   ))}
                 </ol>
+              )}
+              {hasDemo && onPlayDemo && (
+                <button onClick={(e) => { e.stopPropagation(); onPlayDemo(article.demo) }}
+                  style={{
+                    marginTop: 12, width: '100%',
+                    padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                    background: 'linear-gradient(135deg,#8b5cf6,#ec4899)',
+                    color: '#fff', fontWeight: 700, fontSize: 12,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  }}>
+                  <Zap size={12} /> Lancer la démo guidée ({article.demo.length} étapes)
+                </button>
               )}
             </div>
           </motion.div>

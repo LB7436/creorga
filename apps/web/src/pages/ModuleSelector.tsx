@@ -489,6 +489,7 @@ export default function ModuleSelector() {
           </span>
           <input
             type="text"
+            data-tour="search"
             placeholder="Rechercher un module..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}

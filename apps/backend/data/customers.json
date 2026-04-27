@@ -1,0 +1,9 @@
+[
+  { "id": "c001", "firstName": "Bryan",   "lastName": "Lentz",     "email": "bryan@example.com",     "phone": "+352 661 12 34 56", "tier": "VIP",       "score": 92, "totalSpent": 2450, "lastVisit": "2026-04-22", "birthday": "1994-04-15" },
+  { "id": "c002", "firstName": "Sophie",  "lastName": "Lentz",     "email": "sophie@example.com",    "phone": "+352 621 99 88 77", "tier": "VIP",       "score": 88, "totalSpent": 1980, "lastVisit": "2026-04-25", "birthday": "1990-07-22" },
+  { "id": "c003", "firstName": "Marc",    "lastName": "Schmitt",   "email": "marc@example.com",      "phone": "+352 661 55 66 77", "tier": "Régulier",  "score": 65, "totalSpent": 720,  "lastVisit": "2026-04-18", "birthday": "1985-02-08" },
+  { "id": "c004", "firstName": "Léa",     "lastName": "Weber",     "email": "lea@example.com",       "phone": "+352 691 22 33 44", "tier": "Régulier",  "score": 58, "totalSpent": 540,  "lastVisit": "2026-04-10", "birthday": "1996-04-30" },
+  { "id": "c005", "firstName": "Pedro",   "lastName": "Silva",     "email": "pedro@example.com",     "phone": "+352 661 11 22 33", "tier": "Occasionnel","score": 32, "totalSpent": 180, "lastVisit": "2026-02-15", "birthday": "1988-11-12" },
+  { "id": "c006", "firstName": "Anne",    "lastName": "Müller",    "email": "anne@example.com",      "phone": "+352 691 77 66 55", "tier": "Perdu",      "score": 18, "totalSpent": 95,  "lastVisit": "2026-01-20", "birthday": "1979-04-03" },
+  { "id": "c007", "firstName": "Thomas",  "lastName": "Dupont",    "email": "thomas@example.com",    "phone": "+352 661 88 99 00", "tier": "VIP",       "score": 81, "totalSpent": 1620, "lastVisit": "2026-04-26", "birthday": "1992-09-18" }
+]
