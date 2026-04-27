@@ -4,6 +4,7 @@ import {
   Star, Search, Filter, MessageSquare, ThumbsUp, ThumbsDown, Share2, Flag,
   X, Send, Download, CheckSquare, Square, ChevronDown, ChevronUp,
 } from 'lucide-react';
+import AIActionMenu from '@/components/AIActionMenu';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -213,7 +214,8 @@ export default function AvisPage() {
             Suivi et gestion des avis clients multi-plateformes
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <AIActionMenu module="reputation" context={{ avgRating: stats.avg, totalReviews: stats.total }} label="IA Avis" />
           {selected.size > 0 && (
             <>
               <button style={btnGhost}>

@@ -12,6 +12,7 @@ import {
   CartesianGrid,
   Legend,
 } from 'recharts';
+import AIActionMenu from '@/components/AIActionMenu';
 
 const container = {
   hidden: { opacity: 0 },
@@ -206,6 +207,7 @@ export default function CampagnesPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <AIActionMenu module="marketing" context={{ goal: 'optimiser conversion campagnes', audience: 'clients fidèles', channel: 'email' }} label="IA Marketing" />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as CampaignStatus | 'Toutes')}

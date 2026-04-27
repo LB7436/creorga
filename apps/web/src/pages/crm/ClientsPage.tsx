@@ -20,6 +20,7 @@ import {
 import {
   LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid
 } from 'recharts'
+import AIActionMenu from '@/components/AIActionMenu'
 
 /* ── helpers ───────────────────────────────────────────────── */
 const fmt = (v: number) =>
@@ -487,7 +488,8 @@ export default function ClientsPage() {
             Base clients, fid\élit\é, CLV & conformit\é RGPD &mdash; {customers.length} clients
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <AIActionMenu module="crm" context={{ totalClients: customers.length, segments: ['VIP','Régulier','Occasionnel'] }} label="IA Clients" />
           <button onClick={handleExportCSV}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,

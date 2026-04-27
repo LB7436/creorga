@@ -52,6 +52,10 @@ export const useTheme = create<ThemeState>()(
       setTheme: (theme: Theme) => {
         const resolved: ResolvedTheme = theme === 'auto' ? getSystemTheme() : theme
         set({ theme, resolvedTheme: resolved })
+        // Sync the dark-overlay.css attribute so the entire app re-themes immediately
+        if (typeof document !== 'undefined') {
+          document.documentElement.setAttribute('data-theme-mode', resolved)
+        }
       },
     }),
     {
@@ -62,6 +66,9 @@ export const useTheme = create<ThemeState>()(
           const resolved: ResolvedTheme =
             state.theme === 'auto' ? getSystemTheme() : state.theme
           state.resolvedTheme = resolved
+          if (typeof document !== 'undefined') {
+            document.documentElement.setAttribute('data-theme-mode', resolved)
+          }
         }
       },
     }

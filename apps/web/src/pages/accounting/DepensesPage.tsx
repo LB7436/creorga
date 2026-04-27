@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
+import AIActionMenu from '@/components/AIActionMenu';
 
 type Category = 'FOOD_COST' | 'STAFF' | 'UTILITIES' | 'SUPPLIES' | 'OTHER';
 type Statut = 'Payé' | 'En attente' | 'En retard';
@@ -136,7 +137,8 @@ export default function DepensesPage() {
           <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>Dépenses</h1>
           <p style={{ margin: '6px 0 0', color: palette.subtle }}>Suivi des dépenses, factures fournisseurs et import bancaire</p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <AIActionMenu module="accounting" context={{ description: 'dernière dépense', amount: 0, supplier: '' }} label="IA Compta" />
           <button onClick={() => setShowImport(true)} style={{ padding: '10px 16px', background: '#fff', border: `1px solid ${palette.border}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', color: palette.text }}>
             Importer un relevé
           </button>
