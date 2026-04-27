@@ -1,123 +1,107 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useLocation } from 'react-router-dom'
-import { MessageCircle, X, Send, Sparkles, Loader2 } from 'lucide-react'
+import {
+  MessageCircle, X, Send, Sparkles, Loader2,
+  BookOpen, Video, Bot, Download, ChevronRight,
+  Play, Zap, ArrowRight,
+} from 'lucide-react'
+import { getHelpForPath, type AgentCommand } from '@/lib/help-content'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
 /**
- * Help Chatbot — floating "agent" available on every page.
- * Detects current route, sends it as context to Gemma so the bot knows
- * which module the user is on and gives tailored guidance.
+ * Help Center — 3 onglets module-aware :
+ *   - 🤖 Agent IA  (chat libre Gemma + commandes prédéfinies cliquables)
+ *   - 📚 Articles  (guides, démos pas-à-pas, niveau)
+ *   - 🎬 Vidéos    (tutos par module)
  *
- *   "Sur /pos : 'Comment offrir un plat ?' → explique le bouton 🎁 Offert"
- *   "Sur /crm : 'Comment relancer un client ?' → menu IA Score & Relance"
- *
- * Uses POST /api/ai/run-action with actionId 'help.guide' (added to backend).
- * Falls back to a static FAQ map if the backend is offline.
+ * Le contenu s'adapte automatiquement au pathname courant.
+ * Les commandes appellent /api/agent/execute (vraies actions sur les data).
  */
 
-const FAQ_BY_PATH: Record<string, { q: string; a: string }[]> = {
-  '/modules': [
-    { q: 'Comment ouvrir un module ?', a: 'Cliquez sur la carte du module dans la grille. Utilisez la barre de recherche pour filtrer.' },
-    { q: 'Comment activer/désactiver un module ?', a: 'Allez dans Paramètres → Modules. Le toggle en haut de la grille filtre les modules visibles.' },
-  ],
-  '/pos': [
-    { q: 'Comment offrir un plat ?', a: 'Dans le panier, ouvrez le panneau Remise → onglet 🎁 Offert. Le montant est exclu du CA et tracé en comptabilité.' },
-    { q: 'Comment fusionner deux tables ?', a: 'Drag-and-drop une table sur l\'autre. Une modal vous demandera de confirmer.' },
-    { q: 'Pourquoi des tables sont marquées NETTOYAGE automatiquement ?', a: 'Le janitor auto-clôture les sessions ouvertes > 8 h sans encaissement (anti-bug timer aberrant).' },
-  ],
-  '/crm/clients': [
-    { q: 'Comment marquer un client VIP ?', a: 'Cliquez sur le client → onglet Profil → Tier "VIP". Ou utilisez le bouton "IA Clients" qui scorera automatiquement.' },
-    { q: 'Comment relancer un client perdu ?', a: 'Bouton "IA Clients" → "Message de relance". Gemma rédige un message personnalisé que vous pouvez approuver.' },
-  ],
-  '/marketing': [
-    { q: 'Comment créer une campagne ?', a: 'Bouton "Nouvelle campagne". Pour un contenu généré IA : "IA Marketing" → "Rédiger une campagne".' },
-  ],
-  '/accounting/depenses': [
-    { q: 'Comment catégoriser automatiquement une dépense ?', a: 'Bouton "IA Compta" → "Catégoriser dépense" (PCN luxembourgeois + détection TVA 3/8/14/17 %).' },
-  ],
-  '/reputation/avis': [
-    { q: 'Comment répondre rapidement aux avis ?', a: 'Bouton "IA Avis" → "Réponds avis". Gemma rédige une réponse polie en 4 langues (FR/DE/EN/PT).' },
-  ],
-  '/hr/planning': [
-    { q: 'Comment importer un planning manuscrit ?', a: 'Bouton "📸 Importer planning OCR" — prenez une photo du tableau, l\'OCR + Gemma extrait les shifts.' },
-    { q: 'Comment optimiser un planning ?', a: 'Bouton "Auto-planifier (IA)" — Gemma propose une affectation respectant les contraintes 35h/semaine.' },
-  ],
-  '/inventory': [
-    { q: 'Comment scanner un ticket fournisseur ?', a: 'Bouton "📸 Scanner OCR" — l\'IA Gemma reconnaît articles, quantités et prix automatiquement.' },
-    { q: 'Comment prévoir les ruptures ?', a: 'Le forecast quotidien analyse 90 jours d\'historique + météo. Bandeau orange si conso > stock disponible J+1.' },
-  ],
-  '/ai': [
-    { q: 'Local Gemma vs Cloud Claude, lequel choisir ?', a: 'Local Gemma → 100 % privé (CNPD), gratuit, ~2 s. Cloud Claude → meilleure qualité, ~3 s. "Auto" route selon le besoin.' },
-    { q: 'Comment changer de modèle ?', a: 'Le toggle "Provider" en haut à gauche. Persisté dans localStorage.' },
-  ],
+type Tab = 'agent' | 'articles' | 'videos'
+
+interface ChatMsg {
+  role: 'user' | 'bot'
+  text?: string
+  ui?: any            // { type, items, href, label } depuis backend
+  ts: number
 }
-
-const DEFAULT_FAQS = [
-  { q: 'Que fait Creorga OS ?', a: 'Plateforme tout-en-un pour restaurant : POS, plan de salle, stocks, HACCP, comptabilité, IA — 35+ modules, conforme CNPD Luxembourg.' },
-  { q: 'Comment activer le mode sombre ?', a: 'Cliquez sur l\'icône 🌙 dans le header. L\'app re-thème immédiatement (overlay CSS).' },
-  { q: 'Où sont les jeux clients ?', a: '15 jeux jouables sur le portail invité (5176/5178) — Slots, Blackjack, Roulette, Poker, Tetris, Sueca, etc.' },
-]
-
-interface ChatMsg { role: 'user' | 'bot'; text: string; ts: number }
 
 export default function HelpChatbot() {
   const [open, setOpen] = useState(false)
+  const [tab, setTab] = useState<Tab>('agent')
   const [messages, setMessages] = useState<ChatMsg[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  const [pendingCommand, setPendingCommand] = useState<AgentCommand | null>(null)
+  const [pendingInput, setPendingInput] = useState('')
   const location = useLocation()
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Suggested FAQ for current path
-  const suggestions = (() => {
-    const exact = FAQ_BY_PATH[location.pathname]
-    if (exact) return exact
-    // Match by prefix
-    const prefixMatch = Object.keys(FAQ_BY_PATH).find((k) => location.pathname.startsWith(k) && k !== '/')
-    return prefixMatch ? FAQ_BY_PATH[prefixMatch] : DEFAULT_FAQS
-  })()
+  const help = getHelpForPath(location.pathname)
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages])
 
-  const ask = async (text: string) => {
+  // Reset pending command when changing tab
+  useEffect(() => { setPendingCommand(null); setPendingInput('') }, [tab])
+
+  const askGemma = async (text: string) => {
     if (!text.trim() || busy) return
     setBusy(true)
-    const userMsg: ChatMsg = { role: 'user', text, ts: Date.now() }
-    setMessages((m) => [...m, userMsg])
+    setMessages((m) => [...m, { role: 'user', text, ts: Date.now() }])
     setInput('')
-
     try {
       const r = await fetch(`${BACKEND}/api/ai/run-action`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           actionId: 'help.guide',
-          context: { question: text, currentPath: location.pathname, suggestions: suggestions.slice(0, 3).map((s) => s.q) },
+          context: {
+            question: text,
+            currentPath: location.pathname,
+            module: help.module,
+            availableCommands: help.commands.map((c) => `${c.label} (${c.description})`),
+          },
         }),
       })
       const data = await r.json()
-      const reply = data?.text || 'Je n\'ai pas trouvé de réponse claire. Essayez les suggestions ci-dessus ou consultez la documentation.'
-      setMessages((m) => [...m, { role: 'bot', text: reply, ts: Date.now() }])
+      setMessages((m) => [...m, { role: 'bot', text: data?.text || 'Je n\'ai pas trouvé de réponse claire.', ts: Date.now() }])
     } catch {
-      // Fallback to static FAQ
-      const match = suggestions.find((s) => text.toLowerCase().includes(s.q.toLowerCase().split(' ')[0]))
-      const reply = match?.a || 'Backend IA hors-ligne. Voici les questions fréquentes pour cette page :\n\n' +
-        suggestions.map((s) => `• ${s.q}`).join('\n')
-      setMessages((m) => [...m, { role: 'bot', text: reply, ts: Date.now() }])
-    } finally {
-      setBusy(false)
+      setMessages((m) => [...m, { role: 'bot', text: '⚠️ Backend IA hors-ligne. Consultez les Articles ou Vidéos.', ts: Date.now() }])
+    } finally { setBusy(false) }
+  }
+
+  const runCommand = async (cmd: AgentCommand, input: any = {}) => {
+    setBusy(true)
+    setMessages((m) => [...m, { role: 'user', text: `▶ ${cmd.label}`, ts: Date.now() }])
+    setPendingCommand(null); setPendingInput('')
+    try {
+      const r = await fetch(`${BACKEND}/api/agent/execute`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commandId: cmd.id, input }),
+      })
+      const data = await r.json()
+      setMessages((m) => [...m, { role: 'bot', text: data?.text, ui: data?.ui, ts: Date.now() }])
+    } catch {
+      setMessages((m) => [...m, { role: 'bot', text: '⚠️ Erreur serveur agent.', ts: Date.now() }])
+    } finally { setBusy(false) }
+  }
+
+  const handleCommandClick = (cmd: AgentCommand) => {
+    if (cmd.needsInput) {
+      setPendingCommand(cmd)
+      setPendingInput(cmd.example || '')
+    } else {
+      runCommand(cmd)
     }
   }
 
-  const askPreset = (q: string, a: string) => {
-    setMessages((m) => [
-      ...m,
-      { role: 'user', text: q, ts: Date.now() },
-      { role: 'bot', text: a, ts: Date.now() + 1 },
-    ])
+  const submitPending = () => {
+    if (!pendingCommand) return
+    runCommand(pendingCommand, { [pendingCommand.needsInput!.field]: pendingInput })
   }
 
   return (
@@ -134,14 +118,12 @@ export default function HelpChatbot() {
           boxShadow: '0 8px 24px rgba(139,92,246,0.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}
-        title="Aide Creorga"
+        title="Centre d'aide Creorga"
       >
         <AnimatePresence mode="wait">
-          {open ? (
-            <motion.span key="x" initial={{ rotate: -90 }} animate={{ rotate: 0 }} exit={{ rotate: 90 }}><X size={22} /></motion.span>
-          ) : (
-            <motion.span key="msg" initial={{ rotate: 90 }} animate={{ rotate: 0 }} exit={{ rotate: -90 }}><MessageCircle size={22} /></motion.span>
-          )}
+          {open
+            ? <motion.span key="x" initial={{ rotate: -90 }} animate={{ rotate: 0 }} exit={{ rotate: 90 }}><X size={22} /></motion.span>
+            : <motion.span key="msg" initial={{ rotate: 90 }} animate={{ rotate: 0 }} exit={{ rotate: -90 }}><MessageCircle size={22} /></motion.span>}
         </AnimatePresence>
       </motion.button>
 
@@ -153,100 +135,337 @@ export default function HelpChatbot() {
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             style={{
               position: 'fixed', bottom: 96, right: 24, zIndex: 9997,
-              width: 380, maxWidth: 'calc(100vw - 48px)', height: 540, maxHeight: 'calc(100vh - 140px)',
+              width: 420, maxWidth: 'calc(100vw - 48px)',
+              height: 600, maxHeight: 'calc(100vh - 140px)',
               background: '#fff', borderRadius: 16,
               boxShadow: '0 24px 64px rgba(0,0,0,0.25), 0 0 0 1px rgba(15,23,42,0.06)',
               display: 'flex', flexDirection: 'column', overflow: 'hidden',
             }}
           >
             <header style={{
-              padding: '14px 16px', background: 'linear-gradient(135deg,#8b5cf6,#ec4899)',
+              padding: '12px 16px', background: 'linear-gradient(135deg,#8b5cf6,#ec4899)',
               color: '#fff', display: 'flex', alignItems: 'center', gap: 10,
             }}>
               <div style={{
-                width: 36, height: 36, borderRadius: '50%',
-                background: 'rgba(255,255,255,0.2)',
+                width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.2)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}><Sparkles size={18} /></div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 800, fontSize: 14 }}>Agent Creorga</div>
+                <div style={{ fontWeight: 800, fontSize: 14 }}>Centre d'aide Creorga</div>
                 <div style={{ fontSize: 11, opacity: 0.9 }}>
-                  Page : <code style={{ background: 'rgba(255,255,255,0.15)', padding: '1px 5px', borderRadius: 4 }}>{location.pathname}</code>
+                  {help.emoji} {help.title} <span style={{ opacity: 0.6 }}>· {location.pathname}</span>
                 </div>
               </div>
             </header>
 
-            <div ref={scrollRef} style={{ flex: 1, padding: 14, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, background: '#f8fafc' }}>
-              {messages.length === 0 && (
+            {/* Tabs */}
+            <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              {([
+                { id: 'agent',    label: 'Agent IA', icon: Bot,      count: help.commands.length },
+                { id: 'articles', label: 'Articles', icon: BookOpen, count: help.articles.length },
+                { id: 'videos',   label: 'Vidéos',   icon: Video,    count: help.videos.length },
+              ] as const).map((t) => {
+                const Icon = t.icon
+                const active = tab === t.id
+                return (
+                  <button key={t.id} onClick={() => setTab(t.id)}
+                    style={{
+                      flex: 1, padding: '10px 6px', border: 'none', cursor: 'pointer',
+                      background: active ? '#fff' : 'transparent',
+                      color: active ? '#7c3aed' : '#64748b',
+                      borderBottom: active ? '2px solid #8b5cf6' : '2px solid transparent',
+                      fontWeight: active ? 800 : 600, fontSize: 12,
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      transition: 'all .15s',
+                    }}
+                  >
+                    <Icon size={14} /> {t.label}
+                    {t.count > 0 && (
+                      <span style={{
+                        padding: '0 5px', borderRadius: 999,
+                        background: active ? '#ede9fe' : '#e2e8f0', color: active ? '#7c3aed' : '#64748b',
+                        fontSize: 10, fontWeight: 800,
+                      }}>{t.count}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div ref={scrollRef} style={{ flex: 1, padding: 14, overflowY: 'auto', background: '#f8fafc' }}>
+
+              {/* ─── AGENT TAB ─── */}
+              {tab === 'agent' && (
                 <>
-                  <div style={{ padding: 12, background: '#fff', borderRadius: 12, fontSize: 13, color: '#1e293b', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                    Bonjour 👋 Je suis votre agent Creorga.
-                    Voici les questions les plus utiles sur cette page :
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
-                    {suggestions.map((s, i) => (
-                      <button key={i} onClick={() => askPreset(s.q, s.a)}
-                        style={{
-                          textAlign: 'left', padding: '10px 12px', borderRadius: 10,
-                          background: '#fff', border: '1px solid #e2e8f0',
-                          fontSize: 12, color: '#475569', cursor: 'pointer',
-                          transition: 'all .15s',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#8b5cf6'; e.currentTarget.style.background = '#faf5ff' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#fff' }}>
-                        💬 {s.q}
-                      </button>
+                  {messages.length === 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ padding: 12, background: '#fff', borderRadius: 12, fontSize: 13, color: '#1e293b', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                        Bonjour 👋 Je suis l'agent IA Creorga. Sur cette page <b>{help.emoji} {help.title}</b>, je peux exécuter ces commandes :
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Commands grid */}
+                  {messages.length === 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                      {help.commands.map((cmd) => (
+                        <button key={cmd.id} onClick={() => handleCommandClick(cmd)}
+                          disabled={busy}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '10px 12px', borderRadius: 10,
+                            background: '#fff', border: '1px solid #e2e8f0',
+                            fontSize: 12, color: '#1e293b',
+                            cursor: busy ? 'not-allowed' : 'pointer',
+                            textAlign: 'left', transition: 'all .15s', opacity: busy ? 0.6 : 1,
+                          }}
+                          onMouseEnter={(e) => { if (!busy) { e.currentTarget.style.borderColor = '#8b5cf6'; e.currentTarget.style.background = '#faf5ff' } }}
+                          onMouseLeave={(e) => { if (!busy) { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#fff' } }}>
+                          <div style={{ fontSize: 18 }}>{cmd.icon || '⚡'}</div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 700 }}>{cmd.label}</div>
+                            <div style={{ fontSize: 11, color: '#64748b' }}>{cmd.description}</div>
+                          </div>
+                          <ChevronRight size={14} color="#94a3b8" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Pending command (needs input) */}
+                  {pendingCommand && (
+                    <div style={{ padding: 12, background: '#ede9fe', border: '1px solid #c4b5fd', borderRadius: 10, marginBottom: 10 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12, color: '#5b21b6', marginBottom: 6 }}>
+                        {pendingCommand.icon} {pendingCommand.label}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#7c3aed', marginBottom: 8 }}>
+                        {pendingCommand.needsInput?.label}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input
+                          autoFocus
+                          value={pendingInput}
+                          onChange={(e) => setPendingInput(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && submitPending()}
+                          placeholder={pendingCommand.needsInput?.placeholder}
+                          style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #c4b5fd', fontSize: 12, outline: 'none' }}
+                        />
+                        <button onClick={submitPending} disabled={!pendingInput.trim()}
+                          style={{
+                            padding: '0 14px', borderRadius: 8, border: 'none',
+                            background: 'linear-gradient(135deg,#8b5cf6,#ec4899)',
+                            color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 12,
+                          }}>
+                          Exécuter
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Conversation */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {messages.map((m, i) => (
+                      <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
+                        <div style={{
+                          padding: '10px 14px', borderRadius: 14,
+                          background: m.role === 'user' ? 'linear-gradient(135deg,#8b5cf6,#ec4899)' : '#fff',
+                          color: m.role === 'user' ? '#fff' : '#1e293b',
+                          fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap',
+                          boxShadow: m.role === 'bot' ? '0 2px 8px rgba(0,0,0,0.04)' : 'none',
+                        }}>
+                          {m.text}
+                        </div>
+                        {m.ui && <UIRenderer ui={m.ui} />}
+                      </div>
                     ))}
+                    {busy && (
+                      <div style={{ alignSelf: 'flex-start', padding: '10px 14px', borderRadius: 14, background: '#fff', display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 12 }}>
+                        <Loader2 size={14} className="ai-spin" /> L'agent réfléchit…
+                      </div>
+                    )}
                   </div>
                 </>
               )}
-              {messages.map((m, i) => (
-                <div key={i} style={{
-                  alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                  padding: '10px 14px', borderRadius: 14,
-                  background: m.role === 'user' ? 'linear-gradient(135deg,#8b5cf6,#ec4899)' : '#fff',
-                  color: m.role === 'user' ? '#fff' : '#1e293b',
-                  maxWidth: '85%', fontSize: 13, lineHeight: 1.5,
-                  whiteSpace: 'pre-wrap',
-                  boxShadow: m.role === 'bot' ? '0 2px 8px rgba(0,0,0,0.04)' : 'none',
-                }}>
-                  {m.text}
+
+              {/* ─── ARTICLES TAB ─── */}
+              {tab === 'articles' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {help.articles.length === 0 && (
+                    <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                      Aucun article pour ce module pour le moment.
+                    </div>
+                  )}
+                  {help.articles.map((a) => <ArticleCard key={a.id} article={a} />)}
                 </div>
-              ))}
-              {busy && (
-                <div style={{ alignSelf: 'flex-start', padding: '10px 14px', borderRadius: 14, background: '#fff', display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 12 }}>
-                  <Loader2 size={14} className="ai-spin" /> L'agent réfléchit…
+              )}
+
+              {/* ─── VIDEOS TAB ─── */}
+              {tab === 'videos' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {help.videos.length === 0 && (
+                    <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                      Aucune vidéo pour ce module pour le moment.
+                    </div>
+                  )}
+                  {help.videos.map((v) => <VideoCard key={v.id} video={v} />)}
                 </div>
               )}
             </div>
 
-            <form onSubmit={(e) => { e.preventDefault(); ask(input) }}
-              style={{ padding: 10, borderTop: '1px solid #e2e8f0', background: '#fff', display: 'flex', gap: 6 }}>
-              <input
-                value={input} onChange={(e) => setInput(e.target.value)}
-                placeholder="Posez votre question…"
-                style={{
-                  flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid #e2e8f0',
-                  fontSize: 13, outline: 'none',
-                }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = '#8b5cf6' }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = '#e2e8f0' }}
-              />
-              <button type="submit" disabled={busy || !input.trim()}
-                style={{
-                  padding: '0 14px', borderRadius: 10, border: 'none',
-                  background: busy || !input.trim() ? '#cbd5e1' : 'linear-gradient(135deg,#8b5cf6,#ec4899)',
-                  color: '#fff', cursor: busy || !input.trim() ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                <Send size={16} />
-              </button>
-            </form>
+            {/* Input bar (agent only) */}
+            {tab === 'agent' && (
+              <form onSubmit={(e) => { e.preventDefault(); askGemma(input) }}
+                style={{ padding: 10, borderTop: '1px solid #e2e8f0', background: '#fff', display: 'flex', gap: 6 }}>
+                <input
+                  value={input} onChange={(e) => setInput(e.target.value)}
+                  placeholder="Posez une question à Gemma…"
+                  style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none' }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = '#8b5cf6' }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = '#e2e8f0' }}
+                />
+                <button type="submit" disabled={busy || !input.trim()}
+                  style={{
+                    padding: '0 14px', borderRadius: 10, border: 'none',
+                    background: busy || !input.trim() ? '#cbd5e1' : 'linear-gradient(135deg,#8b5cf6,#ec4899)',
+                    color: '#fff', cursor: busy || !input.trim() ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                  <Send size={16} />
+                </button>
+              </form>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
 
       <style>{`@keyframes ai-spin { from { transform: rotate(0) } to { transform: rotate(360deg) } } .ai-spin { animation: ai-spin 1s linear infinite }`}</style>
     </>
+  )
+}
+
+function UIRenderer({ ui }: { ui: any }) {
+  if (!ui) return null
+  if (ui.type === 'download') {
+    return (
+      <a href={ui.href} download
+        style={{
+          marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '6px 10px', borderRadius: 8, background: '#10b981', color: '#fff',
+          textDecoration: 'none', fontSize: 12, fontWeight: 700,
+        }}>
+        <Download size={12} /> {ui.label || 'Télécharger'}
+      </a>
+    )
+  }
+  if (ui.type === 'list' && ui.items) {
+    return (
+      <div style={{ marginTop: 6, padding: 10, background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {ui.items.map((it: any, i: number) => (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderBottom: i === ui.items.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
+            <span style={{ color: '#475569' }}>
+              {it.href ? <a href={it.href} style={{ color: '#7c3aed', textDecoration: 'none' }}>{it.label}</a> : it.label}
+            </span>
+            <span style={{ color: '#1e293b', fontWeight: 700 }}>{it.value}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (ui.type === 'kpi' && ui.items) {
+    return (
+      <div style={{ marginTop: 6, padding: 12, background: 'linear-gradient(135deg,#ede9fe,#fce7f3)', borderRadius: 10 }}>
+        {ui.items.map((it: any, i: number) => (
+          <div key={i}>
+            <div style={{ fontSize: 11, color: '#7c3aed', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>{it.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#5b21b6' }}>{it.value}</div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  return null
+}
+
+function ArticleCard({ article }: { article: any }) {
+  const [open, setOpen] = useState(false)
+  const levelColor = {
+    beginner: { bg: '#d1fae5', fg: '#047857', label: 'Débutant' },
+    intermediate: { bg: '#fef3c7', fg: '#92400e', label: 'Intermédiaire' },
+    advanced: { bg: '#fee2e2', fg: '#991b1b', label: 'Avancé' },
+  }[article.level as 'beginner' | 'intermediate' | 'advanced'] || { bg: '#e2e8f0', fg: '#475569', label: '?' }
+  return (
+    <div style={{ padding: 12, background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+      <div onClick={() => setOpen(!open)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <BookOpen size={14} style={{ color: '#8b5cf6', marginTop: 2 }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{article.title}</span>
+            <span style={{ padding: '1px 6px', borderRadius: 999, background: levelColor.bg, color: levelColor.fg, fontSize: 9, fontWeight: 800 }}>
+              {levelColor.label}
+            </span>
+          </div>
+          {!open && <div style={{ fontSize: 11, color: '#64748b', marginTop: 4, lineHeight: 1.4 }}>{article.body.slice(0, 80)}…</div>}
+        </div>
+        <ChevronRight size={14} color="#94a3b8" style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s', marginTop: 2 }} />
+      </div>
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden' }}>
+            <div style={{ marginTop: 10, padding: 10, background: '#f8fafc', borderRadius: 8, fontSize: 12, color: '#334155', lineHeight: 1.55 }}>
+              {article.body}
+              {article.steps && (
+                <ol style={{ marginTop: 10, paddingLeft: 18, color: '#1e293b' }}>
+                  {article.steps.map((s: string, i: number) => (
+                    <li key={i} style={{ marginBottom: 4, fontSize: 11.5 }}>{s}</li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function VideoCard({ video }: { video: any }) {
+  const [playing, setPlaying] = useState(false)
+  return (
+    <div style={{ padding: 12, background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+      {playing && video.youtubeId ? (
+        <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, borderRadius: 8, overflow: 'hidden', marginBottom: 8 }}>
+          <iframe
+            src={`https://www.youtube.com/embed/${video.youtubeId}?autoplay=1`}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+            allow="autoplay; encrypted-media" allowFullScreen
+          />
+        </div>
+      ) : (
+        <div onClick={() => setPlaying(true)}
+          style={{
+            position: 'relative', height: 110, borderRadius: 8, overflow: 'hidden',
+            background: 'linear-gradient(135deg,#1e293b,#0f172a)', cursor: video.youtubeId ? 'pointer' : 'default',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+          }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: '50%',
+            background: 'linear-gradient(135deg,#8b5cf6,#ec4899)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
+          }}>
+            <Play size={18} />
+          </div>
+          <div style={{ position: 'absolute', bottom: 6, right: 8, padding: '2px 6px', borderRadius: 4, background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: 10, fontWeight: 700 }}>
+            {video.duration}
+          </div>
+        </div>
+      )}
+      <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{video.title}</div>
+      <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{video.description}</div>
+      {!video.youtubeId && (
+        <div style={{ marginTop: 6, fontSize: 10, color: '#94a3b8', fontStyle: 'italic' }}>
+          Vidéo bientôt disponible — l'équipe Creorga prépare le tournage.
+        </div>
+      )}
+    </div>
   )
 }
