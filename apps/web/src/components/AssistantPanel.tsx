@@ -1,0 +1,349 @@
+import { useEffect, useRef, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { Mic, MicOff, Send, X, Volume2, VolumeX, Sparkles, Settings, Maximize2, Minimize2, RotateCcw } from 'lucide-react'
+import AssistantMascot from './AssistantMascot'
+import { useAssistant } from '@/stores/assistantStore'
+import { useTheme } from '@/lib/theme'
+
+const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
+
+/**
+ * AssistantPanel — full personal robot assistant with voice + actions.
+ *
+ * Modes :
+ *   - overlay : floating right panel
+ *   - dock    : pinned right column (resizable)
+ *   - full    : fullscreen
+ *
+ * Voice : Web Speech API listen + Web Speech Synthesis speak.
+ */
+
+export default function AssistantPanel() {
+  const a = useAssistant()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const themeStore = useTheme()
+  const [input, setInput] = useState('')
+  const [showSettings, setShowSettings] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Auto-listen on open if enabled
+  useEffect(() => {
+    if (a.open && a.autoListen && a.mode === 'idle') startListening()
+    if (!a.open && a.mode === 'listening') stopListening()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [a.open, a.autoListen])
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  }, [a.messages])
+
+  // Global hotkey Ctrl+Shift+A
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+        e.preventDefault()
+        a.setOpen(!a.open)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [a])
+
+  function speak(text: string) {
+    if (!a.voiceEnabled) return
+    const synth = window.speechSynthesis
+    if (!synth) return
+    synth.cancel()
+    const cleanText = text.replace(/[*_`#✅❌🚪🌙☀️🎓🔍📅✨🤖💬🎤]/g, '').replace(/\[Sources?:.*?\]/g, '').trim()
+    const u = new SpeechSynthesisUtterance(cleanText)
+    u.lang = 'fr-FR'
+    u.rate = a.voiceSpeed
+    u.pitch = 1.05
+    a.setMode('speaking')
+    u.onend = () => a.setMode('idle')
+    u.onerror = () => a.setMode('idle')
+    synth.speak(u)
+  }
+
+  function startListening() {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) {
+      a.addMessage({ role: 'bot', text: '🎤 Reconnaissance vocale non disponible (Chrome / Edge requis).' })
+      return
+    }
+    if (recognitionRef.current) try { recognitionRef.current.stop() } catch { /* ignore */ }
+    const rec = new SR()
+    rec.lang = navigator.language?.startsWith('de') ? 'de-DE'
+              : navigator.language?.startsWith('en') ? 'en-US'
+              : navigator.language?.startsWith('pt') ? 'pt-PT'
+              : 'fr-FR'
+    rec.interimResults = true
+    rec.continuous = false
+    rec.onresult = (e: any) => {
+      let txt = ''
+      for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript
+      setInput(txt)
+      if (e.results[0]?.isFinal) {
+        recognitionRef.current = null
+        a.setMode('idle')
+        if (txt.trim()) ask(txt)
+      }
+    }
+    rec.onerror = () => a.setMode('idle')
+    rec.onend = () => { if (a.mode === 'listening') a.setMode('idle') }
+    recognitionRef.current = rec
+    a.setMode('listening')
+    rec.start()
+  }
+
+  function stopListening() {
+    try { recognitionRef.current?.stop() } catch { /* ignore */ }
+    recognitionRef.current = null
+    a.setMode('idle')
+  }
+
+  async function ask(text: string) {
+    if (!text.trim()) return
+    a.addMessage({ role: 'user', text })
+    setInput('')
+    a.setMode('thinking')
+    try {
+      const r = await fetch(`${BACKEND}/api/agent/intent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, currentPath: location.pathname, userId: 'default' }),
+      })
+      const data = await r.json()
+
+      if (data.kind === 'action') {
+        a.addMessage({
+          role: 'bot',
+          text: data.summary,
+          ui: data.details,
+          action: { intent: data.intent, success: data.success, summary: data.summary },
+        })
+        speak(data.summary)
+        if (data.uiAction?.type === 'navigate') {
+          setTimeout(() => navigate(data.uiAction.to), 800)
+        } else if (data.uiAction?.type === 'theme') {
+          themeStore.setTheme(data.uiAction.value)
+        }
+      } else {
+        const txt = data.text || 'Pas de réponse.'
+        a.addMessage({ role: 'bot', text: txt })
+        speak(txt)
+      }
+    } catch (e: any) {
+      a.addMessage({ role: 'bot', text: `❌ Erreur : ${e?.message || 'inconnue'}` })
+      a.setMode('idle')
+    } finally {
+      if (a.mode === 'thinking') a.setMode('idle')
+    }
+  }
+
+  if (!a.open) return null
+
+  const panelStyle: React.CSSProperties = a.panelMode === 'full'
+    ? { position: 'fixed', inset: 0, zIndex: 9999 }
+    : a.panelMode === 'dock'
+    ? { position: 'fixed', top: 0, right: 0, bottom: 0, width: 420, zIndex: 9999 }
+    : { position: 'fixed', bottom: 96, right: 24, width: 420, height: 600, zIndex: 9999, borderRadius: 18 }
+
+  const SUGGESTIONS = [
+    'Mets 3 cafés sur la table 1',
+    'Qui travaille aujourd\'hui ?',
+    'Crée une facture pour Brasserie du Centre de 850€',
+    'Active le mode sombre',
+    'Va au planning',
+    'Cherche sur internet le prix moyen d\'un café à Luxembourg',
+    'Sauvegarde le stock maintenant',
+    'Ferme la table 3',
+  ]
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="panel"
+        initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+        style={{
+          ...panelStyle,
+          background: 'linear-gradient(180deg, #0a0a14 0%, #1a0a2e 100%)',
+          color: '#f1f5f9',
+          boxShadow: '0 32px 80px rgba(139,92,246,0.4), 0 0 0 1px rgba(167,139,250,0.2)',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <header style={{
+          padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12,
+          background: 'linear-gradient(135deg, rgba(139,92,246,0.2), rgba(236,72,153,0.1))',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+        }}>
+          <div style={{ width: 48, flexShrink: 0 }}>
+            <AssistantMascot variant={a.mascot} size={48} listening={a.mode === 'listening'} speaking={a.mode === 'speaking'} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: 15 }}>{a.name}</div>
+            <div style={{ fontSize: 11, color: '#a78bfa' }}>
+              {a.mode === 'listening' ? '🎤 J\'écoute…'
+                : a.mode === 'thinking' ? '🤔 Je réfléchis…'
+                : a.mode === 'speaking' ? '💬 Je parle…'
+                : '😊 Prêt'}
+            </div>
+          </div>
+          <button onClick={() => setShowSettings((s) => !s)} title="Paramètres"
+            style={iconBtn}><Settings size={14} /></button>
+          <button onClick={() => a.setVoiceEnabled(!a.voiceEnabled)} title={a.voiceEnabled ? 'Désactiver voix' : 'Activer voix'}
+            style={iconBtn}>{a.voiceEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}</button>
+          <button onClick={() => a.setPanelMode(a.panelMode === 'full' ? 'overlay' : 'full')} title="Plein écran"
+            style={iconBtn}>{a.panelMode === 'full' ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
+          <button onClick={() => a.setOpen(false)} title="Fermer" style={iconBtn}><X size={14} /></button>
+        </header>
+
+        {/* Settings drawer */}
+        <AnimatePresence>
+          {showSettings && (
+            <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }}
+              style={{ overflow: 'hidden', background: 'rgba(0,0,0,0.3)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ flex: 1 }}>Nom de l'assistant</span>
+                  <input value={a.name} onChange={(e) => a.setName(e.target.value)} maxLength={20}
+                    style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', width: 120 }} />
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input type="checkbox" checked={a.autoListen} onChange={(e) => a.setAutoListen(e.target.checked)} />
+                  Écoute automatique à l'ouverture
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ flex: 1 }}>Vitesse voix · {a.voiceSpeed.toFixed(1)}</span>
+                  <input type="range" min="0.7" max="1.5" step="0.1" value={a.voiceSpeed}
+                    onChange={(e) => a.setVoiceSpeed(parseFloat(e.target.value))} style={{ width: 100 }} />
+                </label>
+                <button onClick={() => navigate('/setup/assistant')}
+                  style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(167,139,250,0.15)', color: '#fff', cursor: 'pointer' }}>
+                  Changer la mascotte
+                </button>
+                <button onClick={a.clearMessages}
+                  style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.15)', color: '#fca5a5', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <RotateCcw size={12} /> Effacer la conversation
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Conversation */}
+        <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {a.messages.length === 0 && (
+            <>
+              <div style={{
+                padding: 16, borderRadius: 12,
+                background: 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(236,72,153,0.05))',
+                border: '1px solid rgba(167,139,250,0.2)', textAlign: 'center',
+              }}>
+                <AssistantMascot variant={a.mascot} size={80} animated />
+                <div style={{ fontWeight: 800, fontSize: 16, marginTop: 8 }}>Bonjour, je suis {a.name} !</div>
+                <div style={{ fontSize: 12, color: '#cbd5e1', marginTop: 4 }}>
+                  Donnez-moi un ordre à la voix ou écrit. Je peux <b>vraiment agir</b> sur l'app.
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginTop: 6 }}>
+                💡 Exemples
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {SUGGESTIONS.map((s) => (
+                  <button key={s} onClick={() => ask(s)}
+                    style={{
+                      padding: '6px 10px', borderRadius: 999, fontSize: 11,
+                      background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                      color: '#cbd5e1', cursor: 'pointer', textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(167,139,250,0.15)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {a.messages.map((m) => (
+            <div key={m.id} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
+              <div style={{
+                padding: '10px 14px', borderRadius: 14,
+                background: m.role === 'user'
+                  ? 'linear-gradient(135deg,#8b5cf6,#ec4899)'
+                  : m.action?.success ? 'rgba(16,185,129,0.15)'
+                  : m.action ? 'rgba(239,68,68,0.15)'
+                  : 'rgba(255,255,255,0.06)',
+                color: '#f1f5f9', fontSize: 13, lineHeight: 1.5,
+                border: m.action?.success ? '1px solid rgba(16,185,129,0.4)' : 'none',
+                whiteSpace: 'pre-wrap',
+              }}>
+                {m.text}
+                {m.action && (
+                  <div style={{ marginTop: 6, fontSize: 10, color: '#94a3b8' }}>
+                    Intent : <code>{m.action.intent}</code>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {a.mode === 'thinking' && (
+            <div style={{ alignSelf: 'flex-start', padding: '8px 14px', fontSize: 12, color: '#a78bfa' }}>
+              <Sparkles size={12} style={{ verticalAlign: -1 }} /> {a.name} réfléchit…
+            </div>
+          )}
+        </div>
+
+        {/* Voice + input bar */}
+        <div style={{ padding: 12, borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.3)' }}>
+          <form onSubmit={(e) => { e.preventDefault(); ask(input) }} style={{ display: 'flex', gap: 6 }}>
+            <button type="button" onClick={() => a.mode === 'listening' ? stopListening() : startListening()}
+              title={a.mode === 'listening' ? 'Stop' : 'Dictée vocale'}
+              style={{
+                width: 44, height: 44, borderRadius: 12, border: 'none', cursor: 'pointer',
+                background: a.mode === 'listening'
+                  ? 'linear-gradient(135deg,#ef4444,#ec4899)'
+                  : 'linear-gradient(135deg,#8b5cf6,#a78bfa)',
+                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: a.mode === 'listening' ? '0 0 16px rgba(236,72,153,0.6)' : 'none',
+              }}>
+              {a.mode === 'listening' ? <MicOff size={18} /> : <Mic size={18} />}
+            </button>
+            <input
+              value={input} onChange={(e) => setInput(e.target.value)}
+              placeholder={a.mode === 'listening' ? '🎤 Parlez…' : `Dites un ordre à ${a.name}…`}
+              style={{
+                flex: 1, padding: '10px 14px', borderRadius: 12,
+                border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)',
+                color: '#fff', fontSize: 13, outline: 'none',
+              }}
+            />
+            <button type="submit" disabled={!input.trim() || a.mode === 'thinking'}
+              style={{
+                padding: '0 16px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                background: !input.trim() ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#8b5cf6,#ec4899)',
+                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              <Send size={16} />
+            </button>
+          </form>
+          <div style={{ marginTop: 6, fontSize: 10, color: '#64748b', textAlign: 'center' }}>
+            Ctrl+Shift+A pour ouvrir/fermer · Voix {a.voiceEnabled ? 'ON' : 'OFF'}
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
+
+const iconBtn: React.CSSProperties = {
+  width: 28, height: 28, borderRadius: 8, border: 'none', cursor: 'pointer',
+  background: 'rgba(255,255,255,0.05)', color: '#cbd5e1',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+}

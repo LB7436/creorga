@@ -6,6 +6,26 @@ import { useI18n } from '@/lib/i18n'
 import { useThemeColors } from '@/lib/theme'
 import NotificationCenter from '@/components/NotificationCenter'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
+import AssistantMascot from '@/components/AssistantMascot'
+import { useAssistant } from '@/stores/assistantStore'
+
+function AssistantHeaderButton() {
+  const a = useAssistant()
+  return (
+    <button onClick={() => a.setOpen(!a.open)}
+      title={`${a.name} — Assistant IA (Ctrl+Shift+A)`}
+      style={{
+        height: 36, padding: '0 10px 0 4px', borderRadius: 999,
+        border: '1px solid rgba(167,139,250,0.4)',
+        background: 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(236,72,153,0.08))',
+        cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+        color: '#a78bfa', fontWeight: 700, fontSize: 12,
+      }}>
+      <AssistantMascot variant={a.mascot} size={28} animated={false} />
+      {a.name}
+    </button>
+  )
+}
 import ThemeToggle from '@/components/ThemeToggle'
 import CommandPalette from '@/components/CommandPalette'
 import AccessibilityMenu from '@/components/AccessibilityMenu'
@@ -252,6 +272,9 @@ export default function AppShell() {
             <span style={{ fontSize: 14 }}>{'▦'}</span>
             {t('modules')}
           </button>
+
+          {/* assistant launcher pastille */}
+          <AssistantHeaderButton />
 
           {/* language switcher */}
           <LanguageSwitcher />

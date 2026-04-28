@@ -1,0 +1,343 @@
+import { Router } from 'express'
+import fs from 'fs'
+import path from 'path'
+
+/**
+ * Personal Assistant intent engine — parses natural language requests
+ * and dispatches to either :
+ *   - a real action (POST /api/agent/intent → execute)
+ *   - the smart-query (just answer)
+ *   - a web search (DuckDuckGo HTML, no API key)
+ *
+ * Patterns are regex-first (fast, deterministic) with Gemma fallback.
+ */
+
+const router = Router()
+const DATA_DIR = path.resolve(process.cwd(), 'data')
+
+function loadJson<T = any>(filename: string, fallback: T): T {
+  const p = path.join(DATA_DIR, filename)
+  if (!fs.existsSync(p)) return fallback
+  try { return JSON.parse(fs.readFileSync(p, 'utf8')) as T } catch { return fallback }
+}
+function saveJson(filename: string, data: any) {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+  fs.writeFileSync(path.join(DATA_DIR, filename), JSON.stringify(data, null, 2), 'utf8')
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INTENT PATTERNS — fast regex matching for common phrasings
+// ═══════════════════════════════════════════════════════════════════════
+
+interface IntentMatch {
+  intent: string
+  params: Record<string, any>
+  confidence: number
+}
+
+function parseIntent(text: string): IntentMatch | null {
+  const q = text.toLowerCase().trim()
+  let m: RegExpMatchArray | null
+
+  // POS : add items
+  if ((m = q.match(/(?:mets?|ajoute|met|tape|type)\s+(\d+)\s+([\w\sàâéèêëîïôûùüç-]+?)\s+(?:sur|à|a|aux?)\s+(?:la\s+)?(?:tables?\s+)?(?:\w+\s+)?(\w+)/i))) {
+    return { intent: 'pos.add-items', params: { qty: +m[1], item: m[2].trim(), tableId: m[3].toLowerCase() }, confidence: 0.9 }
+  }
+  // POS : close table
+  if ((m = q.match(/(?:ferme|closes?|cl[oô]ture)\s+(?:la\s+)?table\s+(\w+)/i))) {
+    return { intent: 'pos.close-table', params: { tableId: m[1].toLowerCase() }, confidence: 0.95 }
+  }
+  // POS : open table
+  if ((m = q.match(/(?:ouvre|active)\s+(?:la\s+)?table\s+(\w+)/i))) {
+    return { intent: 'pos.open-table', params: { tableId: m[1].toLowerCase() }, confidence: 0.95 }
+  }
+  // INVOICES create
+  if ((m = q.match(/(?:cr[ée]e?[zr]?|fais|g[ée]n[ée]re)\s+(?:moi\s+)?(?:une\s+)?facture\s+(?:pour|à|au)\s+(.+?)(?:\s+(?:de|pour|avec)\s+(\d+(?:[\.,]\d+)?)\s*€?)?(?:\s|$)/i))) {
+    return { intent: 'invoices.create', params: { customer: m[1].trim(), amount: m[2] ? parseFloat(m[2].replace(',', '.')) : null }, confidence: 0.85 }
+  }
+  // PLANNING who works
+  if ((m = q.match(/qui\s+(?:travaille|bosse|est\s+l[aà]|y\s+a\s+t.il)\s+(?:demain|aujourd[''’\s]?hui|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|cette\s+semaine|ce\s+mois)/i))) {
+    return { intent: 'hr.who-works', params: { period: m[0] }, confidence: 0.85 }
+  }
+  // BACKUP
+  if (/(?:fais|cr[ée]e?|sauvegarde?|backup)/i.test(q) && /(stock|inventaire|sauvegarde)/i.test(q)) {
+    return { intent: 'backup.create', params: {}, confidence: 0.9 }
+  }
+  // DARK MODE
+  if (/(?:active|passe(r)?|mets?)\s+(?:le\s+|en\s+|au\s+)?(?:mode\s+)?(?:sombre|dark|nuit|noir)/i.test(q)) {
+    return { intent: 'ui.dark-mode', params: { on: true }, confidence: 0.95 }
+  }
+  if (/(?:active|passe(r)?|mets?)\s+(?:le\s+|en\s+|au\s+)?(?:mode\s+)?(?:clair|light|jour)/i.test(q)) {
+    return { intent: 'ui.dark-mode', params: { on: false }, confidence: 0.95 }
+  }
+  // NAVIGATION
+  if ((m = q.match(/(?:va|navigue|ouvre|montre|amène|emm[èe]ne)\s+(?:moi\s+)?(?:à|au|aux|vers|sur|dans|en)?\s*(?:le|la|les|l['’])?\s*(planning|caisse|pos|crm|clients?|factures?|stock|stocks?|inventaire|haccp|comptabilit[ée]|marketing|avis|r[ée]put\w*|agenda|r[ée]servations?|portail|menu|qr|tv|pub\w*|musique|backup|sauvegarde|param[èe]tres?|ai|assistant)/i))) {
+    return { intent: 'ui.navigate', params: { target: m[1] }, confidence: 0.9 }
+  }
+  // WEB SEARCH
+  if (/(?:cherche|recherche|trouve|google)\s+(?:sur\s+)?(?:internet|le\s+web|en\s+ligne)?/i.test(q)) {
+    return { intent: 'web.search', params: { query: text.replace(/^(?:cherche|recherche|trouve|google)\s+(?:sur\s+)?(?:internet\s+|le\s+web\s+|en\s+ligne\s+)?/i, '').trim() }, confidence: 0.85 }
+  }
+  // HELP TUTORIAL
+  if ((m = q.match(/(?:tutoriel|d[ée]mo|montre.moi|comment)\s+(?:cr[ée]er?\s+(?:une\s+)?facture|offrir\s+un?\s+plat|scanner\s+un\s+ticket)/i))) {
+    if (/facture/i.test(m[0])) return { intent: 'help.tutorial', params: { id: 'inv.create' }, confidence: 0.9 }
+    if (/plat/i.test(m[0])) return { intent: 'help.tutorial', params: { id: 'pos.offert' }, confidence: 0.9 }
+    if (/ticket|ocr/i.test(m[0])) return { intent: 'help.tutorial', params: { id: 'inv.ocr' }, confidence: 0.9 }
+  }
+
+  return null
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INTENT EXECUTION
+// ═══════════════════════════════════════════════════════════════════════
+
+async function executeIntent(intent: IntentMatch): Promise<{ success: boolean; summary: string; details?: any; uiAction?: any }> {
+
+  switch (intent.intent) {
+
+    case 'pos.add-items': {
+      const { qty, item, tableId } = intent.params
+      const floorMod = await import('./floorState')
+      const state = floorMod.getFloorState()
+      const tid = state.tables.find((t: any) => t.id === tableId || t.name?.toLowerCase() === tableId || t.id === `t${tableId}` || t.name?.toLowerCase() === `t${tableId}`)
+      if (!tid) return { success: false, summary: `Table "${tableId}" introuvable.` }
+      const menuPrices: Record<string, number> = {
+        'café': 2.50, 'cafe': 2.50, 'expresso': 2.50, 'café crème': 3.20, 'cappuccino': 3.50,
+        'thé': 2.80, 'the': 2.80, 'bière': 4.50, 'biere': 4.50,
+        'vin': 5.00, 'verre vin': 5.00, 'eau': 3.00, 'coca': 3.50, 'jus': 3.80,
+      }
+      const itemKey = String(item).toLowerCase().trim()
+      const price = menuPrices[itemKey] ?? menuPrices[itemKey.replace(/s$/, '')] ?? 4.00
+      for (let i = 0; i < qty; i++) {
+        tid.items.push({
+          id: Math.random().toString(36).slice(2, 10),
+          name: item, price, qty: 1, addedAt: Date.now(),
+        })
+      }
+      if (tid.status === 'LIBRE') { tid.status = 'OCCUPEE'; tid.openedAt = Date.now() }
+      state.updatedAt = Date.now()
+      return {
+        success: true,
+        summary: `✅ ${qty} × ${item} ajouté(s) à ${tid.name} (${(qty * price).toFixed(2)} €).`,
+        details: { tableId: tid.id, qty, item, total: qty * price },
+      }
+    }
+
+    case 'pos.close-table': {
+      const floorMod = await import('./floorState')
+      const state = floorMod.getFloorState()
+      const tableId = String(intent.params.tableId).toLowerCase()
+      const t = state.tables.find((x: any) => x.id === tableId || x.name?.toLowerCase() === tableId || x.id === `t${tableId}` || x.name?.toLowerCase() === `t${tableId}`)
+      if (!t) return { success: false, summary: `Table "${tableId}" introuvable.` }
+      t.status = 'NETTOYAGE'
+      t.items = []
+      t.openedAt = undefined
+      state.chairs = state.chairs.filter((c: any) => c.tableId !== t.id)
+      state.updatedAt = Date.now()
+      return { success: true, summary: `✅ ${t.name} clôturée et passée en nettoyage.` }
+    }
+
+    case 'pos.open-table': {
+      const floorMod = await import('./floorState')
+      const state = floorMod.getFloorState()
+      const tableId = String(intent.params.tableId).toLowerCase()
+      const t = state.tables.find((x: any) => x.id === tableId || x.name?.toLowerCase() === tableId || x.id === `t${tableId}` || x.name?.toLowerCase() === `t${tableId}`)
+      if (!t) return { success: false, summary: `Table "${tableId}" introuvable.` }
+      t.status = 'OCCUPEE'
+      t.openedAt = Date.now()
+      state.updatedAt = Date.now()
+      return { success: true, summary: `✅ ${t.name} ouverte.` }
+    }
+
+    case 'invoices.create': {
+      const { customer, amount } = intent.params
+      const invoices = loadJson<any[]>('invoices.json', [])
+      const next = invoices.length + 142
+      const number = `F-${new Date().getFullYear()}-${String(next).padStart(4, '0')}`
+      const total = amount || 100
+      const newInvoice = {
+        id: `i${Date.now()}`,
+        number, customer,
+        date: new Date().toISOString().slice(0, 10),
+        dueDate: new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10),
+        total,
+        vatTotal: Math.round(total * 0.17 * 100) / 100,
+        status: 'sent',
+        createdBy: 'assistant',
+      }
+      invoices.unshift(newInvoice)
+      saveJson('invoices.json', invoices)
+      return {
+        success: true,
+        summary: `✅ Facture ${number} créée pour ${customer} · ${total} € (TVA ${newInvoice.vatTotal} €).`,
+        details: newInvoice,
+        uiAction: { type: 'navigate', to: '/invoices/factures' },
+      }
+    }
+
+    case 'hr.who-works': {
+      const shifts = loadJson<any[]>('shifts.json', [])
+      const period = String(intent.params.period || '').toLowerCase()
+      let target: string
+      const today = new Date()
+      if (/aujourd/.test(period)) target = today.toISOString().slice(0, 10)
+      else if (/demain/.test(period)) {
+        const t = new Date(today); t.setDate(t.getDate() + 1)
+        target = t.toISOString().slice(0, 10)
+      }
+      else target = today.toISOString().slice(0, 10)
+      const list = shifts.filter((s: any) => s.date === target && s.type !== 'absence' && s.type !== 'conge_annuel' && s.type !== 'conge_personnel')
+      if (list.length === 0) return { success: true, summary: `📅 Personne n'est planifié sur cette période.`, details: { date: target, count: 0 } }
+      const summary = list.map((s: any) => `${s.employee} (${s.role}) ${s.start}–${s.end}`).join(', ')
+      return { success: true, summary: `📅 ${list.length} personne(s) : ${summary}`, details: { date: target, list } }
+    }
+
+    case 'backup.create': {
+      const stock = loadJson<any[]>('inventory-stock.json', [])
+      const ts = new Date().toISOString().replace(/[:.]/g, '-')
+      const filename = `inventory-${ts}.bak.json`
+      const dir = path.join(DATA_DIR, 'backups')
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+      fs.writeFileSync(path.join(dir, filename), JSON.stringify(stock, null, 2), 'utf8')
+      return { success: true, summary: `✅ Sauvegarde stock créée : ${filename} (${stock.length} articles).` }
+    }
+
+    case 'ui.dark-mode': {
+      return {
+        success: true,
+        summary: intent.params.on ? '🌙 Mode sombre activé.' : '☀️ Mode clair activé.',
+        uiAction: { type: 'theme', value: intent.params.on ? 'dark' : 'light' },
+      }
+    }
+
+    case 'ui.navigate': {
+      const targets: Record<string, string> = {
+        planning: '/hr/planning', caisse: '/pos/floor', pos: '/pos/floor',
+        crm: '/crm/clients', client: '/crm/clients', clients: '/crm/clients',
+        facture: '/invoices/factures', factures: '/invoices/factures',
+        stock: '/inventory/stock', stocks: '/inventory/stock', inventaire: '/inventory/stock',
+        haccp: '/haccp/journee', comptabilité: '/accounting/depenses', comptabilite: '/accounting/depenses',
+        marketing: '/marketing', avis: '/reputation/avis', réput: '/reputation/avis', reput: '/reputation/avis',
+        agenda: '/agenda/calendrier', réservations: '/agenda/calendrier', reservation: '/agenda/calendrier', reservations: '/agenda/calendrier',
+        portail: '/clients', menu: '/qrmenu', qr: '/qrmenu', tv: '/ads', pub: '/ads',
+        musique: '/music', backup: '/backup', sauvegarde: '/backup',
+        paramètres: '/settings/modules', parametres: '/settings/modules',
+        ai: '/ai', assistant: '/ai',
+      }
+      const key = String(intent.params.target || '').toLowerCase().replace(/s$/, '')
+      const route = targets[key] || targets[String(intent.params.target).toLowerCase()]
+      if (!route) return { success: false, summary: `Module "${intent.params.target}" non reconnu.` }
+      return {
+        success: true,
+        summary: `🚪 J'ouvre ${intent.params.target}…`,
+        uiAction: { type: 'navigate', to: route },
+      }
+    }
+
+    case 'web.search': {
+      const r = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/web-search?q=${encodeURIComponent(intent.params.query)}`)
+      if (!r.ok) return { success: false, summary: '❌ Recherche web indisponible.' }
+      const data = await r.json() as { results?: any[] }
+      const results = data.results || []
+      if (results.length === 0) return { success: true, summary: `🔍 Aucun résultat pour "${intent.params.query}".` }
+      return {
+        success: true,
+        summary: `🔍 ${results.length} résultat(s) pour "${intent.params.query}".`,
+        details: results,
+      }
+    }
+
+    case 'help.tutorial': {
+      const id = intent.params.id
+      const moduleByArticle: Record<string, string> = {
+        'pos.offert': '/pos', 'inv.create': '/invoices/factures', 'inv.ocr': '/inventory/stock',
+      }
+      const route = moduleByArticle[id] || '/modules'
+      return {
+        success: true,
+        summary: `🎓 Je lance le tutoriel.`,
+        uiAction: { type: 'navigate', to: `${route}?help=${id}&autoplay=demo` },
+      }
+    }
+
+    default:
+      return { success: false, summary: 'Intent non implémenté.' }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ROUTES
+// ═══════════════════════════════════════════════════════════════════════
+
+router.post('/intent', async (req, res) => {
+  const { text, currentPath, userId } = req.body || {}
+  if (!text) return res.status(400).json({ kind: 'error', text: 'text required' })
+
+  const intent = parseIntent(text)
+  if (intent) {
+    const result = await executeIntent(intent)
+    return res.json({
+      kind: 'action',
+      intent: intent.intent,
+      confidence: intent.confidence,
+      ...result,
+    })
+  }
+
+  // Fall back to smart-query
+  const r = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/smart-query`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: text, currentPath, userId: userId || 'default' }),
+  })
+  const data = await r.json()
+  res.json({ kind: 'answer', ...data })
+})
+
+// Web search via DuckDuckGo HTML scrape (no API key, free) — uses matchAll
+router.get('/web-search', async (req, res) => {
+  const q = String(req.query.q || '').trim()
+  if (!q) return res.status(400).json({ error: 'q required' })
+  try {
+    const r = await fetch(`https://duckduckgo.com/html/?q=${encodeURIComponent(q)}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CreorgaBot/1.0)' },
+    })
+    if (!r.ok) return res.json({ results: [], error: `DuckDuckGo ${r.status}` })
+    const html = await r.text()
+    const linkRe = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([^<]+)<\/a>/g
+    const snipRe = /<a[^>]+class="result__snippet"[^>]*>([^<]+)<\/a>/g
+    const titles = [...html.matchAll(linkRe)].slice(0, 10).map((mm) => {
+      let url = mm[1]
+      const uddg = url.match(/uddg=([^&]+)/)
+      if (uddg) url = decodeURIComponent(uddg[1])
+      return { url, title: mm[2].trim() }
+    })
+    const snippets = [...html.matchAll(snipRe)].slice(0, 10).map((mm) => mm[1].trim())
+    const results = titles.map((t, i) => ({ ...t, snippet: snippets[i] || '' }))
+    res.json({ q, results })
+  } catch (e: any) {
+    res.json({ q, results: [], error: e?.message })
+  }
+})
+
+// CRUD : create customer
+router.post('/customers/create', (req, res) => {
+  const customers = loadJson<any[]>('customers.json', [])
+  const c = {
+    id: `c${Date.now()}`,
+    firstName: String(req.body.firstName || '').trim(),
+    lastName: String(req.body.lastName || '').trim(),
+    email: req.body.email || '',
+    phone: req.body.phone || '',
+    tier: req.body.tier || 'Régulier',
+    score: req.body.score ?? 50,
+    totalSpent: 0,
+    lastVisit: null,
+    birthday: req.body.birthday || null,
+  }
+  customers.push(c)
+  saveJson('customers.json', customers)
+  res.json({ ok: true, customer: c })
+})
+
+export default router

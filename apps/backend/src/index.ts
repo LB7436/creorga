@@ -63,6 +63,7 @@ import adsRoutes from './routes/ads'
 import aiActionsRoutes from './routes/ai-actions'
 import agentRoutes from './routes/agent'
 import helpFeedbackRoutes from './routes/help-feedback'
+import assistantRoutes from './routes/assistant'
 
 const app = express()
 const httpServer = createServer(app)
@@ -131,6 +132,8 @@ app.use('/api/ads', adsRoutes)
 app.use('/api/ai', aiActionsRoutes)
 app.use('/api/agent', agentRoutes)
 app.use('/api/help/feedback', helpFeedbackRoutes)
+// v3.9 — assistantRoutes MUST be before agentRoutes to take precedence on /intent
+app.use('/api/agent', assistantRoutes)
 
 // Error handler
 app.use(errorHandler)
