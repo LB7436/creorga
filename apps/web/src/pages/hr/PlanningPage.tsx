@@ -439,9 +439,9 @@ export default function PlanningPage() {
             ))}
           </div>
           {/* v3.18 — Open in new tab button */}
-          <button onClick={() => window.open(`/hr/planning?standalone=1&view=${view}`, '_blank', 'noopener')} style={{
+          <button onClick={() => window.open(`/standalone/planning?view=${view}`, '_blank', 'noopener')} style={{
             ...btnGhost, fontSize: 11, padding: '6px 10px',
-          }} title="Ouvrir le planning dans un nouvel onglet (vue plein écran)">
+          }} title="Ouvrir le planning seul dans un nouvel onglet (sans menu latéral, juste le planning plein écran)">
             <ExternalLink size={12} /> Nouvel onglet
           </button>
           <div style={{ display: 'flex', gap: 4 }}>

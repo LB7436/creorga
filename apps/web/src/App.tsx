@@ -217,6 +217,13 @@ function App() {
       {/* Mobile demo auto-login (entry point of the APK) */}
       <Route path="/m/demo" element={<MobileDemoLogin />} />
 
+      {/* v3.18 — Standalone module windows (no AppShell, no sidebar — just the page) */}
+      {/* Used by "Nouvel onglet" buttons inside modules to open a clean fullscreen view */}
+      <Route path="/standalone/planning" element={<RequireAuth><PlanningPage /></RequireAuth>} />
+      <Route path="/standalone/floor" element={<RequireAuth><UnifiedFloorPlan /></RequireAuth>} />
+      <Route path="/standalone/stock" element={<RequireAuth><StockPage /></RequireAuth>} />
+      <Route path="/standalone/calendar" element={<RequireAuth><CalendrierPage /></RequireAuth>} />
+
       {/* Mobile / PWA — accessible without AppShell */}
       <Route path="/m" element={<MobileLayout />}>
         <Route index element={<MobileLive />} />
@@ -260,8 +267,9 @@ function App() {
           <Route path="order/:tableId" element={<OrderPage />} />
           <Route path="checkout" element={<Navigate to="/pos/floor" replace />} />
           <Route path="checkout/:orderId" element={<Checkout />} />
-          <Route path="orders" element={<DashboardPage />} />
-          <Route path="config" element={<DashboardPage />} />
+          {/* v3.18 — fusion : /pos/orders + /pos/config étaient des alias, redirige vers dashboard */}
+          <Route path="orders" element={<Navigate to="/pos/dashboard" replace />} />
+          <Route path="config" element={<Navigate to="/pos/dashboard" replace />} />
         </Route>
 
         {/* CRM & Marketing Module */}
@@ -286,10 +294,11 @@ function App() {
         </Route>
 
         {/* Agenda & Calendrier Module (merged Events + Reservations) */}
+        {/* v3.18 — fusion : /agenda/planning supprimé (doublon avec /hr/planning), redirige */}
         <Route path="/agenda" element={<AgendaLayout />}>
           <Route index element={<Navigate to="/agenda/calendrier" replace />} />
           <Route path="calendrier" element={<CalendrierPage />} />
-          <Route path="planning" element={<AgendaPage />} />
+          <Route path="planning" element={<Navigate to="/hr/planning" replace />} />
           <Route path="devis" element={<EventsDevisPage />} />
           <Route path="clients" element={<ClientsB2BPage />} />
           <Route path="liste" element={<ReservListePage />} />
@@ -353,10 +362,11 @@ function App() {
         {/* API & Intégrations Module */}
         <Route path="/api" element={<ApiPage />} />
 
-        {/* Assistant IA — provider switch via AIProviderToggle persisté (local/cloud/auto) */}
+        {/* Assistant IA — v3.18 fusion : page unique avec sélecteur de provider local/cloud/auto */}
+        {/* /ai/local et /ai/settings deviennent alias vers /ai */}
         <Route path="/ai" element={<AiAssistantPage />} />
-        <Route path="/ai/local" element={<AIModulePage />} />
-        <Route path="/ai/settings" element={<AIModulePage />} />
+        <Route path="/ai/local" element={<Navigate to="/ai" replace />} />
+        <Route path="/ai/settings" element={<Navigate to="/ai" replace />} />
 
         {/* Settings — Configurateur de modules + Env modes */}
         <Route path="/settings/modules" element={<SettingsModules />} />

@@ -133,6 +133,31 @@ function parseIntent(text: string): IntentMatch | null {
     return { intent: 'recite', params: { what: m[1].toLowerCase() }, confidence: 0.85 }
   }
 
+  // v3.18 — HR : ajouter nouvel employé "rajoute/ajoute (un) nouvel employé NOMI"
+  if ((m = q.match(/(?:rajoute|ajoute|cr[ée]e?[zr]?|inscrit?|enregistre)\s+(?:moi\s+)?(?:un\s+)?(?:nouveau|nouvelle|nouvel|new)?\s*employ[ée]e?s?\s+(?:nomm[ée]e?\s+|appel[ée]e?\s+|s'appelant\s+)?([\w\s\-àâéèêëîïôûùüç]{2,30})/i))) {
+    const name = m[1].trim().replace(/\s+(en|dans|à|au|comme|sur).+$/i, '').trim()
+    return { intent: 'hr.add-employee', params: { name }, confidence: 0.85 }
+  }
+
+  // v3.18 — HR : ajouter shift "ajoute shift Marie demain 9h-17h"
+  if ((m = q.match(/(?:ajoute|cr[ée]e?[zr]?|met(?:s|tre)?)\s+(?:un\s+)?(?:shift|cr[ée]neau|horaire)\s+(?:pour\s+|à\s+)?([\w\-àâéèêëîïôûùüç]+)\s+(?:le\s+)?(demain|aujourd[''’\s]?hui|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)?\s*(?:de\s+)?(\d{1,2})[h:](\d{2})?\s*[-à]\s*(\d{1,2})[h:](\d{2})?/i))) {
+    return {
+      intent: 'hr.add-shift',
+      params: {
+        employee: m[1].trim(),
+        day: m[2] || 'demain',
+        startHour: parseInt(m[3]), startMin: parseInt(m[4] || '0'),
+        endHour: parseInt(m[5]), endMin: parseInt(m[6] || '0'),
+      },
+      confidence: 0.85,
+    }
+  }
+
+  // v3.18 — Affichage planning "ouvre/montre planning"
+  if (q.match(/(?:ouvre|montre|affiche|voir)\s+(?:le\s+)?planning/i)) {
+    return { intent: 'ui.navigate', params: { target: 'planning' }, confidence: 0.9 }
+  }
+
   return null
 }
 
@@ -441,6 +466,79 @@ async function executeIntent(intent: IntentMatch): Promise<{ success: boolean; s
       }
     }
 
+    // v3.18 — HR add employee
+    case 'hr.add-employee': {
+      const { name } = intent.params
+      if (!name || name.length < 2) {
+        return { success: false, summary: '❌ Nom d\'employé manquant ou trop court.' }
+      }
+      const employees = loadJson<any[]>('employees.json', [])
+      const existing = employees.find((e) => String(e.name || `${e.firstName || ''} ${e.lastName || ''}`.trim()).toLowerCase() === name.toLowerCase())
+      if (existing) {
+        return {
+          success: false,
+          summary: `⚠️ ${name} existe déjà dans l'équipe (id: ${existing.id}). Tu veux modifier ou créer un homonyme ?`,
+          uiAction: { type: 'navigate', to: '/hr/team' },
+        }
+      }
+      const newEmp = {
+        id: 'emp-' + Math.random().toString(36).slice(2, 10),
+        name,
+        firstName: name.split(/\s+/)[0],
+        lastName: name.split(/\s+/).slice(1).join(' ') || '',
+        role: 'Serveur',
+        section: 'Salle',
+        contractType: 'CDI',
+        weeklyHours: 40,
+        hourlyRate: 14.0,  // SMIC LU 2026
+        active: true,
+        createdAt: Date.now(),
+      }
+      employees.push(newEmp)
+      saveJson('employees.json', employees)
+      return {
+        success: true,
+        summary: `✅ ${name} ajouté(e) à l'équipe (${employees.length} employés au total). Tu peux le configurer dans Gestion RH → Équipe.`,
+        details: newEmp,
+        uiAction: { type: 'navigate', to: '/hr/team' },
+      }
+    }
+
+    // v3.18 — HR add shift
+    case 'hr.add-shift': {
+      const { employee, day, startHour, startMin, endHour, endMin } = intent.params
+      if (!employee) return { success: false, summary: '❌ Nom d\'employé manquant.' }
+      const dayMap: Record<string, number> = { 'lundi': 1, 'mardi': 2, 'mercredi': 3, 'jeudi': 4, 'vendredi': 5, 'samedi': 6, 'dimanche': 0 }
+      const target = new Date()
+      if (day === 'demain') target.setDate(target.getDate() + 1)
+      else if (day && day !== 'aujourd\'hui' && dayMap[day] !== undefined) {
+        const wanted = dayMap[day]
+        const cur = target.getDay()
+        const diff = ((wanted - cur) + 7) % 7 || 7
+        target.setDate(target.getDate() + diff)
+      }
+      const dateStr = target.toISOString().slice(0, 10)
+      const shifts = loadJson<any[]>('shifts.json', [])
+      const newShift = {
+        id: 'shift-' + Math.random().toString(36).slice(2, 10),
+        employee,
+        date: dateStr,
+        start: `${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`,
+        end: `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`,
+        role: 'Service',
+        section: 'Salle',
+        createdAt: Date.now(),
+      }
+      shifts.push(newShift)
+      saveJson('shifts.json', shifts)
+      return {
+        success: true,
+        summary: `✅ Shift ${employee} ajouté le ${dateStr} de ${newShift.start} à ${newShift.end}.`,
+        details: newShift,
+        uiAction: { type: 'navigate', to: '/hr/planning' },
+      }
+    }
+
     case 'hr.set-planning': {
       const spec = String(intent.params.spec || '')
       // Parse "Marie matin, Luc soir, Sophie off" etc.
@@ -623,3 +721,4 @@ router.post('/customers/create', (req, res) => {
 })
 
 export default router
+
