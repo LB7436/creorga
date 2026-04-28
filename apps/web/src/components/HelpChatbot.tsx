@@ -1,12 +1,13 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useLocation } from 'react-router-dom'
 import {
   MessageCircle, X, Send, Sparkles, Loader2,
   BookOpen, Video, Bot, Download, ChevronRight,
-  Play, Zap, ArrowRight,
+  Play, Zap, ArrowRight, Search, ThumbsUp, ThumbsDown,
+  Mic, MicOff,
 } from 'lucide-react'
-import { getHelpForPath, type AgentCommand, type DemoStep } from '@/lib/help-content'
+import { getHelpForPath, HELP_CONTENT, type AgentCommand, type DemoStep, type ModuleHelp } from '@/lib/help-content'
 import InteractiveTutorial from './InteractiveTutorial'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
@@ -39,10 +40,45 @@ export default function HelpChatbot() {
   const [pendingCommand, setPendingCommand] = useState<AgentCommand | null>(null)
   const [pendingInput, setPendingInput] = useState('')
   const [activeDemo, setActiveDemo] = useState<DemoStep[] | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [globalSearch, setGlobalSearch] = useState(false) // search across all modules
+  const [listening, setListening] = useState(false)
+  const recognitionRef = useRef<any>(null)
   const location = useLocation()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const help = getHelpForPath(location.pathname)
+
+  // Phase 2A.2 — Full-text search in articles (current module by default,
+  // or globally if user toggles "Toutes pages")
+  const filteredArticles = useMemo(() => {
+    const corpus = globalSearch
+      ? HELP_CONTENT.flatMap((m) => m.articles.map((a) => ({ ...a, _module: m.title, _emoji: m.emoji })))
+      : help.articles.map((a) => ({ ...a, _module: help.title, _emoji: help.emoji }))
+    if (!searchQuery.trim()) return corpus
+    const q = searchQuery.toLowerCase()
+    return corpus.filter((a) =>
+      a.title.toLowerCase().includes(q) ||
+      a.body.toLowerCase().includes(q) ||
+      (a.steps || []).some((s: string) => s.toLowerCase().includes(q))
+    )
+  }, [searchQuery, globalSearch, help])
+
+  // Phase 2A.3 — Deep link ?help=articleId&autoplay=demo
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const targetArticle = params.get('help')
+    if (!targetArticle) return
+    setOpen(true)
+    setTab('articles')
+    if (params.get('autoplay') === 'demo') {
+      // Find article + launch demo
+      for (const m of HELP_CONTENT) {
+        const a = m.articles.find((x) => x.id === targetArticle)
+        if (a?.demo) { setActiveDemo(a.demo); setOpen(false); break }
+      }
+    }
+  }, [location.pathname])
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -57,8 +93,6 @@ export default function HelpChatbot() {
     setMessages((m) => [...m, { role: 'user', text, ts: Date.now() }])
     setInput('')
     try {
-      // Use smart-query : auto-loads relevant DB context, filters by entities,
-      // sends a small slice to Gemma, returns precise factual answer.
       const r = await fetch(`${BACKEND}/api/agent/smart-query`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: text, currentPath: location.pathname }),
@@ -68,6 +102,41 @@ export default function HelpChatbot() {
     } catch {
       setMessages((m) => [...m, { role: 'bot', text: '⚠️ Backend hors-ligne. Consultez les Articles ou Vidéos.', ts: Date.now() }])
     } finally { setBusy(false) }
+  }
+
+  // Phase 2C — Voice input (Web Speech API native, gratuit)
+  const toggleVoice = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) {
+      setMessages((m) => [...m, { role: 'bot', text: '🎤 Reconnaissance vocale non disponible dans ce navigateur (essayez Chrome ou Edge).', ts: Date.now() }])
+      return
+    }
+    if (listening) {
+      try { recognitionRef.current?.stop() } catch { /* ignore */ }
+      setListening(false)
+      return
+    }
+    const rec = new SR()
+    rec.lang = navigator.language?.startsWith('de') ? 'de-DE'
+              : navigator.language?.startsWith('en') ? 'en-US'
+              : navigator.language?.startsWith('pt') ? 'pt-PT'
+              : 'fr-FR'
+    rec.interimResults = true
+    rec.continuous = false
+    rec.onresult = (e: any) => {
+      let txt = ''
+      for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript
+      setInput(txt)
+      if (e.results[0].isFinal) {
+        setListening(false)
+        if (txt.trim()) askGemma(txt)
+      }
+    }
+    rec.onerror = () => setListening(false)
+    rec.onend = () => setListening(false)
+    recognitionRef.current = rec
+    rec.start()
+    setListening(true)
   }
 
   const runCommand = async (cmd: AgentCommand, input: any = {}) => {
@@ -286,13 +355,38 @@ export default function HelpChatbot() {
               {/* ─── ARTICLES TAB ─── */}
               {tab === 'articles' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {help.articles.length === 0 && (
+                  {/* Phase 2A.2 — Recherche full-text */}
+                  <div style={{ position: 'relative', marginBottom: 4 }}>
+                    <Search size={14} style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }} />
+                    <input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Rechercher dans les articles…"
+                      style={{
+                        width: '100%', padding: '8px 10px 8px 32px', borderRadius: 8,
+                        border: '1px solid #e2e8f0', background: '#fff', fontSize: 12, outline: 'none',
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#64748b' }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={globalSearch} onChange={(e) => setGlobalSearch(e.target.checked)} />
+                      Toutes les pages
+                    </label>
+                    <span>· {filteredArticles.length} article(s)</span>
+                  </div>
+                  {filteredArticles.length === 0 && (
                     <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
-                      Aucun article pour ce module pour le moment.
+                      Aucun article ne correspond.
                     </div>
                   )}
-                  {help.articles.map((a) => (
-                    <ArticleCard key={a.id} article={a} onPlayDemo={(steps) => { setActiveDemo(steps); setOpen(false) }} />
+                  {filteredArticles.map((a: any) => (
+                    <ArticleCard
+                      key={a.id}
+                      article={a}
+                      moduleLabel={globalSearch ? `${a._emoji} ${a._module}` : undefined}
+                      onPlayDemo={(steps) => { setActiveDemo(steps); setOpen(false) }}
+                    />
                   ))}
                 </div>
               )}
@@ -331,9 +425,19 @@ export default function HelpChatbot() {
             {tab === 'agent' && (
               <form onSubmit={(e) => { e.preventDefault(); askGemma(input) }}
                 style={{ padding: 10, borderTop: '1px solid #e2e8f0', background: '#fff', display: 'flex', gap: 6 }}>
+                <button type="button" onClick={toggleVoice}
+                  title={listening ? 'Arrêter l\'écoute' : 'Dictée vocale (FR/DE/EN/PT auto)'}
+                  style={{
+                    width: 38, borderRadius: 10, border: '1px solid #e2e8f0',
+                    background: listening ? 'linear-gradient(135deg,#ef4444,#ec4899)' : '#fff',
+                    color: listening ? '#fff' : '#64748b', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                  {listening ? <MicOff size={16} /> : <Mic size={16} />}
+                </button>
                 <input
                   value={input} onChange={(e) => setInput(e.target.value)}
-                  placeholder="Posez une question à Gemma…"
+                  placeholder={listening ? '🎤 Parlez…' : 'Posez une question à Gemma…'}
                   style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none' }}
                   onFocus={(e) => { e.currentTarget.style.borderColor = '#8b5cf6' }}
                   onBlur={(e) => { e.currentTarget.style.borderColor = '#e2e8f0' }}
@@ -406,16 +510,38 @@ function UIRenderer({ ui }: { ui: any }) {
   return null
 }
 
-function ArticleCard({ article, onPlayDemo }: { article: any; onPlayDemo?: (steps: DemoStep[]) => void }) {
+function ArticleCard({ article, onPlayDemo, moduleLabel }: { article: any; onPlayDemo?: (steps: DemoStep[]) => void; moduleLabel?: string }) {
   const [open, setOpen] = useState(false)
+  const [voted, setVoted] = useState<'up' | 'down' | null>(null)
   const levelColor = {
     beginner: { bg: '#d1fae5', fg: '#047857', label: 'Débutant' },
     intermediate: { bg: '#fef3c7', fg: '#92400e', label: 'Intermédiaire' },
     advanced: { bg: '#fee2e2', fg: '#991b1b', label: 'Avancé' },
   }[article.level as 'beginner' | 'intermediate' | 'advanced'] || { bg: '#e2e8f0', fg: '#475569', label: '?' }
   const hasDemo = Array.isArray(article.demo) && article.demo.length > 0
+
+  const sendFeedback = (vote: 'up' | 'down') => {
+    setVoted(vote)
+    fetch(`${BACKEND}/api/help/feedback`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ articleId: article.id, vote, path: window.location.pathname }),
+    }).catch(() => { /* silent */ })
+  }
+
+  // Phase 2A.3 — copy direct link
+  const copyLink = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const url = `${window.location.origin}${window.location.pathname}?help=${article.id}${hasDemo ? '&autoplay=demo' : ''}`
+    navigator.clipboard.writeText(url).then(() => { /* could toast */ })
+  }
+
   return (
     <div style={{ padding: 12, background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+      {moduleLabel && (
+        <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 6, fontWeight: 700, letterSpacing: 0.5 }}>
+          {moduleLabel}
+        </div>
+      )}
       <div onClick={() => setOpen(!open)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
         <BookOpen size={14} style={{ color: '#8b5cf6', marginTop: 2 }} />
         <div style={{ flex: 1 }}>
@@ -460,6 +586,33 @@ function ArticleCard({ article, onPlayDemo }: { article: any; onPlayDemo?: (step
                   <Zap size={12} /> Lancer la démo guidée ({article.demo.length} étapes)
                 </button>
               )}
+              {/* Phase 2A.4 — Feedback + Phase 2A.3 — Copy link */}
+              <div style={{ marginTop: 12, paddingTop: 8, borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 10, color: '#94a3b8' }}>Cet article vous a aidé ?</span>
+                  <button onClick={(e) => { e.stopPropagation(); sendFeedback('up') }}
+                    disabled={voted !== null}
+                    style={{
+                      padding: 4, borderRadius: 6, border: 'none', cursor: voted ? 'default' : 'pointer',
+                      background: voted === 'up' ? '#10b981' : 'transparent',
+                      color: voted === 'up' ? '#fff' : '#64748b',
+                    }}><ThumbsUp size={12} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); sendFeedback('down') }}
+                    disabled={voted !== null}
+                    style={{
+                      padding: 4, borderRadius: 6, border: 'none', cursor: voted ? 'default' : 'pointer',
+                      background: voted === 'down' ? '#ef4444' : 'transparent',
+                      color: voted === 'down' ? '#fff' : '#64748b',
+                    }}><ThumbsDown size={12} /></button>
+                  {voted && <span style={{ fontSize: 10, color: '#10b981' }}>Merci !</span>}
+                </div>
+                <button onClick={copyLink}
+                  title="Copier le lien direct vers cet article"
+                  style={{
+                    padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff',
+                    color: '#64748b', cursor: 'pointer', fontSize: 10, fontWeight: 600,
+                  }}>🔗 Lien</button>
+              </div>
             </div>
           </motion.div>
         )}

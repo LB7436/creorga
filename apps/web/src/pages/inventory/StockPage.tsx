@@ -699,6 +699,7 @@ export default function StockPage() {
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <button
+              data-tour="ocr-btn"
               onClick={() => navigate('/inventory/ocr')}
               style={{
                 ...smallBtnStyle,

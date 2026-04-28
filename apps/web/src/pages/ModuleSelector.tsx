@@ -521,6 +521,7 @@ export default function ModuleSelector() {
 
       {/* ── category tabs ── */}
       <motion.div
+        data-tour="filters"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.25 }}
@@ -591,7 +592,7 @@ export default function ModuleSelector() {
               // Apply customLabel if set — swap the module name
               const displayMod = cfg?.customLabel ? { ...mod, name: cfg.customLabel } : mod
               return (
-                <div key={mod.id} style={{ position: 'relative' }}>
+                <div key={mod.id} data-tour="module-card" data-module-id={mod.id} style={{ position: 'relative' }}>
                   <ModuleCard mod={displayMod} onClick={() => handleModule(mod)} />
                   {isComingSoon && (
                     <div style={{

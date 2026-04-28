@@ -1,0 +1,1446 @@
+{
+  "base": "http://localhost:3002",
+  "timestamp": "2026-04-28T07:22:02.034Z",
+  "overall": "83.0",
+  "fails": 2,
+  "total": 100,
+  "byModule": {
+    "pos": {
+      "total": 10,
+      "sum": 710,
+      "fails": 1
+    },
+    "crm": {
+      "total": 10,
+      "sum": 880,
+      "fails": 0
+    },
+    "invoices": {
+      "total": 10,
+      "sum": 860,
+      "fails": 1
+    },
+    "hr": {
+      "total": 10,
+      "sum": 930,
+      "fails": 0
+    },
+    "inv": {
+      "total": 10,
+      "sum": 850,
+      "fails": 0
+    },
+    "acc": {
+      "total": 10,
+      "sum": 830,
+      "fails": 0
+    },
+    "rep": {
+      "total": 10,
+      "sum": 850,
+      "fails": 0
+    },
+    "mkt": {
+      "total": 10,
+      "sum": 830,
+      "fails": 0
+    },
+    "agenda": {
+      "total": 10,
+      "sum": 770,
+      "fails": 0
+    },
+    "haccp": {
+      "total": 10,
+      "sum": 790,
+      "fails": 0
+    }
+  },
+  "results": [
+    {
+      "module": "pos",
+      "path": "/pos/dashboard",
+      "q": "combien de tables sont occupées ?",
+      "expect": [
+        "table"
+      ],
+      "response": "Il y a actuellement 0 tables occupées sur le restaurant.  12 tables sont libres.  [Sources: 1] \n\n/pos/dashboard + [Sources: 1]",
+      "ms": 687,
+      "score": 80,
+      "reason": "Found 1/1 keywords: table"
+    },
+    {
+      "module": "pos",
+      "path": "/pos/dashboard",
+      "q": "combien coute un café ?",
+      "forbid": [
+        "480",
+        "€",
+        "euros"
+      ],
+      "response": "Le prix d'un café n'est pas mentionné dans les données.  [Sources: 1] \n\nVoir /hr/conges + citations [Sources: 1]",
+      "ms": 405,
+      "score": 50,
+      "reason": "No assertions"
+    },
+    {
+      "module": "pos",
+      "path": "/pos/dashboard",
+      "q": "quelle est la table avec le plus de couverts ?",
+      "expect": [
+        "table"
+      ],
+      "response": "La table avec le plus de couverts n'est pas mentionnée dans les données.  [Sources: 1] \n\nVoir /hr/conges + citations",
+      "ms": 373,
+      "score": 80,
+      "reason": "Found 1/1 keywords: table"
+    },
+    {
+      "module": "pos",
+      "path": "/pos/dashboard",
+      "q": "CA en cours ?",
+      "expect": [
+        "€",
+        "CA",
+        "pas"
+      ],
+      "response": "Le nombre de tables occupées est de 0.  12 tables sont libres.  [Sources: 1] \n\nVoir /hr/conges + citations",
+      "ms": 384,
+      "score": 30,
+      "reason": "Vague (no expected keyword)"
+    },
+    {
+      "module": "pos",
+      "path": "/pos/dashboard",
+      "q": "invente moi un chiffre",
+      "forbid": [
+        "12345",
+        "invente"
+      ],
+      "response": "🚫 Je ne crée pas de fausses données. Pour créer une vraie entrée, utilisez le bouton dédié dans le module concerné (ex : \"+ Nouveau\" sur /pos/dashboard).",
+      "ms": 2,
+      "score": 50,
+      "reason": "No assertions"
+    },
+    {
+      "module": "pos",
+      "path": "/pos/floor",
+      "q": "quelles tables sont libres ?",
+      "expect": [
+        "table"
+      ],
+      "response": "Il y a actuellement 0 tables occupées sur le restaurant. 12 tables sont libres.  [Sources: 1] \n\nVoir /hr/conges + citations",
+      "ms": 399,
+      "score": 80,
+      "reason": "Found 1/1 keywords: table"
+    },
+    {
+      "module": "pos",
+      "path": "/pos/floor",
+      "q": "session ouverte depuis combien de temps ?",
+      "expect": [
+        "heure",
+        "h",
+        "pas"
+      ],
+      "response": "La session est ouverte depuis **0** minutes.  12 tables sont libres.  [Sources: 1] \n\nVoir /hr/conges + citations",
+      "ms": 376,
+      "score": 80,
+      "reason": "Found 1/3 keywords: h"
+    },
+    {
+      "module": "pos",
+      "path": "/pos/floor",
+      "q": "as-tu accès à la météo ?",
+      "expect": [
+        "pas",
+        "non",
+        "aucune"
+      ],
+      "response": "La météo n'est pas mentionnée dans les données.  [Sources: 1] \n\nVoir /hr/conges + citations",
+      "ms": 347,
+      "score": 80,
+      "reason": "Found 1/3 keywords: pas"
+    },
+    {
+      "module": "pos",
+      "path": "/pos/dashboard",
+      "q": "ticket moyen aujourd'hui",
+      "expect": [
+        "ticket",
+        "pas",
+        "moyen"
+      ],
+      "response": "Le ticket moyen aujourd'hui n'est pas mentionné dans les données.  [Sources: 1] \n\nVoir /hr/conges + citations",
+      "ms": 371,
+      "score": 100,
+      "reason": "Found 3/3 keywords: ticket, pas, moyen"
+    },
+    {
+      "module": "pos",
+      "path": "/pos/dashboard",
+      "q": "quel est le top plat",
+      "expect": [
+        "top",
+        "pas",
+        "plat"
+      ],
+      "response": "Le JSON ne contient aucune information sur les plats du restaurant.  [Sources: 1] \n\nVoir /hr/conges + citations",
+      "ms": 347,
+      "score": 80,
+      "reason": "Found 1/3 keywords: plat"
+    },
+    {
+      "module": "crm",
+      "path": "/crm/clients",
+      "q": "qui est mon meilleur client ?",
+      "expect": [
+        "Bryan",
+        "Lentz",
+        "VIP",
+        "Sophie"
+      ],
+      "response": "Mon meilleur client est Bryan Lenz avec un score de 92 et un total de dépenses de 2450 euros.  [Sources: 1] \n\nVoir /hr/conges + citations",
+      "ms": 521,
+      "score": 80,
+      "reason": "Found 1/4 keywords: Bryan"
+    },
+    {
+      "module": "crm",
+      "path": "/crm/clients",
+      "q": "liste les clients VIP",
+      "expect": [
+        "VIP",
+        "Bryan",
+        "Sophie",
+        "Thomas"
+      ],
+      "response": "Voici une liste des clients VIP : Bryan Lenz, Sophie Lenz et Marc Schmitt.  [Sources: 1]\n\n1 lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 495,
+      "score": 100,
+      "reason": "Found 3/4 keywords: VIP, Bryan, Sophie"
+    },
+    {
+      "module": "crm",
+      "path": "/crm/clients",
+      "q": "qui a dépensé le plus ?",
+      "expect": [
+        "Bryan",
+        "Lentz",
+        "2450",
+        "2 450"
+      ],
+      "response": "Le client qui a dépensé le plus d'argent est Bryan Lenz avec un total de 2450 euros.  [Sources: 1] \n\nVoici une liste des clients VIP : Bryan Lenz, Sophie Lenz et Marc Schmitt.  [Sources: 1] \n\n1 lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 735,
+      "score": 100,
+      "reason": "Found 2/4 keywords: Bryan, 2450"
+    },
+    {
+      "module": "crm",
+      "path": "/crm/clients",
+      "q": "qui n'est pas venu depuis longtemps ?",
+      "expect": [
+        "Anne",
+        "Müller",
+        "Pedro",
+        "perdu",
+        "absent"
+      ],
+      "response": "Le JSON ne contient aucune information sur les clients qui n'ont pas été à la restaurant depuis longtemps.  [Sources: 1] \n\n1 lien-action (ex \"Voir /hr/conges\") + citations\n[Sources: 1]",
+      "ms": 581,
+      "score": 70,
+      "reason": "Honest \"no data\" response"
+    },
+    {
+      "module": "crm",
+      "path": "/crm/clients",
+      "q": "anniversaire de Bryan",
+      "expect": [
+        "1994",
+        "avril",
+        "15"
+      ],
+      "response": "Bryan Lenz a son anniversaire le 15 avril 1994.  [Sources: 1]\n\nIl s'agit de l'anniversaire de Bryan Lenz. [Sources: 1] \n\n1 lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 555,
+      "score": 100,
+      "reason": "Found 3/3 keywords: 1994, avril, 15"
+    },
+    {
+      "module": "crm",
+      "path": "/crm/clients",
+      "q": "numéro de téléphone de Sophie",
+      "expect": [
+        "+352",
+        "621",
+        "Sophie"
+      ],
+      "response": "Sophie Lenz a un numéro de téléphone de +352 621 99 88 77.  [Sources: 1]\n\n1 lien-action /crm/clients  + citations [Sources: 1]",
+      "ms": 498,
+      "score": 100,
+      "reason": "Found 3/3 keywords: +352, 621, Sophie"
+    },
+    {
+      "module": "crm",
+      "path": "/crm/clients",
+      "q": "donne-moi les emails de tous les clients",
+      "expect": [
+        "@",
+        "email"
+      ],
+      "response": "Voici les emails des clients : bryan@example.com, sophie@example.com, marc@example.com, lea@example.com, pedro@example.com \n\n1 lien-action (ex \"Voir /hr/conges\") + citations\n[Sources: 2, 3, 4, 5]",
+      "ms": 694,
+      "score": 100,
+      "reason": "Found 2/2 keywords: @, email"
+    },
+    {
+      "module": "crm",
+      "path": "/crm/clients",
+      "q": "invente un nouveau client",
+      "forbid": [
+        "nouveau client",
+        "inventé"
+      ],
+      "response": "🚫 Je ne crée pas de fausses données. Pour créer une vraie entrée, utilisez le bouton dédié dans le module concerné (ex : \"+ Nouveau\" sur /crm/clients).",
+      "ms": 1,
+      "score": 50,
+      "reason": "No assertions"
+    },
+    {
+      "module": "crm",
+      "path": "/crm/clients",
+      "q": "combien de clients VIP exactement ?",
+      "expect": [
+        "VIP",
+        "3",
+        "trois"
+      ],
+      "response": "Il y a exactement 5 clients VIP. Bryan Lenz, Sophie Lenz et Marc Schmitt sont des clients VIP.  [Sources: 1, 2, 3] \n\n1 lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 583,
+      "score": 100,
+      "reason": "Found 2/3 keywords: VIP, 3"
+    },
+    {
+      "module": "crm",
+      "path": "/crm/clients",
+      "q": "ville de Pedro Silva",
+      "expect": [
+        "pas",
+        "aucune",
+        "Pedro"
+      ],
+      "response": "Pedro Silva vit à  \"2026-02-15\". \n\n[Sources: 1] 1 lien-action (ex \"/hr/conges\") + citations",
+      "ms": 428,
+      "score": 80,
+      "reason": "Found 1/3 keywords: Pedro"
+    },
+    {
+      "module": "invoices",
+      "path": "/invoices/factures",
+      "q": "facture F-2026-0142",
+      "expect": [
+        "1250",
+        "212.5",
+        "15",
+        "avril",
+        "Brasserie"
+      ],
+      "response": "La facture F-2026-0142 a été envoyée le 15 avril 2026.  Le montant total de la facture est de 1250 euros. Le taux de TVA est de 212,5 euros.\n\n1 lien-action (ex \"/hr/conges\") + citations\n[Sources: 1]",
+      "ms": 693,
+      "score": 100,
+      "reason": "Found 3/5 keywords: 1250, 15, avril"
+    },
+    {
+      "module": "invoices",
+      "path": "/invoices/factures",
+      "q": "qui doit le plus d'argent ?",
+      "expect": [
+        "Brasserie",
+        "Pizza",
+        "overdue",
+        "retard"
+      ],
+      "response": "La Brasserie du Centre a payé 2100€ et l'autre restaurant a payé 480€.  [Sources: 3, 4] \n\n1 lien-action (ex \"/hr/conges\") + citations",
+      "ms": 555,
+      "score": 80,
+      "reason": "Found 1/4 keywords: Brasserie"
+    },
+    {
+      "module": "invoices",
+      "path": "/invoices/factures",
+      "q": "factures de Brasserie du Centre",
+      "expect": [
+        "F-2026",
+        "Brasserie"
+      ],
+      "response": "La Brasserie du Centre a deux factures: F-2026-0142 et F-2026-0138. Le montant total de la facture F-2026-0142 est de 1250 €.  [Sources: 1, 2]\n1 lien-action (ex \"/hr/conges\") + citations",
+      "ms": 728,
+      "score": 100,
+      "reason": "Found 2/2 keywords: F-2026, Brasserie"
+    },
+    {
+      "module": "invoices",
+      "path": "/invoices/factures",
+      "q": "total des impayés",
+      "expect": [
+        "€",
+        "impay",
+        "total"
+      ],
+      "response": "Le total des impayés pour les factures F-2026-0142 et F-2026-0141 est de 1250€ + 480€.  [Sources: 1, 2] \n\n1 lien-action (ex \"/hr/conges\") + citations",
+      "ms": 697,
+      "score": 100,
+      "reason": "Found 3/3 keywords: €, impay, total"
+    },
+    {
+      "module": "invoices",
+      "path": "/invoices/factures",
+      "q": "factures payées en mars",
+      "expect": [
+        "mars",
+        "pay",
+        "F-2026"
+      ],
+      "response": "Il y a deux factures payées en mars: F-2026-0141 et F-2026-0138.  Le montant total de la facture F-2026-0141 est de 480€ et le montant total de la facture F-2026-0138 est de 950€. [Sources: 2, 5] \n1 lien-action (ex \"/hr/conges\") + citations",
+      "ms": 938,
+      "score": 100,
+      "reason": "Found 3/3 keywords: mars, pay, F-2026"
+    },
+    {
+      "module": "invoices",
+      "path": "/invoices/factures",
+      "q": "date d'échéance de F-2026-0140",
+      "expect": [
+        "2026",
+        "avril",
+        "20"
+      ],
+      "response": "La date d'échéance de F-2026-0140 est le 20 avril 2026.  Le montant total de la facture est de 720€.  [Sources: 1]\n\n1 lien-action /invoices/factures + [Sources: 1]",
+      "ms": 625,
+      "score": 100,
+      "reason": "Found 3/3 keywords: 2026, avril, 20"
+    },
+    {
+      "module": "invoices",
+      "path": "/invoices/factures",
+      "q": "combien de factures au total ?",
+      "expect": [
+        "6",
+        "factures",
+        "six"
+      ],
+      "response": "Il y a un total de 5 factures au total.  La facture F-2026-0142 est de 1250€ et la facture F-2026-0141 est de 480€. La facture F-2026-0140 a un montant de 720€.  [Sources: 1, 2, 3, 4] \n1 lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 958,
+      "score": 100,
+      "reason": "Found 2/3 keywords: 6, factures"
+    },
+    {
+      "module": "invoices",
+      "path": "/invoices/factures",
+      "q": "invente une facture",
+      "forbid": [
+        "F-9999",
+        "invente"
+      ],
+      "response": "🚫 Je ne crée pas de fausses données. Pour créer une vraie entrée, utilisez le bouton dédié dans le module concerné (ex : \"+ Nouveau\" sur /invoices/factures).",
+      "ms": 1,
+      "score": 50,
+      "reason": "No assertions"
+    },
+    {
+      "module": "invoices",
+      "path": "/invoices/factures",
+      "q": "TVA totale collectée",
+      "expect": [
+        "TVA",
+        "€",
+        "total"
+      ],
+      "response": "La TVA totale collectée pour les factures est de 212.5€.  Les factures F-2026-0142 et F-2026-0141 ont un total de 1250€ + 480€ respectivement. [Sources: 1, 2] \n1 lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 823,
+      "score": 100,
+      "reason": "Found 3/3 keywords: TVA, €, total"
+    },
+    {
+      "module": "invoices",
+      "path": "/invoices/factures",
+      "q": "quelle est la facture la plus chère",
+      "expect": [
+        "2100",
+        "F-2026-0139",
+        "Bistro"
+      ],
+      "response": "La facture la plus chère est F-2026-0142 avec un montant de 1250€.  F-2026-0141 et F-2026-0138 ont des montants respectifs de 480€ et 950€. [Sources: 1, 2]\n1 lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 858,
+      "score": 30,
+      "reason": "Vague (no expected keyword)"
+    },
+    {
+      "module": "hr",
+      "path": "/hr/planning",
+      "q": "quand a Sophie congé ?",
+      "expect": [
+        "Sophie",
+        "27",
+        "28",
+        "29",
+        "30",
+        "avril",
+        "1er",
+        "mai",
+        "Klein"
+      ],
+      "response": "Sophie Klein a un congé du 27 avril au 30 avril.  Elle a également une journée de congé le 1er mai.  [Sources: <shifts>]\n\nVoir /hr/conges + citations",
+      "ms": 516,
+      "score": 100,
+      "reason": "Found 7/9 keywords: Sophie, 27, 30, avril, 1er, mai, Klein"
+    },
+    {
+      "module": "hr",
+      "path": "/hr/planning",
+      "q": "qui est malade cette semaine ?",
+      "expect": [
+        "Jean",
+        "Anna",
+        "Muller",
+        "Schmitt",
+        "grippe",
+        "migraine"
+      ],
+      "response": "Sophie Klein est malade ce week-end.  Claire Reuter et Jean Muller sont malades. 1 lien-action /hr/conges + citations [Sources: 1, 2]",
+      "ms": 628,
+      "score": 100,
+      "reason": "Found 2/6 keywords: Jean, Muller"
+    },
+    {
+      "module": "hr",
+      "path": "/hr/planning",
+      "q": "qui travaille le 1er mai ?",
+      "expect": [
+        "Luc",
+        "Marie",
+        "Pierre",
+        "Weber",
+        "Dupont",
+        "Martin"
+      ],
+      "response": "Sophie Klein travaille le 1er mai.  Claire Reuter et Jean Muller sont malades ce week-end.  Luc Weber a un shift le 1er mai. \n\n[Sources: 1, 2]",
+      "ms": 658,
+      "score": 100,
+      "reason": "Found 2/6 keywords: Luc, Weber"
+    },
+    {
+      "module": "hr",
+      "path": "/hr/planning",
+      "q": "qui est cuisinier ?",
+      "expect": [
+        "Jean",
+        "Luc",
+        "Anna",
+        "Muller",
+        "Weber",
+        "Schmitt"
+      ],
+      "response": "Jean Muller est cuisinier.  Luc Weber est également cuisinier. Sophie Klein est manager. \n\n[Sources: 1, 2]",
+      "ms": 551,
+      "score": 100,
+      "reason": "Found 4/6 keywords: Jean, Luc, Muller, Weber"
+    },
+    {
+      "module": "hr",
+      "path": "/hr/planning",
+      "q": "horaires de Marie Dupont",
+      "expect": [
+        "10:00",
+        "16:00",
+        "Marie",
+        "Dupont"
+      ],
+      "response": "Marie Dupont travaille comme serveur du 27 avril au 30 avril, et le 1er mai.  Elle a des horaires de 10h à 16h tous les jours. \n\n[Sources: 1, 2, 3, 4, 5]",
+      "ms": 613,
+      "score": 100,
+      "reason": "Found 2/4 keywords: Marie, Dupont"
+    },
+    {
+      "module": "hr",
+      "path": "/hr/planning",
+      "q": "qui a une migraine ?",
+      "expect": [
+        "Anna",
+        "Jean",
+        "migraine"
+      ],
+      "response": "Anna Schmitt a une migraine le 30 avril.  Luc Weber a des horaires de travail le 27, 28 et 29 avril. Marie Dupont travaille du 27 au 30 avril. \n\n1 lien-action /hr/conges + citations\n[Sources: 1, 2]",
+      "ms": 810,
+      "score": 100,
+      "reason": "Found 2/3 keywords: Anna, migraine"
+    },
+    {
+      "module": "hr",
+      "path": "/hr/planning",
+      "q": "shifts du serveur Pierre Martin",
+      "expect": [
+        "Pierre",
+        "Martin",
+        "16:00",
+        "23:00"
+      ],
+      "response": "Pierre Martin a des shifts le 29 avril, 30 avril et 1er mai.  Il travaille comme serveur.  [Sources: 1, 2] \n\n1 lien-action /hr/conges + citations",
+      "ms": 515,
+      "score": 100,
+      "reason": "Found 2/4 keywords: Pierre, Martin"
+    },
+    {
+      "module": "hr",
+      "path": "/hr/planning",
+      "q": "invente un employé",
+      "forbid": [
+        "invente"
+      ],
+      "response": "🚫 Je ne crée pas de fausses données. Pour créer une vraie entrée, utilisez le bouton dédié dans le module concerné (ex : \"+ Nouveau\" sur /hr/planning).",
+      "ms": 1,
+      "score": 50,
+      "reason": "No assertions"
+    },
+    {
+      "module": "hr",
+      "path": "/hr/planning",
+      "q": "qui est en congé personnel ?",
+      "expect": [
+        "Claire",
+        "Reuter",
+        "personnel"
+      ],
+      "response": "Sophie Klein est en congé personnel du 27 avril au 30 avril et le 1er mai.  Luc Weber est en absence le 29 avril, 30 avril et 1er mai. Marie Dupont travaille comme serveur du 27 avril au 30 avril, et le 1er mai. [Sources: \"",
+      "ms": 820,
+      "score": 80,
+      "reason": "Found 1/3 keywords: personnel"
+    },
+    {
+      "module": "hr",
+      "path": "/hr/planning",
+      "q": "combien de personnes travaillent lundi 27 avril",
+      "expect": [
+        "lundi",
+        "27",
+        "shift"
+      ],
+      "response": "Il y a 8 employés qui travaillent lundi 27 avril.  Marie Dupont, Luc Weber et Jean Muller sont parmi eux. [Sources: /hr/planning] 1 lien-action (ex \"/hr/conges\") + citations",
+      "ms": 684,
+      "score": 100,
+      "reason": "Found 2/3 keywords: lundi, 27"
+    },
+    {
+      "module": "inv",
+      "path": "/inventory/stock",
+      "q": "combien de tomates en stock ?",
+      "expect": [
+        "tomate",
+        "pas",
+        "aucune",
+        "stock"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /inventory/stock. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 100,
+      "reason": "Found 2/4 keywords: pas, stock"
+    },
+    {
+      "module": "inv",
+      "path": "/inventory/stock",
+      "q": "articles en rupture",
+      "expect": [
+        "rupture",
+        "pas",
+        "stock"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /inventory/stock. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 100,
+      "reason": "Found 2/3 keywords: pas, stock"
+    },
+    {
+      "module": "inv",
+      "path": "/inventory/stock",
+      "q": "invente un produit",
+      "forbid": [
+        "invente"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /inventory/stock. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 50,
+      "reason": "No assertions"
+    },
+    {
+      "module": "inv",
+      "path": "/inventory/stock",
+      "q": "valeur totale du stock",
+      "expect": [
+        "€",
+        "valeur",
+        "stock",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /inventory/stock. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 100,
+      "reason": "Found 2/4 keywords: stock, pas"
+    },
+    {
+      "module": "inv",
+      "path": "/inventory/stock",
+      "q": "ai-je du basilic ?",
+      "expect": [
+        "basilic",
+        "pas",
+        "aucun"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /inventory/stock. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 0,
+      "score": 80,
+      "reason": "Found 1/3 keywords: pas"
+    },
+    {
+      "module": "inv",
+      "path": "/inventory/stock",
+      "q": "quel produit périme bientôt",
+      "expect": [
+        "périm",
+        "pas",
+        "aucun"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /inventory/stock. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 0,
+      "score": 80,
+      "reason": "Found 1/3 keywords: pas"
+    },
+    {
+      "module": "inv",
+      "path": "/inventory/stock",
+      "q": "quel est le stock minimum recommandé",
+      "expect": [
+        "minimum",
+        "stock",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /inventory/stock. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 100,
+      "reason": "Found 2/3 keywords: stock, pas"
+    },
+    {
+      "module": "inv",
+      "path": "/inventory/stock",
+      "q": "liste tous les fournisseurs",
+      "expect": [
+        "fournisseur",
+        "pas",
+        "aucun"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /inventory/stock. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/3 keywords: pas"
+    },
+    {
+      "module": "inv",
+      "path": "/inventory/stock",
+      "q": "quantité de mozzarella",
+      "expect": [
+        "mozzarella",
+        "pas",
+        "aucune"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /inventory/stock. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/3 keywords: pas"
+    },
+    {
+      "module": "inv",
+      "path": "/inventory/stock",
+      "q": "derniere réception",
+      "expect": [
+        "réception",
+        "pas",
+        "récept"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /inventory/stock. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/3 keywords: pas"
+    },
+    {
+      "module": "acc",
+      "path": "/accounting/depenses",
+      "q": "CA du mois",
+      "expect": [
+        "€",
+        "CA",
+        "pas"
+      ],
+      "response": "Le CA total pour le mois de avril s'élève à 3 870,50 euros.  Il y a eu 4 factures envoyées et 2 factures payées.  [Sources: \"i001\", \"i002\", \"i003\", \"i004\", \"i005\"] \n1 lien-action (ex /hr/conges) + citations",
+      "ms": 821,
+      "score": 80,
+      "reason": "Found 1/3 keywords: CA"
+    },
+    {
+      "module": "acc",
+      "path": "/accounting/depenses",
+      "q": "TVA collectée ce trimestre",
+      "expect": [
+        "TVA",
+        "€",
+        "pas"
+      ],
+      "response": "La TVA collectée ce trimestre s'élève à 212,50 euros.  Le montant total des factures pour ce trimestre est de 3 870,50 euros.  [Sources: \"i001\", \"i002\", \"i003\", \"i004\", \"i005\"] \n1 lien-action (ex /accounting/depenses) + citations",
+      "ms": 824,
+      "score": 80,
+      "reason": "Found 1/3 keywords: TVA"
+    },
+    {
+      "module": "acc",
+      "path": "/accounting/depenses",
+      "q": "top 3 catégories de dépenses",
+      "expect": [
+        "catégorie",
+        "pas",
+        "dépense"
+      ],
+      "response": "Voici les 3 catégories de dépenses avec leurs montants:\n\n* La catégorie \"Brasserie du Centre\" a un montant total de 2100 euros.  \n* La catégorie \"Pizza Belval\" a un montant total de 720 euros. \n* La catégorie \"Café Namur\" a un montant total de 480 euros. \n\n\n[Sources: i001, i002, i003, i004, i005]",
+      "ms": 908,
+      "score": 100,
+      "reason": "Found 2/3 keywords: catégorie, dépense"
+    },
+    {
+      "module": "acc",
+      "path": "/accounting/depenses",
+      "q": "invente un montant",
+      "forbid": [
+        "invente",
+        "999999"
+      ],
+      "response": "🚫 Je ne crée pas de fausses données. Pour créer une vraie entrée, utilisez le bouton dédié dans le module concerné (ex : \"+ Nouveau\" sur /accounting/depenses).",
+      "ms": 1,
+      "score": 50,
+      "reason": "No assertions"
+    },
+    {
+      "module": "acc",
+      "path": "/accounting/depenses",
+      "q": "marge brute",
+      "expect": [
+        "marge",
+        "brute",
+        "pas",
+        "€"
+      ],
+      "response": "La marge brute pour le mois de mars s'élève à 1250 euros.  Le total des factures pour ce trimestre s'élève à 3 870,50 euros.  Il y a eu 4 factures envoyées et 2 fact. \n\n[Sources: i001, i002, i003, i004, i005]\nVoir /hr/conges",
+      "ms": 853,
+      "score": 100,
+      "reason": "Found 2/4 keywords: marge, brute"
+    },
+    {
+      "module": "acc",
+      "path": "/accounting/depenses",
+      "q": "masse salariale",
+      "expect": [
+        "salar",
+        "pas",
+        "€"
+      ],
+      "response": "La masse salariale pour le mois de mars s'élève à 1250 euros.  Le total des factures pour ce trimestre s'élève à 3 870,50 euros.  Il y a eu 4 factures envoyées et 2 fact. [Sources: <i001>, <i002>, <i003>, <i004>, <i005>]\n1 lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 942,
+      "score": 80,
+      "reason": "Found 1/3 keywords: salar"
+    },
+    {
+      "module": "acc",
+      "path": "/accounting/depenses",
+      "q": "dépense la plus élevée",
+      "expect": [
+        "€",
+        "dépense",
+        "pas"
+      ],
+      "response": "La dépense la plus élevée s'élève à 2100 euros, facturée au Bistro Place d'Armes.  Le total des factures pour ce trimestre s'élève à 3 870,50 euros. [Sources: i004, i005] \n1 lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 758,
+      "score": 80,
+      "reason": "Found 1/3 keywords: dépense"
+    },
+    {
+      "module": "acc",
+      "path": "/accounting/depenses",
+      "q": "taxe sur boissons",
+      "expect": [
+        "boisson",
+        "TVA",
+        "pas"
+      ],
+      "response": "La taxe sur les boissons s'élève à 212,50 euros.  Le total des factures pour ce trimestre s'élève à 2100 euros.  Ce montant a été facturé au Bistro Place d'Armes. [Sources: i004] \n\n1 lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 726,
+      "score": 80,
+      "reason": "Found 1/3 keywords: boisson"
+    },
+    {
+      "module": "acc",
+      "path": "/accounting/depenses",
+      "q": "date de clôture",
+      "expect": [
+        "clôture",
+        "pas",
+        "date"
+      ],
+      "response": "La date de clôture du document est le 2026-05-15.  Le total des factures pour ce trimestre s'élève à 2100 euros.  Le total des factures pour ce trimestre s'élève à 2100 euros, facturée au Bistro Place d'Armes. [Sources: i004]\n1 lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 840,
+      "score": 100,
+      "reason": "Found 2/3 keywords: clôture, date"
+    },
+    {
+      "module": "acc",
+      "path": "/accounting/depenses",
+      "q": "écart vs mois dernier",
+      "expect": [
+        "mois",
+        "€",
+        "pas"
+      ],
+      "response": "L'écart entre les dépenses du mois dernier et celles de ce mois est de 1250 euros.  Le total des factures pour ce trimestre s'élève à 357,50 euros.  [Sources: <i004>, <i005>] \n\n1 lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 728,
+      "score": 80,
+      "reason": "Found 1/3 keywords: mois"
+    },
+    {
+      "module": "rep",
+      "path": "/reputation/avis",
+      "q": "note moyenne",
+      "expect": [
+        "note",
+        "⭐",
+        "pas",
+        "/5"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /reputation/avis. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/4 keywords: pas"
+    },
+    {
+      "module": "rep",
+      "path": "/reputation/avis",
+      "q": "avis négatifs récents",
+      "expect": [
+        "avis",
+        "négatif",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /reputation/avis. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 100,
+      "reason": "Found 2/3 keywords: avis, pas"
+    },
+    {
+      "module": "rep",
+      "path": "/reputation/avis",
+      "q": "meilleur avis",
+      "expect": [
+        "avis",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /reputation/avis. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 100,
+      "reason": "Found 2/2 keywords: avis, pas"
+    },
+    {
+      "module": "rep",
+      "path": "/reputation/avis",
+      "q": "invente un avis 1 étoile",
+      "forbid": [
+        "invente"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /reputation/avis. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 50,
+      "reason": "No assertions"
+    },
+    {
+      "module": "rep",
+      "path": "/reputation/avis",
+      "q": "avis Google ce mois",
+      "expect": [
+        "Google",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /reputation/avis. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/2 keywords: pas"
+    },
+    {
+      "module": "rep",
+      "path": "/reputation/avis",
+      "q": "plateforme avec le plus d'avis",
+      "expect": [
+        "plateforme",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /reputation/avis. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/2 keywords: pas"
+    },
+    {
+      "module": "rep",
+      "path": "/reputation/avis",
+      "q": "pourcentage de positifs",
+      "expect": [
+        "%",
+        "pas",
+        "positif"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /reputation/avis. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/3 keywords: pas"
+    },
+    {
+      "module": "rep",
+      "path": "/reputation/avis",
+      "q": "temps moyen de réponse",
+      "expect": [
+        "temps",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /reputation/avis. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 0,
+      "score": 80,
+      "reason": "Found 1/2 keywords: pas"
+    },
+    {
+      "module": "rep",
+      "path": "/reputation/avis",
+      "q": "qui répond aux avis",
+      "expect": [
+        "pas",
+        "avis"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /reputation/avis. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 100,
+      "reason": "Found 2/2 keywords: pas, avis"
+    },
+    {
+      "module": "rep",
+      "path": "/reputation/avis",
+      "q": "avis non répondus",
+      "expect": [
+        "avis",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /reputation/avis. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 100,
+      "reason": "Found 2/2 keywords: avis, pas"
+    },
+    {
+      "module": "mkt",
+      "path": "/marketing",
+      "q": "dernière campagne",
+      "expect": [
+        "campagne",
+        "pas"
+      ],
+      "response": "La dernière campagne a été lancée le 2026-04-25.  Le total des factures pour ce trimestre s'élève à 1250 euros. [Sources: 1] \n\nVoir /marketing/campagnes + citations",
+      "ms": 604,
+      "score": 80,
+      "reason": "Found 1/2 keywords: campagne"
+    },
+    {
+      "module": "mkt",
+      "path": "/marketing",
+      "q": "taux d'ouverture moyen",
+      "expect": [
+        "taux",
+        "%",
+        "pas"
+      ],
+      "response": "Le taux d'ouverture moyen des clients VIP est de 80%.  La date de l'information est le 2026-04-25. [Sources: 1] \n\n1. lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 638,
+      "score": 100,
+      "reason": "Found 2/3 keywords: taux, %"
+    },
+    {
+      "module": "mkt",
+      "path": "/marketing",
+      "q": "audience la plus engagée",
+      "expect": [
+        "audience",
+        "pas"
+      ],
+      "response": "L'audience la plus engagée du restaurant est Bryan Lenz, Sophie Lenz et Marc Schmitt.  Le total des factures pour ce trimestre s'élève à 2450 euros. [Sources: 1] \n\n1 lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 661,
+      "score": 80,
+      "reason": "Found 1/2 keywords: audience"
+    },
+    {
+      "module": "mkt",
+      "path": "/marketing",
+      "q": "invente une campagne",
+      "forbid": [
+        "invente"
+      ],
+      "response": "🚫 Je ne crée pas de fausses données. Pour créer une vraie entrée, utilisez le bouton dédié dans le module concerné (ex : \"+ Nouveau\" sur /marketing).",
+      "ms": 2,
+      "score": 50,
+      "reason": "No assertions"
+    },
+    {
+      "module": "mkt",
+      "path": "/marketing",
+      "q": "budget marketing",
+      "expect": [
+        "budget",
+        "pas",
+        "€"
+      ],
+      "response": "Le budget marketing du restaurant est de 2450 euros pour Bryan Lenz, Sophie Lenz et Marc Schmitt.  La date de l'information est le 2026-04-25. [Sources: 1] \n\n1 lien-action /marketing/budget + citations",
+      "ms": 642,
+      "score": 80,
+      "reason": "Found 1/3 keywords: budget"
+    },
+    {
+      "module": "mkt",
+      "path": "/marketing",
+      "q": "meilleur canal",
+      "expect": [
+        "canal",
+        "pas"
+      ],
+      "response": "Le meilleur canal pour atteindre les clients VIP semble être via Bryan Lenz, Sophie Lenz et Marc Schmitt.  L'information sur les campagnes marketing est disponible dans la page /campaigns. 1 lien-action (ex \"Voir /hr/conges\") + citations [Sources: <id1>, <id2>]",
+      "ms": 655,
+      "score": 80,
+      "reason": "Found 1/2 keywords: canal"
+    },
+    {
+      "module": "mkt",
+      "path": "/marketing",
+      "q": "ROI campagne email",
+      "expect": [
+        "ROI",
+        "pas",
+        "email"
+      ],
+      "response": "Le ROI de la campagne email du restaurant est inconnu.  La date de l'information est le 2026-04-25. [Sources: 1] \n\n1 lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 595,
+      "score": 100,
+      "reason": "Found 2/3 keywords: ROI, email"
+    },
+    {
+      "module": "mkt",
+      "path": "/marketing",
+      "q": "codes promo actifs",
+      "expect": [
+        "code",
+        "pas",
+        "promo"
+      ],
+      "response": "Ce document ne contient aucune information sur les codes promo actifs.  [Sources: 1] \n\nVoir /hr/conges + citations",
+      "ms": 413,
+      "score": 100,
+      "reason": "Found 2/3 keywords: code, promo"
+    },
+    {
+      "module": "mkt",
+      "path": "/marketing",
+      "q": "segments clients",
+      "expect": [
+        "segment",
+        "pas"
+      ],
+      "response": "Le restaurant a trois segments clients VIP: Bryan Lenz, Sophie Lenz et Marc Sch.  La tier de ces clients est VIP et leur score est 92, 88 et 65 respectivement. [Sources: 1, 2] \n\n1 lien-action (ex \"Voir /hr/conges\") + citations",
+      "ms": 673,
+      "score": 80,
+      "reason": "Found 1/2 keywords: segment"
+    },
+    {
+      "module": "mkt",
+      "path": "/marketing",
+      "q": "prochaine campagne planifiée",
+      "expect": [
+        "campagne",
+        "pas"
+      ],
+      "response": "La prochaine campagne planifiée du restaurant est pour Bryan Lenz, Sophie Lenz et Marc Sch.  Le budget marketing du restaurant est de 2450 euros pour ces clients VIP. [Sources: 5] 1 lien-action + citations",
+      "ms": 563,
+      "score": 80,
+      "reason": "Found 1/2 keywords: campagne"
+    },
+    {
+      "module": "agenda",
+      "path": "/agenda/calendrier",
+      "q": "réservations aujourd'hui",
+      "expect": [
+        "réservation",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /agenda/calendrier. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/2 keywords: pas"
+    },
+    {
+      "module": "agenda",
+      "path": "/agenda/calendrier",
+      "q": "no-shows ce mois",
+      "expect": [
+        "no-show",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /agenda/calendrier. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 0,
+      "score": 80,
+      "reason": "Found 1/2 keywords: pas"
+    },
+    {
+      "module": "agenda",
+      "path": "/agenda/calendrier",
+      "q": "prochain événement privé",
+      "expect": [
+        "événement",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /agenda/calendrier. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/2 keywords: pas"
+    },
+    {
+      "module": "agenda",
+      "path": "/agenda/calendrier",
+      "q": "invente une réservation",
+      "forbid": [
+        "invente"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /agenda/calendrier. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 50,
+      "reason": "No assertions"
+    },
+    {
+      "module": "agenda",
+      "path": "/agenda/calendrier",
+      "q": "taux d'occupation",
+      "expect": [
+        "taux",
+        "%",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /agenda/calendrier. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/3 keywords: pas"
+    },
+    {
+      "module": "agenda",
+      "path": "/agenda/calendrier",
+      "q": "plage la plus demandée",
+      "expect": [
+        "plage",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /agenda/calendrier. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 0,
+      "score": 80,
+      "reason": "Found 1/2 keywords: pas"
+    },
+    {
+      "module": "agenda",
+      "path": "/agenda/calendrier",
+      "q": "capacité totale",
+      "expect": [
+        "capacité",
+        "pas",
+        "place"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /agenda/calendrier. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/3 keywords: pas"
+    },
+    {
+      "module": "agenda",
+      "path": "/agenda/calendrier",
+      "q": "liste d'attente",
+      "expect": [
+        "liste",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /agenda/calendrier. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/2 keywords: pas"
+    },
+    {
+      "module": "agenda",
+      "path": "/agenda/calendrier",
+      "q": "budget mariage 50 personnes",
+      "expect": [
+        "budget",
+        "pas",
+        "mariage"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /agenda/calendrier. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/3 keywords: pas"
+    },
+    {
+      "module": "agenda",
+      "path": "/agenda/calendrier",
+      "q": "horaires d'ouverture",
+      "expect": [
+        "horaire",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /agenda/calendrier. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/2 keywords: pas"
+    },
+    {
+      "module": "haccp",
+      "path": "/haccp/journee",
+      "q": "pointages effectués aujourd'hui",
+      "expect": [
+        "pointage",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /haccp/journee. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 0,
+      "score": 80,
+      "reason": "Found 1/2 keywords: pas"
+    },
+    {
+      "module": "haccp",
+      "path": "/haccp/journee",
+      "q": "température du frigo principal",
+      "expect": [
+        "température",
+        "°C",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /haccp/journee. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/3 keywords: pas"
+    },
+    {
+      "module": "haccp",
+      "path": "/haccp/journee",
+      "q": "derniere alerte température",
+      "expect": [
+        "alerte",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /haccp/journee. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/2 keywords: pas"
+    },
+    {
+      "module": "haccp",
+      "path": "/haccp/journee",
+      "q": "invente une alerte",
+      "forbid": [
+        "invente"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /haccp/journee. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 50,
+      "reason": "No assertions"
+    },
+    {
+      "module": "haccp",
+      "path": "/haccp/journee",
+      "q": "date du dernier audit",
+      "expect": [
+        "audit",
+        "pas",
+        "date"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /haccp/journee. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/3 keywords: pas"
+    },
+    {
+      "module": "haccp",
+      "path": "/haccp/journee",
+      "q": "sondes connectées",
+      "expect": [
+        "sonde",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /haccp/journee. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/2 keywords: pas"
+    },
+    {
+      "module": "haccp",
+      "path": "/haccp/journee",
+      "q": "tâche de nettoyage en retard",
+      "expect": [
+        "nettoyage",
+        "pas",
+        "tâche"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /haccp/journee. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 80,
+      "reason": "Found 1/3 keywords: pas"
+    },
+    {
+      "module": "haccp",
+      "path": "/haccp/journee",
+      "q": "employé HACCP référent",
+      "expect": [
+        "employé",
+        "HACCP",
+        "pas"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /haccp/journee. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 1,
+      "score": 100,
+      "reason": "Found 2/3 keywords: HACCP, pas"
+    },
+    {
+      "module": "haccp",
+      "path": "/haccp/journee",
+      "q": "historique 30 derniers jours",
+      "expect": [
+        "historique",
+        "pas",
+        "jours"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /haccp/journee. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 0,
+      "score": 80,
+      "reason": "Found 1/3 keywords: pas"
+    },
+    {
+      "module": "haccp",
+      "path": "/haccp/journee",
+      "q": "derniere réception fournisseur",
+      "expect": [
+        "réception",
+        "pas",
+        "fournisseur"
+      ],
+      "response": "🔍 Pas de données pour répondre à cette question sur /haccp/journee. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.",
+      "ms": 0,
+      "score": 80,
+      "reason": "Found 1/3 keywords: pas"
+    }
+  ]
+}

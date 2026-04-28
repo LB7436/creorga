@@ -489,7 +489,9 @@ export default function ClientsPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <AIActionMenu module="crm" context={{ totalClients: customers.length, segments: ['VIP','Régulier','Occasionnel'] }} label="IA Clients" />
+          <span data-tour="ai-menu" style={{ display: 'contents' }}>
+            <AIActionMenu module="crm" context={{ totalClients: customers.length, segments: ['VIP','Régulier','Occasionnel'] }} label="IA Clients" />
+          </span>
           <button onClick={handleExportCSV}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,

@@ -843,7 +843,7 @@ export default function FacturesPage() {
               style={{ ...smallBtnStyle, padding: '10px 16px', background: '#fff', border: '1px solid #e2e8f0' }}>
               <Zap size={14} style={{ color: '#f59e0b' }} /> Synchro banque
             </button>
-            <button onClick={() => setShowModal(true)}
+            <button data-tour="new-invoice" onClick={() => setShowModal(true)}
               style={{
                 padding: '10px 24px', borderRadius: 12, border: 'none',
                 background: '#065F46', color: '#fff', fontWeight: 600, fontSize: 14,

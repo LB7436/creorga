@@ -443,7 +443,9 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
 
           {/* Action buttons */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginTop: 12 }}>
-            <ActionBtn label="Remise" sub="F1" onClick={() => setShowRemise(true)} />
+            <span data-tour="discount-btn" style={{ display: 'contents' }}>
+              <ActionBtn label="Remise" sub="F1" onClick={() => setShowRemise(true)} />
+            </span>
             <ActionBtn label="Note" sub="F2" onClick={() => setShowNote(true)} />
             <ActionBtn label="Cuisine" sub="F3" onClick={() => setShowCuisine(true)} />
             <ActionBtn label={onHold ? 'Reprise' : 'En attente'} onClick={() => setOnHold(!onHold)} color={onHold ? '#fbbf24' : undefined} />

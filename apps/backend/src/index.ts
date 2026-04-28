@@ -62,6 +62,7 @@ import inventoryAIRoutes from './routes/inventory-ai'
 import adsRoutes from './routes/ads'
 import aiActionsRoutes from './routes/ai-actions'
 import agentRoutes from './routes/agent'
+import helpFeedbackRoutes from './routes/help-feedback'
 
 const app = express()
 const httpServer = createServer(app)
@@ -129,6 +130,7 @@ app.use('/api/inventory-ocr', inventoryAIRoutes)
 app.use('/api/ads', adsRoutes)
 app.use('/api/ai', aiActionsRoutes)
 app.use('/api/agent', agentRoutes)
+app.use('/api/help/feedback', helpFeedbackRoutes)
 
 // Error handler
 app.use(errorHandler)

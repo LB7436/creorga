@@ -507,6 +507,7 @@ export default function ClientsConfig() {
                 return (
                   <motion.div
                     key={toggle.id}
+                    data-tour={i === 0 ? 'portal-toggle' : undefined}
                     initial={{ opacity: 0, x: -12 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.05 * i + 0.1, duration: 0.3 }}

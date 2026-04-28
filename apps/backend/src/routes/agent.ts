@@ -629,45 +629,309 @@ function filterContext(ctx: SmartContext, entities: { names: string[]; numbers: 
   return filtered
 }
 
+// LRU cache (Phase 2B#5) — keyed by question+path, TTL 1 h
+const responseCache = new Map<string, { ts: number; payload: any }>()
+const CACHE_TTL_MS = 60 * 60 * 1000
+
+// Phase 2B#3 — Conversation memory per userId (last 20 exchanges)
+const CHAT_MEMORY_DIR = path.join(DATA_DIR, 'chats')
+function loadMemory(userId: string): Array<{ q: string; a: string; ts: number }> {
+  const f = path.join(CHAT_MEMORY_DIR, `${userId}.json`)
+  if (!fs.existsSync(f)) return []
+  try { return JSON.parse(fs.readFileSync(f, 'utf8')) } catch { return [] }
+}
+function saveMemory(userId: string, q: string, a: string) {
+  if (!fs.existsSync(CHAT_MEMORY_DIR)) fs.mkdirSync(CHAT_MEMORY_DIR, { recursive: true })
+  const f = path.join(CHAT_MEMORY_DIR, `${userId}.json`)
+  const mem = loadMemory(userId)
+  mem.unshift({ q, a, ts: Date.now() })
+  if (mem.length > 20) mem.length = 20
+  fs.writeFileSync(f, JSON.stringify(mem, null, 2), 'utf8')
+}
+
+/** Detect "complex" questions to auto-route to gemma2:9b (Phase 2B#2)
+ *  with graceful fallback to 2b if 9b not installed. */
+let _gemma9bAvailable: boolean | null = null
+async function isGemma9bAvailable(): Promise<boolean> {
+  if (_gemma9bAvailable !== null) return _gemma9bAvailable
+  try {
+    const r = await fetch(`${OLLAMA_URL}/api/tags`)
+    if (!r.ok) { _gemma9bAvailable = false; return false }
+    const data = await r.json() as { models?: any[] }
+    _gemma9bAvailable = !!(data.models || []).find((m: any) => String(m.name).startsWith('gemma2:9b'))
+    return _gemma9bAvailable
+  } catch { _gemma9bAvailable = false; return false }
+}
+
+async function pickModel(question: string, contextSize: number): Promise<string> {
+  const q = (question || '').toLowerCase()
+  const complex = /\banalyse?\b|\boptimise?\b|\bcompare?\b|\bpr[ée]vois?\b|\bplanifie?\b|\brecommande?\b|\bsuggest|complexe/i.test(q)
+  if (complex || question.length > 200 || contextSize > 2500) {
+    if (await isGemma9bAvailable()) return 'gemma2:9b'
+  }
+  return 'gemma2:2b'
+}
+
+/** Detect "invent / imagine / fake" attempts to refuse cleanly */
+function isInventAttempt(q: string): boolean {
+  return /\binvent[ée]?\b|\bimagine\b|\bfake\b|\bfais semblant\b|\bsimule\b|\bcr[ée]e?\s+moi\s+un\b/i.test(q || '')
+}
+
+/** Returns true if the slice is essentially empty (no useful data) */
+function isContextEmpty(slice: SmartContext): boolean {
+  const keys = Object.keys(slice).filter((k) => {
+    const v = (slice as any)[k]
+    if (Array.isArray(v)) return v.length > 0
+    if (typeof v === 'object' && v !== null) return Object.keys(v).length > 0
+    return v != null
+  })
+  return keys.length === 0
+}
+
 router.post('/smart-query', async (req, res) => {
-  const { question, currentPath } = req.body || {}
+  const { question, currentPath, userId = 'default' } = req.body || {}
   if (!question) return res.status(400).json({ kind: 'error', text: 'Question requise.' })
 
   const ctx = loadRelevantContext(currentPath || '/')
   const entities = extractEntities(question)
   const slice = filterContext(ctx, entities)
 
-  const prompt = `Tu es l'agent IA Creorga, assistant intelligent pour restaurants.
-On te pose une question. Tu as accès à la base de données filtrée ci-dessous.
-Réponds de manière FACTUELLE en t'appuyant sur les données réelles.
-Si l'info n'est pas dans les données, dis-le franchement et propose où chercher.
+  // Cache check (Phase 2B#5)
+  const cacheKey = `${currentPath}::${userId}::${question.toLowerCase().trim()}`
+  const cached = responseCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    return res.json({ ...cached.payload, cached: true })
+  }
 
+  // Phase 2B#3 — load last 5 exchanges as conversation memory
+  const memory = loadMemory(userId).slice(0, 5)
+  const memorySummary = memory.length > 0
+    ? memory.map((m, i) => `[${i + 1}] Q: "${m.q.slice(0, 100)}" → R: "${m.a.slice(0, 100)}"`).join('\n')
+    : ''
+
+  // Anti-hallucination short-circuit (Phase 0a) :
+  // if context is empty, return a clean fallback without prompting Gemma.
+  if (isContextEmpty(slice)) {
+    const fallback = {
+      kind: 'text' as const,
+      text: `🔍 Pas de données pour répondre à cette question sur ${currentPath || '/'}. Vérifiez le module concerné — utilisez les commandes prédéfinies dans l'onglet Agent IA pour des réponses garanties.`,
+      debug: { entities, contextSize: 0, model: 'fallback' },
+    }
+    return res.json(fallback)
+  }
+
+  // Anti-invent : refuse fake-data requests
+  if (isInventAttempt(question)) {
+    return res.json({
+      kind: 'text',
+      text: `🚫 Je ne crée pas de fausses données. Pour créer une vraie entrée, utilisez le bouton dédié dans le module concerné (ex : "+ Nouveau" sur ${currentPath}).`,
+      debug: { entities, contextSize: 0, model: 'refuse-invent' },
+    })
+  }
+
+  const contextSize = JSON.stringify(slice).length
+  const model = await pickModel(question, contextSize)
+
+  const prompt = `Tu es l'agent IA Creorga, assistant intelligent pour restaurants.
+
+⚠️ RÈGLES STRICTES — ANTI-HALLUCINATION :
+- Tu DOIS utiliser EXCLUSIVEMENT les données JSON ci-dessous pour répondre.
+- Si la question concerne un prix/montant/date/personne et que la donnée n'est PAS dans le JSON : tu réponds "Pas de données" + lien.
+- N'INVENTE JAMAIS un prix, un nom, une date, un montant qui ne figure pas littéralement dans le JSON.
+- Tu n'as PAS de connaissance externe sur le restaurant. Si tu n'as pas la donnée, refuse poliment.
+- Tu IGNORES les noms d'IDs (F-2026-XXXX, ID xxx) qui ne correspondent PAS à la question.
+
+🌐 MULTI-LANGUE : si la question est en allemand/anglais/portugais, réponds dans cette langue. Sinon, en français.
+
+📚 CITATIONS (Phase 2B#4) : à la fin, ajoute "[Sources: <id1>, <id2>]" en listant les IDs JSON utilisés.
+${memorySummary ? `\n💬 Mémoire conversation (référence si pertinent) :\n${memorySummary}\n` : ''}
 Page courante : ${currentPath || '/'}
 Question utilisateur : "${question}"
 
-Données disponibles (JSON, déjà filtrées par les entités détectées) :
+Données filtrées (les seules autorisées) :
 ${JSON.stringify(slice, null, 2).slice(0, 4000)}
 
-Règles :
-- Maximum 4 phrases
-- Cite les noms / dates / chiffres exacts trouvés dans les données
-- Termine par 1 lien-action si pertinent (ex : "Voir /hr/conges pour gérer.")
-- Si données vides, dis : "Aucune donnée pour répondre. Allez dans /xxx pour créer."`
+Format de réponse :
+- Maximum 3 phrases courtes
+- Cite uniquement les chiffres/noms/dates EXACTS du JSON ci-dessus
+- Termine par : 1 lien-action (ex "Voir /hr/conges") + citations
+- Si la question est hors-sujet par rapport aux données : dis "Cette information n'est pas dans cette page. Essayez le module XX."`
 
   try {
     const ollamaRes = await fetch(`${OLLAMA_URL}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma2:2b', prompt, stream: false }),
+      body: JSON.stringify({
+        model,
+        prompt,
+        stream: false,
+        options: { temperature: 0.1, top_p: 0.5 }, // Phase 0a: low creativity
+      }),
     })
     if (!ollamaRes.ok) {
       return res.json({ kind: 'error', text: `❌ Ollama indisponible (${ollamaRes.status}). Vérifiez qu'Ollama tourne.` })
     }
     const data = await ollamaRes.json() as { response?: string }
     const text = (data.response || '').trim() || 'Pas de réponse Gemma.'
-    res.json({ kind: 'text', text, debug: { entities, contextSize: JSON.stringify(slice).length } })
+    const payload = { kind: 'text', text, debug: { entities, contextSize, model, memoryUsed: memory.length } }
+    // Update cache + memory
+    responseCache.set(cacheKey, { ts: Date.now(), payload })
+    saveMemory(userId, question, text)
+    if (responseCache.size > 200) {
+      // Evict oldest
+      const oldest = [...responseCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0]
+      if (oldest) responseCache.delete(oldest[0])
+    }
+    res.json(payload)
   } catch (e: any) {
     res.json({ kind: 'error', text: '❌ ' + (e?.message || 'Erreur smart-query') })
+  }
+})
+
+// Phase 1 — Vision : analyze restaurant photos to generate floor plan
+router.post('/analyze-photos', async (req, res) => {
+  const { photos } = req.body || {}
+  if (!Array.isArray(photos) || photos.length === 0) {
+    return res.status(400).json({ kind: 'error', text: 'photos[] (base64) requis' })
+  }
+  const results: any[] = []
+  for (let i = 0; i < photos.length && i < 8; i++) {
+    const photo = photos[i]
+    // Strip data URL prefix if any
+    const b64 = String(photo).replace(/^data:image\/\w+;base64,/, '')
+    const prompt = `Tu es un expert en aménagement de restaurant. Analyse cette photo d'un café/restaurant.
+Retourne UNIQUEMENT un JSON strict (pas de markdown, pas de texte autour) :
+{
+  "zone": "salle principale | bar | terrasse | cuisine | comptoir | entrée",
+  "tablesCount": <nombre de tables visibles>,
+  "seatsCount": <nombre de places assises estimé>,
+  "features": [<liste parmi : "comptoir", "bar", "escalier", "fenêtres", "tv", "scène", "fumoir", "vitrine">],
+  "lighting": "claire | tamisée | sombre",
+  "style": "moderne | classique | rustique | industriel",
+  "estimatedSize_m2": <surface en m² estimée>
+}`
+    try {
+      const ollamaRes = await fetch(`${OLLAMA_URL}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'llava:7b',
+          prompt,
+          images: [b64],
+          stream: false,
+          format: 'json',
+          options: { temperature: 0.2 },
+        }),
+      })
+      if (!ollamaRes.ok) {
+        results.push({ photoIndex: i, error: `LLaVA ${ollamaRes.status}` })
+        continue
+      }
+      const data = await ollamaRes.json() as { response?: string }
+      try {
+        const parsed = JSON.parse(data.response || '{}')
+        results.push({ photoIndex: i, ...parsed })
+      } catch {
+        results.push({ photoIndex: i, raw: data.response, error: 'parse failed' })
+      }
+    } catch (e: any) {
+      results.push({ photoIndex: i, error: e?.message || 'unknown' })
+    }
+  }
+
+  // Aggregate into a FloorState proposal
+  const totalTables = results.reduce((s, r) => s + (Number(r.tablesCount) || 0), 0)
+  const allFeatures = [...new Set(results.flatMap((r) => r.features || []))]
+  const zones = [...new Set(results.map((r) => r.zone).filter(Boolean))]
+  const totalSize = results.reduce((s, r) => s + (Number(r.estimatedSize_m2) || 0), 0)
+
+  // Generate proposed FloorState
+  const proposal = {
+    zones: zones.map((name: any, i: number) => ({
+      id: String(name).toLowerCase().replace(/\s+/g, '-'),
+      name: String(name),
+      color: ['#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#3b82f6'][i % 5],
+    })),
+    tables: Array.from({ length: Math.max(1, totalTables) }, (_, i) => ({
+      id: `t${i + 1}`,
+      name: `T${i + 1}`,
+      seats: Math.round(totalSize > 0 ? Math.max(2, totalSize / Math.max(1, totalTables) / 2) : 4),
+      section: zones[i % Math.max(1, zones.length)] || 'Salle',
+      shape: 'round',
+      status: 'LIBRE',
+      x: 100 + (i % 4) * 150,
+      y: 100 + Math.floor(i / 4) * 150,
+      items: [],
+    })),
+  }
+
+  res.json({
+    kind: 'data',
+    summary: {
+      photosAnalyzed: results.length,
+      totalTables,
+      zones,
+      features: allFeatures,
+      estimatedSize_m2: totalSize,
+    },
+    perPhoto: results,
+    proposal,
+  })
+})
+
+// Phase 2B#1 — Streaming SSE version
+router.post('/smart-query-stream', async (req, res) => {
+  const { question, currentPath } = req.body || {}
+  if (!question) return res.status(400).end()
+  const ctx = loadRelevantContext(currentPath || '/')
+  const slice = filterContext(ctx, extractEntities(question))
+  if (isContextEmpty(slice)) {
+    res.setHeader('Content-Type', 'text/event-stream')
+    res.write(`data: ${JSON.stringify({ chunk: '🔍 Pas de données pour cette question.' })}\n\n`)
+    res.write('data: [DONE]\n\n')
+    return res.end()
+  }
+  const model = pickModel(question, JSON.stringify(slice).length)
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  try {
+    const ollamaRes = await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        prompt: `Tu es l'agent IA Creorga. Réponds factuellement à : "${question}" en utilisant SEULEMENT ce JSON :\n${JSON.stringify(slice).slice(0, 3000)}\nMax 3 phrases.`,
+        stream: true,
+        options: { temperature: 0.1 },
+      }),
+    })
+    if (!ollamaRes.ok || !ollamaRes.body) {
+      res.write(`data: ${JSON.stringify({ chunk: '❌ Ollama indisponible' })}\n\n`)
+      return res.end()
+    }
+    const reader = ollamaRes.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      for (const line of lines) {
+        if (!line.trim()) continue
+        try {
+          const j = JSON.parse(line) as { response?: string; done?: boolean }
+          if (j.response) res.write(`data: ${JSON.stringify({ chunk: j.response })}\n\n`)
+          if (j.done) { res.write('data: [DONE]\n\n'); return res.end() }
+        } catch { /* skip */ }
+      }
+    }
+    res.write('data: [DONE]\n\n')
+    res.end()
+  } catch (e: any) {
+    res.write(`data: ${JSON.stringify({ chunk: '❌ ' + (e?.message || 'erreur') })}\n\n`)
+    res.end()
   }
 })
 

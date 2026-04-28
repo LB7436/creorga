@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import InstallPrompt from '@/components/InstallPrompt'
 import HelpChatbot from '@/components/HelpChatbot'
+import UniversalSearch from '@/components/UniversalSearch'
 import OnboardingWizard from '@/components/OnboardingWizard'
 import RequireAuth from '@/components/auth/RequireAuth'
 import { useAuthStore } from '@/stores/authStore'
@@ -26,6 +27,7 @@ import AdsAdminPage from '@/pages/ads/AdsAdminPage'
 import TVDisplayPage from '@/pages/ads/TVDisplayPage'
 import MusicPage from '@/pages/music/MusicPage'
 import SetupWizard from '@/pages/onboarding/SetupWizard'
+import FloorVisionWizard from '@/pages/setup/FloorVisionWizard'
 import UnifiedFloorPlan from '@/pages/pos/UnifiedFloorPlan'
 import GuestHome from '@/pages/guest/GuestHome'
 import AdminLayout from '@/pages/admin/AdminLayout'
@@ -195,6 +197,7 @@ function App() {
       {/* Auth-only without AppShell */}
       <Route path="/welcome" element={<RequireAuth><Welcome /></RequireAuth>} />
       <Route path="/setup" element={<RequireAuth><SetupWizard /></RequireAuth>} />
+      <Route path="/setup/floor-vision" element={<RequireAuth><FloorVisionWizard /></RequireAuth>} />
       <Route path="/modules" element={<RequireAuth><ModuleSelector /></RequireAuth>} />
       <Route path="/pos/kitchen" element={<RequireAuth><Kitchen /></RequireAuth>} />
       <Route path="/qrmenu" element={<RequireAuth><QrMenuPage /></RequireAuth>} />
@@ -474,6 +477,7 @@ function App() {
     <BackToStart />
     <InstallPrompt />
     <HelpChatbot />
+    <UniversalSearch />
     {showOnboarding && (
       <OnboardingWizard
         onComplete={() => setShowOnboarding(false)}
