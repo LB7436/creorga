@@ -4,6 +4,7 @@ import InstallPrompt from '@/components/InstallPrompt'
 import HelpChatbot from '@/components/HelpChatbot'
 import AssistantPanel from '@/components/AssistantPanel'
 import AssistantLauncher from '@/components/AssistantLauncher'
+import BirthdayCelebrate from '@/components/BirthdayCelebrate'
 import UniversalSearch from '@/components/UniversalSearch'
 import OnboardingWizard from '@/components/OnboardingWizard'
 import RequireAuth from '@/components/auth/RequireAuth'
@@ -37,6 +38,7 @@ import MobileRobi from '@/pages/mobile/MobileRobi'
 import MobileAlerts from '@/pages/mobile/MobileAlerts'
 import MobileWorld from '@/pages/mobile/MobileWorld'
 import MobileSettings from '@/pages/mobile/MobileSettings'
+import MobileCamera from '@/pages/mobile/MobileCamera'
 import UnifiedFloorPlan from '@/pages/pos/UnifiedFloorPlan'
 import GuestHome from '@/pages/guest/GuestHome'
 import AdminLayout from '@/pages/admin/AdminLayout'
@@ -216,6 +218,7 @@ function App() {
         <Route path="alerts" element={<MobileAlerts />} />
         <Route path="world" element={<MobileWorld />} />
         <Route path="settings" element={<MobileSettings />} />
+        <Route path="camera" element={<MobileCamera />} />
       </Route>
       <Route path="/modules" element={<RequireAuth><ModuleSelector /></RequireAuth>} />
       <Route path="/pos/kitchen" element={<RequireAuth><Kitchen /></RequireAuth>} />
@@ -499,6 +502,7 @@ function App() {
     <UniversalSearch />
     <AssistantLauncher />
     <AssistantPanel />
+    <BirthdayCelebrate />
     {showOnboarding && (
       <OnboardingWizard
         onComplete={() => setShowOnboarding(false)}

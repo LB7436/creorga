@@ -129,11 +129,23 @@ export default function AssistantPanel() {
     setInput('')
     a.setMode('thinking')
     try {
-      const r = await fetch(`${BACKEND}/api/agent/intent`, {
+      // v3.11 : workflow endpoint auto-detects multi-step ("X et Y et Z")
+      const r = await fetch(`${BACKEND}/api/agent/workflow`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, currentPath: location.pathname, userId: 'default' }),
       })
       const data = await r.json()
+
+      if (data.kind === 'workflow') {
+        const stepCount = data.steps?.length || 0
+        a.addMessage({
+          role: 'bot',
+          text: `🔗 Workflow ${stepCount} étapes :\n` + (data.steps || []).map((s: any, i: number) => `${i+1}. ${s.summary || s.text || '?'}`).join('\n'),
+          action: { intent: 'workflow', success: data.success, summary: data.summary },
+        })
+        speak(data.summary)
+        return
+      }
 
       if (data.kind === 'action') {
         a.addMessage({

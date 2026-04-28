@@ -64,6 +64,7 @@ import aiActionsRoutes from './routes/ai-actions'
 import agentRoutes from './routes/agent'
 import helpFeedbackRoutes from './routes/help-feedback'
 import assistantRoutes from './routes/assistant'
+import assistantAdvancedRoutes from './routes/assistant-advanced'
 
 const app = express()
 const httpServer = createServer(app)
@@ -134,6 +135,7 @@ app.use('/api/agent', agentRoutes)
 app.use('/api/help/feedback', helpFeedbackRoutes)
 // v3.9 — assistantRoutes MUST be before agentRoutes to take precedence on /intent
 app.use('/api/agent', assistantRoutes)
+app.use('/api/agent', assistantAdvancedRoutes)
 
 // Error handler
 app.use(errorHandler)
