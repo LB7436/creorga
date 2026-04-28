@@ -1,0 +1,41 @@
+{
+  "packageId": "lu.creorga.os",
+  "host": "hygiene-funny-grams-verde.trycloudflare.com",
+  "name": "Creorga · Robi",
+  "launcherName": "Creorga",
+  "display": "standalone",
+  "themeColor": "#8b5cf6",
+  "navigationColor": "#0a0a14",
+  "navigationColorDark": "#0a0a14",
+  "navigationDividerColor": "#0a0a14",
+  "navigationDividerColorDark": "#0a0a14",
+  "backgroundColor": "#0a0a14",
+  "enableNotifications": true,
+  "startUrl": "/m/demo",
+  "iconUrl": "https://hygiene-funny-grams-verde.trycloudflare.com/icon-512.png",
+  "maskableIconUrl": "https://hygiene-funny-grams-verde.trycloudflare.com/icon-512.png",
+  "monochromeIconUrl": "https://hygiene-funny-grams-verde.trycloudflare.com/icon-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "shortcuts": [
+    { "name": "Robi", "short_name": "Robi", "url": "/m/robi", "chosenIconUrl": "https://hygiene-funny-grams-verde.trycloudflare.com/icon-192.png" },
+    { "name": "Live", "short_name": "Live", "url": "/m", "chosenIconUrl": "https://hygiene-funny-grams-verde.trycloudflare.com/icon-192.png" }
+  ],
+  "generatorApp": "creorga-build",
+  "webManifestUrl": "https://hygiene-funny-grams-verde.trycloudflare.com/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": { "enabled": false },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://hygiene-funny-grams-verde.trycloudflare.com/",
+  "minSdkVersion": 21,
+  "orientation": "portrait",
+  "additionalTrustedOrigins": [
+    "https://division-diffs-stakeholders-become.trycloudflare.com"
+  ],
+  "retainedBundles": [],
+  "appVersion": "1.0.0",
+  "appVersionCode": 1,
+  "shareTarget": {}
+}
