@@ -121,9 +121,9 @@ export default function MobileLive() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
           <QuickAction emoji="🤖" label="Parler à Robi" to="/m/robi" />
+          <QuickAction emoji="📸" label="OCR Caméra" to="/m/camera" />
           <QuickAction emoji="📋" label="Plan de salle" to="/pos/floor" />
           <QuickAction emoji="🗓" label="Planning" to="/hr/planning" />
-          <QuickAction emoji="📑" label="Factures" to="/invoices/factures" />
         </div>
       </div>
 

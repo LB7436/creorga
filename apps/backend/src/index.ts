@@ -91,6 +91,19 @@ const corsOptions = {
 
 const io = new SocketServer(httpServer, { cors: corsOptions })
 
+// v3.12 #29 — WebSocket Live channel for assistant + KPI realtime push
+const liveNs = io.of('/live')
+liveNs.on('connection', (socket) => {
+  socket.emit('hello', { ts: Date.now(), version: 'v3.12' })
+  socket.on('subscribe', (channels: string[]) => {
+    channels.forEach((c) => socket.join(c))
+  })
+})
+// Broadcast helper used by routes (assistant, floor-state, invoices, etc.)
+;(globalThis as any).liveBroadcast = (channel: string, event: string, payload: any) => {
+  liveNs.to(channel).emit(event, { ts: Date.now(), ...payload })
+}
+
 // Middleware
 app.use(helmet())
 app.use(cors(corsOptions))

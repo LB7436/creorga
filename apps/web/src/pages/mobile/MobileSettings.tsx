@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, Volume2, Settings, User, Palette, ChevronRight } from 'lucide-react'
+import { Bell, Volume2, Settings, User, Palette, ChevronRight, Fingerprint, Car, MapPin, Mic } from 'lucide-react'
 import { useAssistant } from '@/stores/assistantStore'
 import AssistantMascot from '@/components/AssistantMascot'
+import { biometricChallenge, getLocationStatus, enablePushNotifications } from '@/lib/assistantFeatures'
 
 export default function MobileSettings() {
   const a = useAssistant()
@@ -52,12 +53,49 @@ export default function MobileSettings() {
         <Row icon={Volume2} label="Auto-écoute">
           <Toggle on={a.autoListen} onChange={a.setAutoListen} />
         </Row>
+        {/* v3.12 #7 — Voix par mascotte */}
+        <Row icon={Volume2} label={`Profil voix · ${a.voiceProfile}`}>
+          <select value={a.voiceProfile} onChange={(e) => a.setVoiceProfile(e.target.value as any)}
+            style={selectStyle}>
+            <option value="auto">Auto (mascotte)</option>
+            <option value="masculine">Masculine</option>
+            <option value="feminine">Féminine</option>
+            <option value="warm">Chaleureuse</option>
+            <option value="energetic">Énergique</option>
+            <option value="robotic">Robotique</option>
+          </select>
+        </Row>
+        {/* v3.12 #1 — Wake word */}
+        <Row icon={Mic} label={`Wake word "Hey ${a.name}"`}>
+          <Toggle on={a.wakeWordEnabled} onChange={a.setWakeWordEnabled} />
+        </Row>
+      </Section>
+
+      {/* Modes */}
+      <Section title="Modes">
+        {/* v3.12 #17 — Mode conduite */}
+        <Row icon={Car} label="Mode conduite (mains-libres)">
+          <Toggle on={a.drivingMode} onChange={a.setDrivingMode} />
+        </Row>
+        {/* v3.12 #14 — Garde biométrique */}
+        <Row icon={Fingerprint} label="Confirmer biométrie pour > 200 €">
+          <Toggle on={a.biometricGuard} onChange={a.setBiometricGuard} />
+        </Row>
       </Section>
 
       {/* Notifications */}
       <Section title="Notifications">
         <Row icon={Bell} label="Push (alertes critiques)" onClick={requestPush}>
           <Toggle on={pushEnabled} onChange={() => requestPush()} />
+        </Row>
+        {/* v3.12 #18 — Géolocalisation */}
+        <Row icon={MapPin} label="Géolocalisation (resto vs distant)" onClick={async () => {
+          const loc = await getLocationStatus()
+          alert(loc.available
+            ? `📍 ${loc.isAtRestaurant ? 'Au restaurant' : 'À distance'} (${loc.distanceMeters} m)`
+            : `❌ ${loc.reason || 'Indisponible'}`)
+        }}>
+          <ChevronRight size={14} />
         </Row>
       </Section>
 
@@ -77,6 +115,13 @@ export default function MobileSettings() {
               new Notification('🚨 Test notification', { body: 'Si vous voyez ceci, tout fonctionne.', icon: '/icon-192.png' })
             else
               alert('Activez les notifications d\'abord ↑')
+          }}>
+          <ChevronRight size={14} />
+        </Row>
+        <Row icon={Fingerprint} label="Tester biométrie (Face ID / empreinte)"
+          onClick={async () => {
+            const ok = await biometricChallenge('Confirmer votre identité')
+            alert(ok ? '✅ Biométrie validée' : '❌ Biométrie refusée')
           }}>
           <ChevronRight size={14} />
         </Row>
@@ -141,4 +186,10 @@ const inputStyle: React.CSSProperties = {
   width: 100, padding: '4px 8px', borderRadius: 6,
   border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)',
   color: '#fff', fontSize: 12, textAlign: 'right', outline: 'none',
+}
+
+const selectStyle: React.CSSProperties = {
+  padding: '4px 8px', borderRadius: 6,
+  border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)',
+  color: '#fff', fontSize: 11, outline: 'none',
 }

@@ -307,6 +307,128 @@ router.delete('/aliases/:userId/:id', (req, res) => {
 // WEATHER + EVENTS LU (#34)  — wttr.in is free, no key
 // ═══════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════
+// AUDIT LOGS (#9) — every assistant action is recorded for CNPD compliance
+// ═══════════════════════════════════════════════════════════════════════
+
+interface AuditEntry {
+  id: string
+  ts: number
+  iso: string
+  userId: string
+  action: 'intent' | 'workflow' | 'undo' | 'memory' | 'login' | 'logout' | 'biometric'
+  intent?: string
+  text?: string
+  success: boolean
+  ip?: string
+  userAgent?: string
+}
+
+router.post('/audit', (req, res) => {
+  const dir = path.join(DATA_DIR, 'audit')
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  const day = new Date().toISOString().slice(0, 10)
+  const file = path.join(dir, `${day}.json`)
+  let log: AuditEntry[] = []
+  if (fs.existsSync(file)) { try { log = JSON.parse(fs.readFileSync(file, 'utf8')) } catch { log = [] } }
+  const entry: AuditEntry = {
+    id: Math.random().toString(36).slice(2, 12),
+    ts: Date.now(),
+    iso: new Date().toISOString(),
+    userId: req.body.userId || 'default',
+    action: req.body.action,
+    intent: req.body.intent,
+    text: String(req.body.text || '').slice(0, 200),
+    success: !!req.body.success,
+    ip: req.ip,
+    userAgent: req.get('user-agent'),
+  }
+  log.unshift(entry)
+  if (log.length > 5000) log.length = 5000
+  fs.writeFileSync(file, JSON.stringify(log, null, 2), 'utf8')
+  res.json({ ok: true })
+})
+
+router.get('/audit/:date?', (req, res) => {
+  const day = req.params.date || new Date().toISOString().slice(0, 10)
+  const file = path.join(DATA_DIR, 'audit', `${day}.json`)
+  if (!fs.existsSync(file)) return res.json({ date: day, entries: [] })
+  try { res.json({ date: day, entries: JSON.parse(fs.readFileSync(file, 'utf8')) }) }
+  catch { res.json({ date: day, entries: [] }) }
+})
+
+// CSV export for CNPD audit
+router.get('/audit/:date/export.csv', (req, res) => {
+  const file = path.join(DATA_DIR, 'audit', `${req.params.date}.json`)
+  if (!fs.existsSync(file)) return res.status(404).send('not found')
+  const log = JSON.parse(fs.readFileSync(file, 'utf8')) as AuditEntry[]
+  const csv = [
+    'iso,userId,action,intent,success,text',
+    ...log.map((e) => `"${e.iso}","${e.userId}","${e.action}","${e.intent || ''}","${e.success}","${(e.text || '').replace(/"/g, '""')}"`),
+  ].join('\n')
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="audit-${req.params.date}.csv"`)
+  res.send(csv)
+})
+
+// ═══════════════════════════════════════════════════════════════════════
+// HEAT MAP data (#25) — sales by hour for the last 24h, animatable
+// ═══════════════════════════════════════════════════════════════════════
+router.get('/heatmap/today', (_req, res) => {
+  const invoices = loadJson<any[]>('invoices.json', [])
+  const today = new Date().toISOString().slice(0, 10)
+  const hours = Array.from({ length: 24 }, () => ({ count: 0, total: 0 }))
+  for (const inv of invoices) {
+    if (inv.date !== today) continue
+    const h = new Date(inv.date + 'T12:00').getHours()
+    hours[h].count++
+    hours[h].total += inv.total || 0
+  }
+  res.json({ date: today, hours })
+})
+
+// ═══════════════════════════════════════════════════════════════════════
+// WHATSAPP TEMPLATE (#24) — patron en vacances : staff envoie message Robi en
+// fait l'analyse avec contexte, propose réponse adaptée au manager.
+// ═══════════════════════════════════════════════════════════════════════
+router.post('/whatsapp/draft-reply', async (req, res) => {
+  const { from, message } = req.body || {}
+  if (!message) return res.status(400).json({ error: 'message required' })
+  // Compose a context-aware reply via Gemma smart-query
+  const r = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/smart-query`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      question: `Un employé "${from || 'staff'}" m'a envoyé sur WhatsApp : "${message}". Rédige une réponse courte pour lui (2 phrases max).`,
+      currentPath: '/m', userId: 'patron-vacation',
+    }),
+  })
+  const data = await r.json()
+  res.json({
+    from, message,
+    suggestedReply: data.text || 'Merci, je reviens vers toi dès que possible.',
+    autoSendDisabled: true,  // patron review required
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════
+// MULTI-TENANT (#19) — switch active site
+// ═══════════════════════════════════════════════════════════════════════
+router.get('/sites', (_req, res) => {
+  const sites = loadJson<any[]>('sites.json', [
+    { id: 'caferp',  name: 'Café um Rond-Point', city: 'Rumelange',         active: true },
+    { id: 'brasc',   name: 'Brasserie du Centre', city: 'Luxembourg-Ville',  active: false },
+    { id: 'pizzab',  name: 'Pizza Belval',        city: 'Esch-sur-Alzette',  active: false },
+  ])
+  res.json({ sites })
+})
+
+router.post('/sites/switch/:id', (req, res) => {
+  const sites = loadJson<any[]>('sites.json', [])
+  for (const s of sites) s.active = s.id === req.params.id
+  saveJson('sites.json', sites)
+  res.json({ ok: true, active: req.params.id })
+})
+
 router.get('/weather/luxembourg', async (_req, res) => {
   try {
     const r = await fetch('https://wttr.in/Luxembourg?format=j1')
