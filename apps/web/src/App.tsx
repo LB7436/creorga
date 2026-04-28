@@ -31,6 +31,12 @@ import MusicPage from '@/pages/music/MusicPage'
 import SetupWizard from '@/pages/onboarding/SetupWizard'
 import FloorVisionWizard from '@/pages/setup/FloorVisionWizard'
 import AssistantPick from '@/pages/setup/AssistantPick'
+import MobileLayout from '@/pages/mobile/MobileLayout'
+import MobileLive from '@/pages/mobile/MobileLive'
+import MobileRobi from '@/pages/mobile/MobileRobi'
+import MobileAlerts from '@/pages/mobile/MobileAlerts'
+import MobileWorld from '@/pages/mobile/MobileWorld'
+import MobileSettings from '@/pages/mobile/MobileSettings'
 import UnifiedFloorPlan from '@/pages/pos/UnifiedFloorPlan'
 import GuestHome from '@/pages/guest/GuestHome'
 import AdminLayout from '@/pages/admin/AdminLayout'
@@ -202,6 +208,15 @@ function App() {
       <Route path="/setup" element={<RequireAuth><SetupWizard /></RequireAuth>} />
       <Route path="/setup/floor-vision" element={<RequireAuth><FloorVisionWizard /></RequireAuth>} />
       <Route path="/setup/assistant" element={<RequireAuth><AssistantPick /></RequireAuth>} />
+
+      {/* Mobile / PWA — accessible without AppShell */}
+      <Route path="/m" element={<MobileLayout />}>
+        <Route index element={<MobileLive />} />
+        <Route path="robi" element={<MobileRobi />} />
+        <Route path="alerts" element={<MobileAlerts />} />
+        <Route path="world" element={<MobileWorld />} />
+        <Route path="settings" element={<MobileSettings />} />
+      </Route>
       <Route path="/modules" element={<RequireAuth><ModuleSelector /></RequireAuth>} />
       <Route path="/pos/kitchen" element={<RequireAuth><Kitchen /></RequireAuth>} />
       <Route path="/qrmenu" element={<RequireAuth><QrMenuPage /></RequireAuth>} />

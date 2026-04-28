@@ -1,12 +1,13 @@
 {
-  "name": "Creorga OS - Gestion de restaurant",
+  "name": "Creorga OS — Assistant à distance",
   "short_name": "Creorga",
-  "description": "Plateforme de gestion complète pour restaurants et cafés au Luxembourg",
-  "start_url": "/",
+  "description": "Pilotez votre restaurant depuis votre téléphone via Robi, votre assistant IA. Tableau de bord patron, alertes critiques, contrôle vocal à distance.",
+  "start_url": "/m",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#6366f1",
-  "orientation": "any",
+  "background_color": "#0a0a14",
+  "theme_color": "#8b5cf6",
+  "orientation": "portrait",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
@@ -15,9 +16,9 @@
   "lang": "fr-LU",
   "dir": "ltr",
   "shortcuts": [
-    { "name": "Dashboard", "url": "/", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}] },
-    { "name": "POS", "url": "/pos/dashboard", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}] },
-    { "name": "Notifications", "url": "/notifications", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}] }
+    { "name": "Robi (assistant vocal)", "short_name": "Robi", "url": "/m/robi", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}] },
+    { "name": "Dashboard live", "short_name": "Live", "url": "/m", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}] },
+    { "name": "Alertes critiques", "short_name": "Alertes", "url": "/m/alerts", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}] }
   ],
   "screenshots": [
     { "src": "/screenshot-1.png", "sizes": "1280x720", "type": "image/png" }

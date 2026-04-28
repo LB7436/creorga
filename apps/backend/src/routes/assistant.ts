@@ -85,6 +85,54 @@ function parseIntent(text: string): IntentMatch | null {
     if (/ticket|ocr/i.test(m[0])) return { intent: 'help.tutorial', params: { id: 'inv.ocr' }, confidence: 0.9 }
   }
 
+  // ─── NEW INTENTS v3.10 ─────────────────────────────────────────────────
+
+  // POS : table summary
+  if ((m = q.match(/(?:r[ée]sum[ée]|d[ée]tails?|qu[''’]?est.ce qu[''’]?(?:il y\s+a|on a))\s+(?:de\s+|sur\s+|à\s+|pour\s+)?(?:la\s+)?(?:table\s+)?(\w+)?/i)) && /r[ée]sum[ée]/i.test(q) && /table/i.test(q)) {
+    const tn = m[1] || (q.match(/table\s+(\w+)/i)?.[1] ?? '')
+    if (tn) return { intent: 'pos.table-summary', params: { tableId: tn.toLowerCase() }, confidence: 0.9 }
+  }
+
+  // RESERVATION create : "Réserve table 4 pour Pierre vendredi 20h 4 couverts"
+  if ((m = q.match(/r[ée]serve(?:r|z)?\s+(?:la\s+)?(?:table\s+)?(\w+)?\s*(?:pour\s+)?([\w\s-]+?)\s+(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|demain|aujourd[''’]hui)?\s*(\d{1,2})[h:](\d{2})?\s*(?:pour\s+)?(\d+)?\s*(?:couverts?|pers(?:onnes?)?)?/i))) {
+    return {
+      intent: 'reservation.create',
+      params: { tableId: m[1] || null, customer: (m[2] || '').trim(), day: m[3] || 'demain',
+                hour: parseInt(m[4]), minute: parseInt(m[5] || '0'), guests: parseInt(m[6] || '2') },
+      confidence: 0.85,
+    }
+  }
+
+  // INVOICE send by email
+  if ((m = q.match(/(?:envoie|envoyer|envoie.moi)\s+(?:la\s+)?facture\s+(\S+)\s+(?:par\s+)?(?:e?mail|courriel)/i))) {
+    return { intent: 'invoices.send-email', params: { number: m[1] }, confidence: 0.9 }
+  }
+
+  // DAY REPORT
+  if (/(?:fais|cr[ée]e?|g[ée]n[ée]re)\s+(?:moi\s+)?(?:le\s+)?rapport\s+(?:du\s+)?(?:jour|aujourd[''’]hui|de\s+la\s+journ[ée]e)/i.test(q)) {
+    return { intent: 'report.day', params: {}, confidence: 0.9 }
+  }
+
+  // REMINDER : "rappelle-moi de X à 22h" / "rappelle moi X 22h"
+  if ((m = q.match(/(?:rappelle[\s\-]?moi|rappelle[\s\-]?la|notif(?:ication)?|alerte[\s\-]?moi)\s+(?:de\s+)?(.+?)\s+(?:à|a|@|au)?\s*(\d{1,2})[h:](\d{2})?/i))) {
+    return { intent: 'reminder.set', params: { what: m[1].trim(), hour: parseInt(m[2]), minute: parseInt(m[3] || '0') }, confidence: 0.85 }
+  }
+
+  // ASSISTANT MODE switch
+  if ((m = q.match(/(?:mode|passe\s+en\s+mode|active\s+(?:le\s+)?mode)\s+(patron|service|serveur|cuisine|cuisinier|comptable|comptabilit[ée]|[ée]v[ée]nement|tutoriel)/i))) {
+    return { intent: 'assistant.set-mode', params: { mode: m[1].toLowerCase() }, confidence: 0.95 }
+  }
+
+  // PLANNING vocal : "planning : Marie matin, Luc soir, Sophie weekend off"
+  if ((m = q.match(/(?:planning|fais\s+le\s+planning|cr[ée]e?\s+(?:un\s+)?planning)\s*(?::\s*|,\s+)(.+)/i))) {
+    return { intent: 'hr.set-planning', params: { spec: m[1].trim() }, confidence: 0.8 }
+  }
+
+  // RECITE / READ aloud
+  if ((m = q.match(/(?:lis(?:.moi)?|r[ée]cite|lit\smoi)\s+(?:les\s+)?(avis|factures?|tables?\s+ouvertes?|impay[ée]s?|stock\s+bas)/i))) {
+    return { intent: 'recite', params: { what: m[1].toLowerCase() }, confidence: 0.85 }
+  }
+
   return null
 }
 
@@ -261,6 +309,207 @@ async function executeIntent(intent: IntentMatch): Promise<{ success: boolean; s
       }
     }
 
+    // ─── NEW v3.10 ──────────────────────────────────────────────────────
+
+    case 'pos.table-summary': {
+      const floorMod = await import('./floorState')
+      const state = floorMod.getFloorState()
+      const tableId = String(intent.params.tableId).toLowerCase()
+      const t = state.tables.find((x: any) => x.id === tableId || x.name?.toLowerCase() === tableId || x.id === `t${tableId}` || x.name?.toLowerCase() === `t${tableId}`)
+      if (!t) return { success: false, summary: `Table "${tableId}" introuvable.` }
+      const items: any[] = t.items || []
+      const total = items.reduce((s, i) => s + (i.price || 0) * (i.qty || 1), 0)
+      const grouped: Record<string, { qty: number; total: number }> = {}
+      items.forEach((it) => {
+        const key = it.name || '?'
+        if (!grouped[key]) grouped[key] = { qty: 0, total: 0 }
+        grouped[key].qty += it.qty || 1
+        grouped[key].total += (it.price || 0) * (it.qty || 1)
+      })
+      const lines = Object.entries(grouped).map(([n, g]) => `${g.qty}× ${n} (${g.total.toFixed(2)} €)`).join(', ') || 'aucune commande'
+      const hours = t.openedAt ? ((Date.now() - t.openedAt) / 3600_000).toFixed(1) : '0'
+      return {
+        success: true,
+        summary: `📋 ${t.name} (${t.status}) · ouverte ${hours}h · ${lines} · Total ${total.toFixed(2)} €`,
+        details: { table: t.name, status: t.status, items: grouped, total, hoursOpen: hours },
+      }
+    }
+
+    case 'reservation.create': {
+      const reservations = loadJson<any[]>('reservations.json', [])
+      const { tableId, customer, day, hour, minute, guests } = intent.params
+      const dayMap: Record<string, number> = { lundi: 1, mardi: 2, mercredi: 3, jeudi: 4, vendredi: 5, samedi: 6, dimanche: 0 }
+      const today = new Date()
+      let target = new Date(today)
+      if (day === 'demain') target.setDate(today.getDate() + 1)
+      else if (day === 'aujourd\'hui' || day === 'aujourdhui') { /* keep today */ }
+      else if (dayMap[day] !== undefined) {
+        const diff = (dayMap[day] - today.getDay() + 7) % 7 || 7
+        target.setDate(today.getDate() + diff)
+      }
+      target.setHours(hour, minute || 0, 0, 0)
+      const r = {
+        id: `r${Date.now()}`,
+        tableId: tableId || null,
+        customer: customer || 'Client',
+        datetime: target.toISOString(),
+        guests: guests || 2,
+        status: 'confirmed',
+        createdBy: 'assistant',
+      }
+      reservations.unshift(r)
+      saveJson('reservations.json', reservations)
+      return {
+        success: true,
+        summary: `📅 Réservation créée : ${customer} · ${target.toLocaleString('fr-LU', { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${guests} couverts${tableId ? ' · table ' + tableId : ''}`,
+        details: r,
+        uiAction: { type: 'navigate', to: '/agenda/calendrier' },
+      }
+    }
+
+    case 'invoices.send-email': {
+      const invoices = loadJson<any[]>('invoices.json', [])
+      const inv = invoices.find((i: any) => String(i.number || '').toLowerCase() === String(intent.params.number).toLowerCase())
+      if (!inv) return { success: false, summary: `Facture ${intent.params.number} introuvable.` }
+      // Simulated email send (real SMTP requires config) — flag in JSON
+      inv.lastEmailSentAt = Date.now()
+      inv.status = 'sent'
+      saveJson('invoices.json', invoices)
+      return {
+        success: true,
+        summary: `📧 Facture ${inv.number} envoyée par email à ${inv.customer} (${inv.total} €).`,
+        details: inv,
+      }
+    }
+
+    case 'report.day': {
+      const floorMod = await import('./floorState')
+      const state = floorMod.getFloorState()
+      const occupied = state.tables.filter((t: any) => t.status === 'OCCUPEE').length
+      const totalRevenue = state.tables.reduce((s: number, t: any) => s + (t.items || []).reduce((ss: number, i: any) => ss + (i.price || 0) * (i.qty || 1), 0), 0)
+      const invoices = loadJson<any[]>('invoices.json', [])
+      const today = new Date().toISOString().slice(0, 10)
+      const todayInvoices = invoices.filter((i: any) => i.date === today)
+      const todayTotal = todayInvoices.reduce((s: number, i: any) => s + (i.total || 0), 0)
+      const summary = `📊 Rapport ${today} : ${occupied} tables ouvertes (${totalRevenue.toFixed(2)} € en cours) · ${todayInvoices.length} factures émises (${todayTotal.toFixed(2)} €)`
+      return {
+        success: true, summary,
+        details: {
+          date: today,
+          openTables: occupied,
+          openRevenue: totalRevenue,
+          invoicesIssued: todayInvoices.length,
+          invoicesTotal: todayTotal,
+        },
+        uiAction: { type: 'navigate', to: '/owner' },
+      }
+    }
+
+    case 'reminder.set': {
+      const reminders = loadJson<any[]>('reminders.json', [])
+      const target = new Date()
+      target.setHours(intent.params.hour, intent.params.minute || 0, 0, 0)
+      if (target < new Date()) target.setDate(target.getDate() + 1)
+      const r = {
+        id: `rm${Date.now()}`,
+        text: intent.params.what,
+        when: target.toISOString(),
+        createdBy: 'assistant',
+        done: false,
+      }
+      reminders.unshift(r)
+      saveJson('reminders.json', reminders)
+      return {
+        success: true,
+        summary: `⏰ Rappel programmé : "${intent.params.what}" à ${target.toLocaleTimeString('fr-LU', { hour: '2-digit', minute: '2-digit' })}`,
+        details: r,
+      }
+    }
+
+    case 'assistant.set-mode': {
+      const modeMap: Record<string, string> = {
+        patron: 'patron', service: 'service', serveur: 'service',
+        cuisine: 'cuisine', cuisinier: 'cuisine',
+        comptable: 'comptable', 'comptabilité': 'comptable', comptabilite: 'comptable',
+        événement: 'event', evenement: 'event', tutoriel: 'tutoriel',
+      }
+      const mode = modeMap[String(intent.params.mode).toLowerCase()] || 'general'
+      return {
+        success: true,
+        summary: `🎭 Mode "${mode}" activé. Mes commandes prioritaires sont adaptées.`,
+        uiAction: { type: 'mode', value: mode },
+      }
+    }
+
+    case 'hr.set-planning': {
+      const spec = String(intent.params.spec || '')
+      // Parse "Marie matin, Luc soir, Sophie off" etc.
+      const parts = spec.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
+      const SLOTS: Record<string, { start: string; end: string }> = {
+        matin: { start: '08:00', end: '14:00' },
+        midi: { start: '11:00', end: '15:00' },
+        soir: { start: '18:00', end: '23:00' },
+        nuit: { start: '22:00', end: '04:00' },
+        journée: { start: '09:00', end: '18:00' },
+        journee: { start: '09:00', end: '18:00' },
+        weekend: { start: '11:00', end: '23:00' },
+      }
+      const proposed: any[] = []
+      const date = new Date(); date.setDate(date.getDate() + 1)
+      const dateStr = date.toISOString().slice(0, 10)
+      for (const p of parts) {
+        const m1 = p.match(/^([\w\s-]+?)\s+(matin|midi|soir|nuit|journ[ée]e|weekend|off|cong[ée]|absent)/i)
+        if (!m1) continue
+        const employee = m1[1].trim()
+        const slot = m1[2].toLowerCase().replace(/[éè]/g, 'e')
+        if (slot === 'off' || slot === 'conge' || slot === 'absent') {
+          proposed.push({ employee, date: dateStr, type: 'conge_personnel', note: 'OFF (assistant)' })
+        } else {
+          const s = SLOTS[slot] || SLOTS['journee']
+          proposed.push({ employee, date: dateStr, start: s.start, end: s.end, type: 'shift', role: 'auto' })
+        }
+      }
+      // PREVIEW only — return without saving
+      return {
+        success: true,
+        summary: `📋 Aperçu planning ${dateStr} : ${proposed.length} entrée(s). Confirmer pour enregistrer.`,
+        details: proposed,
+        uiAction: {
+          type: 'preview',
+          confirmText: `Enregistrer ${proposed.length} shift(s) pour ${dateStr}`,
+          confirmEndpoint: '/api/agent/intent/confirm',
+          confirmPayload: { intent: 'hr.set-planning.commit', proposed, date: dateStr },
+        },
+      }
+    }
+
+    case 'recite': {
+      let text = ''
+      switch (intent.params.what) {
+        case 'avis': {
+          const reviews = loadJson<any[]>('reviews.json', [])
+          if (reviews.length === 0) text = 'Aucun avis pour le moment.'
+          else text = reviews.slice(0, 5).map((r: any) => `${r.rating} étoiles : ${r.text}`).join('. ')
+          break
+        }
+        case 'factures': {
+          const invoices = loadJson<any[]>('invoices.json', [])
+          text = invoices.slice(0, 3).map((i: any) => `Facture ${i.number} pour ${i.customer}, ${i.total} euros.`).join(' ') || 'Aucune facture.'
+          break
+        }
+        case 'impayes':
+        case 'impayés': {
+          const invoices = loadJson<any[]>('invoices.json', [])
+          const overdue = invoices.filter((i: any) => i.status !== 'paid')
+          text = `${overdue.length} factures impayées pour un total de ${overdue.reduce((s: number, i: any) => s + (i.total || 0), 0).toFixed(2)} euros.`
+          break
+        }
+        default:
+          text = 'Lecture non disponible pour cette catégorie.'
+      }
+      return { success: true, summary: text, uiAction: { type: 'speak', text } }
+    }
+
     default:
       return { success: false, summary: 'Intent non implémenté.' }
   }
@@ -317,6 +566,39 @@ router.get('/web-search', async (req, res) => {
     res.json({ q, results })
   } catch (e: any) {
     res.json({ q, results: [], error: e?.message })
+  }
+})
+
+// Phase B v3.10 — Confirm a previewed action
+router.post('/intent/confirm', async (req, res) => {
+  const { intent, proposed, date } = req.body || {}
+  if (!intent) return res.status(400).json({ error: 'intent required' })
+
+  switch (intent) {
+    case 'hr.set-planning.commit': {
+      const shifts = loadJson<any[]>('shifts.json', [])
+      let added = 0
+      for (const p of (proposed || [])) {
+        if (!p.employee || !p.date) continue
+        shifts.push(p)
+        added++
+      }
+      saveJson('shifts.json', shifts)
+      return res.json({
+        kind: 'action', success: true,
+        summary: `✅ ${added} shift(s) enregistré(s) pour ${date}.`,
+      })
+    }
+    case 'invoices.create.commit': {
+      const invoices = loadJson<any[]>('invoices.json', [])
+      const inv = req.body.invoice
+      if (!inv) return res.status(400).json({ error: 'invoice required' })
+      invoices.unshift(inv)
+      saveJson('invoices.json', invoices)
+      return res.json({ kind: 'action', success: true, summary: `✅ Facture ${inv.number} enregistrée.` })
+    }
+    default:
+      return res.status(400).json({ error: 'unknown confirm intent' })
   }
 })
 

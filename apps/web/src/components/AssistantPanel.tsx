@@ -26,8 +26,26 @@ export default function AssistantPanel() {
   const themeStore = useTheme()
   const [input, setInput] = useState('')
   const [showSettings, setShowSettings] = useState(false)
+  const [pendingPreview, setPendingPreview] = useState<any>(null)
   const recognitionRef = useRef<any>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  async function confirmPreview() {
+    if (!pendingPreview) return
+    try {
+      const r = await fetch(`${BACKEND}${pendingPreview.confirmEndpoint}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pendingPreview.confirmPayload),
+      })
+      const data = await r.json()
+      a.addMessage({ role: 'bot', text: data.summary || '✅ Action validée.' })
+      speak(data.summary || 'Action validée')
+    } catch {
+      a.addMessage({ role: 'bot', text: '❌ Erreur de validation.' })
+    } finally {
+      setPendingPreview(null)
+    }
+  }
 
   // Auto-listen on open if enabled
   useEffect(() => {
@@ -125,7 +143,9 @@ export default function AssistantPanel() {
           action: { intent: data.intent, success: data.success, summary: data.summary },
         })
         speak(data.summary)
-        if (data.uiAction?.type === 'navigate') {
+        if (data.uiAction?.type === 'preview') {
+          setPendingPreview(data.uiAction)
+        } else if (data.uiAction?.type === 'navigate') {
           setTimeout(() => navigate(data.uiAction.to), 800)
         } else if (data.uiAction?.type === 'theme') {
           themeStore.setTheme(data.uiAction.value)
@@ -298,6 +318,41 @@ export default function AssistantPanel() {
               <Sparkles size={12} style={{ verticalAlign: -1 }} /> {a.name} réfléchit…
             </div>
           )}
+
+          {/* Preview confirmation card */}
+          <AnimatePresence>
+            {pendingPreview && (
+              <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }}
+                style={{
+                  padding: 14, borderRadius: 14,
+                  background: 'linear-gradient(135deg, rgba(251,191,36,0.15), rgba(236,72,153,0.05))',
+                  border: '1px solid rgba(251,191,36,0.4)', marginTop: 10,
+                }}>
+                <div style={{ fontSize: 11, color: '#fbbf24', fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>
+                  ⚡ Aperçu — confirmer pour appliquer
+                </div>
+                <div style={{ fontSize: 12, color: '#e2e8f0', whiteSpace: 'pre-wrap', marginBottom: 10 }}>
+                  {pendingPreview.confirmText || 'Action proposée'}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setPendingPreview(null)}
+                    style={{
+                      flex: 1, padding: '10px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.4)',
+                      background: 'rgba(239,68,68,0.15)', color: '#fca5a5', fontWeight: 700, cursor: 'pointer',
+                    }}>
+                    ❌ Annuler
+                  </button>
+                  <button onClick={confirmPreview}
+                    style={{
+                      flex: 2, padding: '10px', borderRadius: 8, border: 'none',
+                      background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', fontWeight: 800, cursor: 'pointer',
+                    }}>
+                    ✅ Valider
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Voice + input bar */}
