@@ -935,4 +935,248 @@ router.post('/smart-query-stream', async (req, res) => {
   }
 })
 
+// ─── v3.17 — DAILY BRIEFING ────────────────────────────────────────────
+// Agrège tout ce qui compte pour le jour J en un seul appel + génère un texte
+// vocal court (<200 caractères) qu'on peut lire à haute voix.
+router.post('/daily-briefing', async (req, res) => {
+  const period = (req.body?.period as 'morning' | 'evening') || 'morning'
+  const now = new Date()
+  const today = now.toISOString().slice(0, 10)
+  const weekday = now.toLocaleDateString('fr-LU', { weekday: 'long' })
+  const heureFmt = now.toLocaleTimeString('fr-LU', { hour: '2-digit', minute: '2-digit' })
+
+  // Aggrège tout en parallèle (best-effort, jamais throw)
+  const safe = async <T>(fn: () => T) => { try { return await fn() } catch { return null } }
+  const [day, today2, low, overdue, unpaid] = await Promise.all([
+    safe(() => HANDLERS['home.day-summary']?.({}) ?? null),
+    safe(() => HANDLERS['hr.who-today']?.({}) ?? null),
+    safe(() => HANDLERS['inv.low-stock']?.({}) ?? null),
+    safe(() => HANDLERS['inv.overdue']?.({}) ?? null),
+    safe(() => HANDLERS['inv.unpaid-total']?.({}) ?? null),
+  ])
+
+  // Extract numbers
+  const occupied = (day as any)?.data?.occupiedTables ?? 0
+  const totalTables = 12
+  const revenueOpen = (day as any)?.data?.currentRevenueOpen ?? 0
+  const staffToday = (today2 as any)?.ui?.items?.length ?? 0
+  const lowStockN = (low as any)?.ui?.items?.length ?? 0
+  const overdueN = (overdue as any)?.ui?.items?.length ?? 0
+  const unpaidM = (unpaid as any)?.text?.match(/\*\*([\d.]+)/)
+  const unpaidTotal = unpaidM ? parseFloat(unpaidM[1]) : 0
+
+  // Liste les noms du staff aujourd'hui
+  const staffNames = ((today2 as any)?.ui?.items || []).map((s: any) => s.title || s.text || '').filter(Boolean).slice(0, 3)
+
+  // Compose voice briefing (style oral, naturel, fr-LU)
+  let voice = ''
+  if (period === 'morning') {
+    voice = `Bonjour ! Nous sommes ${weekday}, il est ${heureFmt}. `
+    if (staffToday > 0) voice += `Aujourd'hui, ${staffToday} personne${staffToday > 1 ? 's' : ''} au planning${staffNames.length ? ' : ' + staffNames.join(', ') : ''}. `
+    else voice += `Personne n'est planifié au resto aujourd'hui — vérifie le planning. `
+    if (lowStockN > 0) voice += `Attention, ${lowStockN} produit${lowStockN > 1 ? 's' : ''} en stock bas à recommander. `
+    if (overdueN > 0) voice += `${overdueN} facture${overdueN > 1 ? 's' : ''} en retard de paiement, total ${unpaidTotal.toFixed(0)} euros. `
+    if (lowStockN === 0 && overdueN === 0) voice += `Tout est en ordre côté stock et factures, bonne journée ! `
+  } else {
+    voice = `Bilan du soir ${weekday} ${heureFmt}. `
+    voice += `${occupied} table${occupied > 1 ? 's' : ''} sur ${totalTables} étaient occupées, chiffre d'affaires en cours ${revenueOpen.toFixed(0)} euros. `
+    if (lowStockN > 0) voice += `Il faut prévoir une commande pour ${lowStockN} produit${lowStockN > 1 ? 's' : ''}. `
+    if (overdueN > 0) voice += `Pense à relancer ${overdueN} facture${overdueN > 1 ? 's' : ''} en retard. `
+    voice += `Bonne soirée !`
+  }
+
+  // 3 priorités du jour, avec actions exécutables
+  const priorities: Array<{ id: string; emoji: string; title: string; subtitle: string; action?: { type: string; route?: string; commandId?: string; intent?: string } }> = []
+
+  if (lowStockN > 0) {
+    priorities.push({
+      id: 'restock',
+      emoji: '📦',
+      title: `${lowStockN} produits stock bas`,
+      subtitle: 'Préparer la commande fournisseur du jour',
+      action: { type: 'navigate', route: '/inventory/stock' },
+    })
+  }
+  if (overdueN > 0) {
+    priorities.push({
+      id: 'invoices',
+      emoji: '💶',
+      title: `${overdueN} factures en retard (${unpaidTotal.toFixed(0)} €)`,
+      subtitle: 'Envoyer relance email automatique',
+      action: { type: 'command', commandId: 'inv.send-reminders' },
+    })
+  }
+  if (staffToday === 0 && period === 'morning') {
+    priorities.push({
+      id: 'staff',
+      emoji: '👥',
+      title: 'Aucun employé planifié aujourd\'hui',
+      subtitle: 'Vérifier le planning ou ajouter un shift',
+      action: { type: 'navigate', route: '/m/world' },
+    })
+  }
+  if (priorities.length === 0) {
+    priorities.push({
+      id: 'all-good',
+      emoji: '✅',
+      title: 'Rien d\'urgent !',
+      subtitle: 'Continue ta journée tranquillement',
+    })
+  }
+  // Toujours inclure la suggestion "envoyer message clients fidèles"
+  if (priorities.length < 3) {
+    priorities.push({
+      id: 'loyalty',
+      emoji: '⭐',
+      title: 'Recompense tes clients fidèles',
+      subtitle: 'Envoyer un SMS de bienvenue aux 3 plus assidus',
+      action: { type: 'command', commandId: 'crm.loyalty-suggest' },
+    })
+  }
+
+  res.json({
+    period, today, weekday, heure: heureFmt,
+    metrics: {
+      occupiedTables: occupied,
+      totalTables,
+      revenueOpen,
+      staffToday,
+      staffNames,
+      lowStock: lowStockN,
+      overdue: overdueN,
+      unpaidTotal,
+    },
+    voice,                                 // texte à lire avec TTS
+    priorities: priorities.slice(0, 3),    // max 3 actions du jour
+    debug: { handlersFound: { day: !!day, staff: !!today2, low: !!low, overdue: !!overdue, unpaid: !!unpaid } },
+  })
+})
+
+// ─── v3.17 — PHOTO MAGIQUE ─────────────────────────────────────────────
+// Une seule photo, l'IA classifie ce que c'est et exécute la bonne action.
+// Catégories : receipt | fridge | equipment | review | dish | unknown
+router.post('/photo-magic', async (req, res) => {
+  const { imageBase64 } = req.body as { imageBase64: string }
+  if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' })
+  const b64 = imageBase64.replace(/^data:image\/\w+;base64,/, '')
+
+  const classifyPrompt = `Tu reçois une photo prise dans un restaurant/café. Classifie-la EN 1 MOT parmi :
+- receipt : facture, ticket de caisse, reçu fournisseur (papier avec articles + prix)
+- fridge : frigo ouvert, étagère, stock à inventorier
+- equipment : équipement cassé, dégât, problème HACCP (machine, sol, mur, etc.)
+- review : avis client écrit (note papier, écran avis Google)
+- dish : plat servi, assiette, nourriture présentée
+- unknown : autre / pas clair
+
+Renvoie UNIQUEMENT ce JSON :
+{"type":"<receipt|fridge|equipment|review|dish|unknown>","summary":"<1-2 phrases en français décrivant la photo>","confidence":<0-1>}`
+
+  try {
+    const ollamaRes = await fetch('http://localhost:11434/api/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'minicpm-v',
+        prompt: classifyPrompt,
+        images: [b64],
+        stream: false,
+        format: 'json',
+        options: { temperature: 0.1 },
+      }),
+    })
+    if (!ollamaRes.ok) {
+      return res.status(503).json({ error: 'vision-model-missing', details: await ollamaRes.text() })
+    }
+    const ai = await ollamaRes.json() as { response?: string }
+    let cls: { type: string; summary: string; confidence: number }
+    try { cls = JSON.parse(ai.response || '{}') }
+    catch {
+      const m = (ai.response || '').match(/\{[\s\S]*\}/)
+      cls = m ? JSON.parse(m[0]) : { type: 'unknown', summary: 'Image non classifiée', confidence: 0 }
+    }
+
+    const validTypes = ['receipt', 'fridge', 'equipment', 'review', 'dish', 'unknown']
+    if (!validTypes.includes(cls.type)) cls.type = 'unknown'
+
+    // Map to user-friendly response with cta
+    const RESPONSES: Record<string, { emoji: string; title: string; cta?: any }> = {
+      receipt:   { emoji: '📋', title: 'Reçu fournisseur détecté',  cta: { label: 'Extraire articles + ajouter stock', route: '/m/camera' } },
+      fridge:    { emoji: '🧊', title: 'Frigo / Étagère détecté(e)', cta: { label: 'Voir suggestions de commande', route: '/inventory/stock' } },
+      equipment: { emoji: '🔧', title: 'Problème équipement détecté', cta: { label: 'Créer un incident HACCP', route: '/haccp' } },
+      review:    { emoji: '⭐', title: 'Avis client détecté',         cta: { label: 'Ajouter au CRM', route: '/marketing' } },
+      dish:      { emoji: '🍽', title: 'Plat / Menu détecté',          cta: { label: 'Ajouter à la galerie photo', route: '/m' } },
+      unknown:   { emoji: '❓', title: 'Type non identifié',           cta: undefined },
+    }
+    const meta = RESPONSES[cls.type]
+
+    res.json({
+      type: cls.type,
+      title: meta.title,
+      emoji: meta.emoji,
+      summary: cls.summary || 'Aucune description',
+      confidence: cls.confidence ?? 0.5,
+      cta: meta.cta,
+    })
+  } catch (e: any) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ─── v3.17 — PROACTIVE SUGGESTIONS (called from /m live dashboard) ─────
+// Renvoie 1-2 suggestions intelligentes contextuelles sans bloquer
+router.get('/proactive', async (_req, res) => {
+  const safe = async <T>(fn: () => T) => { try { return await fn() } catch { return null } }
+  const [low, overdue, today2] = await Promise.all([
+    safe(() => HANDLERS['inv.low-stock']?.({}) ?? null),
+    safe(() => HANDLERS['inv.overdue']?.({}) ?? null),
+    safe(() => HANDLERS['hr.who-today']?.({}) ?? null),
+  ])
+  const lowStockN = (low as any)?.ui?.items?.length ?? 0
+  const overdueN = (overdue as any)?.ui?.items?.length ?? 0
+  const staffToday = (today2 as any)?.ui?.items?.length ?? 0
+  const hour = new Date().getHours()
+
+  const suggestions: any[] = []
+  if (lowStockN >= 3) {
+    suggestions.push({
+      icon: '📦', tone: 'warning',
+      title: `Stock critique sur ${lowStockN} produits`,
+      detail: 'Robi peut générer la commande fournisseur en 1 tap',
+      cta: 'Préparer la commande', route: '/inventory/stock',
+    })
+  }
+  if (overdueN > 0) {
+    suggestions.push({
+      icon: '💶', tone: 'danger',
+      title: `${overdueN} facture(s) en retard`,
+      detail: 'Envoi auto de relances email',
+      cta: 'Relancer maintenant', commandId: 'inv.send-reminders',
+    })
+  }
+  if (hour >= 16 && hour <= 19 && staffToday > 0) {
+    suggestions.push({
+      icon: '🍽', tone: 'info',
+      title: 'Pré-service : 30 min avant l\'ouverture',
+      detail: `${staffToday} personnes au resto. Vérifier mise en place ?`,
+      cta: 'Checklist HACCP', route: '/m/checklist',
+    })
+  }
+  if (hour >= 21 && hour <= 23) {
+    suggestions.push({
+      icon: '📊', tone: 'info',
+      title: 'Bilan du soir prêt',
+      detail: 'Robi te lit ton bilan en 30 sec',
+      cta: 'Écouter le bilan', route: '/m/briefing?period=evening',
+    })
+  }
+  if (suggestions.length === 0) {
+    suggestions.push({
+      icon: '✨', tone: 'positive',
+      title: 'Tout va bien',
+      detail: 'Pas d\'alerte critique',
+    })
+  }
+
+  res.json({ suggestions: suggestions.slice(0, 3), generatedAt: Date.now() })
+})
+
 export default router

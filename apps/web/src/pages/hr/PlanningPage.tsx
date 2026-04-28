@@ -9,7 +9,7 @@ import { fr } from 'date-fns/locale'
 import {
   ChevronLeft, ChevronRight, Mail, Download, Plus, X, Clock, Users,
   Sparkles, RefreshCcw, Copy, AlertTriangle, Euro, Award, Coffee,
-  Send, Zap, Heart, ClipboardList, TrendingUp, CheckCircle2, Layers,
+  Send, Zap, Heart, ClipboardList, TrendingUp, CheckCircle2, Layers, ExternalLink,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import PlanningAssistant from '@/components/PlanningAssistant'
@@ -42,7 +42,15 @@ const C = {
 
 type RoleType = 'Serveur' | 'Cuisinier' | 'Femme de ménage' | 'Manager'
 type SectionType = 'Salle' | 'Bar' | 'Terrasse'
-type ViewType = 'week' | 'month'
+type ViewType = 'day' | '3days' | 'week' | 'month' | '6weeks'
+
+const VIEW_LABELS: Record<ViewType, string> = {
+  day: '1 jour',
+  '3days': '3 jours',
+  week: 'Semaine',
+  month: 'Mois',
+  '6weeks': '6 semaines',
+}
 type Skill = 'Barman' | 'Sommelier' | 'Chef pâtissier' | 'Hygiène HACCP' | 'Caisse' | 'Allergies'
 
 interface Shift {
@@ -263,12 +271,39 @@ export default function PlanningPage() {
     setTimeout(() => setToast(null), 2800)
   }
 
-  const goNext = () => setCurrentDate(v => view === 'week' ? addWeeks(v, 1) : addMonths(v, 1))
-  const goPrev = () => setCurrentDate(v => view === 'week' ? subWeeks(v, 1) : subMonths(v, 1))
+  // v3.18 — navigation adaptative selon vue (jour/3j/sem/mois/6 sem)
+  const goNext = () => setCurrentDate(v => {
+    if (view === 'day')   return addDays(v, 1)
+    if (view === '3days') return addDays(v, 3)
+    if (view === 'week')  return addWeeks(v, 1)
+    if (view === 'month') return addMonths(v, 1)
+    if (view === '6weeks') return addWeeks(v, 6)
+    return v
+  })
+  const goPrev = () => setCurrentDate(v => {
+    if (view === 'day')   return addDays(v, -1)
+    if (view === '3days') return addDays(v, -3)
+    if (view === 'week')  return subWeeks(v, 1)
+    if (view === 'month') return subMonths(v, 1)
+    if (view === '6weeks') return subWeeks(v, 6)
+    return v
+  })
   const goToday = () => setCurrentDate(new Date())
 
   const weekStart = useMemo(() => startOfWeek(currentDate, { weekStartsOn: 1 }), [currentDate])
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart])
+
+  // v3.18 — jours visibles selon mode (1, 3, 7, 42)
+  const visibleDays = useMemo(() => {
+    if (view === 'day')   return [currentDate]
+    if (view === '3days') return Array.from({ length: 3 }, (_, i) => addDays(currentDate, i))
+    if (view === 'week')  return weekDays
+    if (view === '6weeks') {
+      const start = startOfWeek(currentDate, { weekStartsOn: 1 })
+      return Array.from({ length: 42 }, (_, i) => addDays(start, i))
+    }
+    return weekDays
+  }, [view, currentDate, weekDays])
 
   const monthStart = useMemo(() => startOfMonth(currentDate), [currentDate])
   const monthEnd = useMemo(() => endOfMonth(currentDate), [currentDate])
@@ -393,16 +428,22 @@ export default function PlanningPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.border}`, background: C.card }}>
-            {(['week', 'month'] as ViewType[]).map(v => (
+            {(['day', '3days', 'week', 'month', '6weeks'] as ViewType[]).map(v => (
               <button key={v} onClick={() => setView(v)} style={{
-                ...btnBase, borderRadius: 0, border: 'none', fontSize: 12, padding: '6px 14px',
+                ...btnBase, borderRadius: 0, border: 'none', fontSize: 11, padding: '6px 10px', whiteSpace: 'nowrap',
                 background: view === v ? C.indigoSoft : 'transparent',
                 color: view === v ? C.indigo : C.muted,
               }}>
-                {v === 'week' ? 'Semaine' : 'Mois'}
+                {VIEW_LABELS[v]}
               </button>
             ))}
           </div>
+          {/* v3.18 — Open in new tab button */}
+          <button onClick={() => window.open(`/hr/planning?standalone=1&view=${view}`, '_blank', 'noopener')} style={{
+            ...btnGhost, fontSize: 11, padding: '6px 10px',
+          }} title="Ouvrir le planning dans un nouvel onglet (vue plein écran)">
+            <ExternalLink size={12} /> Nouvel onglet
+          </button>
           <div style={{ display: 'flex', gap: 4 }}>
             {['Toutes', ...SECTIONS].map(s => (
               <button key={s} onClick={() => setSectionFilter(s)} style={{
@@ -455,7 +496,17 @@ export default function PlanningPage() {
 
       {/* Calendar */}
       <div style={{ flex: 1, overflow: 'auto', ...card, padding: 0 }}>
-        {view === 'week' ? (
+        {(view === 'day' || view === '3days') ? (
+          <WeekView
+            days={visibleDays}
+            shifts={getShiftsForDay}
+            reservations={getReservationsForDay}
+            sickLeaves={getSickLeavesForDay}
+            vacations={getVacationsForDay}
+            getHoliday={getHoliday}
+            onCellClick={handleCellClick}
+          />
+        ) : view === 'week' ? (
           <WeekView
             days={weekDays}
             shifts={getShiftsForDay}
@@ -465,6 +516,8 @@ export default function PlanningPage() {
             getHoliday={getHoliday}
             onCellClick={handleCellClick}
           />
+        ) : view === '6weeks' ? (
+          <MonthView days={visibleDays} currentDate={currentDate} shifts={getShiftsForDay} getHoliday={getHoliday} />
         ) : (
           <MonthView days={monthDays} currentDate={currentDate} shifts={getShiftsForDay} getHoliday={getHoliday} />
         )}

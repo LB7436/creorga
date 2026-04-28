@@ -107,7 +107,8 @@ liveNs.on('connection', (socket) => {
 // Middleware
 app.use(helmet())
 app.use(cors(corsOptions))
-app.use(express.json())
+// v3.16 — bump JSON body limit pour OCR vision (images base64 ~ 1-5 MB)
+app.use(express.json({ limit: '20mb' }))
 app.use(cookieParser())
 
 // Health check

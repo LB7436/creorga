@@ -1,8 +1,84 @@
 [
-  { "id": "i001", "number": "F-2026-0142", "customer": "Brasserie du Centre",      "date": "2026-04-15", "dueDate": "2026-05-15", "total": 1250.00, "vatTotal": 212.50, "status": "sent" },
-  { "id": "i002", "number": "F-2026-0141", "customer": "Café Namur",                "date": "2026-04-12", "dueDate": "2026-05-12", "total": 480.00,  "vatTotal": 81.60,  "status": "paid" },
-  { "id": "i003", "number": "F-2026-0140", "customer": "Pizza Belval",              "date": "2026-03-20", "dueDate": "2026-04-20", "total": 720.00,  "vatTotal": 122.40, "status": "overdue" },
-  { "id": "i004", "number": "F-2026-0139", "customer": "Bistro Place d'Armes",       "date": "2026-03-15", "dueDate": "2026-04-15", "total": 2100.00, "vatTotal": 357.00, "status": "paid" },
-  { "id": "i005", "number": "F-2026-0138", "customer": "Brasserie du Centre",      "date": "2026-02-28", "dueDate": "2026-03-30", "total": 950.00,  "vatTotal": 161.50, "status": "overdue" },
-  { "id": "i006", "number": "F-2026-0137", "customer": "Sushi Kirchberg",           "date": "2026-02-15", "dueDate": "2026-03-15", "total": 1830.00, "vatTotal": 311.10, "status": "paid" }
+  {
+    "id": "i1777369719924",
+    "number": "F-2026-0149",
+    "customer": "brasserie",
+    "date": "2026-04-28",
+    "dueDate": "2026-05-28",
+    "total": 750,
+    "vatTotal": 127.5,
+    "status": "sent",
+    "createdBy": "assistant"
+  },
+  {
+    "id": "i1777363908379",
+    "number": "F-2026-0148",
+    "customer": "pizza",
+    "date": "2026-04-28",
+    "dueDate": "2026-05-28",
+    "total": 100,
+    "vatTotal": 17,
+    "status": "sent",
+    "createdBy": "assistant"
+  },
+  {
+    "id": "i001",
+    "number": "F-2026-0142",
+    "customer": "Brasserie du Centre",
+    "date": "2026-04-15",
+    "dueDate": "2026-05-15",
+    "total": 1250,
+    "vatTotal": 212.5,
+    "status": "sent"
+  },
+  {
+    "id": "i002",
+    "number": "F-2026-0141",
+    "customer": "Café Namur",
+    "date": "2026-04-12",
+    "dueDate": "2026-05-12",
+    "total": 480,
+    "vatTotal": 81.6,
+    "status": "paid"
+  },
+  {
+    "id": "i003",
+    "number": "F-2026-0140",
+    "customer": "Pizza Belval",
+    "date": "2026-03-20",
+    "dueDate": "2026-04-20",
+    "total": 720,
+    "vatTotal": 122.4,
+    "status": "overdue"
+  },
+  {
+    "id": "i004",
+    "number": "F-2026-0139",
+    "customer": "Bistro Place d'Armes",
+    "date": "2026-03-15",
+    "dueDate": "2026-04-15",
+    "total": 2100,
+    "vatTotal": 357,
+    "status": "paid"
+  },
+  {
+    "id": "i005",
+    "number": "F-2026-0138",
+    "customer": "Brasserie du Centre",
+    "date": "2026-02-28",
+    "dueDate": "2026-03-30",
+    "total": 950,
+    "vatTotal": 161.5,
+    "status": "overdue"
+  },
+  {
+    "id": "i006",
+    "number": "F-2026-0137",
+    "customer": "Sushi Kirchberg",
+    "date": "2026-02-15",
+    "dueDate": "2026-03-15",
+    "total": 1830,
+    "vatTotal": 311.1,
+    "status": "paid"
+  }
 ]

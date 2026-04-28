@@ -1,16 +1,36 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Camera, Upload, ArrowLeft, Loader2, Check } from 'lucide-react'
+import { Camera, Upload, ArrowLeft, Loader2, Check, Eye, FileText } from 'lucide-react'
 
-const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
+// v3.16 — backend URL dynamique (localStorage > env > localhost)
+function getBackend(): string {
+  if (typeof window === 'undefined') return 'http://localhost:3002'
+  return localStorage.getItem('creorga.backend.remote')
+      || (import.meta as any).env?.VITE_REMOTE_BACKEND
+      || (import.meta as any).env?.VITE_BACKEND_URL
+      || 'http://localhost:3002'
+}
 
 /**
  * Mobile Camera OCR — prend une photo du ticket fournisseur,
- * envoie à Tesseract+Gemma, ajoute au stock.
+ * envoie au backend pour parsing, ajoute au stock.
+ *
+ * v3.16 : pipeline à 2 étages
+ *   1. Tente OCR vision direct (minicpm-v / llava) — meilleure précision
+ *   2. Fallback Tesseract + Gemma si modèle vision pas installé
  *
  * Utilise <input capture="environment"> (caméra arrière)
  * pour shortcut sur Android/iOS.
  */
+
+async function imageToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(String(r.result).replace(/^data:image\/\w+;base64,/, ''))
+    r.onerror = reject
+    r.readAsDataURL(file)
+  })
+}
 
 export default function MobileCamera() {
   const navigate = useNavigate()
@@ -19,35 +39,73 @@ export default function MobileCamera() {
   const [preview, setPreview] = useState<string | null>(null)
   const [parsed, setParsed] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
+  const [pipeline, setPipeline] = useState<'vision' | 'tesseract' | null>(null)
 
   const handleFile = async (file: File) => {
     setError(null)
+    setPipeline(null)
     const url = URL.createObjectURL(file)
     setPreview(url)
     setStage('reading')
 
+    const BACKEND = getBackend()
+
+    // v3.16 — Étage 1 : tenter le modèle vision direct (minicpm-v)
     try {
+      setStage('parsing')
+      setPipeline('vision')
+      const b64 = await imageToBase64(file)
+      const visionRes = await fetch(`${BACKEND}/api/inventory-ocr/vision-parse-receipt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: b64 }),
+        signal: AbortSignal.timeout(120_000),
+      })
+      if (visionRes.ok) {
+        const result = await visionRes.json()
+        if (result.items?.length > 0) {
+          setParsed(result)
+          setStage('review')
+          return
+        }
+        // Vision returned empty → fall back
+      } else if (visionRes.status === 503) {
+        // Vision model not installed → fallback
+        console.warn('[OCR] Vision model unavailable, falling back to Tesseract')
+      }
+    } catch (e: any) {
+      console.warn('[OCR] Vision pipeline failed:', e?.message)
+    }
+
+    // Étage 2 : fallback Tesseract.js + Gemma 2B (texte)
+    try {
+      setStage('reading')
+      setPipeline('tesseract')
       const { default: Tesseract } = await import('tesseract.js')
-      const { data } = await Tesseract.recognize(file, 'fra')
+      const { data } = await Tesseract.recognize(file, 'fra+eng+deu', {
+        logger: (m) => { /* ignore progress */ },
+      })
       const rawText = data.text
       setStage('parsing')
 
       const r = await fetch(`${BACKEND}/api/inventory-ocr/ai-parse-receipt`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rawText }),
+        body: JSON.stringify({ rawText, source: 'tesseract+gemma' }),
+        signal: AbortSignal.timeout(60_000),
       })
       if (!r.ok) throw new Error(`Backend ${r.status}`)
       const result = await r.json()
       setParsed(result)
       setStage('review')
     } catch (e: any) {
-      setError(e?.message || 'Erreur')
+      setError(e?.message || 'Erreur OCR — réessaie avec une photo plus nette')
       setStage('error')
     }
   }
 
   const validate = async () => {
     if (!parsed?.items?.length) return
+    const BACKEND = getBackend()
     try {
       const r = await fetch(`${BACKEND}/api/inventory-ocr/stock/bulk`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -56,8 +114,11 @@ export default function MobileCamera() {
       if (r.ok) {
         setStage('done')
         setTimeout(() => navigate('/m'), 1500)
+      } else {
+        setError(`Sauvegarde échouée (${r.status})`)
+        setStage('error')
       }
-    } catch { setError('Sauvegarde échouée') }
+    } catch { setError('Sauvegarde échouée — backend injoignable') }
   }
 
   return (

@@ -1,9 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Home, Bell, Bot, Activity, Settings, Globe } from 'lucide-react'
+import { Home, Bell, Bot, Activity, Settings, Globe, Sparkles, Camera, Mic } from 'lucide-react'
 import { useAssistant } from '@/stores/assistantStore'
 import AssistantMascot from '@/components/AssistantMascot'
+import { WakeWordListener } from '@/lib/assistantFeatures'
+import { useNavigate } from 'react-router-dom'
 
 /**
  * Mobile / PWA layout — designed for phone & tablet use, away from the
@@ -17,25 +19,44 @@ import AssistantMascot from '@/components/AssistantMascot'
  */
 
 const NAV = [
-  { to: '/m',          label: 'Live',     icon: Activity, end: true },
-  { to: '/m/alerts',   label: 'Alertes',  icon: Bell },
-  { to: '/m/robi',     label: 'Robi',     icon: Bot },
-  { to: '/m/world',    label: 'Distance', icon: Globe },
-  { to: '/m/settings', label: 'Réglages', icon: Settings },
+  { to: '/m',           label: 'Live',     icon: Activity, end: true },
+  { to: '/m/briefing',  label: 'Brief',    icon: Sparkles },
+  { to: '/m/robi',      label: 'Robi',     icon: Bot },
+  { to: '/m/magic',     label: 'Magic',    icon: Camera },
+  { to: '/m/settings',  label: 'Réglages', icon: Settings },
 ]
 
 export default function MobileLayout() {
   const a = useAssistant()
   const location = useLocation()
+  const navigate = useNavigate()
+  const [wakeActive, setWakeActive] = useState(false)
 
-  // Lock viewport for mobile feel
+  // v3.17 — Hey Robi wake word listener (toggle via header pill)
+  useEffect(() => {
+    if (!wakeActive) return
+    const wake = new WakeWordListener(a.name || 'Robi', () => {
+      // Wake → navigate to Robi page (where the user can speak the command)
+      navigate('/m/robi')
+    })
+    wake.start()
+    return () => wake.stop()
+  }, [wakeActive, a.name, navigate])
+
+  // Lock viewport for mobile feel — v3.15 : overflow-x hidden global pour bloquer scroll horizontal
   useEffect(() => {
     const meta = document.querySelector('meta[name="viewport"]')
-    if (meta) meta.setAttribute('content', 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no')
+    if (meta) meta.setAttribute('content', 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover')
+    const prevOverflow = document.body.style.overflowX
+    const prevBehavior = document.body.style.overscrollBehavior
     document.body.style.overscrollBehavior = 'none'
+    document.body.style.overflowX = 'hidden'
+    document.documentElement.style.overflowX = 'hidden'
     return () => {
       if (meta) meta.setAttribute('content', 'width=device-width,initial-scale=1')
-      document.body.style.overscrollBehavior = ''
+      document.body.style.overscrollBehavior = prevBehavior
+      document.body.style.overflowX = prevOverflow
+      document.documentElement.style.overflowX = ''
     }
   }, [])
 
@@ -58,7 +79,18 @@ export default function MobileLayout() {
               <div style={{ fontSize: 10, color: '#a78bfa' }}>📱 Mode distant</div>
             </div>
           </Link>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* v3.17 — Hey Robi wake-word toggle */}
+            <button onClick={() => setWakeActive((v) => !v)}
+              style={{
+                padding: '4px 8px', borderRadius: 999, fontSize: 10, fontWeight: 700,
+                background: wakeActive ? 'linear-gradient(135deg,#8b5cf6,#ec4899)' : 'rgba(255,255,255,0.05)',
+                color: wakeActive ? '#fff' : '#94a3b8',
+                border: `1px solid ${wakeActive ? 'rgba(236,72,153,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
+              }}>
+              <Mic size={10} /> {wakeActive ? `Écoute "Hey ${a.name}"` : 'Mains-libres'}
+            </button>
             <span style={{
               padding: '3px 8px', borderRadius: 999, fontSize: 10, fontWeight: 700,
               background: 'rgba(16,185,129,0.15)', color: '#10b981',
@@ -68,8 +100,8 @@ export default function MobileLayout() {
         </div>
       </header>
 
-      {/* Main content */}
-      <main style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      {/* Main content — overflow-x: hidden bloque scroll horizontal forcé par contenus large */}
+      <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
         <Outlet />
       </main>
 

@@ -3,43 +3,67 @@ import { persist } from 'zustand/middleware'
 import type { MascotVariant } from '@/components/AssistantMascot'
 
 /**
- * Assistant store — settings + runtime state of the personal robot assistant.
+ * Assistant store v3.18 — multi-conversations + multimodal attachments
  *
- * - mascot, name, voice : persisted to localStorage
- * - mode, conversation : runtime only
+ * - mascot, name, voice : persisted
+ * - conversations[] persisted (max 30, auto-archive old)
+ * - currentConversationId : active thread
+ * - messages : derived from current conversation
+ * - attachments : runtime (image/scan/file uploaded with next message)
  */
 
 export type AssistantMode = 'idle' | 'listening' | 'thinking' | 'speaking'
+
+export interface AssistantAttachment {
+  id: string
+  kind: 'image' | 'video' | 'file' | 'scan' | 'audio'
+  name: string
+  mimeType: string
+  size: number
+  dataUrl?: string     // base64 preview for image/scan
+  url?: string         // server URL after upload
+}
 
 export interface AssistantMessage {
   id: string
   role: 'user' | 'bot'
   text: string
   ts: number
-  ui?: any           // optional structured UI (download, list, kpi, action-result)
-  cited?: string[]   // cited source IDs
-  action?: {         // when bot triggered a real action
-    intent: string
-    success: boolean
-    summary: string
-  }
+  ui?: any
+  cited?: string[]
+  action?: { intent: string; success: boolean; summary: string }
+  attachments?: AssistantAttachment[]
+}
+
+export interface AssistantConversation {
+  id: string
+  title: string
+  messages: AssistantMessage[]
+  createdAt: number
+  updatedAt: number
+  archived: boolean
+}
+
+const newId = () => Math.random().toString(36).slice(2, 12)
+
+function autoTitle(firstUserText: string): string {
+  const t = firstUserText.trim().replace(/\s+/g, ' ')
+  if (!t) return 'Nouvelle discussion'
+  if (t.length <= 38) return t
+  return t.slice(0, 35) + '…'
 }
 
 interface AssistantState {
-  // Persisted
+  // ─── Persisted settings ──────────────────────────────────────────────
   mascot: MascotVariant
   name: string
-  voiceEnabled: boolean    // TTS speaks responses
-  voiceSpeed: number       // 0.8 - 1.4
-  autoListen: boolean      // start listening when panel opens
+  voiceEnabled: boolean
+  voiceSpeed: number
+  autoListen: boolean
   panelMode: 'overlay' | 'dock' | 'full'
-  /** v3.12 — voice profile per mascot (#7) */
   voiceProfile: 'auto' | 'masculine' | 'feminine' | 'robotic' | 'warm' | 'energetic'
-  /** v3.12 — wake word continu (#1) */
   wakeWordEnabled: boolean
-  /** v3.12 — driving mode (#17) */
   drivingMode: boolean
-  /** v3.12 — biometric required for destructive actions (#14) */
   biometricGuard: boolean
   setMascot: (m: MascotVariant) => void
   setName: (n: string) => void
@@ -52,19 +76,46 @@ interface AssistantState {
   setDrivingMode: (b: boolean) => void
   setBiometricGuard: (b: boolean) => void
 
-  // Runtime
+  // ─── Persisted conversations ─────────────────────────────────────────
+  conversations: AssistantConversation[]
+  currentConversationId: string | null
+  newConversation: () => string                                     // returns new id
+  selectConversation: (id: string) => void
+  archiveConversation: (id: string) => void
+  unarchiveConversation: (id: string) => void
+  deleteConversation: (id: string) => void
+  renameConversation: (id: string, title: string) => void
+
+  // ─── Runtime ─────────────────────────────────────────────────────────
   open: boolean
   mode: AssistantMode
-  messages: AssistantMessage[]
+  attachments: AssistantAttachment[]                                // pending attachments for next message
   setOpen: (o: boolean) => void
   setMode: (m: AssistantMode) => void
+  addAttachment: (a: Omit<AssistantAttachment, 'id'>) => string
+  removeAttachment: (id: string) => void
+  clearAttachments: () => void
+
+  // ─── Backwards compat (existing code reads .messages / addMessage / clearMessages) ──
+  messages: AssistantMessage[]
   addMessage: (msg: Omit<AssistantMessage, 'id' | 'ts'>) => void
   clearMessages: () => void
 }
 
+const DEFAULT_CONV_ID = newId()
+const DEFAULT_CONV: AssistantConversation = {
+  id: DEFAULT_CONV_ID,
+  title: 'Nouvelle discussion',
+  messages: [],
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+  archived: false,
+}
+
 export const useAssistant = create<AssistantState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
+      // settings
       mascot: 'robot',
       name: 'Robi',
       voiceEnabled: true,
@@ -86,23 +137,122 @@ export const useAssistant = create<AssistantState>()(
       setDrivingMode: (b) => set({ drivingMode: b }),
       setBiometricGuard: (b) => set({ biometricGuard: b }),
 
+      // conversations
+      conversations: [DEFAULT_CONV],
+      currentConversationId: DEFAULT_CONV_ID,
+      newConversation: () => {
+        const id = newId()
+        const conv: AssistantConversation = {
+          id, title: 'Nouvelle discussion', messages: [],
+          createdAt: Date.now(), updatedAt: Date.now(), archived: false,
+        }
+        set((s) => ({
+          conversations: [conv, ...s.conversations].slice(0, 30),
+          currentConversationId: id,
+          attachments: [],
+          messages: [],
+        }))
+        return id
+      },
+      selectConversation: (id) => set((s) => {
+        const conv = s.conversations.find((c) => c.id === id)
+        return { currentConversationId: id, attachments: [], messages: conv?.messages || [] }
+      }),
+      archiveConversation: (id) => set((s) => ({
+        conversations: s.conversations.map((c) => c.id === id ? { ...c, archived: true } : c),
+      })),
+      unarchiveConversation: (id) => set((s) => ({
+        conversations: s.conversations.map((c) => c.id === id ? { ...c, archived: false } : c),
+      })),
+      deleteConversation: (id) => set((s) => {
+        const remaining = s.conversations.filter((c) => c.id !== id)
+        const next = remaining.length === 0
+          ? [{ id: newId(), title: 'Nouvelle discussion', messages: [], createdAt: Date.now(), updatedAt: Date.now(), archived: false }]
+          : remaining
+        return {
+          conversations: next,
+          currentConversationId: s.currentConversationId === id ? next[0].id : s.currentConversationId,
+        }
+      }),
+      renameConversation: (id, title) => set((s) => ({
+        conversations: s.conversations.map((c) => c.id === id ? { ...c, title: title.trim() || 'Sans titre', updatedAt: Date.now() } : c),
+      })),
+
+      // runtime
       open: false,
       mode: 'idle',
-      messages: [],
+      attachments: [],
       setOpen: (o) => set({ open: o }),
       setMode: (m) => set({ mode: m }),
-      addMessage: (msg) => set((s) => ({
-        messages: [...s.messages, { ...msg, id: Math.random().toString(36).slice(2, 10), ts: Date.now() }],
-      })),
-      clearMessages: () => set({ messages: [] }),
+      addAttachment: (a) => {
+        const id = newId()
+        set((s) => ({ attachments: [...s.attachments, { ...a, id }] }))
+        return id
+      },
+      removeAttachment: (id) => set((s) => ({ attachments: s.attachments.filter((a) => a.id !== id) })),
+      clearAttachments: () => set({ attachments: [] }),
+
+      // ─── BACKWARDS COMPAT — `messages` proxy current conversation (regular field, sync'd)
+      messages: [] as AssistantMessage[],
+      addMessage: (msg) => set((s) => {
+        const id = newId()
+        const ts = Date.now()
+        const fullMsg: AssistantMessage = { ...msg, id, ts }
+        const conversations = s.conversations.map((c) => {
+          if (c.id !== s.currentConversationId) return c
+          const wasEmpty = c.messages.length === 0 && msg.role === 'user'
+          const newTitle = wasEmpty ? autoTitle(msg.text) : c.title
+          return { ...c, title: newTitle, messages: [...c.messages, fullMsg], updatedAt: ts }
+        })
+        const currentConv = conversations.find((c) => c.id === s.currentConversationId)
+        return { conversations, messages: currentConv?.messages || [] }
+      }),
+      clearMessages: () => set((s) => {
+        const conversations = s.conversations.map((c) =>
+          c.id === s.currentConversationId ? { ...c, messages: [], updatedAt: Date.now() } : c
+        )
+        return { conversations, messages: [] }
+      }),
     }),
     {
       name: 'creorga-assistant',
+      version: 2, // bump pour forcer migration
+      migrate: (persistedState: any, version) => {
+        // v1 → v2 : ancien store avait juste `messages: []` au top niveau
+        if (version < 2 && persistedState) {
+          const oldMessages = (persistedState.messages || []) as AssistantMessage[]
+          const conv: AssistantConversation = {
+            id: newId(),
+            title: oldMessages.length > 0 ? autoTitle(oldMessages[0]?.text || 'Discussion') : 'Nouvelle discussion',
+            messages: oldMessages,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            archived: false,
+          }
+          return {
+            ...persistedState,
+            conversations: [conv],
+            currentConversationId: conv.id,
+            attachments: [],
+            messages: oldMessages,
+          }
+        }
+        return persistedState
+      },
+      onRehydrateStorage: () => (state) => {
+        // sync messages from currentConversation après rehydration
+        if (state) {
+          const conv = state.conversations.find((c) => c.id === state.currentConversationId)
+          state.messages = conv?.messages || []
+        }
+      },
       partialize: (s) => ({
         mascot: s.mascot, name: s.name, voiceEnabled: s.voiceEnabled,
         voiceSpeed: s.voiceSpeed, autoListen: s.autoListen, panelMode: s.panelMode,
         voiceProfile: s.voiceProfile, wakeWordEnabled: s.wakeWordEnabled,
         drivingMode: s.drivingMode, biometricGuard: s.biometricGuard,
+        conversations: s.conversations,
+        currentConversationId: s.currentConversationId,
       }),
     }
   )

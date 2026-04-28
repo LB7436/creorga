@@ -40,6 +40,8 @@ import MobileWorld from '@/pages/mobile/MobileWorld'
 import MobileSettings from '@/pages/mobile/MobileSettings'
 import MobileCamera from '@/pages/mobile/MobileCamera'
 import MobileDemoLogin from '@/pages/mobile/MobileDemoLogin'
+import MobileBriefing from '@/pages/mobile/MobileBriefing'
+import MobileMagicCam from '@/pages/mobile/MobileMagicCam'
 import UnifiedFloorPlan from '@/pages/pos/UnifiedFloorPlan'
 import GuestHome from '@/pages/guest/GuestHome'
 import AdminLayout from '@/pages/admin/AdminLayout'
@@ -218,6 +220,8 @@ function App() {
       {/* Mobile / PWA — accessible without AppShell */}
       <Route path="/m" element={<MobileLayout />}>
         <Route index element={<MobileLive />} />
+        <Route path="briefing" element={<MobileBriefing />} />
+        <Route path="magic" element={<MobileMagicCam />} />
         <Route path="robi" element={<MobileRobi />} />
         <Route path="alerts" element={<MobileAlerts />} />
         <Route path="world" element={<MobileWorld />} />

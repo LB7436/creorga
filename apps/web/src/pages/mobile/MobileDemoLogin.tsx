@@ -32,6 +32,21 @@ function getBackend() {
       || 'http://localhost:3002'
 }
 
+// v3.15 fix : essaie plusieurs URLs en fallback (utile quand un tunnel meurt)
+function getFallbacks(primary: string): string[] {
+  const list = [primary]
+  if (ENV_BACKEND && ENV_BACKEND !== primary) list.push(ENV_BACKEND)
+  if (primary !== 'http://localhost:3002') list.push('http://localhost:3002')
+  return Array.from(new Set(list))
+}
+
+async function pingBackend(url: string): Promise<boolean> {
+  try {
+    const r = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(5000) })
+    return r.ok
+  } catch { return false }
+}
+
 export default function MobileDemoLogin() {
   const navigate = useNavigate()
   const a = useAssistant()
@@ -55,17 +70,31 @@ export default function MobileDemoLogin() {
   async function autoLogin() {
     setError(null)
     setStage('connecting')
-    try {
-      // 1. Quick health check
-      const ping = await fetch(`${backend}/api/health`, { signal: AbortSignal.timeout(8000) })
-      if (!ping.ok) throw new Error('Backend ne répond pas')
 
+    // v3.15 fix : essaye plusieurs URLs en cascade (tunnel principal → env → localhost)
+    const candidates = getFallbacks(backend)
+    let workingUrl: string | null = null
+    for (const url of candidates) {
+      if (await pingBackend(url)) { workingUrl = url; break }
+    }
+
+    if (!workingUrl) {
+      setError(`Aucun serveur joignable. URLs testées :\n${candidates.map(u => `• ${u}`).join('\n')}`)
+      setStage('error')
+      return
+    }
+
+    // Update UI to show which URL we settled on
+    if (workingUrl !== backend) setBackend(workingUrl)
+
+    try {
       setStage('logging-in')
 
-      // 2. Auto-login
-      const r = await fetch(`${backend}/api/auth/login`, {
+      // Auto-login sur l'URL qui répond
+      const r = await fetch(`${workingUrl}/api/auth/login`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: DEMO_EMAIL, password: DEMO_PASSWORD }),
+        signal: AbortSignal.timeout(10000),
       })
       if (!r.ok) {
         const txt = await r.text().catch(() => 'inconnue')
@@ -73,15 +102,15 @@ export default function MobileDemoLogin() {
       }
       const data = await r.json()
 
-      // 3. Store auth
+      // Store auth
       setAuth({
         accessToken: data.accessToken || data.token || 'demo-token',
         user: data.user || { id: 'demo', email: DEMO_EMAIL, firstName: 'Admin', lastName: 'Demo' },
         companies: data.companies || [],
       })
 
-      // 4. Persist backend choice
-      localStorage.setItem('creorga.backend.remote', backend)
+      // Persist backend choice (utilisé par MobileLive, MobileSettings, etc.)
+      localStorage.setItem('creorga.backend.remote', workingUrl)
 
       setStage('success')
       setTimeout(() => navigate('/m', { replace: true }), 1200)
