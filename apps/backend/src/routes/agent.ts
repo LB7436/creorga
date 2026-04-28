@@ -891,7 +891,7 @@ router.post('/smart-query-stream', async (req, res) => {
     res.write('data: [DONE]\n\n')
     return res.end()
   }
-  const model = pickModel(question, JSON.stringify(slice).length)
+  const model = await pickModel(question, JSON.stringify(slice).length)
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')
@@ -966,7 +966,8 @@ router.post('/daily-briefing', async (req, res) => {
   const unpaidTotal = unpaidM ? parseFloat(unpaidM[1]) : 0
 
   // Liste les noms du staff aujourd'hui
-  const staffNames = ((today2 as any)?.ui?.items || []).map((s: any) => s.title || s.text || '').filter(Boolean).slice(0, 3)
+  // v3.18.1 fix C3 : handler hr.who-today emits {label, value} not {title, text}
+  const staffNames = ((today2 as any)?.ui?.items || []).map((s: any) => s.label || s.title || s.text || '').filter(Boolean).slice(0, 3)
 
   // Compose voice briefing (style oral, naturel, fr-LU)
   let voice = ''
@@ -998,12 +999,13 @@ router.post('/daily-briefing', async (req, res) => {
     })
   }
   if (overdueN > 0) {
+    // v3.18.1 fix M6 : commandId inv.send-reminders n'a pas de handler → utiliser navigate à la place
     priorities.push({
       id: 'invoices',
       emoji: '💶',
       title: `${overdueN} factures en retard (${unpaidTotal.toFixed(0)} €)`,
-      subtitle: 'Envoyer relance email automatique',
-      action: { type: 'command', commandId: 'inv.send-reminders' },
+      subtitle: 'Voir et envoyer les relances',
+      action: { type: 'navigate', route: '/invoices/relances' },
     })
   }
   if (staffToday === 0 && period === 'morning') {
@@ -1025,12 +1027,13 @@ router.post('/daily-briefing', async (req, res) => {
   }
   // Toujours inclure la suggestion "envoyer message clients fidèles"
   if (priorities.length < 3) {
+    // v3.18.1 fix M6 : commandId crm.loyalty-suggest n'a pas de handler → utiliser navigate
     priorities.push({
       id: 'loyalty',
       emoji: '⭐',
-      title: 'Recompense tes clients fidèles',
-      subtitle: 'Envoyer un SMS de bienvenue aux 3 plus assidus',
-      action: { type: 'command', commandId: 'crm.loyalty-suggest' },
+      title: 'Récompense tes clients fidèles',
+      subtitle: 'Voir les top clients pour leur envoyer un message',
+      action: { type: 'navigate', route: '/crm/fidelite' },
     })
   }
 

@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks,
@@ -247,8 +248,23 @@ const card: React.CSSProperties = {
 }
 
 export default function PlanningPage() {
+  // v3.18.1 fix C1 : honore ?view= query param (utilisé par bouton "Nouvel onglet")
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialView = (searchParams.get('view') as ViewType) || 'week'
+  const validViews: ViewType[] = ['day', '3days', 'week', 'month', '6weeks']
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [view, setView] = useState<ViewType>('week')
+  const [view, setView] = useState<ViewType>(validViews.includes(initialView) ? initialView : 'week')
+
+  // Sync view to URL query param (so refresh preserves the view)
+  useEffect(() => {
+    const cur = searchParams.get('view')
+    if (cur !== view) {
+      const next = new URLSearchParams(searchParams)
+      next.set('view', view)
+      setSearchParams(next, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view])
   const [sectionFilter, setSectionFilter] = useState<string>('Toutes')
   const [shifts, setShifts] = useState<Shift[]>(generateMockShifts)
   const [reservations] = useState<Reservation[]>(generateMockReservations)
@@ -350,7 +366,8 @@ export default function PlanningPage() {
   const handleExportCSV = () => {
     const header = 'Employé,Date,Début,Fin,Pause (min),Heures travaillées,Taux horaire,Coût\n'
     const rows = shifts.map(s => {
-      const hrs = s.endHour - s.startHour - (s.endMin - s.startMin) / 60 - (s.hasBreak ? 0.5 : 0)
+      // v3.18.1 fix H9 : minute term ADDED (not subtracted) — cohérent avec ligne 332/345
+      const hrs = s.endHour - s.startHour + (s.endMin - s.startMin) / 60 - (s.hasBreak ? 0.5 : 0)
       const cost = hrs * s.hourlyRate
       return `${s.employeeName},${format(s.date, 'dd/MM/yyyy')},${String(s.startHour).padStart(2, '0')}:${String(s.startMin).padStart(2, '0')},${String(s.endHour).padStart(2, '0')}:${String(s.endMin).padStart(2, '0')},${s.hasBreak ? 30 : 0},${hrs.toFixed(1)},${s.hourlyRate.toFixed(2)},${cost.toFixed(2)}`
     }).join('\n')

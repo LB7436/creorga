@@ -246,12 +246,23 @@ export const useAssistant = create<AssistantState>()(
           state.messages = conv?.messages || []
         }
       },
+      // v3.18.1 fix H1 : strip dataUrl des messages avant persist (sinon quota localStorage exploded
+      // dès la 2ème pièce jointe image, base64 d'une image 5MB = ~7MB de string).
+      // Les pièces jointes ne survivent pas un refresh — c'est OK, elles sont éphémères par design.
       partialize: (s) => ({
         mascot: s.mascot, name: s.name, voiceEnabled: s.voiceEnabled,
         voiceSpeed: s.voiceSpeed, autoListen: s.autoListen, panelMode: s.panelMode,
         voiceProfile: s.voiceProfile, wakeWordEnabled: s.wakeWordEnabled,
         drivingMode: s.drivingMode, biometricGuard: s.biometricGuard,
-        conversations: s.conversations,
+        conversations: s.conversations.map((c) => ({
+          ...c,
+          messages: c.messages.map((m) => ({
+            ...m,
+            attachments: m.attachments?.map((att) => ({
+              ...att, dataUrl: undefined,  // strip base64 avant écriture localStorage
+            })),
+          })),
+        })),
         currentConversationId: s.currentConversationId,
       }),
     }
