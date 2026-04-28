@@ -1,0 +1,28 @@
+# Capacitor build artifacts
+android/app/build/
+android/build/
+android/.gradle/
+android/captures/
+android/local.properties
+android/.idea/
+android/app/release/
+android/keystores/
+
+# Service worker generated assets
+dev-dist/
+
+# Vite
+dist/
+dist-ssr/
+*.local
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

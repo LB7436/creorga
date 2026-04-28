@@ -39,6 +39,7 @@ import MobileAlerts from '@/pages/mobile/MobileAlerts'
 import MobileWorld from '@/pages/mobile/MobileWorld'
 import MobileSettings from '@/pages/mobile/MobileSettings'
 import MobileCamera from '@/pages/mobile/MobileCamera'
+import MobileDemoLogin from '@/pages/mobile/MobileDemoLogin'
 import UnifiedFloorPlan from '@/pages/pos/UnifiedFloorPlan'
 import GuestHome from '@/pages/guest/GuestHome'
 import AdminLayout from '@/pages/admin/AdminLayout'
@@ -210,6 +211,9 @@ function App() {
       <Route path="/setup" element={<RequireAuth><SetupWizard /></RequireAuth>} />
       <Route path="/setup/floor-vision" element={<RequireAuth><FloorVisionWizard /></RequireAuth>} />
       <Route path="/setup/assistant" element={<RequireAuth><AssistantPick /></RequireAuth>} />
+
+      {/* Mobile demo auto-login (entry point of the APK) */}
+      <Route path="/m/demo" element={<MobileDemoLogin />} />
 
       {/* Mobile / PWA — accessible without AppShell */}
       <Route path="/m" element={<MobileLayout />}>

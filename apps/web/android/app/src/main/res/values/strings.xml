@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Creorga · Robi</string>
+    <string name="title_activity_main">Creorga · Robi</string>
+    <string name="package_name">lu.creorga.os</string>
+    <string name="custom_url_scheme">lu.creorga.os</string>
+</resources>
