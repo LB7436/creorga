@@ -1,6 +1,6 @@
 {
   "packageId": "lu.creorga.os",
-  "host": "hygiene-funny-grams-verde.trycloudflare.com",
+  "host": "replication-webcast-instances-gnome.trycloudflare.com",
   "name": "Creorga · Robi",
   "launcherName": "Creorga",
   "display": "standalone",
@@ -12,30 +12,30 @@
   "backgroundColor": "#0a0a14",
   "enableNotifications": true,
   "startUrl": "/m/demo",
-  "iconUrl": "https://hygiene-funny-grams-verde.trycloudflare.com/icon-512.png",
-  "maskableIconUrl": "https://hygiene-funny-grams-verde.trycloudflare.com/icon-512.png",
-  "monochromeIconUrl": "https://hygiene-funny-grams-verde.trycloudflare.com/icon-512.png",
+  "iconUrl": "https://replication-webcast-instances-gnome.trycloudflare.com/icon-512.png",
+  "maskableIconUrl": "https://replication-webcast-instances-gnome.trycloudflare.com/icon-512.png",
+  "monochromeIconUrl": "https://replication-webcast-instances-gnome.trycloudflare.com/icon-512.png",
   "splashScreenFadeOutDuration": 300,
   "shortcuts": [
-    { "name": "Robi", "short_name": "Robi", "url": "/m/robi", "chosenIconUrl": "https://hygiene-funny-grams-verde.trycloudflare.com/icon-192.png" },
-    { "name": "Live", "short_name": "Live", "url": "/m", "chosenIconUrl": "https://hygiene-funny-grams-verde.trycloudflare.com/icon-192.png" }
+    { "name": "Robi", "short_name": "Robi", "url": "/m/robi", "chosenIconUrl": "https://replication-webcast-instances-gnome.trycloudflare.com/icon-192.png" },
+    { "name": "Live", "short_name": "Live", "url": "/m", "chosenIconUrl": "https://replication-webcast-instances-gnome.trycloudflare.com/icon-192.png" }
   ],
   "generatorApp": "creorga-build",
-  "webManifestUrl": "https://hygiene-funny-grams-verde.trycloudflare.com/manifest.json",
+  "webManifestUrl": "https://replication-webcast-instances-gnome.trycloudflare.com/manifest.json",
   "fallbackType": "customtabs",
   "features": {},
   "alphaDependencies": { "enabled": false },
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://hygiene-funny-grams-verde.trycloudflare.com/",
+  "fullScopeUrl": "https://replication-webcast-instances-gnome.trycloudflare.com/",
   "minSdkVersion": 21,
   "orientation": "portrait",
   "additionalTrustedOrigins": [
-    "https://division-diffs-stakeholders-become.trycloudflare.com"
+    "https://counters-vessel-acquired-recognised.trycloudflare.com"
   ],
   "retainedBundles": [],
   "appVersion": "1.0.0",
-  "appVersionCode": 1,
+  "appVersionCode": 2,
   "shareTarget": {}
 }

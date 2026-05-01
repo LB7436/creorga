@@ -669,7 +669,8 @@ async function pickModel(question: string, contextSize: number): Promise<string>
   if (complex || question.length > 200 || contextSize > 2500) {
     if (await isGemma9bAvailable()) return 'gemma2:9b'
   }
-  return 'gemma2:2b'
+  // v3.18.2 — gemma3:4b remplace gemma2:2b (vision-capable, plus fiable)
+  return 'gemma3:4b'
 }
 
 /** Detect "invent / imagine / fake" attempts to refuse cleanly */
@@ -935,6 +936,156 @@ router.post('/smart-query-stream', async (req, res) => {
   }
 })
 
+// ─── v3.18.2 — PDF PROCESSING (LOCAL, SECURE) ──────────────────────────
+// Reçoit un PDF en base64, extrait le texte avec pdf-parse, puis utilise
+// Gemma 3 (local) pour résumer / classifier / extraire les actions.
+// 100% privé : aucun appel cloud, le PDF ne quitte jamais le PC.
+router.post('/process-pdf', async (req, res) => {
+  const { pdfBase64, hint, currentPath } = req.body as {
+    pdfBase64: string
+    hint?: string  // texte que l'utilisateur a tapé avec le PDF (ex: "mets dans le planning")
+    currentPath?: string
+  }
+  if (!pdfBase64) return res.status(400).json({ error: 'pdfBase64 required' })
+
+  try {
+    const b64 = pdfBase64.replace(/^data:application\/pdf;base64,/, '')
+    const buf = Buffer.from(b64, 'base64')
+
+    // Extract text locally with pdf-parse v2 (no cloud)
+    // API: new PDFParse({ data: buf }).getText() → { text, info, ... }
+    const pdfModule: any = await import('pdf-parse')
+    const PDFParse = pdfModule.PDFParse || pdfModule.default?.PDFParse
+    if (!PDFParse) {
+      return res.status(500).json({ error: 'pdf-parse PDFParse class not found' })
+    }
+    const parser = new PDFParse({ data: new Uint8Array(buf) })
+    const textResult: any = await parser.getText()
+    const info: any = await parser.getInfo().catch(() => ({}))
+    try { await parser.destroy?.() } catch { /* ignore */ }
+
+    const rawText = (textResult?.text || textResult || '').toString().trim()
+    const numPages = info?.numpages || info?.pages || textResult?.pages?.length || 1
+
+    if (!rawText || rawText.length < 30) {
+      return res.json({
+        kind: 'text',
+        text: `📄 PDF reçu (${numPages} page${numPages > 1 ? 's' : ''}) mais texte non extractible — peut-être scanné. Utilise OCR caméra à la place.`,
+        debug: { numPages, textLength: rawText.length },
+      })
+    }
+
+    // Trim to fit in Gemma context (~4000 chars max for prompt + response)
+    const trimmed = rawText.slice(0, 6000)
+
+    // Classify: invoice / planning / cv / receipt / contract / other
+    const userIntent = hint?.trim() || ''
+    const prompt = `Tu reçois le texte d'un PDF (${numPages} pages, ~${rawText.length} caractères) joint à un message dans Creorga (POS restaurant Luxembourg).
+
+${userIntent ? `INTENTION DE L'UTILISATEUR : "${userIntent}"\n` : ''}TEXTE PDF :
+"""
+${trimmed}
+"""
+
+Tâche : classifie le PDF et extrais les données utiles.
+
+Renvoie UNIQUEMENT ce JSON :
+{
+  "type": "<invoice|planning|cv|receipt|contract|menu|report|other>",
+  "summary": "<2-3 phrases en français résumant le contenu>",
+  "suggestedAction": "<action concrète : 'Ajouter facture', 'Importer planning', 'Créer fiche employé', etc.>",
+  "extracted": {
+    "supplier": "<si facture>",
+    "totalAmount": <si facture>,
+    "dueDate": "<si facture/contrat YYYY-MM-DD>",
+    "employees": [<si planning ou liste personnes>],
+    "shifts": [<si planning : {date, employee, start, end}>],
+    "candidateName": "<si CV>",
+    "candidateRole": "<si CV>",
+    "items": [<si menu ou facture : noms d'articles>]
+  },
+  "route": "<URL Creorga où l'action peut s'exécuter ex: /invoices/factures, /hr/planning, /hr/team>",
+  "confidence": <0-1>
+}
+
+RÈGLES :
+- N'invente AUCUNE donnée. Si pas dans le texte, mets null/[].
+- Si l'utilisateur a précisé une intention (ex "mets dans planning"), priorise cette interprétation.
+- Pour CV : extrait nom + poste convoité + années d'expérience.
+- Pour planning : extrait shifts {date, employé, début, fin} en YYYY-MM-DD HH:mm.`
+
+    const ollamaRes = await fetch('http://localhost:11434/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gemma3:4b',
+        prompt,
+        stream: false,
+        format: 'json',
+        options: { temperature: 0.1 },
+      }),
+    })
+
+    if (!ollamaRes.ok) {
+      return res.status(500).json({ error: 'Ollama unavailable', details: await ollamaRes.text() })
+    }
+
+    const data = await ollamaRes.json() as { response?: string }
+    let parsed: any
+    try { parsed = JSON.parse(data.response || '{}') }
+    catch {
+      const m = (data.response || '').match(/\{[\s\S]*\}/)
+      parsed = m ? JSON.parse(m[0]) : { type: 'other', summary: data.response, confidence: 0.3 }
+    }
+
+    // Build human-friendly response
+    const emoji: Record<string, string> = {
+      invoice: '🧾', planning: '📅', cv: '👤', receipt: '📋',
+      contract: '📑', menu: '🍽', report: '📊', other: '📄',
+    }
+    const e = emoji[parsed.type] || '📄'
+    const responseText = `${e} **PDF analysé** (${numPages} page${numPages > 1 ? 's' : ''})\n\n${parsed.summary || ''}\n\n${parsed.suggestedAction ? '💡 ' + parsed.suggestedAction : ''}`
+
+    res.json({
+      kind: 'pdf-action',
+      text: responseText,
+      ...parsed,
+      uiAction: parsed.route ? { type: 'navigate', to: parsed.route } : undefined,
+      debug: { numPages, textLength: rawText.length, model: 'gemma3:4b', source: 'local-pdf-parse+gemma' },
+    })
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || 'PDF processing failed', stack: e?.stack?.slice(0, 500) })
+  }
+})
+
+// ─── v3.18.2 — TRANSCRIBE AUDIO (LOCAL ONLY) ───────────────────────────
+// Si Whisper est installé localement, transcrit. Sinon, retourne 503 et le
+// frontend tombe en fallback browser SpeechRecognition.
+router.post('/transcribe', async (req, res) => {
+  const { audioBase64, mimeType } = req.body as { audioBase64: string; mimeType?: string }
+  if (!audioBase64) return res.status(400).json({ error: 'audioBase64 required' })
+
+  // Whisper.cpp est disponible via Ollama whisper model si pull
+  // Sinon, suggère le browser STT comme fallback
+  try {
+    // Check whisper model
+    const tagsRes = await fetch('http://localhost:11434/api/tags')
+    const tags = await tagsRes.json() as { models?: Array<{ name: string }> }
+    const hasWhisper = (tags.models || []).some((m) => m.name.includes('whisper'))
+    if (!hasWhisper) {
+      return res.status(503).json({
+        error: 'whisper-not-installed',
+        hint: 'Pour la transcription locale: ollama pull whisper. En attendant, le browser fait la STT côté client.',
+        fallback: 'browser-stt',
+      })
+    }
+    // (Future) call ollama whisper here. For now, fallback.
+    return res.status(503).json({ error: 'whisper-impl-pending', fallback: 'browser-stt' })
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message })
+  }
+})
+
 // ─── v3.17 — DAILY BRIEFING ────────────────────────────────────────────
 // Agrège tout ce qui compte pour le jour J en un seul appel + génère un texte
 // vocal court (<200 caractères) qu'on peut lire à haute voix.
@@ -1078,7 +1229,7 @@ Renvoie UNIQUEMENT ce JSON :
     const ollamaRes = await fetch('http://localhost:11434/api/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'minicpm-v',
+        model: 'gemma3:4b',
         prompt: classifyPrompt,
         images: [b64],
         stream: false,

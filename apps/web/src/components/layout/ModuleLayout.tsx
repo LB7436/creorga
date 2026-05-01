@@ -95,12 +95,16 @@ export default function ModuleLayout({ title, color, items, backPath = '/modules
         </nav>
       </aside>
 
-      {/* content area */}
+      {/* content area
+       * v3.18.4 fix : force light background pour les pages qui ont du texte slate-800
+       * hardcodé (StockPage, FacturesPage, JourneePage, ModuleSelector, etc.).
+       * Ces pages restaient invisibles sur le fond sombre de l'AppShell. */}
       <div
         style={{
           flex: 1,
           overflowY: 'auto',
-          background: colors.bg,
+          background: '#f8fafc',  // light slate, lisible avec text #1e293b
+          color: '#1e293b',
           transition: 'background 0.3s ease',
         }}
       >

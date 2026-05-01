@@ -284,7 +284,7 @@ INTERDICTIONS :
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'gemma2:2b',
+        model: 'gemma3:4b',
         prompt,
         stream: false,
         format: 'json',
@@ -362,7 +362,7 @@ INTERDICTIONS :
 
     parsed.warnings = warnings
     parsed.currency = parsed.currency || 'EUR'
-    ;(parsed as any).source = source || 'tesseract+gemma2:2b'
+    ;(parsed as any).source = source || 'tesseract+gemma3:4b'
 
     // ─── Real-time push to PC dashboard via socket.io ──────────────────
     try {
@@ -385,7 +385,8 @@ router.post('/vision-parse-receipt', async (req, res) => {
   const b64 = imageBase64.replace(/^data:image\/\w+;base64,/, '')
 
   // v3.16 — Direct vision parsing (no Tesseract bottleneck)
-  const visionModel = model || 'minicpm-v'
+  // v3.18.2 — Gemma 3 4B est vision-capable et déjà installé (remplace minicpm-v)
+  const visionModel = model || 'gemma3:4b'
   const prompt = `Tu es un expert OCR pour reçus fournisseur HORECA luxembourgeois. Analyse cette image de reçu/ticket de caisse et extrais TOUTES les données structurées.
 
 INSTRUCTIONS PAS-À-PAS (suivre l'ordre) :

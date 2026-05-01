@@ -301,7 +301,7 @@ router.post('/run-action', async (req, res) => {
         const r2 = await fetch('http://localhost:11434/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'gemma2:2b', prompt, stream: false, ...(isJson ? { format: 'json' } : {}) }),
+          body: JSON.stringify({ model: 'gemma3:4b', prompt, stream: false, ...(isJson ? { format: 'json' } : {}) }),
         })
         if (!r2.ok) return res.status(500).json({ error: 'Ollama unavailable' })
         const data = await r2.json() as { response?: string }

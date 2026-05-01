@@ -130,8 +130,17 @@ export default function AssistantPanel() {
   function startListening() {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SR) {
-      a.addMessage({ role: 'bot', text: '🎤 Reconnaissance vocale non disponible (Chrome / Edge requis).' })
+      a.addMessage({ role: 'bot', text: '🎤 Reconnaissance vocale non disponible. Utilise Chrome ou Edge sur HTTPS / localhost.' })
       return
+    }
+    // v3.18.2 — vérifie permission micro AVANT de lancer SR (sinon échoue silencieusement)
+    if (typeof navigator !== 'undefined' && navigator.permissions) {
+      navigator.permissions.query({ name: 'microphone' as any }).then((p: any) => {
+        if (p.state === 'denied') {
+          a.addMessage({ role: 'bot', text: '🎤 Micro bloqué dans Chrome. Va sur l\'icône 🔒 dans la barre d\'adresse → Site settings → Microphone → Allow, puis recharge la page.' })
+          a.setMode('idle')
+        }
+      }).catch(() => { /* ignore — older browsers */ })
     }
     if (recognitionRef.current) try { recognitionRef.current.stop() } catch { /* ignore */ }
     const rec = new SR()
@@ -164,16 +173,85 @@ export default function AssistantPanel() {
     a.setMode('idle')
   }
 
+  // v3.18.2 — ask() route les attachments vers les bons endpoints LOCAUX
+  // Image/scan → /photo-magic (gemma3:4b vision)
+  // PDF → /process-pdf (pdf-parse + gemma3:4b texte)
+  // Texte seul → /workflow (intents structurés)
+  // 100% LOCAL : aucun appel cloud, tout passe par http://localhost:3002
   async function ask(text: string) {
-    if (!text.trim()) return
-    a.addMessage({ role: 'user', text })
+    const attached = [...a.attachments]
+    const hasText = !!text.trim()
+    const hasAttachments = attached.length > 0
+    if (!hasText && !hasAttachments) return
+
+    // Add user message with attachments preview
+    const userText = hasText ? text : `[${attached.length} pièce(s) jointe(s)]`
+    a.addMessage({ role: 'user', text: userText, attachments: attached })
     setInput('')
+    a.clearAttachments()
     a.setMode('thinking')
+
+    const BE = getBackend()
+
     try {
-      // v3.11 : workflow endpoint auto-detects multi-step ("X et Y et Z")
-      const r = await fetch(`${BACKEND}/api/agent/workflow`, {
+      // ─── ROUTING : image → photo-magic ────────────────────────────────
+      const firstImage = attached.find((att) => (att.kind === 'image' || att.kind === 'scan') && att.dataUrl)
+      if (firstImage && firstImage.dataUrl) {
+        const b64 = firstImage.dataUrl.replace(/^data:image\/\w+;base64,/, '')
+        const r = await fetch(`${BE}/api/agent/photo-magic`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: b64, hint: text || '', currentPath: location.pathname }),
+          signal: AbortSignal.timeout(180_000),
+        })
+        if (r.ok) {
+          const d = await r.json()
+          const summary = d.title
+            ? `${d.emoji || '📋'} ${d.title}\n${d.summary}`
+            : `${d.emoji || '📋'} ${d.summary || 'Image analysée'}`
+          a.addMessage({ role: 'bot', text: summary, ui: d })
+          speak(summary)
+          if (d.cta?.route) setTimeout(() => navigate(d.cta.route), 1500)
+          return
+        }
+        const errText = await r.text()
+        a.addMessage({ role: 'bot', text: `❌ Vision IA indisponible : ${errText.slice(0, 200)}` })
+        return
+      }
+
+      // ─── ROUTING : PDF → process-pdf ──────────────────────────────────
+      const firstPdf = attached.find((att) => att.kind === 'file' && att.mimeType === 'application/pdf')
+      if (firstPdf) {
+        // PDF doesn't have dataUrl in the persisted form (we stripped it for quota).
+        // For runtime sends, we need to re-read the original file. The store doesn't
+        // hold the File object, so use what we have: dataUrl was stripped, need workaround.
+        // Workaround: force-read from a fresh FileReader call before clearing.
+        // For now, ask user to re-attach if dataUrl missing.
+        if (!firstPdf.dataUrl) {
+          a.addMessage({ role: 'bot', text: `❌ PDF non lisible (re-joins-le). Bug v3.18.2 : on garde le data URL en RAM uniquement maintenant.` })
+          return
+        }
+        const b64 = firstPdf.dataUrl.replace(/^data:application\/pdf;base64,/, '')
+        const r = await fetch(`${BE}/api/agent/process-pdf`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pdfBase64: b64, hint: text || '', currentPath: location.pathname }),
+          signal: AbortSignal.timeout(180_000),
+        })
+        if (r.ok) {
+          const d = await r.json()
+          a.addMessage({ role: 'bot', text: d.text || 'PDF analysé.', ui: d })
+          speak(d.summary || d.text || '')
+          if (d.uiAction?.type === 'navigate') setTimeout(() => navigate(d.uiAction.to), 2000)
+          return
+        }
+        const errText = await r.text()
+        a.addMessage({ role: 'bot', text: `❌ PDF non analysable : ${errText.slice(0, 200)}` })
+        return
+      }
+
+      // ─── DEFAULT : texte seul → workflow ──────────────────────────────
+      const r = await fetch(`${BE}/api/agent/workflow`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, currentPath: location.pathname, userId: 'default' }),
+        body: JSON.stringify({ text: hasText ? text : userText, currentPath: location.pathname, userId: 'default' }),
       })
       const data = await r.json()
 

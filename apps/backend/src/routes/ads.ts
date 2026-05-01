@@ -127,7 +127,7 @@ Style : 100% restauration / brasserie / café luxembourgeois — naturel, chaleu
     const r = await fetch('http://localhost:11434/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma2:2b', prompt, stream: false, format: 'json' }),
+      body: JSON.stringify({ model: 'gemma3:4b', prompt, stream: false, format: 'json' }),
     })
     if (!r.ok) return res.status(500).json({ error: 'Ollama unavailable' })
     const data = await r.json() as { response?: string }
