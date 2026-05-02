@@ -15,6 +15,7 @@ import {
 import { createPortal } from 'react-dom'
 import PlanningAssistant from '@/components/PlanningAssistant'
 import PlanningOCRImport from '@/components/PlanningOCRImport'
+import { useAuthStore } from '@/stores/authStore'
 
 const C = {
   bg: '#f8fafc',
@@ -331,10 +332,19 @@ export default function PlanningPage() {
 
   const getHoliday = useCallback((day: Date) => HOLIDAYS_2026.find(h => isSameDay(h.date, day)), [])
 
+  // v3.18.6 — RH permissions par rôle : si viewMode='employee', filtre les
+  // shifts pour ne montrer QUE ceux de l'employé sélectionné. Patron voit tout.
+  const viewMode = useAuthStore((s) => s.viewMode)
+  const viewAsName = useAuthStore((s) => s.viewAsEmployeeName)
+
   const filteredShifts = useMemo(() => {
     if (!showShifts) return []
-    return sectionFilter === 'Toutes' ? shifts : shifts.filter(s => s.section === sectionFilter)
-  }, [shifts, sectionFilter, showShifts])
+    let list = sectionFilter === 'Toutes' ? shifts : shifts.filter(s => s.section === sectionFilter)
+    if (viewMode === 'employee' && viewAsName) {
+      list = list.filter(s => String(s.employee || '').toLowerCase().includes(String(viewAsName).toLowerCase()))
+    }
+    return list
+  }, [shifts, sectionFilter, showShifts, viewMode, viewAsName])
 
   const getShiftsForDay = useCallback((day: Date) => filteredShifts.filter(s => isSameDay(s.date, day)), [filteredShifts])
   const getReservationsForDay = useCallback((day: Date) => showReservations ? reservations.filter(r => isSameDay(r.date, day)) : [], [reservations, showReservations])

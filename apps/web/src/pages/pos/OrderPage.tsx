@@ -2,8 +2,9 @@ import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft, Plus, Minus, Trash2, Search, Send, CreditCard,
-  Users, UserPlus, StickyNote, X, Check,
+  Users, UserPlus, StickyNote, X, Check, Receipt as ReceiptIcon, Heart, AlertOctagon,
 } from 'lucide-react'
+import { SplitBillModal, TipSelector, AllergiesPanel } from '@/components/pos/PosEnhancements'
 
 /* ------------------------------------------------------------------ */
 /*  TYPES                                                              */
@@ -104,6 +105,12 @@ export default function OrderPage() {
   const [editingNote, setEditingNote] = useState<string | null>(null)
   const [coverCount] = useState(3)
   const tableName = 'Table T4'
+  // v3.18.6 — POS Enhancements state
+  const [showSplit, setShowSplit] = useState(false)
+  const [tipAmount, setTipAmount] = useState(0)
+  const [showTip, setShowTip] = useState(false)
+  const [allergies, setAllergies] = useState<string[]>([])
+  const [showAllergies, setShowAllergies] = useState(false)
 
   /* ---- filter products ---- */
   const filtered = useMemo(() => {
@@ -280,6 +287,52 @@ export default function OrderPage() {
             )}
           </div>
 
+          {/* v3.18.6 — Toolbar enhancements POS : Split / Tip / Allergies */}
+          <div style={{ padding: '8px 20px', display: 'flex', gap: 6, borderTop: '1px solid #f1f5f9', background: '#fafbfc' }}>
+            <button onClick={() => setShowSplit(true)} style={{
+              flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #c7d2fe',
+              background: '#eef2ff', color: '#4338ca', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+            }} title="Diviser l'addition entre plusieurs clients">
+              <ReceiptIcon size={12} /> Diviser
+            </button>
+            <button onClick={() => setShowTip((v) => !v)} style={{
+              flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #fbcfe8',
+              background: showTip ? '#fce7f3' : '#fff', color: '#9d174d', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+            }} title="Suggérer un pourboire">
+              <Heart size={12} /> Pourboire
+            </button>
+            <button onClick={() => setShowAllergies((v) => !v)} style={{
+              flex: 1, padding: '8px 10px', borderRadius: 8,
+              border: allergies.length > 0 ? '1px solid #ef4444' : '1px solid #fecaca',
+              background: allergies.length > 0 ? '#fee2e2' : '#fff',
+              color: allergies.length > 0 ? '#dc2626' : '#991b1b',
+              fontSize: 11, fontWeight: 700, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+            }} title="Allergies du client (alerte cuisine)">
+              <AlertOctagon size={12} /> Allergies {allergies.length > 0 && `(${allergies.length})`}
+            </button>
+          </div>
+
+          {/* Allergies panel (collapsible) */}
+          {showAllergies && (
+            <div style={{ padding: '0 20px 8px' }}>
+              <AllergiesPanel
+                current={allergies}
+                onChange={setAllergies}
+                onAlertKitchen={(a) => alert(`🚨 Alerte cuisine envoyée : ${a.join(', ')}`)}
+              />
+            </div>
+          )}
+
+          {/* Tip panel (collapsible) */}
+          {showTip && (
+            <div style={{ padding: '0 20px 8px' }}>
+              <TipSelector baseAmount={total} onChange={(tip) => setTipAmount(tip)} />
+            </div>
+          )}
+
           {/* totals */}
           <div style={{ padding: '14px 20px', borderTop: '1px solid #e2e8f0', background: '#f8fafc' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', marginBottom: 4 }}>
@@ -290,10 +343,16 @@ export default function OrderPage() {
               <span>TVA (17 %)</span>
               <span style={{ fontFamily: 'ui-monospace, monospace' }}>{fmtEuro(tva)}</span>
             </div>
+            {tipAmount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#9d174d', marginBottom: 4 }}>
+                <span>Pourboire</span>
+                <span style={{ fontFamily: 'ui-monospace, monospace' }}>{fmtEuro(tipAmount)}</span>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 10, borderTop: '1px dashed #cbd5e1' }}>
               <span style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>Total TTC</span>
               <span style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', fontFamily: 'ui-monospace, monospace' }}>
-                {fmtEuro(total)}
+                {fmtEuro(total + tipAmount)}
               </span>
             </div>
           </div>
@@ -304,12 +363,29 @@ export default function OrderPage() {
             display: 'flex', flexDirection: 'column', gap: 8,
           }}>
             <button style={{ ...btnPrimary, width: '100%', justifyContent: 'center', padding: '11px 14px' }}>
-              <Send size={15} /> Envoyer en cuisine
+              <Send size={15} /> Envoyer en cuisine{allergies.length > 0 ? ` ⚠️ (${allergies.length} allergies)` : ''}
             </button>
             <button style={{ ...btnAccent, width: '100%', justifyContent: 'center', padding: '11px 14px' }}>
               <CreditCard size={15} /> Aller au paiement
             </button>
           </div>
+
+          {/* Split bill modal */}
+          <AnimatePresence>
+            {showSplit && (
+              <SplitBillModal
+                items={cart.map((c) => ({
+                  id: c.product.id, name: c.product.name, price: c.product.price, qty: c.qty,
+                }))}
+                total={total + tipAmount}
+                onClose={() => setShowSplit(false)}
+                onConfirm={(result) => {
+                  alert(`✅ Addition divisée :\n${result.parts.map((p) => `${p.label} : ${p.amount.toFixed(2)} €`).join('\n')}`)
+                  setShowSplit(false)
+                }}
+              />
+            )}
+          </AnimatePresence>
         </div>
 
         {/* =========== RIGHT: CATALOG =========== */}
