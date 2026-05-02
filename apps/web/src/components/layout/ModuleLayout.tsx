@@ -96,15 +96,16 @@ export default function ModuleLayout({ title, color, items, backPath = '/modules
       </aside>
 
       {/* content area
-       * v3.18.4 fix : force light background pour les pages qui ont du texte slate-800
-       * hardcodé (StockPage, FacturesPage, JourneePage, ModuleSelector, etc.).
-       * Ces pages restaient invisibles sur le fond sombre de l'AppShell. */}
+       * v3.18.8 — DARK THEME GLOBAL : tous les modules en sombre par cohérence.
+       * Background dégradé violet/dark match le design des screenshots.
+       * Les cartes claires hardcodées dans certaines pages restent visibles
+       * (le contraste est correct), à migrer en v3.18.9 si besoin. */}
       <div
         style={{
           flex: 1,
           overflowY: 'auto',
-          background: '#f8fafc',  // light slate, lisible avec text #1e293b
-          color: '#1e293b',
+          background: 'linear-gradient(145deg, #0a0a1a 0%, #0f0f2e 30%, #0d0b24 60%, #080818 100%)',
+          color: '#f1f5f9',
           transition: 'background 0.3s ease',
         }}
       >

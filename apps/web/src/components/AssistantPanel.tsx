@@ -248,8 +248,9 @@ export default function AssistantPanel() {
         return
       }
 
-      // ─── DEFAULT : texte seul → workflow ──────────────────────────────
-      const r = await fetch(`${BE}/api/agent/workflow`, {
+      // v3.18.8 — DEFAULT : texte seul → super-ask (agent tool-loop avec Gemma)
+      // Le super-agent essaie 3 niveaux : parseIntent → Gemma intent pick → smart-query
+      const r = await fetch(`${BE}/api/agent/super-ask`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: hasText ? text : userText, currentPath: location.pathname, userId: 'default' }),
       })

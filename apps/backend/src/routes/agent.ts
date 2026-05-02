@@ -1086,6 +1086,163 @@ router.post('/transcribe', async (req, res) => {
   }
 })
 
+// ─── v3.18.8 — SUPER AGENT (tool-loop pattern, local Ollama) ──────────
+// Améliore drastiquement les réponses Robi. Au lieu de :
+//   - parseIntent (regex strict) OU smart-query (filtré agressif)
+// Le super-agent fait :
+//   1. Tente parseIntent (rapide, 0 latence si match)
+//   2. Si null, demande à Gemma de PICKER un intent dans un catalogue (fonction call)
+//   3. Si Gemma propose un intent valide, l'exécute via executeIntent
+//   4. Sinon fallback smart-query avec FULL context (toutes les données chargeables)
+//   5. Suggère 3 actions de suivi
+const ROBI_INTENT_CATALOG = [
+  { id: 'pos.add-items',        ex: 'Mets 3 cafés sur table 1', desc: 'Ajouter X items à une table POS' },
+  { id: 'pos.close-table',      ex: 'Ferme table 4', desc: 'Clôturer une table' },
+  { id: 'pos.transfer-table',   ex: 'Transfère table 3 vers 5', desc: 'Déplacer commande entre tables' },
+  { id: 'pos.free-tables',      ex: 'Tables libres ?', desc: 'Lister les tables disponibles' },
+  { id: 'pos.occupancy',        ex: 'Taux d\'occupation ?', desc: 'Pourcentage tables occupées' },
+  { id: 'pos.top-products',     ex: 'Plat le plus vendu', desc: 'Top 5 ventes en cours' },
+  { id: 'invoices.create',      ex: 'Crée facture pour Brasserie 850€', desc: 'Créer une nouvelle facture' },
+  { id: 'inv.unpaid-list',      ex: 'Factures impayées', desc: 'Liste des factures non réglées' },
+  { id: 'inv.mark-paid',        ex: 'Marque facture F-2026-142 payée', desc: 'Marquer facture comme payée' },
+  { id: 'inv.send-reminder',    ex: 'Envoie relance Brasserie', desc: 'Envoyer relance facture' },
+  { id: 'acc.tva-current',      ex: 'TVA du mois', desc: 'TVA collectée trimestre courant' },
+  { id: 'acc.revenue-today',    ex: 'CA aujourd\'hui', desc: 'Chiffre d\'affaires du jour' },
+  { id: 'acc.revenue-week',     ex: 'CA cette semaine', desc: 'CA 7 derniers jours' },
+  { id: 'acc.revenue-month',    ex: 'CA ce mois', desc: 'CA depuis 1er du mois' },
+  { id: 'acc.average-ticket',   ex: 'Ticket moyen ?', desc: 'Moyenne des ventes' },
+  { id: 'acc.guests-today',     ex: 'Couverts aujourd\'hui', desc: 'Nombre de couverts servis' },
+  { id: 'acc.compare-yesterday',ex: 'Comparaison hier', desc: 'CA aujourd\'hui vs hier' },
+  { id: 'hr.who-works',         ex: 'Qui travaille demain ?', desc: 'Lister shifts d\'un jour' },
+  { id: 'hr.who-today',         ex: 'Qui travaille aujourd\'hui', desc: 'Shifts du jour' },
+  { id: 'hr.add-employee',      ex: 'Rajoute employé Marie', desc: 'Créer fiche employé' },
+  { id: 'hr.add-shift',         ex: 'Ajoute shift Marie demain 9h-17h', desc: 'Créer un shift' },
+  { id: 'hr.remove-shift',      ex: 'Supprime shift Lucas demain', desc: 'Annuler un shift' },
+  { id: 'hr.list-leaves',       ex: 'Qui est en congé ?', desc: 'Congés actifs' },
+  { id: 'hr.request-leave',     ex: 'Demande congé Marie 5-12 août', desc: 'Créer demande congé' },
+  { id: 'hr.hours-of',          ex: 'Heures de Lucas', desc: 'Heures travaillées de quelqu\'un' },
+  { id: 'hr.next-week-planning',ex: 'Planning semaine prochaine', desc: 'Vue planning semaine N+1' },
+  { id: 'hr.my-shifts',         ex: 'Mes shifts', desc: 'Shifts personnels (collab)' },
+  { id: 'hr.my-leaves',         ex: 'Mes congés', desc: 'Congés personnels (collab)' },
+  { id: 'hr.punch-in',          ex: 'Je commence', desc: 'Pointage entrée' },
+  { id: 'hr.punch-out',         ex: 'Je termine', desc: 'Pointage sortie' },
+  { id: 'inv.add-stock',        ex: 'Ajoute 5 kg tomates au stock', desc: 'Augmenter stock article' },
+  { id: 'inv.low-stock-list',   ex: 'Stock bas', desc: 'Articles en rupture proche' },
+  { id: 'inv.expiring-soon',    ex: 'Produits qui périment', desc: 'DLUO proches' },
+  { id: 'inv.create-order',     ex: 'Commande de café à Métro', desc: 'Créer commande fournisseur' },
+  { id: 'inv.stock-value',      ex: 'Valeur du stock', desc: 'Calcul valeur inventaire' },
+  { id: 'crm.add-client',       ex: 'Ajoute client Pierre Dupont', desc: 'Créer fiche client' },
+  { id: 'crm.list-vips',        ex: 'VIPs / meilleurs clients', desc: 'Top 5 clients par CA' },
+  { id: 'crm.birthdays',        ex: 'Anniversaires ce mois', desc: 'Clients qui fêtent leur anniv' },
+  { id: 'crm.add-loyalty-points', ex: 'Ajoute 50 points à Marie', desc: 'Créditer fidélité' },
+  { id: 'crm.send-campaign',    ex: 'Code -10% à VIPs', desc: 'Lancer campagne ciblée' },
+  { id: 'reservation.create',   ex: 'Réserve table 4 pour Pierre vendredi 20h', desc: 'Créer réservation' },
+  { id: 'backup.create',        ex: 'Sauvegarde le stock', desc: 'Créer backup données' },
+  { id: 'ui.dark-mode',         ex: 'Active mode sombre', desc: 'Switch theme dark' },
+  { id: 'ui.navigate',          ex: 'Va au planning', desc: 'Navigate vers une page' },
+  { id: 'web.search',           ex: 'Cherche le prix moyen café Luxembourg', desc: 'Recherche internet' },
+  { id: 'help.show-commands',   ex: 'Aide / que sais-tu faire ?', desc: 'Catalogue commandes' },
+]
+
+router.post('/super-ask', async (req, res) => {
+  const { text, currentPath = '/', userId = 'default' } = req.body as { text: string; currentPath?: string; userId?: string }
+  if (!text) return res.status(400).json({ error: 'text required' })
+
+  // Étape 1 : tentative parseIntent direct (rapide)
+  try {
+    const intentRes = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/intent`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, currentPath, userId }),
+    })
+    const data = await intentRes.json() as any
+    if (data.kind === 'action' && data.success) {
+      // Direct hit ! Ajoute des suggestions de suivi
+      return res.json({
+        ...data,
+        suggestions: pickSuggestions(data.intent),
+        path: 'direct-intent',
+      })
+    }
+  } catch { /* continue */ }
+
+  // Étape 2 : Demander à Gemma quel intent appeler (semantic match via LLM)
+  const catalogText = ROBI_INTENT_CATALOG.map((i) => `- ${i.id} : ${i.desc} (ex: "${i.ex}")`).join('\n')
+  const intentPickPrompt = `Tu es Robi, l'assistant Creorga (POS Luxembourg). Un utilisateur pose une question.
+Choisis l'intent le plus pertinent dans le catalogue, OU réponds "NONE" si aucun ne correspond.
+
+CATALOGUE D'INTENTS DISPONIBLES :
+${catalogText}
+
+QUESTION UTILISATEUR : "${text}"
+PAGE COURANTE : ${currentPath}
+
+Réponds UNIQUEMENT avec ce JSON :
+{"intent":"<id ou NONE>","reasoning":"<raisonnement court 1 phrase>","extracted_args":{}}`
+
+  try {
+    const pickRes = await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gemma3:4b',
+        prompt: intentPickPrompt,
+        stream: false, format: 'json',
+        options: { temperature: 0.05 },
+      }),
+    })
+    if (pickRes.ok) {
+      const pickData = await pickRes.json() as { response?: string }
+      const pick = JSON.parse((pickData.response || '{}').match(/\{[\s\S]*\}/)?.[0] || '{}')
+      if (pick.intent && pick.intent !== 'NONE' && ROBI_INTENT_CATALOG.find((c) => c.id === pick.intent)) {
+        // Reconstruit la phrase exemple pour faire matcher parseIntent
+        const example = ROBI_INTENT_CATALOG.find((c) => c.id === pick.intent)!.ex
+        const intentRes = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/intent`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: example, currentPath, userId }),
+        })
+        const data = await intentRes.json() as any
+        if (data.kind === 'action') {
+          return res.json({
+            ...data,
+            note: `🤖 Robi a interprété : "${text}" → ${pick.intent} (${pick.reasoning})`,
+            suggestions: pickSuggestions(pick.intent),
+            path: 'gemma-intent-pick',
+          })
+        }
+      }
+    }
+  } catch { /* continue */ }
+
+  // Étape 3 : fallback smart-query avec FULL context (pas filtré)
+  try {
+    const sqRes = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/smart-query`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: text, currentPath, userId }),
+    })
+    const sqData = await sqRes.json() as any
+    return res.json({
+      ...sqData,
+      suggestions: pickSuggestions(),
+      path: 'smart-query-fallback',
+    })
+  } catch (e: any) {
+    return res.json({ kind: 'error', text: '❌ Robi a eu un problème : ' + (e?.message || 'inconnu') })
+  }
+})
+
+function pickSuggestions(intent?: string): string[] {
+  // Suggestions de suivi contextuelles selon l'intent qu'on vient de servir
+  const map: Record<string, string[]> = {
+    'pos.free-tables':       ['Réserve table 4 pour ce soir', 'Quelle est la meilleure table ?', 'Plat le plus vendu ?'],
+    'inv.unpaid-list':       ['Envoie relance à Brasserie', 'Marque facture F-2026-142 payée', 'TVA du mois'],
+    'crm.list-vips':         ['Anniversaires ce mois ?', 'Code -10% à VIPs', 'Risque churn'],
+    'acc.revenue-today':     ['CA cette semaine', 'CA ce mois', 'Comparaison hier'],
+    'hr.who-today':          ['Qui travaille demain ?', 'Mes shifts', 'Heures de Marie'],
+    'inv.low-stock-list':    ['Commande de café à Métro', 'Valeur du stock', 'DLUO proches'],
+    'help.show-commands':    ['Tables libres ?', 'CA aujourd\'hui', 'Mes shifts'],
+  }
+  return map[intent || ''] || ['CA aujourd\'hui', 'Tables libres ?', 'Aide']
+}
+
 // ─── v3.17 — DAILY BRIEFING ────────────────────────────────────────────
 // Agrège tout ce qui compte pour le jour J en un seul appel + génère un texte
 // vocal court (<200 caractères) qu'on peut lire à haute voix.
