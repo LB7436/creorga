@@ -48,48 +48,90 @@ function saveVersionedJson(filename: string, data: any) {
 // "Crée facture Brasserie 850 ET envoie par mail ET active mode sombre"
 // ═══════════════════════════════════════════════════════════════════════
 
+// v3.19 E2 — splitWorkflow étendu : split sur plus de séparateurs naturels
 function splitWorkflow(text: string): string[] {
-  // Split on "et", "puis", "ensuite", ";", "," (when followed by a verb)
-  // Keep simple : split on " et ", " puis ", " ensuite ", ";"
+  // Séparateurs : " et ", " puis ", " ensuite ", " après ", " ; ", ", puis ", "& ", " avec ça ", ", ainsi que "
   return text
-    .split(/\s+(?:et|puis|ensuite|apr[èe]s)\s+/i)
+    .split(/\s+(?:et|puis|ensuite|apr[èe]s|avec\s+[çc]a|ainsi\s+que)\s+|\s*;\s*|\s*&\s*|,\s*puis\s+/i)
     .map((s) => s.trim())
-    .filter(Boolean)
+    .filter((s) => s.length > 3)  // ignore mini-fragments
+}
+
+// v3.19 E2 — Détecte si 2 étapes ont une dépendance (ex: facture créée puis envoyée)
+function hasDependency(stepA: string, stepB: string): boolean {
+  const a = stepA.toLowerCase()
+  const b = stepB.toLowerCase()
+  // Si B fait référence à un objet créé par A
+  if (/cr[ée]e?[zr]?|fais|g[ée]n[ée]re/i.test(a) && /(?:envoie|envoyer|imprime|partage|exporte)/i.test(b)) return true
+  // Si A et B touchent à la même table
+  const tableA = a.match(/table\s+(\w+)/)?.[1]
+  const tableB = b.match(/table\s+(\w+)/)?.[1]
+  if (tableA && tableB && tableA === tableB) return true
+  // Si A et B touchent au même client
+  return false
 }
 
 router.post('/workflow', async (req, res) => {
   const { text, currentPath, userId = 'default' } = req.body || {}
   if (!text) return res.status(400).json({ error: 'text required' })
   const steps = splitWorkflow(text)
-  if (steps.length <= 1) {
-    // Not a workflow, redirect to single intent
-    const r = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/intent`, {
+  const port = process.env.PORT || 3002
+  const callIntent = (step: string) =>
+    fetch(`http://localhost:${port}/api/agent/intent`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, currentPath, userId }),
-    })
-    const data = await r.json()
+      body: JSON.stringify({ text: step, currentPath, userId }),
+    }).then((r) => r.json()).catch((e: any) => ({ kind: 'error', text: e?.message }))
+
+  if (steps.length <= 1) {
+    const data = await callIntent(text)
     return res.json({ workflow: false, ...data })
   }
-  const results: any[] = []
-  for (const step of steps) {
-    try {
-      const r = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/intent`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: step, currentPath, userId }),
-      })
-      const data = await r.json()
-      results.push({ step, ...data })
-    } catch (e: any) {
-      results.push({ step, kind: 'error', text: e?.message })
+
+  // v3.19 E2 — Construit graphe dépendances (stepIdx → [dependsOn])
+  const dependencies: number[][] = steps.map(() => [])
+  for (let i = 1; i < steps.length; i++) {
+    for (let j = 0; j < i; j++) {
+      if (hasDependency(steps[j], steps[i])) dependencies[i].push(j)
     }
   }
+
+  // Niveaux d'exécution : un niveau = ensemble d'étapes parallélisables
+  const levels: number[][] = []
+  const done = new Set<number>()
+  while (done.size < steps.length) {
+    const ready = steps.map((_, i) => i).filter((i) => !done.has(i) && dependencies[i].every((d) => done.has(d)))
+    if (ready.length === 0) break  // cycle (impossible dans nos cas)
+    levels.push(ready)
+    ready.forEach((i) => done.add(i))
+  }
+
+  const results: any[] = new Array(steps.length)
+  let aborted = false
+  for (const level of levels) {
+    if (aborted) {
+      level.forEach((i) => { results[i] = { step: steps[i], kind: 'skipped', text: 'Annulé suite à échec précédent' } })
+      continue
+    }
+    // Exécute toutes les étapes du niveau en parallèle
+    const promises = level.map(async (i) => {
+      const data = await callIntent(steps[i])
+      results[i] = { step: steps[i], ...data }
+    })
+    await Promise.all(promises)
+    // Si une étape critique échoue, abort les niveaux suivants
+    const levelFailed = level.some((i) => results[i].kind === 'error' || (results[i].success === false && results[i].kind === 'action'))
+    if (levelFailed) aborted = true
+  }
+
   const successCount = results.filter((r) => r.success || r.kind === 'action' || r.kind === 'answer').length
+  const parallelism = levels.length < steps.length ? `(${levels.length} niveau${levels.length > 1 ? 'x' : ''} parallèles)` : ''
   res.json({
     workflow: true,
     kind: 'workflow',
-    success: successCount === results.length,
-    summary: `🔗 Workflow : ${successCount}/${results.length} étape(s) réussie(s).`,
+    success: successCount === steps.length,
+    summary: `🔗 ${successCount}/${steps.length} étapes réussies ${parallelism}`,
     steps: results,
+    levels,  // pour debug
   })
 })
 

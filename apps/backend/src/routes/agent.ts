@@ -1086,6 +1086,93 @@ router.post('/transcribe', async (req, res) => {
   }
 })
 
+// ─── v3.19 E3 — MÉMOIRE LONG-TERME PAR ENTITÉ ─────────────────────────
+// Robi se souvient : "Mme Dupont allergique noix, vient le jeudi, table 4"
+// Stockage simple JSON (par userId). Vector DB possible plus tard si besoin.
+interface MemoryFact { fact: string; ts: number; source?: string }
+interface MemoryEntry { entity: string; facts: MemoryFact[]; lastSeen: number }
+type MemoryStore = Record<string, MemoryEntry>  // entityKey -> entry
+
+const MEMORY_FILE = (userId: string) => path.join(DATA_DIR, 'robi-memory', `${userId}.json`)
+
+function loadMemoryStore(userId: string): MemoryStore {
+  const f = MEMORY_FILE(userId)
+  if (!fs.existsSync(f)) return {}
+  try { return JSON.parse(fs.readFileSync(f, 'utf8')) } catch { return {} }
+}
+function saveMemoryStore(userId: string, store: MemoryStore) {
+  const dir = path.dirname(MEMORY_FILE(userId))
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(MEMORY_FILE(userId), JSON.stringify(store, null, 2), 'utf8')
+}
+
+function normalizeEntityKey(raw: string): string {
+  return raw.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim()
+}
+
+router.post('/memory/learn', (req, res) => {
+  const { userId = 'default', entity, fact, source } = req.body || {}
+  if (!entity || !fact) return res.status(400).json({ error: 'entity and fact required' })
+  const store = loadMemoryStore(userId)
+  const key = normalizeEntityKey(entity)
+  if (!store[key]) store[key] = { entity, facts: [], lastSeen: Date.now() }
+  store[key].facts.push({ fact: String(fact).slice(0, 300), ts: Date.now(), source })
+  if (store[key].facts.length > 30) store[key].facts.shift()  // keep 30 most recent
+  store[key].lastSeen = Date.now()
+  saveMemoryStore(userId, store)
+  res.json({ ok: true, entity: store[key].entity, factsCount: store[key].facts.length })
+})
+
+router.get('/memory/recall', (req, res) => {
+  const userId = String(req.query.userId || 'default')
+  const entity = String(req.query.entity || '')
+  const store = loadMemoryStore(userId)
+  if (!entity) {
+    return res.json({ entries: Object.values(store).sort((a, b) => b.lastSeen - a.lastSeen).slice(0, 50) })
+  }
+  const needle = normalizeEntityKey(entity)
+  // v3.19 E3 fix : substring matching (fuzzy) pour "Dupont" → "Mme Dupont"
+  let entry = store[needle]
+  if (!entry) {
+    const found = Object.values(store).find((e) =>
+      normalizeEntityKey(e.entity).includes(needle) || needle.includes(normalizeEntityKey(e.entity))
+    )
+    entry = found || null as any
+  }
+  res.json({ entry: entry || null })
+})
+
+router.delete('/memory/forget', (req, res) => {
+  const { userId = 'default', entity } = req.body || {}
+  if (!entity) return res.status(400).json({ error: 'entity required' })
+  const store = loadMemoryStore(userId)
+  delete store[normalizeEntityKey(entity)]
+  saveMemoryStore(userId, store)
+  res.json({ ok: true })
+})
+
+router.get('/memory/list/:userId', (req, res) => {
+  const store = loadMemoryStore(req.params.userId || 'default')
+  res.json({ entries: Object.values(store).sort((a, b) => b.lastSeen - a.lastSeen) })
+})
+
+// Helper utilisé par super-ask : récupère facts pour entités dans la question
+function recallEntitiesFromText(userId: string, text: string): string[] {
+  const store = loadMemoryStore(userId)
+  if (Object.keys(store).length === 0) return []
+  const loweredFull = normalizeEntityKey(text)
+  const matched: string[] = []
+  for (const entry of Object.values(store)) {
+    const key = normalizeEntityKey(entry.entity)
+    // Match si une PARTIE du nom (≥3 chars) du sujet apparait dans la question
+    const tokens = key.split(/\s+/).filter((t) => t.length >= 3)
+    if (tokens.some((t) => loweredFull.includes(t))) {
+      matched.push(`📌 ${entry.entity} : ${entry.facts.slice(-3).map((f) => f.fact).join(' · ')}`)
+    }
+  }
+  return matched
+}
+
 // ─── v3.18.8 — SUPER AGENT (tool-loop pattern, local Ollama) ──────────
 // Améliore drastiquement les réponses Robi. Au lieu de :
 //   - parseIntent (regex strict) OU smart-query (filtré agressif)
@@ -1144,9 +1231,47 @@ const ROBI_INTENT_CATALOG = [
   { id: 'help.show-commands',   ex: 'Aide / que sais-tu faire ?', desc: 'Catalogue commandes' },
 ]
 
+// v3.19 E1 — vérifie si llama3.1 est dispo (cache 1 min)
+let _llamaAvailable: { ts: number; available: boolean } = { ts: 0, available: false }
+async function isLlama31Available(): Promise<boolean> {
+  if (Date.now() - _llamaAvailable.ts < 60_000) return _llamaAvailable.available
+  try {
+    const r = await fetch(`${OLLAMA_URL}/api/tags`)
+    if (!r.ok) { _llamaAvailable = { ts: Date.now(), available: false }; return false }
+    const data = await r.json() as { models?: any[] }
+    const has = !!(data.models || []).find((m: any) => String(m.name).startsWith('llama3.1'))
+    _llamaAvailable = { ts: Date.now(), available: has }
+    return has
+  } catch { _llamaAvailable = { ts: Date.now(), available: false }; return false }
+}
+
+// v3.19 E1 — Convertit un intent du catalogue en tool schema OpenAI-compatible
+function intentToToolSchema(catalogEntry: typeof ROBI_INTENT_CATALOG[number]) {
+  return {
+    type: 'function',
+    function: {
+      name: catalogEntry.id.replace(/\./g, '_'),  // OpenAI schemas don't allow dots
+      description: `${catalogEntry.desc} (ex: "${catalogEntry.ex}")`,
+      parameters: {
+        type: 'object',
+        properties: {
+          natural_language_phrase: {
+            type: 'string',
+            description: `Reformule la requête utilisateur en phrase naturelle française correspondant à cet intent. Format proche de l'exemple : "${catalogEntry.ex}"`,
+          },
+        },
+        required: ['natural_language_phrase'],
+      },
+    },
+  }
+}
+
 router.post('/super-ask', async (req, res) => {
   const { text, currentPath = '/', userId = 'default' } = req.body as { text: string; currentPath?: string; userId?: string }
   if (!text) return res.status(400).json({ error: 'text required' })
+
+  // v3.19 E3 — recall mémoire long-terme pour les entités mentionnées
+  const memoryHints = recallEntitiesFromText(userId, text)
 
   // Étape 1 : tentative parseIntent direct (rapide)
   try {
@@ -1156,14 +1281,80 @@ router.post('/super-ask', async (req, res) => {
     })
     const data = await intentRes.json() as any
     if (data.kind === 'action' && data.success) {
-      // Direct hit ! Ajoute des suggestions de suivi
       return res.json({
         ...data,
         suggestions: pickSuggestions(data.intent),
+        memoryHints: memoryHints.length > 0 ? memoryHints : undefined,
         path: 'direct-intent',
       })
     }
   } catch { /* continue */ }
+
+  // v3.19 E1 — Étape 1.5 : function calling natif si llama3.1 dispo
+  if (await isLlama31Available()) {
+    try {
+      const tools = ROBI_INTENT_CATALOG.map(intentToToolSchema)
+      const messages = [
+        { role: 'system', content: `Tu es Robi, l'assistant Creorga (POS Luxembourg). Tu choisis automatiquement la bonne action via function calling. Page courante : ${currentPath}.${memoryHints.length ? '\n\nMÉMOIRE PERTINENTE :\n' + memoryHints.join('\n') : ''}` },
+        { role: 'user', content: text },
+      ]
+      const chatRes = await fetch(`${OLLAMA_URL}/api/chat`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'llama3.1:8b', messages, tools, stream: false, options: { temperature: 0.1 } }),
+      })
+      if (chatRes.ok) {
+        const chatData = await chatRes.json() as any
+        const toolCalls = chatData.message?.tool_calls || []
+        if (toolCalls.length > 0) {
+          // Exécute toutes les tool calls retournées (multi-intent natif!)
+          const results = []
+          for (const call of toolCalls) {
+            const intentId = String(call.function?.name || '').replace(/_/g, '.')
+            const phrase = call.function?.arguments?.natural_language_phrase
+              || ROBI_INTENT_CATALOG.find((c) => c.id === intentId)?.ex
+            if (!phrase) continue
+            const intentRes = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/intent`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: phrase, currentPath, userId }),
+            })
+            const data = await intentRes.json() as any
+            results.push({ intent: intentId, phrase, ...data })
+          }
+          if (results.length === 1) {
+            return res.json({
+              ...results[0],
+              suggestions: pickSuggestions(results[0].intent),
+              memoryHints: memoryHints.length > 0 ? memoryHints : undefined,
+              note: `🤖 Llama 3.1 a appelé directement : ${results[0].intent}`,
+              path: 'llama-tool-call',
+            })
+          } else if (results.length > 1) {
+            const successCount = results.filter((r) => r.success || r.kind === 'action').length
+            return res.json({
+              kind: 'workflow',
+              workflow: true,
+              success: successCount === results.length,
+              summary: `🔗 ${successCount}/${results.length} actions exécutées en une fois (Llama 3.1)`,
+              steps: results,
+              suggestions: pickSuggestions(results[0]?.intent),
+              memoryHints: memoryHints.length > 0 ? memoryHints : undefined,
+              path: 'llama-multi-tool',
+            })
+          }
+        }
+        // Si pas de tool call, llama a peut-être répondu en texte → use comme fallback
+        if (chatData.message?.content) {
+          return res.json({
+            kind: 'text',
+            text: chatData.message.content,
+            memoryHints: memoryHints.length > 0 ? memoryHints : undefined,
+            suggestions: pickSuggestions(),
+            path: 'llama-text',
+          })
+        }
+      }
+    } catch { /* fall through to Gemma */ }
+  }
 
   // Étape 2 : Demander à Gemma quel intent appeler (semantic match via LLM)
   const catalogText = ROBI_INTENT_CATALOG.map((i) => `- ${i.id} : ${i.desc} (ex: "${i.ex}")`).join('\n')
