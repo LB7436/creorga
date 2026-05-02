@@ -9,24 +9,8 @@ import { useModuleConfig } from '@/stores/moduleConfigStore'
 import { useEnvMode } from '@/stores/envModeStore'
 import { useSharedModuleConfig } from '@/hooks/useSharedModuleConfig'
 
-/* ── emoji map (replaces lucide) ── */
-const MODULE_ICONS: Record<ModuleId, string> = {
-  pos: '🛒',
-  clients: '📱',
-  invoices: '🧾',
-  qrmenu: '📲',
-  loyalty: '🎁',
-  planning: '📅',
-  contracts: '📜',
-  hr: '👥',
-  accounting: '📊',
-  marketing: '📣',
-  reservations: '🗓️',
-  inventory: '📦',
-  haccp: '✅',
-  events: '⭐',
-  reputation: '💬',
-}
+// v3.18.7 — Illustrations SVG 3D-style remplacent les emojis simples
+import { ModuleIllustration, MODULE_EMOJI } from '@/components/illustrations/ModuleIllustrations'
 
 type CategoryFilter = 'all' | 'core' | 'business' | 'digital' | 'admin'
 
@@ -114,7 +98,8 @@ interface ModuleCardProps {
 }
 
 function ModuleCard({ mod, onClick }: ModuleCardProps) {
-  const icon = MODULE_ICONS[mod.id]
+  // v3.18.7 — illustration SVG 3D-style avec fallback emoji
+  const emoji = MODULE_EMOJI[mod.id] || '📁'
 
   return (
     <motion.button
@@ -181,23 +166,20 @@ function ModuleCard({ mod, onClick }: ModuleCardProps) {
         }}
       />
 
-      {/* icon */}
+      {/* v3.18.7 — illustration SVG 3D-style remplace l'emoji simple */}
       <div
         style={{
-          width: 56,
-          height: 56,
-          borderRadius: 16,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          width: 64,
+          height: 64,
           marginBottom: 16,
-          background: `linear-gradient(135deg, ${hexToRgba(mod.color, 0.35)}, ${hexToRgba(mod.color, 0.15)})`,
-          fontSize: 26,
           position: 'relative',
           zIndex: 1,
+          filter: `drop-shadow(0 8px 16px ${hexToRgba(mod.color, 0.35)})`,
         }}
       >
-        {icon}
+        <ModuleIllustration id={mod.id} size={64} />
+        {/* Fallback emoji si pas d'illustration */}
+        <span style={{ position: 'absolute', display: 'none', fontSize: 26 }} aria-hidden>{emoji}</span>
       </div>
 
       {/* name */}
