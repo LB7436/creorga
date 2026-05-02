@@ -274,6 +274,58 @@ function parseIntent(text: string): IntentMatch | null {
     return { intent: 'crm.send-campaign', params: { discount: m[1]?.trim(), audience: m[2]?.trim() }, confidence: 0.75 }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // v3.18.5 — 12 nouveaux intents (questions courantes patron + collab)
+  // ═══════════════════════════════════════════════════════════════════
+
+  // OWNER-1 : "CA cette semaine" / "chiffre d'affaires semaine"
+  if (/(?:ca|chiffre\s+d[''’\s]?affaires?)\s+(?:cette\s+)?semaine|ca\s+hebdo/i.test(q)) {
+    return { intent: 'acc.revenue-week', params: {}, confidence: 0.9 }
+  }
+  // OWNER-2 : "CA ce mois" / "chiffre d'affaires mois"
+  if (/(?:ca|chiffre\s+d[''’\s]?affaires?)\s+(?:ce\s+|du\s+)?mois|ca\s+mensuel/i.test(q)) {
+    return { intent: 'acc.revenue-month', params: {}, confidence: 0.9 }
+  }
+  // OWNER-3 : "ticket moyen" / "panier moyen"
+  if (/(?:ticket\s+moyen|panier\s+moyen|moyenne\s+(?:par\s+)?(?:ticket|client|table))/i.test(q)) {
+    return { intent: 'acc.average-ticket', params: {}, confidence: 0.9 }
+  }
+  // OWNER-4 : "couverts aujourd'hui" / "combien de clients aujourd'hui"
+  if (/(?:couverts?|clients?|monde)\s+(?:aujourd[''’\s]?hui|du\s+jour|servi)|combien\s+(?:de\s+)?(?:clients?|couverts?)/i.test(q)) {
+    return { intent: 'acc.guests-today', params: {}, confidence: 0.85 }
+  }
+  // OWNER-5 : "comparaison hier" / "vs hier"
+  if (/(?:comparaison|compar[ée]?|vs)\s+hier|hier\s+(?:vs|contre|compar[ée])/i.test(q)) {
+    return { intent: 'acc.compare-yesterday', params: {}, confidence: 0.85 }
+  }
+  // POS-6 : "occupation" / "taux d'occupation"
+  if (/(?:taux\s+d[''’\s]?occupation|occupation|combien\s+(?:de\s+)?tables?\s+occup[ée]es?|combien\s+de\s+monde)/i.test(q)) {
+    return { intent: 'pos.occupancy', params: {}, confidence: 0.9 }
+  }
+  // POS-7 : "plat le plus vendu" / "best seller"
+  if (/(?:plat|article|produit)\s+(?:le\s+)?plus\s+(?:vendu|populaire|command[ée])|best\s*sellers?|top\s+(?:plats?|ventes?)/i.test(q)) {
+    return { intent: 'pos.top-products', params: {}, confidence: 0.9 }
+  }
+  // HR-COLLAB-1 : "mes shifts" / "mon planning"
+  if (/(?:mes\s+shifts?|mon\s+planning|mes\s+horaires|mes\s+jours\s+de\s+travail)/i.test(q)) {
+    return { intent: 'hr.my-shifts', params: {}, confidence: 0.9 }
+  }
+  // HR-COLLAB-2 : "mes congés"
+  if (/(?:mes\s+cong[ée]s?|mes\s+vacances|mon\s+solde\s+(?:de\s+)?cong[ée]s?)/i.test(q)) {
+    return { intent: 'hr.my-leaves', params: {}, confidence: 0.9 }
+  }
+  // HR-COLLAB-3 : "pointage" / "je commence" / "je termine"
+  if (/(?:je\s+(?:pointe|commence|d[ée]marre|prends?\s+mon\s+poste))/i.test(q)) {
+    return { intent: 'hr.punch-in', params: {}, confidence: 0.9 }
+  }
+  if (/(?:je\s+(?:termine|finis|sors|quitte|pars)|fin\s+(?:de\s+)?(?:service|shift|journ[ée]e))/i.test(q)) {
+    return { intent: 'hr.punch-out', params: {}, confidence: 0.9 }
+  }
+  // GENERAL : "aide" / "que sais-tu faire" / "commandes"
+  if (/^(?:aide|help|que\s+(?:sais-tu|peux-tu)\s+faire|commandes?\s*\?|liste\s+(?:des\s+)?commandes)$/i.test(q.trim())) {
+    return { intent: 'help.show-commands', params: {}, confidence: 0.95 }
+  }
+
   return null
 }
 
@@ -1027,6 +1079,162 @@ async function executeIntent(intent: IntentMatch): Promise<{ success: boolean; s
         summary: `📣 Campagne ${discount || ''} préparée pour ${target.length} clients. Confirme dans Marketing.`,
         details: { audience: target.length, discount },
         uiAction: { type: 'navigate', to: '/crm/campagnes' },
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // v3.18.5 — 12 nouveaux executors (questions courantes)
+    // ═══════════════════════════════════════════════════════════════════
+
+    case 'acc.revenue-week': {
+      const invoices = loadJson<any[]>('invoices.json', [])
+      const wkStart = Date.now() - 7 * 86400_000
+      const inv = invoices.filter((i: any) => i.date && new Date(i.date).getTime() >= wkStart)
+      const ca = inv.reduce((s: number, i: any) => s + (i.total || 0), 0)
+      return { success: true, summary: `📈 CA des 7 derniers jours : **${ca.toFixed(2)} €** (${inv.length} factures).` }
+    }
+    case 'acc.revenue-month': {
+      const invoices = loadJson<any[]>('invoices.json', [])
+      const mStart = new Date(); mStart.setDate(1); mStart.setHours(0, 0, 0, 0)
+      const inv = invoices.filter((i: any) => i.date && new Date(i.date).getTime() >= mStart.getTime())
+      const ca = inv.reduce((s: number, i: any) => s + (i.total || 0), 0)
+      return { success: true, summary: `📊 CA du mois en cours : **${ca.toFixed(2)} €** (${inv.length} factures).`, uiAction: { type: 'navigate', to: '/accounting/rapports' } }
+    }
+    case 'acc.average-ticket': {
+      const invoices = loadJson<any[]>('invoices.json', [])
+      const recent = invoices.slice(-100)
+      if (recent.length === 0) return { success: true, summary: 'Pas encore assez de tickets pour calculer la moyenne.' }
+      const avg = recent.reduce((s: number, i: any) => s + (i.total || 0), 0) / recent.length
+      return { success: true, summary: `🎫 Ticket moyen : **${avg.toFixed(2)} €** (sur ${recent.length} dernières ventes).` }
+    }
+    case 'acc.guests-today': {
+      try {
+        const floorMod = await import('./floorState')
+        const state = floorMod.getFloorState()
+        const totalGuests = state.tables.reduce((s: number, t: any) => s + (t.guests || 0), 0)
+        const occupied = state.tables.filter((t: any) => t.status === 'OCCUPEE').length
+        return { success: true, summary: `👥 ${totalGuests} couvert(s) actuellement servis sur ${occupied} table(s) occupée(s).` }
+      } catch { return { success: false, summary: 'Erreur lecture floor state.' } }
+    }
+    case 'acc.compare-yesterday': {
+      const invoices = loadJson<any[]>('invoices.json', [])
+      const today = new Date().toISOString().slice(0, 10)
+      const yesterday = new Date(Date.now() - 86400_000).toISOString().slice(0, 10)
+      const todayInv = invoices.filter((i: any) => i.date?.slice(0, 10) === today)
+      const yestInv = invoices.filter((i: any) => i.date?.slice(0, 10) === yesterday)
+      const ca1 = todayInv.reduce((s: number, i: any) => s + (i.total || 0), 0)
+      const ca0 = yestInv.reduce((s: number, i: any) => s + (i.total || 0), 0)
+      const diff = ca1 - ca0
+      const pct = ca0 > 0 ? Math.round((diff / ca0) * 100) : 0
+      const arrow = diff >= 0 ? '📈' : '📉'
+      return {
+        success: true,
+        summary: `${arrow} Aujourd'hui ${ca1.toFixed(0)}€ vs hier ${ca0.toFixed(0)}€ (${diff >= 0 ? '+' : ''}${pct}%).`,
+      }
+    }
+    case 'pos.occupancy': {
+      try {
+        const floorMod = await import('./floorState')
+        const state = floorMod.getFloorState()
+        const occupied = state.tables.filter((t: any) => t.status === 'OCCUPEE').length
+        const total = state.tables.length
+        const pct = total > 0 ? Math.round((occupied / total) * 100) : 0
+        return { success: true, summary: `🪑 Occupation : **${occupied}/${total}** tables (${pct}%).`, uiAction: { type: 'navigate', to: '/pos/floor' } }
+      } catch { return { success: false, summary: 'Erreur lecture occupation.' } }
+    }
+    case 'pos.top-products': {
+      // Aggrège items vendus depuis floor state (commandes en cours) + invoices.json (validées)
+      try {
+        const floorMod = await import('./floorState')
+        const state = floorMod.getFloorState()
+        const tally: Record<string, number> = {}
+        for (const t of state.tables) {
+          for (const it of (t.items || [])) {
+            tally[it.name] = (tally[it.name] || 0) + (it.qty || 1)
+          }
+        }
+        const top = Object.entries(tally).sort(([, a], [, b]) => b - a).slice(0, 5)
+        if (top.length === 0) return { success: true, summary: 'Aucune vente en cours pour calculer le top.' }
+        return {
+          success: true,
+          summary: `🏆 Top ventes en cours : ${top.map(([name, n]) => `${name} (×${n})`).join(', ')}`,
+        }
+      } catch { return { success: false, summary: 'Erreur top produits.' } }
+    }
+    case 'hr.my-shifts': {
+      // userId est passé par /workflow → /intent (default 'default')
+      const userId = (intent.params as any).userId || 'default'
+      const shifts = loadJson<any[]>('shifts.json', [])
+      const wkStart = Date.now() - 86400_000
+      const wkEnd = Date.now() + 14 * 86400_000
+      const mine = shifts.filter((s: any) =>
+        String(s.employeeId || s.employee).toLowerCase() === userId.toLowerCase() ||
+        String(s.userId).toLowerCase() === userId.toLowerCase()
+      ).filter((s: any) => {
+        const t = new Date(s.date).getTime()
+        return t >= wkStart && t <= wkEnd
+      })
+      if (mine.length === 0) return { success: true, summary: '📅 Aucun shift planifié pour vous dans les 14 prochains jours.' }
+      return {
+        success: true,
+        summary: `📅 Vos prochains shifts : ${mine.slice(0, 5).map((s: any) => `${s.date} ${s.start}-${s.end}`).join(' · ')}`,
+        details: mine,
+        uiAction: { type: 'navigate', to: '/hr/planning' },
+      }
+    }
+    case 'hr.my-leaves': {
+      const userId = (intent.params as any).userId || 'default'
+      const leaves = loadJson<any[]>('leave-requests.json', [])
+      const mine = leaves.filter((l: any) =>
+        String(l.employeeId || l.employee).toLowerCase() === userId.toLowerCase()
+      )
+      const pending = mine.filter((l: any) => l.status === 'pending').length
+      const approved = mine.filter((l: any) => l.status === 'approved').length
+      return {
+        success: true,
+        summary: `🏖 Vos congés : ${approved} validé(s), ${pending} en attente.`,
+        details: mine,
+        uiAction: { type: 'navigate', to: '/hr/conges' },
+      }
+    }
+    case 'hr.punch-in': {
+      const punches = loadJson<any[]>('punches.json', [])
+      const userId = (intent.params as any).userId || 'default'
+      const last = punches.findLast?.((p: any) => p.userId === userId) || punches.filter((p: any) => p.userId === userId).slice(-1)[0]
+      if (last && !last.outAt) {
+        return { success: false, summary: '⚠️ Vous êtes déjà pointé en service. Utilisez "je termine" pour clôturer.' }
+      }
+      const punch = { id: 'p-' + Math.random().toString(36).slice(2, 10), userId, inAt: Date.now() }
+      punches.push(punch)
+      saveJson('punches.json', punches)
+      return { success: true, summary: `⏱ Pointage entrée enregistré à ${new Date().toLocaleTimeString('fr-LU', { hour: '2-digit', minute: '2-digit' })}.` }
+    }
+    case 'hr.punch-out': {
+      const punches = loadJson<any[]>('punches.json', [])
+      const userId = (intent.params as any).userId || 'default'
+      const open = punches.filter((p: any) => p.userId === userId && !p.outAt).slice(-1)[0]
+      if (!open) {
+        return { success: false, summary: '⚠️ Aucun pointage en cours. Utilisez "je commence" d\'abord.' }
+      }
+      open.outAt = Date.now()
+      const hours = (open.outAt - open.inAt) / 3_600_000
+      saveJson('punches.json', punches)
+      return { success: true, summary: `⏱ Pointage sortie enregistré (${hours.toFixed(1)} h de service).` }
+    }
+    case 'help.show-commands': {
+      return {
+        success: true,
+        summary: `🤖 Je peux faire ${42} types d'actions ! Quelques exemples :
+
+📊 **Patron** : "CA aujourd'hui", "CA cette semaine", "ticket moyen", "VIPs", "comparaison hier", "occupation"
+🪑 **POS** : "tables libres", "ferme table 3", "transfere table 3 vers 5", "offre table 4", "imprime ticket table 5"
+👥 **RH** : "qui travaille demain", "rajoute employé Marie", "supprime shift Lucas demain", "qui est en congé"
+📦 **Stock** : "ajoute 5 kg tomates", "stock bas", "DLUO", "commande de café à Métro", "valeur stock"
+💶 **Factures** : "factures impayées", "marque facture F-2026-142 payée", "TVA du mois"
+👤 **CRM** : "VIPs", "anniversaires ce mois", "ajoute client Pierre", "ajoute 50 points à Marie"
+👨‍🍳 **Collaborateur** : "mes shifts", "mes congés", "je commence", "je termine"
+
+Tape ou parle naturellement, je comprends !`,
       }
     }
 

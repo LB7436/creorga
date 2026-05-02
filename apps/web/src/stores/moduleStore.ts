@@ -1,23 +1,28 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+// v3.18.5 — Modules supprimés/fusionnés :
+// - 'planning' fusionné dans 'hr' (RH gère maintenant Planning + Pointages + Congés + Équipe)
+// - 'events' (Agenda/Calendrier) supprimé
+// - 'licences' supprimé
+// - 'autoorder' fusionné dans 'inventory' (sous /inventory/autoorder)
+// - 'community' supprimé
+// - 'status' supprimé
+// - 'sustainability' supprimé
 export type ModuleId =
   | 'pos'
   | 'clients'
   | 'invoices'
   | 'qrmenu'
-  | 'planning'
   | 'contracts'
   | 'hr'
   | 'accounting'
   | 'marketing'
   | 'inventory'
   | 'haccp'
-  | 'events'
   | 'reputation'
   | 'formation'
   | 'maintenance'
-  | 'licences'
   | 'rgpd'
   | 'sites'
   | 'api'
@@ -29,10 +34,6 @@ export type ModuleId =
   | 'catering'
   | 'centralkitchen'
   | 'billing'
-  | 'autoorder'
-  | 'sustainability'
-  | 'community'
-  | 'status'
   | 'changelog'
   | 'referral'
   | 'ads'
@@ -91,16 +92,6 @@ export const MODULES: ModuleDef[] = [
     category: 'digital',
   },
   {
-    id: 'planning',
-    name: 'Planning',
-    tagline: 'Horaires & disponibilités',
-    color: '#92400E',
-    colorLight: '#fef3c7',
-    path: '/hr/planning',
-    available: true,
-    category: 'admin',
-  },
-  {
     id: 'contracts',
     name: 'Contrats',
     tagline: 'Clients & fournisseurs',
@@ -113,10 +104,10 @@ export const MODULES: ModuleDef[] = [
   {
     id: 'hr',
     name: 'Gestion RH',
-    tagline: 'Ressources humaines & paie',
+    tagline: 'Planning, congés, shifts & équipe',
     color: '#991B1B',
     colorLight: '#fee2e2',
-    path: '/hr',
+    path: '/hr/planning',  // v3.18.5 : direct au planning (fusion avec module Planning)
     available: true,
     category: 'admin',
   },
@@ -161,16 +152,6 @@ export const MODULES: ModuleDef[] = [
     category: 'admin',
   },
   {
-    id: 'events',
-    name: 'Agenda & Calendrier',
-    tagline: 'Réservations & événements',
-    color: '#0E7490',
-    colorLight: '#cffafe',
-    path: '/agenda',
-    available: true,
-    category: 'business',
-  },
-  {
     id: 'reputation',
     name: 'Réputation',
     tagline: 'Avis clients & e-réputation',
@@ -197,16 +178,6 @@ export const MODULES: ModuleDef[] = [
     color: '#0891b2',
     colorLight: '#cffafe',
     path: '/maintenance',
-    available: true,
-    category: 'admin',
-  },
-  {
-    id: 'licences',
-    name: 'Licences & Assurances',
-    tagline: 'Documents légaux & échéances',
-    color: '#ca8a04',
-    colorLight: '#fef3c7',
-    path: '/licences',
     available: true,
     category: 'admin',
   },
@@ -317,46 +288,6 @@ export const MODULES: ModuleDef[] = [
     color: '#0ea5e9',
     colorLight: '#e0f2fe',
     path: '/billing',
-    available: true,
-    category: 'admin',
-  },
-  {
-    id: 'autoorder',
-    name: 'Auto-Réapprovisionnement',
-    tagline: 'Commandes IA intelligentes',
-    color: '#d97706',
-    colorLight: '#fef3c7',
-    path: '/autoorder',
-    available: true,
-    category: 'core',
-  },
-  {
-    id: 'sustainability',
-    name: 'Durabilité',
-    tagline: 'Impact environnemental & RSE',
-    color: '#16a34a',
-    colorLight: '#dcfce7',
-    path: '/sustainability',
-    available: true,
-    category: 'admin',
-  },
-  {
-    id: 'community',
-    name: 'Communauté',
-    tagline: 'Réseau & benchmarks restaurants',
-    color: '#db2777',
-    colorLight: '#fce7f3',
-    path: '/community',
-    available: true,
-    category: 'digital',
-  },
-  {
-    id: 'status',
-    name: 'Statut système',
-    tagline: 'Uptime & incidents en temps réel',
-    color: '#10b981',
-    colorLight: '#d1fae5',
-    path: '/status',
     available: true,
     category: 'admin',
   },

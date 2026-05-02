@@ -293,19 +293,12 @@ function App() {
           <Route path="relances" element={<RelancesPage />} />
         </Route>
 
-        {/* Agenda & Calendrier Module (merged Events + Reservations) */}
-        {/* v3.18 — fusion : /agenda/planning supprimé (doublon avec /hr/planning), redirige */}
-        <Route path="/agenda" element={<AgendaLayout />}>
-          <Route index element={<Navigate to="/agenda/calendrier" replace />} />
-          <Route path="calendrier" element={<CalendrierPage />} />
-          <Route path="planning" element={<Navigate to="/hr/planning" replace />} />
-          <Route path="devis" element={<EventsDevisPage />} />
-          <Route path="clients" element={<ClientsB2BPage />} />
-          <Route path="liste" element={<ReservListePage />} />
-          <Route path="config" element={<ReservConfigPage />} />
-        </Route>
+        {/* v3.18.5 — Module Agenda supprimé (fusionné dans RH planning + CRM events).
+         * Anciennes URLs redirigent vers les modules pertinents. */}
+        <Route path="/agenda" element={<Navigate to="/hr/planning" replace />} />
+        <Route path="/agenda/*" element={<Navigate to="/hr/planning" replace />} />
 
-        {/* Inventory Module */}
+        {/* Inventory Module — v3.18.5 inclut désormais Auto-Réappro (ex-module séparé) */}
         <Route path="/inventory" element={<InventoryLayout />}>
           <Route index element={<Navigate to="/inventory/stock" replace />} />
           <Route path="stock" element={<StockPage />} />
@@ -313,6 +306,7 @@ function App() {
           <Route path="fournisseurs" element={<FournisseursPage />} />
           <Route path="commandes" element={<CommandesPage />} />
           <Route path="ocr" element={<ReceiptOCR />} />
+          <Route path="autoorder" element={<AutoOrderPage />} />
         </Route>
 
         {/* HR Module */}
@@ -350,8 +344,8 @@ function App() {
         {/* Maintenance Module */}
         <Route path="/maintenance" element={<MaintenancePage />} />
 
-        {/* Licences & Assurances Module */}
-        <Route path="/licences" element={<LicencesPage />} />
+        {/* v3.18.5 — Module Licences supprimé (URL legacy redirige vers RGPD) */}
+        <Route path="/licences" element={<Navigate to="/rgpd" replace />} />
 
         {/* RGPD / Conformité Module */}
         <Route path="/rgpd" element={<RgpdPage />} />
@@ -401,17 +395,14 @@ function App() {
         {/* Billing & Subscription Module */}
         <Route path="/billing" element={<BillingPage />} />
 
-        {/* Auto-Réapprovisionnement IA Module */}
-        <Route path="/autoorder" element={<AutoOrderPage />} />
+        {/* v3.18.5 — Auto-Réapprovisionnement fusionné dans Inventaire.
+         * Ancienne URL redirige vers /inventory/autoorder. */}
+        <Route path="/autoorder" element={<Navigate to="/inventory/autoorder" replace />} />
 
-        {/* Durabilité & Impact Environnemental Module */}
-        <Route path="/sustainability" element={<SustainabilityPage />} />
-
-        {/* Communauté Creorga Module */}
-        <Route path="/community" element={<CommunityPage />} />
-
-        {/* Status Page */}
-        <Route path="/status" element={<StatusPage />} />
+        {/* v3.18.5 — Modules Durabilité / Communauté / Status supprimés */}
+        <Route path="/sustainability" element={<Navigate to="/" replace />} />
+        <Route path="/community" element={<Navigate to="/" replace />} />
+        <Route path="/status" element={<Navigate to="/" replace />} />
 
         {/* Changelog */}
         <Route path="/changelog" element={<ChangelogPage />} />
