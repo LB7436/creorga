@@ -176,4 +176,16 @@ httpServer.listen(PORT, () => {
     startStaleSessionJanitor()
     logger.info('[janitor] auto-close stale floor sessions activé (toutes les 30 min, > 8h)')
   }).catch((e) => logger.warn('[janitor] non démarré:', e?.message))
+
+  // v3.19 F1 — Scheduler (rappels + tâches planifiées, check toutes les 60s)
+  import('./jobs/scheduler').then(({ startScheduler }) => {
+    startScheduler()
+    logger.info('[scheduler] rappels + tâches planifiées activés (check 60s)')
+  }).catch((e) => logger.warn('[scheduler] non démarré:', e?.message))
+
+  // v3.19 F3 — Proactive worker (scan anomalies toutes les 10 min)
+  import('./jobs/proactive-worker').then(({ startProactiveWorker }) => {
+    startProactiveWorker()
+    logger.info('[proactive] worker démarré — alertes auto (10 min)')
+  }).catch((e) => logger.warn('[proactive] non démarré:', e?.message))
 })

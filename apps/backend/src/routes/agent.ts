@@ -1229,6 +1229,8 @@ const ROBI_INTENT_CATALOG = [
   { id: 'ui.navigate',          ex: 'Va au planning', desc: 'Navigate vers une page' },
   { id: 'web.search',           ex: 'Cherche le prix moyen café Luxembourg', desc: 'Recherche internet' },
   { id: 'help.show-commands',   ex: 'Aide / que sais-tu faire ?', desc: 'Catalogue commandes' },
+  { id: 'sched.create',         ex: 'Rappelle-moi de relancer Brasserie demain 10h', desc: 'Créer tâche planifiée' },
+  { id: 'sched.list',           ex: 'Mes rappels', desc: 'Lister tâches planifiées' },
 
   // ─── v3.19 E4 : +30 intents ───
   { id: 'haccp.log-temperature',     ex: 'Température frigo 3°C', desc: 'Enregistrer relevé température équipement' },
@@ -1711,6 +1713,107 @@ router.get('/proactive', async (_req, res) => {
   }
 
   res.json({ suggestions: suggestions.slice(0, 3), generatedAt: Date.now() })
+})
+
+// ─── v3.19 F1 — Scheduled tasks (rappels persistés) ─────────────────────
+// Helpers : parser de date naturelle "demain 10h", "vendredi 14h30", "dans 30 min"
+function parseNaturalDateTime(text: string, base: Date = new Date()): number | null {
+  const q = text.toLowerCase()
+  let target = new Date(base)
+
+  // "dans N minutes/heures/jours"
+  const inMatch = q.match(/dans\s+(\d+)\s*(min(?:utes?)?|h(?:eures?)?|jours?)/i)
+  if (inMatch) {
+    const n = parseInt(inMatch[1])
+    const u = inMatch[2]
+    const ms = /min/.test(u) ? n * 60_000 : /h/.test(u) ? n * 3_600_000 : n * 86_400_000
+    return base.getTime() + ms
+  }
+
+  // Day word
+  const dayMap: Record<string, number> = { 'lundi': 1, 'mardi': 2, 'mercredi': 3, 'jeudi': 4, 'vendredi': 5, 'samedi': 6, 'dimanche': 0 }
+  if (q.includes('demain')) target.setDate(target.getDate() + 1)
+  else if (q.includes('après-demain') || q.includes('apres-demain')) target.setDate(target.getDate() + 2)
+  else {
+    for (const [dayName, dayN] of Object.entries(dayMap)) {
+      if (q.includes(dayName)) {
+        const cur = target.getDay()
+        const diff = ((dayN - cur + 7) % 7) || 7
+        target.setDate(target.getDate() + diff)
+        break
+      }
+    }
+  }
+
+  // Time "10h" / "14h30" / "8h00"
+  const tm = q.match(/(\d{1,2})\s*h\s*(\d{2})?/i)
+  if (tm) {
+    target.setHours(parseInt(tm[1]), parseInt(tm[2] || '0'), 0, 0)
+  } else {
+    // si pas d'heure mais le mot "demain" / jour : 9h par défaut
+    if (q.includes('demain') || Object.keys(dayMap).some((d) => q.includes(d))) {
+      target.setHours(9, 0, 0, 0)
+    } else {
+      return null  // pas assez d'info pour planifier
+    }
+  }
+
+  // Si le résultat est dans le passé (ex: "à 10h" alors qu'il est 14h), pousse à demain
+  if (target.getTime() < base.getTime()) target.setDate(target.getDate() + 1)
+
+  return target.getTime()
+}
+
+router.post('/schedule', async (req, res) => {
+  const { kind, text, dueAt, description, userId = 'default', repeatEvery } = req.body || {}
+  let dueAtMs = typeof dueAt === 'number' ? dueAt : null
+
+  // Si pas de dueAt mais un texte avec date naturelle
+  if (!dueAtMs && text) {
+    dueAtMs = parseNaturalDateTime(text)
+  }
+  if (!dueAtMs || isNaN(dueAtMs)) {
+    return res.status(400).json({ error: 'dueAt or natural-date in text required (ex: "demain 10h", "vendredi 14h30", "dans 30 min")' })
+  }
+
+  const { createTask } = await import('../jobs/scheduler')
+  const task = createTask({
+    kind: kind || 'reminder',
+    payload: { text, userId, message: description || text },
+    dueAt: dueAtMs,
+    description: description || text,
+    repeatEvery,
+  })
+  res.json({
+    success: true,
+    task,
+    summary: `⏰ Rappel programmé pour ${new Date(dueAtMs).toLocaleString('fr-LU', { weekday: 'long', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`,
+  })
+})
+
+router.get('/schedule', async (req, res) => {
+  const { listTasks } = await import('../jobs/scheduler')
+  const status = req.query.status as string | undefined
+  const userId = req.query.userId as string | undefined
+  res.json({ tasks: listTasks({ status, userId }) })
+})
+
+router.delete('/schedule/:id', async (req, res) => {
+  const { deleteTask } = await import('../jobs/scheduler')
+  const ok = deleteTask(req.params.id)
+  res.json({ success: ok })
+})
+
+router.post('/schedule/:id/cancel', async (req, res) => {
+  const { cancelTask } = await import('../jobs/scheduler')
+  const ok = cancelTask(req.params.id)
+  res.json({ success: ok })
+})
+
+// ─── v3.19 F3 — Proactive notifications recap (UI poll) ──────────────────
+router.get('/proactive/inbox', async (_req, res) => {
+  const { getRecentNotifs } = await import('../jobs/proactive-worker')
+  res.json({ notifs: getRecentNotifs(20) })
 })
 
 export default router

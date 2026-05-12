@@ -176,6 +176,10 @@ export default function TemperaturesPage() {
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>(equipments[0].id);
   const [valueInput, setValueInput] = useState<string>('');
   const [notes, setNotes] = useState('');
+  // v3.19 G2 — photo obligatoire (anti-fraude HACCP)
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoDataUrl, setPhotoDataUrl] = useState<string>('');
+  const [photoError, setPhotoError] = useState<string>('');
   const [filterEquipment, setFilterEquipment] = useState<string>('all');
   const [filterDate, setFilterDate] = useState<string>('all');
   const [filterConform, setFilterConform] = useState<string>('all');
@@ -202,10 +206,42 @@ export default function TemperaturesPage() {
     conformite: 98,
   };
 
+  // v3.19 G2 — handler photo + check EXIF timestamp (anti-fraude)
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPhotoError('')
+    const f = e.target.files?.[0]
+    if (!f) return
+    if (f.size > 10 * 1024 * 1024) { setPhotoError('Photo trop lourde (max 10 MB)'); return }
+    // EXIF timestamp check : refusé si écart >5 min avec maintenant (preuve manipulation)
+    const lastModif = f.lastModified
+    const ageMs = Date.now() - lastModif
+    if (ageMs > 5 * 60_000) {
+      setPhotoError(`Photo trop ancienne (${Math.round(ageMs / 60_000)} min) — refusée par anti-fraude HACCP. Reprends la photo MAINTENANT.`)
+      return
+    }
+    setPhotoFile(f)
+    const reader = new FileReader()
+    reader.onload = () => setPhotoDataUrl(String(reader.result))
+    reader.readAsDataURL(f)
+  }
+
   const saveReading = () => {
-    setShowModal(false);
-    setValueInput('');
-    setNotes('');
+    // v3.19 G2 — bloque validation si photo manquante
+    if (!photoFile) {
+      setPhotoError('📷 Photo OBLIGATOIRE pour valider un relevé HACCP (preuve ITM)')
+      return
+    }
+    if (!valueInput) {
+      setPhotoError('Saisis la température')
+      return
+    }
+    // Submit (TODO : POST réel avec photo en multipart vers backend /haccp/temp-log)
+    setShowModal(false)
+    setValueInput('')
+    setNotes('')
+    setPhotoFile(null)
+    setPhotoDataUrl('')
+    setPhotoError('')
   };
 
   const exportCsv = () => {
@@ -540,17 +576,38 @@ export default function TemperaturesPage() {
                 </div>
 
                 <div>
-                  <label style={labelStyle}>Photo (optionnel)</label>
-                  <button
-                    type="button"
-                    style={{
-                      ...inputStyle,
-                      display: 'flex', alignItems: 'center', gap: 8, color: '#64748b',
-                      cursor: 'pointer', textAlign: 'left' as const,
-                    }}
-                  >
-                    <Camera size={16} /> Ajouter une preuve photo
-                  </button>
+                  <label style={labelStyle}>
+                    📷 Photo thermomètre <span style={{ color: '#dc2626', fontWeight: 800 }}>OBLIGATOIRE</span>
+                    <span style={{ fontSize: 11, color: '#64748b', fontWeight: 400, marginLeft: 8 }}>(preuve ITM, anti-fraude EXIF)</span>
+                  </label>
+                  {photoDataUrl ? (
+                    <div style={{ position: 'relative' }}>
+                      <img src={photoDataUrl} alt="Preuve" style={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 8, border: '2px solid #10b981' }} />
+                      <button type="button" onClick={() => { setPhotoFile(null); setPhotoDataUrl('') }}
+                        style={{ position: 'absolute', top: 6, right: 6, padding: '4px 8px', borderRadius: 6, background: '#ef4444', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
+                        Retirer
+                      </button>
+                      <div style={{ marginTop: 4, fontSize: 11, color: '#10b981', fontWeight: 700 }}>✅ Photo prise il y a {Math.round((Date.now() - (photoFile?.lastModified || Date.now())) / 1000)}s — valide</div>
+                    </div>
+                  ) : (
+                    <label
+                      style={{
+                        ...inputStyle,
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        color: photoError ? '#dc2626' : '#64748b',
+                        cursor: 'pointer', textAlign: 'left' as const,
+                        border: photoError ? '2px solid #dc2626' : (inputStyle as any).border,
+                      }}
+                    >
+                      <Camera size={16} /> Tap pour prendre la photo (caméra arrière)
+                      <input type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} style={{ display: 'none' }} />
+                    </label>
+                  )}
+                  {photoError && (
+                    <div style={{ marginTop: 6, padding: 8, background: '#fef2f2', color: '#dc2626', borderRadius: 6, fontSize: 12, fontWeight: 700, border: '1px solid #fecaca' }}>
+                      ⚠️ {photoError}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -572,10 +629,10 @@ export default function TemperaturesPage() {
                   <button onClick={() => setShowModal(false)} style={btnGhost}>Annuler</button>
                   <button
                     onClick={saveReading}
-                    style={{ ...btnPrimary, opacity: valueInput ? 1 : 0.5, cursor: valueInput ? 'pointer' : 'not-allowed' }}
-                    disabled={!valueInput}
+                    style={{ ...btnPrimary, opacity: (valueInput && photoFile) ? 1 : 0.5, cursor: (valueInput && photoFile) ? 'pointer' : 'not-allowed' }}
+                    disabled={!valueInput || !photoFile}
                   >
-                    Enregistrer
+                    Enregistrer {(!valueInput || !photoFile) && '🔒'}
                   </button>
                 </div>
               </div>

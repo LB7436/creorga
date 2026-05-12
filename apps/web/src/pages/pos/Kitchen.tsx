@@ -13,6 +13,27 @@ interface OrderItem {
   cours: Cours;
   station: Exclude<Station, 'Toutes'>;
   note?: string;
+  allergies?: string[];  // v3.19 G1 — collectées depuis le client, affichées GIANT en cuisine
+}
+
+// v3.19 G1 — détection allergie depuis la note (fallback si .allergies pas peuplé)
+const ALLERGEN_KEYWORDS: Record<string, string> = {
+  gluten: '🌾 GLUTEN', noix: '🥜 NOIX', arachide: '🥜 ARACHIDE', noisette: '🥜 NOISETTE',
+  lactose: '🥛 LACTOSE', lait: '🥛 LAIT', soja: '🟤 SOJA',
+  poisson: '🐟 POISSON', crustac: '🦐 CRUSTACÉS', œuf: '🥚 ŒUF', oeuf: '🥚 ŒUF',
+  sésame: '🌱 SÉSAME', moutarde: '🟡 MOUTARDE', céleri: '🥬 CÉLERI',
+}
+
+function extractAllergies(item: OrderItem): string[] {
+  const fromField = item.allergies || []
+  if (fromField.length > 0) return fromField
+  const text = (item.note || '').toLowerCase()
+  if (!/(allerg|sans|intol[ée]ran)/.test(text)) return []
+  const found: string[] = []
+  for (const [key, label] of Object.entries(ALLERGEN_KEYWORDS)) {
+    if (text.includes(key)) found.push(label)
+  }
+  return found
 }
 
 interface Order {
@@ -37,8 +58,8 @@ const initialOrders: Order[] = [
     id: 2, table: 'T-12', createdMinAgo: 4, status: 'attente', server: 'Karim',
     items: [
       { id: 4, name: 'Burrata maison', qty: 1, cours: 'Entrée', station: 'Froid' },
-      { id: 5, name: 'Risotto champignons', qty: 2, cours: 'Plat', station: 'Chaud', note: 'Allergie gluten' },
-      { id: 6, name: 'Tiramisu', qty: 2, cours: 'Dessert', station: 'Desserts' },
+      { id: 5, name: 'Risotto champignons', qty: 2, cours: 'Plat', station: 'Chaud', note: 'Allergie gluten', allergies: ['🌾 GLUTEN'] },
+      { id: 6, name: 'Tiramisu', qty: 2, cours: 'Dessert', station: 'Desserts', allergies: ['🥛 LACTOSE', '🥚 ŒUF'] },
     ],
   },
   {
@@ -92,6 +113,17 @@ const statusMeta: Record<Status, { label: string; color: string; bg: string; bor
 };
 
 export default function Kitchen() {
+  // v3.19 G1 — animation pulse pour badges allergies
+  useEffect(() => {
+    const id = 'allergy-pulse-style'
+    if (typeof document !== 'undefined' && !document.getElementById(id)) {
+      const s = document.createElement('style')
+      s.id = id
+      s.textContent = '@keyframes allergy-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}'
+      document.head.appendChild(s)
+    }
+  }, [])
+
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [filter, setFilter] = useState<Filter>('Tout');
   const [station, setStation] = useState<Station>('Toutes');
@@ -174,15 +206,41 @@ export default function Kitchen() {
             <div key={c}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{c}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {grouped[c].map(i => (
+                {grouped[c].map(i => {
+                  // v3.19 G1 — extraction allergies + badge GIANT rouge
+                  const allergens = extractAllergies(i)
+                  return (
                   <div key={i.id}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#0f172a' }}>
                       <span style={{ fontWeight: 600 }}>{i.name}</span>
                       <span style={{ color: '#475569', fontWeight: 700 }}>x{i.qty}</span>
                     </div>
+                    {allergens.length > 0 && (
+                      <div style={{
+                        marginTop: 6,
+                        padding: '8px 10px',
+                        background: '#dc2626',
+                        color: '#fff',
+                        borderRadius: 8,
+                        fontSize: 16,
+                        fontWeight: 900,
+                        textTransform: 'uppercase',
+                        letterSpacing: 1,
+                        border: '3px solid #991b1b',
+                        boxShadow: '0 0 0 2px #fff, 0 2px 8px rgba(220,38,38,0.4)',
+                        animation: 'allergy-pulse 1.5s ease-in-out infinite',
+                        display: 'flex', flexWrap: 'wrap', gap: 6,
+                      }}>
+                        <span style={{ fontSize: 13, opacity: 0.9 }}>⚠️ ALLERGIE :</span>
+                        {allergens.map((a, k) => (
+                          <span key={k} style={{ display: 'inline-block', padding: '2px 8px', background: '#fff', color: '#dc2626', borderRadius: 4, fontSize: 14 }}>{a}</span>
+                        ))}
+                      </div>
+                    )}
                     {i.note && <div style={{ fontSize: 12, color: '#dc2626', fontStyle: 'italic', marginTop: 2 }}>↳ {i.note}</div>}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           ))}
