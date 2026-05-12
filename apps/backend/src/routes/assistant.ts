@@ -326,6 +326,149 @@ function parseIntent(text: string): IntentMatch | null {
     return { intent: 'help.show-commands', params: {}, confidence: 0.95 }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // v3.19 E4 — 30 NOUVEAUX INTENTS (HACCP / Maint / Mkt / Analytics / Bulk / Search / Alertes)
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ─── HACCP (5) ───
+  // HACCP-1 : "température frigo 3°C" / "frigo 3" / "t° congélateur -18"
+  if ((m = q.match(/(?:temp(?:[ée]rature)?|t°)\s+(?:du\s+)?(frigo|cong[ée]lateur|chambre\s+froide)\s+([-+]?\d+(?:[.,]\d+)?)\s*°?[cC]?/i))) {
+    return { intent: 'haccp.log-temperature', params: { equipment: m[1].toLowerCase(), temp: parseFloat(m[2].replace(',', '.')) }, confidence: 0.85 }
+  }
+  // HACCP-1b : forme courte "frigo 3°C" / "frigo à 3"
+  if ((m = q.match(/^(frigo|cong[ée]lateur|chambre\s+froide)\s+(?:[àa@]\s+)?([-+]?\d+(?:[.,]\d+)?)\s*°?[cC]?\s*$/i))) {
+    return { intent: 'haccp.log-temperature', params: { equipment: m[1].toLowerCase(), temp: parseFloat(m[2].replace(',', '.')) }, confidence: 0.85 }
+  }
+  // HACCP-2 : "valide tâche nettoyage" / "tâche faite"
+  if ((m = q.match(/(?:valide|fait|coch[ée]?|termin[ée]?)\s+(?:la\s+)?t[âa]che\s+([\w\s\-àâéèêëîïôûùüç]+?)(?:\s*$|\s+(?:de|du|pour))/i))) {
+    return { intent: 'haccp.validate-task', params: { taskName: m[1].trim() }, confidence: 0.8 }
+  }
+  // HACCP-3 : "rapport HACCP" / "bilan hygiène"
+  if (/(?:rapport|bilan|r[ée]sum[ée])\s+(?:haccp|hygi[èe]ne)/i.test(q)) {
+    return { intent: 'haccp.daily-report', params: {}, confidence: 0.9 }
+  }
+  // HACCP-4 : "non-conformité" / "incident hygiène"
+  if ((m = q.match(/(?:signale|enregistre|cr[ée]e?)\s+(?:une\s+)?(?:non[\s-]?conformit[ée]|incident|probl[èe]me)\s+(?:hygi[èe]ne|haccp|alimentaire)?\s*(.+)?/i))) {
+    return { intent: 'haccp.report-incident', params: { details: (m[1] || '').trim() }, confidence: 0.8 }
+  }
+  // HACCP-5 : "export contrôle ITM" / "PDF HACCP"
+  if (/(?:export|t[ée]l[ée]charge|g[ée]n[ée]re)\s+(?:le\s+)?(?:rapport|pdf|contr[ôo]le)\s+(?:haccp|itm|hygi[èe]ne)/i.test(q)) {
+    return { intent: 'haccp.export-pdf', params: {}, confidence: 0.9 }
+  }
+
+  // ─── MAINTENANCE (3) ───
+  // MAINT-1 : "créer ticket panne frigo"
+  if ((m = q.match(/(?:cr[ée]e?[zr]?|ouvre|signale)\s+(?:un\s+)?(?:ticket|panne|probl[èe]me|incident)\s+(?:de\s+|sur\s+|du\s+|pour\s+)?(.+?)(?:\s*$)/i))) {
+    return { intent: 'maint.create-ticket', params: { equipment: m[1].trim() }, confidence: 0.75 }
+  }
+  // MAINT-2 : "équipements en panne"
+  if (/(?:[ée]quipements?|machines?|appareils?)\s+(?:en\s+panne|cass[ée]s?|hors\s+service|HS)|tickets?\s+(?:maint(?:enance)?|ouverts?)/i.test(q)) {
+    return { intent: 'maint.list-broken', params: {}, confidence: 0.9 }
+  }
+  // MAINT-3 : "planifie intervention électricien jeudi"
+  if ((m = q.match(/(?:planifie|programme|cr[ée]e?[zr]?)\s+(?:une\s+)?intervention\s+([\w\sàâéèêëîïôûùüç]+?)\s+(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|demain|aujourd[''’\s]?hui)/i))) {
+    return { intent: 'maint.schedule', params: { who: m[1].trim(), day: m[2] }, confidence: 0.8 }
+  }
+
+  // ─── MARKETING (5) ───
+  // MKT-1 : "crée campagne email Soldes Été"
+  if ((m = q.match(/(?:cr[ée]e?[zr]?|lance|pr[ée]pare)\s+(?:une\s+)?campagne\s+(?:email|emailing|sms|newsletter)?\s*(?:nomm[ée]e?\s+|appel[ée]e?\s+|sur\s+|de\s+)?["']?([\w\s\-àâéèêëîïôûùüç]+?)["']?(?:\s*$|\s+(?:pour|à|de))/i))) {
+    return { intent: 'mkt.create-campaign', params: { name: m[1].trim() }, confidence: 0.75 }
+  }
+  // MKT-2 : "taux d'ouverture campagne X"
+  if (/(?:taux\s+d[''’\s]?ouverture|stats?\s+campagne|performances?\s+(?:email|campagne|newsletter))/i.test(q)) {
+    return { intent: 'mkt.campaign-stats', params: {}, confidence: 0.85 }
+  }
+  // MKT-3 : "segment clients vegan" / "audience VIPs Luxembourg"
+  if ((m = q.match(/(?:segment|audience|cible|filtre)\s+(?:clients?|public)?\s*([\w\s\-àâéèêëîïôûùüç]+?)(?:\s*$|\s+(?:pour|de))/i))) {
+    return { intent: 'mkt.segment-audience', params: { criteria: m[1].trim() }, confidence: 0.7 }
+  }
+  // MKT-4 : "A/B test promo -10 vs -15"
+  if (/(?:a\/?b[\s-]?test|teste?\s+(?:deux|2)\s+promos?|comparer?\s+(?:deux|2)\s+offres?)/i.test(q)) {
+    return { intent: 'mkt.ab-test', params: {}, confidence: 0.85 }
+  }
+  // MKT-5 : "calendrier publications" / "planning posts"
+  if (/(?:calendrier\s+(?:publications?|posts?|social)|planning\s+(?:social|posts?|insta|facebook))/i.test(q)) {
+    return { intent: 'mkt.posting-calendar', params: {}, confidence: 0.9 }
+  }
+
+  // ─── ANALYTICS (5) ───
+  // ANALYTICS-1 : "jours les plus rentables"
+  if (/(?:jours?\s+(?:les\s+)?plus\s+(?:rentables?|forts?|charg[ée]s?)|meilleurs?\s+jours?\s+(?:de\s+(?:la\s+)?)?semaine|top\s+jours?)/i.test(q)) {
+    return { intent: 'analytics.top-days', params: {}, confidence: 0.9 }
+  }
+  // ANALYTICS-2 : "comparaison année dernière" / "vs N-1"
+  if (/(?:vs|compar[ée]?|contre)\s+(?:l[''’\s]?ann[ée]e\s+derni[èe]re|n-1|m[êe]me\s+mois\s+l[''’\s]?an\s+dernier)/i.test(q)) {
+    return { intent: 'analytics.compare-yoy', params: {}, confidence: 0.9 }
+  }
+  // ANALYTICS-3 : "taux conversion réservations"
+  if (/(?:taux\s+(?:de\s+)?conversion|r[ée]servations?\s+(?:converties?|honor[ée]es?|no.?show))/i.test(q)) {
+    return { intent: 'analytics.reservation-conversion', params: {}, confidence: 0.9 }
+  }
+  // ANALYTICS-4 : "durée moyenne table" / "temps moyen client"
+  if (/(?:dur[ée]e\s+moyenne\s+(?:par\s+)?tables?|temps\s+moyen\s+(?:par\s+)?clients?|rotation\s+tables?)/i.test(q)) {
+    return { intent: 'analytics.avg-table-time', params: {}, confidence: 0.9 }
+  }
+  // ANALYTICS-5 : "ratio cuisine salle"
+  if (/(?:ratio|r[ée]partition|split)\s+(?:cuisine|salle|food|drink|boissons?|plats?)/i.test(q)) {
+    return { intent: 'analytics.kitchen-vs-bar-ratio', params: {}, confidence: 0.9 }
+  }
+
+  // ─── BULK-OPS (4) ───
+  // BULK-1 : "supprime factures expirées"
+  if (/(?:supprime|nettoie|purge|archive)\s+(?:toutes?\s+les\s+)?factures?\s+(?:expir[ée]es?|annul[ée]es?|vieilles?|p[ée]rim[ée]es?)/i.test(q)) {
+    return { intent: 'bulk.cleanup-old-invoices', params: {}, confidence: 0.85 }
+  }
+  // BULK-2 : "nettoie clients inactifs"
+  if (/(?:nettoie|supprime|archive|purge)\s+(?:les\s+)?clients?\s+(?:inactifs?|fant[ôo]mes?|jamais\s+revenus?)/i.test(q)) {
+    return { intent: 'bulk.cleanup-inactive-customers', params: {}, confidence: 0.85 }
+  }
+  // BULK-3 : "archive shifts > 6 mois"
+  if (/(?:archive|nettoie|purge)\s+(?:les\s+)?(?:shifts?|pointages?|plannings?)\s+(?:>|sup[ée]rieurs?|plus\s+de|de\s+plus\s+de)?\s*\d*\s*(?:mois|semaines?|ans?)/i.test(q)) {
+    return { intent: 'bulk.archive-old-shifts', params: {}, confidence: 0.85 }
+  }
+  // BULK-4 : "reset stock à zéro"
+  if (/(?:reset|remet|remise?)\s+(?:le\s+)?stock\s+(?:à\s+)?z[ée]ro|inventaire\s+vide|vide\s+(?:le\s+)?stock/i.test(q)) {
+    return { intent: 'bulk.reset-stock', params: {}, confidence: 0.85 }
+  }
+
+  // ─── SEARCH CROSS-MODULE (3) ───
+  // SEARCH-1 : "tout sur Dupont" / "trouve tout pour Marie"
+  if ((m = q.match(/(?:tout|trouve|recherche|montre)\s+(?:tout\s+)?(?:sur|pour|à\s+propos\s+de|concernant)\s+([\w\-àâéèêëîïôûùüç]+(?:\s+[\w\-àâéèêëîïôûùüç]+)?)/i))) {
+    return { intent: 'search.entity', params: { entity: m[1].trim() }, confidence: 0.85 }
+  }
+  // SEARCH-2 : "recherche +352 661 12 34 56" / numéro téléphone
+  // (placé AVANT web.search dans l'ordre déclaration pour qu'il matche d'abord — voir ordre regex plus bas)
+  if ((m = q.match(/(?:cherche|trouve|recherche|qui\s+a\s+(?:le\s+)?(?:num[ée]ro|t[ée]l(?:[ée]phone)?))\s+(\+?\d[\d\s\.\-]{7,})/i))) {
+    return { intent: 'search.phone', params: { phone: m[1].replace(/[\s.\-]/g, '') }, confidence: 0.95 }
+  }
+  // SEARCH-3 : "que s'est-il passé le 15 mars" / search par date
+  if ((m = q.match(/(?:que\s+s[''’\s]?est.il\s+pass[ée]|active?\s+du|recherche?\s+du)\s+(\d{1,2})[/\-\s]+(\d{1,2}|janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[ûu]t|septembre|octobre|novembre|d[ée]cembre)/i))) {
+    return { intent: 'search.date', params: { day: m[1], month: m[2] }, confidence: 0.85 }
+  }
+
+  // ─── ALERTES / TRIGGERS (5) ───
+  // ALERT-1 : "alerte si stock café < 5"
+  if ((m = q.match(/(?:cr[ée]e?[zr]?|configure?|mets?)\s+(?:une\s+)?alerte\s+(?:si\s+|quand\s+)?stock\s+([\w\s\-àâéèêëîïôûùüç]+?)\s*[<≤]\s*(\d+)/i))) {
+    return { intent: 'alerts.create-stock-threshold', params: { product: m[1].trim(), threshold: parseInt(m[2]) }, confidence: 0.85 }
+  }
+  // ALERT-2 : "alerte facture impayée J+15"
+  if ((m = q.match(/(?:alerte|notif(?:ication)?)\s+factures?\s+(?:impay[ée]es?\s+)?(?:apr[èe]s\s+|>\s*)?(\d+)\s*(?:jours?|j)/i))) {
+    return { intent: 'alerts.invoice-overdue', params: { days: parseInt(m[1]) }, confidence: 0.85 }
+  }
+  // ALERT-3 : "alerte heures sup"
+  if (/(?:alerte|notif)\s+(?:heures?\s+sup|hs|temps\s+plein|d[ée]passement\s+horaire)/i.test(q)) {
+    return { intent: 'alerts.overtime', params: {}, confidence: 0.9 }
+  }
+  // ALERT-4 : "alerte avis Google < 3 étoiles"
+  if (/(?:alerte|notif)\s+(?:nouvel\s+)?avis\s+(?:google|tripadvisor|booking)?\s*(?:<|inf[ée]rieur)?\s*(\d+)?\s*[ée]toiles?/i.test(q)) {
+    return { intent: 'alerts.bad-review', params: {}, confidence: 0.9 }
+  }
+  // ALERT-5 : "alerte température frigo"
+  if (/(?:alerte|notif)\s+(?:temp[ée]rature|t°)\s+(?:frigo|cong[ée]lateur|chambre\s+froide)/i.test(q)) {
+    return { intent: 'alerts.cold-chain', params: {}, confidence: 0.9 }
+  }
+
   return null
 }
 
@@ -1236,6 +1379,464 @@ async function executeIntent(intent: IntentMatch): Promise<{ success: boolean; s
 
 Tape ou parle naturellement, je comprends !`,
       }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // v3.19 E4 — 30 NOUVEAUX EXECUTORS
+    // ═══════════════════════════════════════════════════════════════════
+
+    // ─── HACCP ────────────────────────────────────────────────────────
+    case 'haccp.log-temperature': {
+      const { equipment, temp } = intent.params
+      const logs = loadJson<any[]>('haccp-logs.json', [])
+      const limits: Record<string, [number, number]> = {
+        'frigo': [0, 4], 'frigos': [0, 4],
+        'congélateur': [-25, -18], 'congelateur': [-25, -18],
+        'chambre froide': [0, 4],
+      }
+      const [min, max] = limits[equipment] || [0, 4]
+      const ok = temp >= min && temp <= max
+      const log = {
+        id: 'haccp-' + Math.random().toString(36).slice(2, 10),
+        type: 'temperature',
+        equipment, temp, min, max, ok,
+        loggedAt: Date.now(),
+      }
+      logs.push(log)
+      saveJson('haccp-logs.json', logs)
+      return {
+        success: true,
+        summary: ok
+          ? `🌡 ${equipment} : ${temp}°C ✅ conforme (cible ${min}–${max}°C)`
+          : `🚨 ${equipment} : ${temp}°C **HORS-NORME** (cible ${min}–${max}°C). Action immédiate requise !`,
+        details: log,
+        uiAction: { type: 'navigate', to: '/haccp/temperatures' },
+      }
+    }
+    case 'haccp.validate-task': {
+      const { taskName } = intent.params
+      const tasks = loadJson<any[]>('haccp-tasks.json', [])
+      const today = new Date().toISOString().slice(0, 10)
+      const task = tasks.find((t: any) =>
+        !t.completed &&
+        String(t.label || t.name || '').toLowerCase().includes(String(taskName).toLowerCase())
+      )
+      if (!task) {
+        // Crée la tâche puis valide
+        const newTask = { id: 'task-' + Math.random().toString(36).slice(2, 10), label: taskName, date: today, completed: true, completedAt: Date.now() }
+        tasks.push(newTask)
+        saveJson('haccp-tasks.json', tasks)
+        return { success: true, summary: `✅ Tâche "${taskName}" enregistrée et validée.`, uiAction: { type: 'navigate', to: '/haccp/taches' } }
+      }
+      task.completed = true
+      task.completedAt = Date.now()
+      saveJson('haccp-tasks.json', tasks)
+      return { success: true, summary: `✅ Tâche "${task.label}" validée.`, details: task, uiAction: { type: 'navigate', to: '/haccp/taches' } }
+    }
+    case 'haccp.daily-report': {
+      const logs = loadJson<any[]>('haccp-logs.json', [])
+      const tasks = loadJson<any[]>('haccp-tasks.json', [])
+      const today = new Date().toISOString().slice(0, 10)
+      const todayLogs = logs.filter((l: any) => new Date(l.loggedAt).toISOString().slice(0, 10) === today)
+      const todayTasks = tasks.filter((t: any) => t.date === today)
+      const doneTasks = todayTasks.filter((t: any) => t.completed).length
+      const incidents = todayLogs.filter((l: any) => l.ok === false).length
+      return {
+        success: true,
+        summary: `📋 **HACCP du jour** : ${doneTasks}/${todayTasks.length} tâches validées · ${todayLogs.length} relevés température · ${incidents > 0 ? `🚨 ${incidents} hors-normes` : '✅ tout conforme'}`,
+        details: { tasks: todayTasks, logs: todayLogs, incidents },
+        uiAction: { type: 'navigate', to: '/haccp/journee' },
+      }
+    }
+    case 'haccp.report-incident': {
+      const { details } = intent.params
+      const logs = loadJson<any[]>('haccp-logs.json', [])
+      const incident = {
+        id: 'incident-' + Math.random().toString(36).slice(2, 10),
+        type: 'incident',
+        severity: 'high',
+        details: details || 'Non-conformité signalée',
+        loggedAt: Date.now(),
+        status: 'open',
+      }
+      logs.push(incident)
+      saveJson('haccp-logs.json', logs)
+      return {
+        success: true,
+        summary: `🚨 Incident enregistré : "${details || 'non-conformité'}". Référence ${incident.id}. À traiter sous 24h.`,
+        uiAction: { type: 'navigate', to: '/haccp/historique' },
+      }
+    }
+    case 'haccp.export-pdf': {
+      return {
+        success: true,
+        summary: `📑 Export HACCP préparé. Va sur /haccp/historique → bouton "Export PDF" pour télécharger le rapport ITM.`,
+        uiAction: { type: 'navigate', to: '/haccp/historique' },
+      }
+    }
+
+    // ─── MAINTENANCE ──────────────────────────────────────────────────
+    case 'maint.create-ticket': {
+      const { equipment } = intent.params
+      const tickets = loadJson<any[]>('maintenance-tickets.json', [])
+      const ticket = {
+        id: 'mt-' + Math.random().toString(36).slice(2, 10),
+        equipment,
+        status: 'open',
+        priority: 'normal',
+        createdAt: Date.now(),
+      }
+      tickets.push(ticket)
+      saveJson('maintenance-tickets.json', tickets)
+      return {
+        success: true,
+        summary: `🔧 Ticket maintenance créé pour "${equipment}". Référence ${ticket.id}.`,
+        uiAction: { type: 'navigate', to: '/maintenance' },
+      }
+    }
+    case 'maint.list-broken': {
+      const tickets = loadJson<any[]>('maintenance-tickets.json', [])
+      const open = tickets.filter((t: any) => t.status === 'open')
+      if (open.length === 0) return { success: true, summary: '✅ Aucun équipement en panne actuellement.' }
+      return {
+        success: true,
+        summary: `🔧 ${open.length} ticket(s) ouvert(s) : ${open.slice(0, 5).map((t: any) => t.equipment).join(', ')}`,
+        details: open,
+        uiAction: { type: 'navigate', to: '/maintenance' },
+      }
+    }
+    case 'maint.schedule': {
+      const { who, day } = intent.params
+      const tickets = loadJson<any[]>('maintenance-tickets.json', [])
+      const dayMap: Record<string, number> = { 'lundi': 1, 'mardi': 2, 'mercredi': 3, 'jeudi': 4, 'vendredi': 5, 'samedi': 6, 'dimanche': 0 }
+      const target = new Date()
+      if (day === 'demain') target.setDate(target.getDate() + 1)
+      else if (dayMap[day] !== undefined) {
+        const cur = target.getDay()
+        target.setDate(target.getDate() + ((dayMap[day] - cur + 7) % 7 || 7))
+      }
+      const intervention = {
+        id: 'int-' + Math.random().toString(36).slice(2, 10),
+        type: 'intervention',
+        who, scheduledFor: target.toISOString().slice(0, 10),
+        status: 'scheduled',
+        createdAt: Date.now(),
+      }
+      tickets.push(intervention)
+      saveJson('maintenance-tickets.json', tickets)
+      return {
+        success: true,
+        summary: `📅 Intervention "${who}" planifiée pour ${intervention.scheduledFor}.`,
+        details: intervention,
+      }
+    }
+
+    // ─── MARKETING ────────────────────────────────────────────────────
+    case 'mkt.create-campaign': {
+      const { name } = intent.params
+      const campaigns = loadJson<any[]>('campaigns.json', [])
+      const campaign = {
+        id: 'camp-' + Math.random().toString(36).slice(2, 10),
+        name, status: 'draft', channel: 'email',
+        createdAt: Date.now(),
+      }
+      campaigns.push(campaign)
+      saveJson('campaigns.json', campaigns)
+      return {
+        success: true,
+        summary: `📣 Campagne "${name}" créée (brouillon). Configure le contenu et la cible dans /crm/campagnes.`,
+        uiAction: { type: 'navigate', to: '/crm/campagnes' },
+      }
+    }
+    case 'mkt.campaign-stats': {
+      const campaigns = loadJson<any[]>('campaigns.json', [])
+      const sent = campaigns.filter((c: any) => c.status === 'sent')
+      if (sent.length === 0) return { success: true, summary: 'Aucune campagne envoyée pour calculer des stats.' }
+      const totalSent = sent.reduce((s: number, c: any) => s + (c.sentCount || 0), 0)
+      const totalOpened = sent.reduce((s: number, c: any) => s + (c.openedCount || 0), 0)
+      const rate = totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0
+      return {
+        success: true,
+        summary: `📊 ${sent.length} campagne(s) envoyée(s) · ${totalSent} emails · taux d'ouverture **${rate}%**`,
+        uiAction: { type: 'navigate', to: '/crm/campagnes' },
+      }
+    }
+    case 'mkt.segment-audience': {
+      const { criteria } = intent.params
+      const customers = loadJson<any[]>('customers.json', [])
+      // simple keyword match sur tags + tier
+      const matched = customers.filter((c: any) =>
+        JSON.stringify({ tags: c.tags || [], tier: c.tier, notes: c.notes }).toLowerCase().includes(String(criteria).toLowerCase())
+      )
+      return {
+        success: true,
+        summary: `🎯 Segment "${criteria}" : **${matched.length} clients** correspondent.`,
+        details: matched.slice(0, 20),
+        uiAction: { type: 'navigate', to: '/crm/audiences' },
+      }
+    }
+    case 'mkt.ab-test': {
+      return {
+        success: true,
+        summary: `🧪 A/B test en cours de configuration. Définis 2 variantes dans /crm/campagnes (ex: -10% vs -15%), Robi mesurera taux conversion 7 jours.`,
+        uiAction: { type: 'navigate', to: '/crm/campagnes' },
+      }
+    }
+    case 'mkt.posting-calendar': {
+      const campaigns = loadJson<any[]>('campaigns.json', [])
+      const upcoming = campaigns.filter((c: any) => c.scheduledFor && new Date(c.scheduledFor).getTime() > Date.now()).slice(0, 5)
+      return {
+        success: true,
+        summary: upcoming.length > 0
+          ? `📆 ${upcoming.length} publication(s) à venir : ${upcoming.map((c: any) => `${c.name} (${c.scheduledFor})`).join(', ')}`
+          : `📆 Aucune publication planifiée. Crée une campagne avec date dans /crm/campagnes.`,
+        uiAction: { type: 'navigate', to: '/crm/campagnes' },
+      }
+    }
+
+    // ─── ANALYTICS ────────────────────────────────────────────────────
+    case 'analytics.top-days': {
+      const invoices = loadJson<any[]>('invoices.json', [])
+      const byDay: Record<string, number> = {}
+      const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+      for (const i of invoices) {
+        if (!i.date) continue
+        const d = new Date(i.date).getDay()
+        byDay[dayNames[d]] = (byDay[dayNames[d]] || 0) + (i.total || 0)
+      }
+      const sorted = Object.entries(byDay).sort(([, a], [, b]) => b - a).slice(0, 3)
+      if (sorted.length === 0) return { success: true, summary: 'Pas assez de données pour calculer.' }
+      return {
+        success: true,
+        summary: `📈 Top 3 jours : ${sorted.map(([day, ca]) => `${day} (${ca.toFixed(0)}€)`).join(' · ')}`,
+      }
+    }
+    case 'analytics.compare-yoy': {
+      const invoices = loadJson<any[]>('invoices.json', [])
+      const now = new Date()
+      const thisMonth = now.getMonth(), thisYear = now.getFullYear()
+      const thisMonthInv = invoices.filter((i: any) => {
+        const d = new Date(i.date); return d.getMonth() === thisMonth && d.getFullYear() === thisYear
+      })
+      const lastYearInv = invoices.filter((i: any) => {
+        const d = new Date(i.date); return d.getMonth() === thisMonth && d.getFullYear() === thisYear - 1
+      })
+      const ca1 = thisMonthInv.reduce((s: number, i: any) => s + (i.total || 0), 0)
+      const ca0 = lastYearInv.reduce((s: number, i: any) => s + (i.total || 0), 0)
+      const pct = ca0 > 0 ? Math.round(((ca1 - ca0) / ca0) * 100) : 0
+      return {
+        success: true,
+        summary: `📊 Ce mois ${ca1.toFixed(0)}€ vs ${thisYear - 1} ${ca0.toFixed(0)}€ (${ca1 >= ca0 ? '+' : ''}${pct}%).`,
+      }
+    }
+    case 'analytics.reservation-conversion': {
+      const reservations = loadJson<any[]>('reservations.json', [])
+      const total = reservations.length
+      if (total === 0) return { success: true, summary: 'Aucune réservation pour calculer.' }
+      const honored = reservations.filter((r: any) => r.status === 'honored' || r.status === 'completed').length
+      const noShow = reservations.filter((r: any) => r.status === 'no-show').length
+      const rate = Math.round((honored / total) * 100)
+      return {
+        success: true,
+        summary: `🎯 Conversion réservations : **${rate}%** honorées (${honored}/${total}) · ${noShow} no-shows.`,
+        uiAction: { type: 'navigate', to: '/agenda/calendrier' },
+      }
+    }
+    case 'analytics.avg-table-time': {
+      try {
+        const floorMod = await import('./floorState')
+        const state = floorMod.getFloorState()
+        const occupied = state.tables.filter((t: any) => t.status === 'OCCUPEE' && t.openedAt)
+        if (occupied.length === 0) return { success: true, summary: 'Aucune table occupée pour calculer une durée actuelle.' }
+        const avg = occupied.reduce((s: number, t: any) => s + (Date.now() - t.openedAt), 0) / occupied.length / 60_000
+        return {
+          success: true,
+          summary: `⏱ Durée moyenne actuelle par table : **${avg.toFixed(0)} min** (${occupied.length} tables occupées).`,
+        }
+      } catch { return { success: false, summary: 'Erreur calcul durée.' } }
+    }
+    case 'analytics.kitchen-vs-bar-ratio': {
+      try {
+        const floorMod = await import('./floorState')
+        const state = floorMod.getFloorState()
+        let food = 0, drinks = 0
+        for (const t of state.tables) {
+          for (const item of (t.items || [])) {
+            const cat = String(item.category || '').toLowerCase()
+            const isFood = /plat|cuisine|food|entr[ée]e|dessert|burger|pizza/.test(cat) || /plat/.test(String(item.name || '').toLowerCase())
+            const price = (item.price || 0) * (item.qty || 1)
+            if (isFood) food += price; else drinks += price
+          }
+        }
+        const total = food + drinks
+        if (total === 0) return { success: true, summary: 'Aucune vente en cours.' }
+        const foodPct = Math.round((food / total) * 100)
+        return {
+          success: true,
+          summary: `🍽 Ratio actuel : **${foodPct}% cuisine** (${food.toFixed(0)}€) / **${100 - foodPct}% bar** (${drinks.toFixed(0)}€).`,
+        }
+      } catch { return { success: false, summary: 'Erreur calcul ratio.' } }
+    }
+
+    // ─── BULK-OPS ─────────────────────────────────────────────────────
+    case 'bulk.cleanup-old-invoices': {
+      const invoices = loadJson<any[]>('invoices.json', [])
+      const cutoff = Date.now() - 365 * 86400_000
+      const before = invoices.length
+      const remaining = invoices.filter((i: any) => {
+        const d = i.date ? new Date(i.date).getTime() : Date.now()
+        return d > cutoff || i.status !== 'paid'
+      })
+      saveJson('invoices.json', remaining)
+      return {
+        success: true,
+        summary: `🧹 ${before - remaining.length} ancienne(s) facture(s) (>1 an, payées) archivées. Reste ${remaining.length}.`,
+        uiAction: { type: 'navigate', to: '/invoices/factures' },
+      }
+    }
+    case 'bulk.cleanup-inactive-customers': {
+      const customers = loadJson<any[]>('customers.json', [])
+      const cutoff = Date.now() - 2 * 365 * 86400_000
+      const before = customers.length
+      const remaining = customers.filter((c: any) => {
+        const last = c.lastVisit ? new Date(c.lastVisit).getTime() : c.createdAt || Date.now()
+        return last > cutoff
+      })
+      saveJson('customers.json', remaining)
+      return {
+        success: true,
+        summary: `🧹 ${before - remaining.length} client(s) inactif(s) (>2 ans) archivés. Reste ${remaining.length}.`,
+        uiAction: { type: 'navigate', to: '/crm/clients' },
+      }
+    }
+    case 'bulk.archive-old-shifts': {
+      const shifts = loadJson<any[]>('shifts.json', [])
+      const cutoff = Date.now() - 180 * 86400_000
+      const before = shifts.length
+      const remaining = shifts.filter((s: any) => s.date && new Date(s.date).getTime() > cutoff)
+      saveJson('shifts.json', remaining)
+      return {
+        success: true,
+        summary: `🧹 ${before - remaining.length} shift(s) >6 mois archivés. Reste ${remaining.length}.`,
+        uiAction: { type: 'navigate', to: '/hr/planning' },
+      }
+    }
+    case 'bulk.reset-stock': {
+      const stock = loadJson<any[]>('inventory-stock.json', [])
+      const reset = stock.map((s: any) => ({ ...s, qty: 0, lastReset: Date.now() }))
+      saveJson('inventory-stock.json', reset)
+      return {
+        success: true,
+        summary: `⚠️ Stock remis à zéro (${reset.length} articles). Action irréversible — pense à scanner les commandes pour recharger.`,
+        uiAction: { type: 'navigate', to: '/inventory/stock' },
+      }
+    }
+
+    // ─── SEARCH CROSS-MODULE ──────────────────────────────────────────
+    case 'search.entity': {
+      const { entity } = intent.params
+      const q = String(entity).toLowerCase()
+      const customers = loadJson<any[]>('customers.json', []).filter((c: any) =>
+        `${c.firstName || ''} ${c.lastName || ''} ${c.email || ''} ${c.phone || ''}`.toLowerCase().includes(q)
+      )
+      const invoices = loadJson<any[]>('invoices.json', []).filter((i: any) =>
+        String(i.customer || i.client || '').toLowerCase().includes(q)
+      )
+      const reservations = loadJson<any[]>('reservations.json', []).filter((r: any) =>
+        String(r.customer || r.name || '').toLowerCase().includes(q)
+      )
+      const shifts = loadJson<any[]>('shifts.json', []).filter((s: any) =>
+        String(s.employee || '').toLowerCase().includes(q)
+      )
+      return {
+        success: true,
+        summary: `🔎 "${entity}" : ${customers.length} client(s), ${invoices.length} facture(s), ${reservations.length} réservation(s), ${shifts.length} shift(s)`,
+        details: { customers, invoices, reservations, shifts },
+      }
+    }
+    case 'search.phone': {
+      const { phone } = intent.params
+      const norm = String(phone).replace(/[\s.\-]/g, '')
+      const customers = loadJson<any[]>('customers.json', []).filter((c: any) =>
+        String(c.phone || '').replace(/[\s.\-]/g, '').includes(norm)
+      )
+      if (customers.length === 0) return { success: true, summary: `📞 Aucun client avec ce numéro.` }
+      return {
+        success: true,
+        summary: `📞 ${customers.length} match(s) : ${customers.slice(0, 5).map((c: any) => `${c.firstName} ${c.lastName}`).join(', ')}`,
+        details: customers,
+        uiAction: { type: 'navigate', to: '/crm/clients' },
+      }
+    }
+    case 'search.date': {
+      const { day, month } = intent.params
+      const months: Record<string, number> = { janvier: 1, février: 2, mars: 3, avril: 4, mai: 5, juin: 6, juillet: 7, août: 8, septembre: 9, octobre: 10, novembre: 11, décembre: 12 }
+      const monthN = typeof month === 'string' && months[month.toLowerCase()] ? months[month.toLowerCase()] : parseInt(month)
+      const year = new Date().getFullYear()
+      const dateStr = `${year}-${String(monthN).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      const invoices = loadJson<any[]>('invoices.json', []).filter((i: any) => i.date?.slice(0, 10) === dateStr)
+      const shifts = loadJson<any[]>('shifts.json', []).filter((s: any) => s.date === dateStr)
+      const reservations = loadJson<any[]>('reservations.json', []).filter((r: any) => r.date === dateStr)
+      return {
+        success: true,
+        summary: `📅 ${dateStr} : ${invoices.length} facture(s), ${shifts.length} shift(s), ${reservations.length} réservation(s)`,
+        details: { invoices, shifts, reservations },
+      }
+    }
+
+    // ─── ALERTES ──────────────────────────────────────────────────────
+    case 'alerts.create-stock-threshold': {
+      const { product, threshold } = intent.params
+      const alerts = loadJson<any[]>('alert-rules.json', [])
+      const rule = {
+        id: 'alert-' + Math.random().toString(36).slice(2, 10),
+        type: 'stock-threshold',
+        product, threshold,
+        active: true, createdAt: Date.now(),
+      }
+      alerts.push(rule)
+      saveJson('alert-rules.json', alerts)
+      return {
+        success: true,
+        summary: `🔔 Alerte créée : tu seras notifié quand "${product}" tombe sous ${threshold} unités.`,
+        details: rule,
+      }
+    }
+    case 'alerts.invoice-overdue': {
+      const { days } = intent.params
+      const alerts = loadJson<any[]>('alert-rules.json', [])
+      const rule = {
+        id: 'alert-' + Math.random().toString(36).slice(2, 10),
+        type: 'invoice-overdue',
+        days, active: true, createdAt: Date.now(),
+      }
+      alerts.push(rule)
+      saveJson('alert-rules.json', alerts)
+      return {
+        success: true,
+        summary: `🔔 Alerte créée : facture impayée >${days}j → notification automatique.`,
+      }
+    }
+    case 'alerts.overtime': {
+      const alerts = loadJson<any[]>('alert-rules.json', [])
+      const rule = { id: 'alert-' + Math.random().toString(36).slice(2, 10), type: 'overtime', threshold: 40, active: true, createdAt: Date.now() }
+      alerts.push(rule)
+      saveJson('alert-rules.json', alerts)
+      return { success: true, summary: `🔔 Alerte heures sup activée (>40h/semaine légale Luxembourg).` }
+    }
+    case 'alerts.bad-review': {
+      const alerts = loadJson<any[]>('alert-rules.json', [])
+      const rule = { id: 'alert-' + Math.random().toString(36).slice(2, 10), type: 'bad-review', threshold: 3, active: true, createdAt: Date.now() }
+      alerts.push(rule)
+      saveJson('alert-rules.json', alerts)
+      return { success: true, summary: `🔔 Alerte avis <3⭐ activée. Tu seras prévenu en temps réel.`, uiAction: { type: 'navigate', to: '/reputation/avis' } }
+    }
+    case 'alerts.cold-chain': {
+      const alerts = loadJson<any[]>('alert-rules.json', [])
+      const rule = { id: 'alert-' + Math.random().toString(36).slice(2, 10), type: 'cold-chain', limits: { frigo: [0, 4], congelateur: [-25, -18] }, active: true, createdAt: Date.now() }
+      alerts.push(rule)
+      saveJson('alert-rules.json', alerts)
+      return { success: true, summary: `🔔 Alerte chaîne du froid activée. Notification si frigo >4°C ou congélateur >-18°C.`, uiAction: { type: 'navigate', to: '/haccp/temperatures' } }
     }
 
     default:

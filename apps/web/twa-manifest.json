@@ -1,6 +1,6 @@
 {
   "packageId": "lu.creorga.os",
-  "host": "replication-webcast-instances-gnome.trycloudflare.com",
+  "host": "tower-focused-whole-shaw.trycloudflare.com",
   "name": "Creorga · Robi",
   "launcherName": "Creorga",
   "display": "standalone",
@@ -12,30 +12,30 @@
   "backgroundColor": "#0a0a14",
   "enableNotifications": true,
   "startUrl": "/m/demo",
-  "iconUrl": "https://replication-webcast-instances-gnome.trycloudflare.com/icon-512.png",
-  "maskableIconUrl": "https://replication-webcast-instances-gnome.trycloudflare.com/icon-512.png",
-  "monochromeIconUrl": "https://replication-webcast-instances-gnome.trycloudflare.com/icon-512.png",
+  "iconUrl": "https://tower-focused-whole-shaw.trycloudflare.com/icon-512.png",
+  "maskableIconUrl": "https://tower-focused-whole-shaw.trycloudflare.com/icon-512.png",
+  "monochromeIconUrl": "https://tower-focused-whole-shaw.trycloudflare.com/icon-512.png",
   "splashScreenFadeOutDuration": 300,
   "shortcuts": [
-    { "name": "Robi", "short_name": "Robi", "url": "/m/robi", "chosenIconUrl": "https://replication-webcast-instances-gnome.trycloudflare.com/icon-192.png" },
-    { "name": "Live", "short_name": "Live", "url": "/m", "chosenIconUrl": "https://replication-webcast-instances-gnome.trycloudflare.com/icon-192.png" }
+    { "name": "Robi", "short_name": "Robi", "url": "/m/robi", "chosenIconUrl": "https://tower-focused-whole-shaw.trycloudflare.com/icon-192.png" },
+    { "name": "Live", "short_name": "Live", "url": "/m", "chosenIconUrl": "https://tower-focused-whole-shaw.trycloudflare.com/icon-192.png" }
   ],
   "generatorApp": "creorga-build",
-  "webManifestUrl": "https://replication-webcast-instances-gnome.trycloudflare.com/manifest.json",
+  "webManifestUrl": "https://tower-focused-whole-shaw.trycloudflare.com/manifest.json",
   "fallbackType": "customtabs",
   "features": {},
   "alphaDependencies": { "enabled": false },
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://replication-webcast-instances-gnome.trycloudflare.com/",
+  "fullScopeUrl": "https://tower-focused-whole-shaw.trycloudflare.com/",
   "minSdkVersion": 21,
   "orientation": "portrait",
   "additionalTrustedOrigins": [
-    "https://counters-vessel-acquired-recognised.trycloudflare.com"
+    "https://museum-bigger-feature-transmission.trycloudflare.com"
   ],
   "retainedBundles": [],
   "appVersion": "1.0.0",
-  "appVersionCode": 2,
+  "appVersionCode": 3,
   "shareTarget": {}
 }

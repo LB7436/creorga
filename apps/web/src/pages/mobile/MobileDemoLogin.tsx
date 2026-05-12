@@ -26,23 +26,31 @@ const ENV_BACKEND = (import.meta as any).env?.VITE_REMOTE_BACKEND
                  || (import.meta as any).env?.VITE_BACKEND_URL
                  || ''
 
+// v3.19 fix : on PRIORISE le bundled URL au boot (fix "Backend injoignable" sur APK
+// après changement de tunnel : l'ancien localStorage gardait une URL morte)
 function getBackend() {
-  return localStorage.getItem('creorga.backend.remote')
-      || ENV_BACKEND
-      || 'http://localhost:3002'
+  // Si bundled URL et localStorage diffèrent, le bundled gagne (l'APK fraîchement installée
+  // a forcément le bon URL). On reset localStorage pour que les autres pages utilisent le bon.
+  const fromStorage = localStorage.getItem('creorga.backend.remote')
+  if (ENV_BACKEND && fromStorage && fromStorage !== ENV_BACKEND) {
+    // Marqueur : on considère que le bundled est plus récent → reset
+    localStorage.setItem('creorga.backend.remote', ENV_BACKEND)
+    return ENV_BACKEND
+  }
+  return fromStorage || ENV_BACKEND || 'http://localhost:3002'
 }
 
-// v3.15 fix : essaie plusieurs URLs en fallback (utile quand un tunnel meurt)
 function getFallbacks(primary: string): string[] {
   const list = [primary]
-  if (ENV_BACKEND && ENV_BACKEND !== primary) list.push(ENV_BACKEND)
+  if (ENV_BACKEND && ENV_BACKEND !== primary) list.unshift(ENV_BACKEND)  // bundled FIRST
   if (primary !== 'http://localhost:3002') list.push('http://localhost:3002')
   return Array.from(new Set(list))
 }
 
 async function pingBackend(url: string): Promise<boolean> {
   try {
-    const r = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(5000) })
+    // v3.19 fix : timeout 3s pour faire le cascade rapide si tunnel mort
+    const r = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(3000) })
     return r.ok
   } catch { return false }
 }
