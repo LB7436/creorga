@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { Home, Bell, Bot, Activity, Settings, Globe, Sparkles, Camera, Mic } from 'lucide-react'
 import { useAssistant } from '@/stores/assistantStore'
 import AssistantMascot from '@/components/AssistantMascot'
+import GeolocPunchIn from '@/components/GeolocPunchIn'
 import { WakeWordListener } from '@/lib/assistantFeatures'
 import { useNavigate } from 'react-router-dom'
 
@@ -104,6 +105,9 @@ export default function MobileLayout() {
       <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
         <Outlet />
       </main>
+
+      {/* v3.19 H4 — pointage géoloc auto si proche du resto */}
+      <GeolocPunchIn />
 
       {/* Bottom nav */}
       <nav style={{

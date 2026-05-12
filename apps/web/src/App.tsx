@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import InstallPrompt from '@/components/InstallPrompt'
 import HelpChatbot from '@/components/HelpChatbot'
 import AssistantPanel from '@/components/AssistantPanel'
+import RobiOperator from '@/components/RobiOperator'
 import AssistantLauncher from '@/components/AssistantLauncher'
 import BirthdayCelebrate from '@/components/BirthdayCelebrate'
 import UniversalSearch from '@/components/UniversalSearch'
@@ -511,6 +512,7 @@ function App() {
     <UniversalSearch />
     <AssistantLauncher />
     <AssistantPanel />
+    <RobiOperator />
     <BirthdayCelebrate />
     {showOnboarding && (
       <OnboardingWizard

@@ -1816,4 +1816,87 @@ router.get('/proactive/inbox', async (_req, res) => {
   res.json({ notifs: getRecentNotifs(20) })
 })
 
+// ═══════════════════════════════════════════════════════════════════════
+// v3.19 F4 — OPERATOR MODE
+// SSE stream qui push des actions DOM au frontend. Robi peut "cliquer"
+// pour l'utilisateur après confirmation.
+//
+// Sécurité : chaque action critique (delete/charge/send) REQUIERT une
+// confirmation visuelle côté client avant exécution.
+// ═══════════════════════════════════════════════════════════════════════
+
+interface OperatorAction {
+  id: string
+  type: 'click' | 'fill' | 'navigate' | 'keypress' | 'highlight' | 'speak'
+  payload: any
+  critical?: boolean  // si true → modal confirmation obligatoire
+  description: string  // ce que l'utilisateur voit ("Cliquer sur 'Publier' ?")
+  ts: number
+}
+
+const operatorSubscribers = new Set<{ userId: string; res: any }>()
+const pendingOperatorActions: OperatorAction[] = []
+
+function dispatchOperatorAction(userId: string, action: OperatorAction) {
+  pendingOperatorActions.push(action)
+  // Push aux subscribers
+  for (const sub of operatorSubscribers) {
+    if (sub.userId === userId || sub.userId === '*') {
+      try { sub.res.write(`data: ${JSON.stringify(action)}\n\n`) } catch { /* */ }
+    }
+  }
+}
+
+router.get('/operator/stream', (req, res) => {
+  const userId = String(req.query.userId || 'default')
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.setHeader('X-Accel-Buffering', 'no')
+  res.flushHeaders?.()
+
+  // Heartbeat toutes les 25s pour garder la connexion
+  const heartbeat = setInterval(() => {
+    try { res.write(`: ping\n\n`) } catch { /* */ }
+  }, 25_000)
+
+  const sub = { userId, res }
+  operatorSubscribers.add(sub)
+  res.write(`data: ${JSON.stringify({ type: 'connected', userId, ts: Date.now() })}\n\n`)
+
+  req.on('close', () => {
+    clearInterval(heartbeat)
+    operatorSubscribers.delete(sub)
+  })
+})
+
+router.post('/operator/dispatch', (req, res) => {
+  const { userId = 'default', type, payload, description, critical = false } = req.body || {}
+  if (!type) return res.status(400).json({ error: 'type required' })
+  const action: OperatorAction = {
+    id: 'op-' + Math.random().toString(36).slice(2, 10),
+    type, payload, description: description || type,
+    critical, ts: Date.now(),
+  }
+  dispatchOperatorAction(userId, action)
+  res.json({ success: true, action, subscriberCount: operatorSubscribers.size })
+})
+
+router.post('/operator/ack', (req, res) => {
+  // Frontend confirme qu'une action a été exécutée (ou annulée)
+  const { actionId, status, result } = req.body || {}
+  // Pour l'instant : juste un log. Future : update une trace dans data/operator-log.json
+  console.log('[operator] ack', actionId, status, result)
+  res.json({ success: true })
+})
+
+// Helper exporté pour que d'autres routes puissent déclencher une action operator
+export function pushOperatorAction(userId: string, action: Omit<OperatorAction, 'id' | 'ts'>) {
+  dispatchOperatorAction(userId, {
+    ...action,
+    id: 'op-' + Math.random().toString(36).slice(2, 10),
+    ts: Date.now(),
+  })
+}
+
 export default router

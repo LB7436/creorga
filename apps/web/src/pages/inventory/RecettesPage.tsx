@@ -174,6 +174,30 @@ function margeNette(r: Recette) {
   return r.prixVente - coutTotal(r);
 }
 
+// v3.19 G3 — food cost ratio (industry standard <30-35%)
+function foodCostRatio(r: Recette): number {
+  if (r.prixVente === 0) return 0;
+  return (coutTotal(r) / r.prixVente) * 100;
+}
+
+// v3.19 G3 — Robi suggère prix carte basé sur marge cible 70% (food cost 30%)
+function suggestedPrice(r: Recette, targetMargin = 0.70): number {
+  const cost = coutTotal(r);
+  if (cost === 0) return 0;
+  // Marge brute cible 70% → prix = cost / (1 - 0.70) = cost × 3.33
+  // Arrondi au 0.50€ supérieur pour faire "joli" sur la carte
+  const raw = cost / (1 - targetMargin);
+  return Math.ceil(raw * 2) / 2;
+}
+
+// v3.19 G3 — color code du food cost ratio
+function foodCostColor(ratio: number): { bg: string; text: string; label: string } {
+  if (ratio <= 25) return { bg: '#d1fae5', text: '#065f46', label: 'Excellent' };
+  if (ratio <= 30) return { bg: '#dcfce7', text: '#166534', label: 'Bon' };
+  if (ratio <= 35) return { bg: '#fef9c3', text: '#854d0e', label: 'Limite' };
+  return { bg: '#fef2f2', text: '#991b1b', label: 'Trop cher' };
+}
+
 const ALLERGEN_STYLE: Record<Allergene, { bg: string; text: string }> = {
   Gluten:           { bg: '#fef3c7', text: '#92400e' },
   Lactose:          { bg: '#dbeafe', text: '#1e40af' },
@@ -313,6 +337,42 @@ export default function RecettesPage() {
                 <CostLine label="Marge brute" value={`${mb.toFixed(1)}%`} tint={mb > 60 ? '#16a34a' : mb > 40 ? '#ca8a04' : '#dc2626'} />
                 <CostLine label="Marge nette" value={fmt(mn)} tint={mn > 0 ? '#16a34a' : '#dc2626'} />
               </div>
+
+              {/* v3.19 G3 — Food Cost Ratio + Robi suggestion prix carte */}
+              {(() => {
+                const ratio = foodCostRatio(r);
+                const colors = foodCostColor(ratio);
+                const suggested = suggestedPrice(r);
+                const diff = suggested - r.prixVente;
+                return (
+                  <div style={{
+                    display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center',
+                    padding: 12, borderRadius: 10,
+                    background: 'linear-gradient(135deg,#faf5ff,#fdf2f8)',
+                    border: '1px solid #e9d5ff',
+                  }}>
+                    <div style={{
+                      padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 800,
+                      background: colors.bg, color: colors.text,
+                    }}>
+                      Food cost {ratio.toFixed(1)}% · {colors.label}
+                    </div>
+                    {Math.abs(diff) > 0.5 && (
+                      <div style={{ fontSize: 11, color: '#581c87', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        💡 Robi suggère prix carte <strong style={{ color: '#7e22ce' }}>{fmt(suggested)}</strong>
+                        <span style={{ fontSize: 10, color: diff > 0 ? '#dc2626' : '#16a34a' }}>
+                          ({diff > 0 ? '+' : ''}{fmt(diff)} pour marge 70%)
+                        </span>
+                      </div>
+                    )}
+                    {Math.abs(diff) <= 0.5 && (
+                      <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>
+                        ✅ Prix optimal (marge cible 70% atteinte)
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {r.allergenes.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
