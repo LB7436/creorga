@@ -1,4 +1,4 @@
-import { CalendarRange, Clock, Umbrella, Users, Settings2, Eye, EyeOff, ChevronDown } from 'lucide-react'
+import { CalendarRange, Clock, Umbrella, Users, Settings2, GraduationCap, Eye, EyeOff, ChevronDown } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import ModuleLayout from '@/components/layout/ModuleLayout'
 import { useAuthStore } from '@/stores/authStore'
@@ -8,6 +8,8 @@ const items = [
   { label: 'Pointages', path: '/hr/pointages', icon: Clock },
   { label: 'Congés', path: '/hr/conges', icon: Umbrella },
   { label: 'Équipe', path: '/hr/equipe', icon: Users },
+  // v4.1 — Formation folded depuis module standalone
+  { label: 'Formation', path: '/hr/formation', icon: GraduationCap },
   { label: 'Paramètres', path: '/hr/parametres', icon: Settings2 },
 ]
 
@@ -108,5 +110,5 @@ export default function HrLayout() {
     </div>
   )
 
-  return <ModuleLayout title="Gestion RH" color="#991B1B" items={items} banner={banner} />
+  return <ModuleLayout title="Gestion RH & Formation" color="#991B1B" items={items} banner={banner} />
 }

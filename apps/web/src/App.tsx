@@ -60,8 +60,12 @@ import InventoryLayout from '@/pages/inventory/InventoryLayout'
 import HrLayout from '@/pages/hr/HrLayout'
 import HaccpLayout from '@/pages/haccp/HaccpLayout'
 import AccountingLayout from '@/pages/accounting/AccountingLayout'
-import ReputationLayout from '@/pages/reputation/ReputationLayout'
-import AgendaLayout from '@/pages/agenda/AgendaLayout'
+// v4.1 — Layouts retirés (folded) : ReputationLayout (→ CrmLayout), AgendaLayout (obsolète)
+// v4.1 — Nouveaux Layouts (3 fusions) :
+import SalesLayout from '@/pages/sales/SalesLayout'
+import AdsLayout from '@/pages/ads/AdsLayout'
+import OwnerLayout from '@/pages/owner/OwnerLayout'
+// (note : ReputationLayout, AgendaLayout, LicencesPage, AgendaPage imports retirés v4.1)
 
 // QR Menu Page
 import QrMenuPage from '@/pages/qrmenu/QrMenuPage'
@@ -71,7 +75,7 @@ import FormationPage from '@/pages/formation/FormationPage'
 
 // Admin module pages
 import MaintenancePage from '@/pages/maintenance/MaintenancePage'
-import LicencesPage from '@/pages/licences/LicencesPage'
+// v4.1 — LicencesPage retiré (URL /licences redirige /rgpd, page jamais affichée)
 import RgpdPage from '@/pages/rgpd/RgpdPage'
 
 // POS Pages
@@ -134,9 +138,8 @@ import AvisPage from '@/pages/reputation/AvisPage'
 import ReponsesPage from '@/pages/reputation/ReponsesPage'
 import ReputStatsPage from '@/pages/reputation/StatsPage'
 
-// Events Pages
+// Events Pages — v4.1 AgendaPage retiré (module agenda obsolète)
 import EventsDevisPage from '@/pages/events/DevisPage'
-import AgendaPage from '@/pages/events/AgendaPage'
 import ClientsB2BPage from '@/pages/events/ClientsB2BPage'
 
 // Sites & API Pages
@@ -275,7 +278,7 @@ function App() {
           <Route path="config" element={<Navigate to="/pos/dashboard" replace />} />
         </Route>
 
-        {/* CRM & Marketing Module */}
+        {/* CRM, Marketing & Réputation Module — v4.1 ajout avis/reponses/reput-stats (ex /reputation) */}
         <Route path="/crm" element={<CrmLayout />}>
           <Route index element={<Navigate to="/crm/clients" replace />} />
           <Route path="clients" element={<ClientsPage />} />
@@ -285,6 +288,10 @@ function App() {
           <Route path="campagnes" element={<CampagnesPage />} />
           <Route path="codes" element={<CodesPage />} />
           <Route path="audiences" element={<AudiencesPage />} />
+          {/* v4.1 — réputation folded */}
+          <Route path="avis" element={<AvisPage />} />
+          <Route path="reponses" element={<ReponsesPage />} />
+          <Route path="reput-stats" element={<ReputStatsPage />} />
         </Route>
 
         {/* Invoices Module */}
@@ -301,7 +308,7 @@ function App() {
         <Route path="/agenda" element={<Navigate to="/hr/planning" replace />} />
         <Route path="/agenda/*" element={<Navigate to="/hr/planning" replace />} />
 
-        {/* Inventory Module — v3.18.5 inclut désormais Auto-Réappro (ex-module séparé) */}
+        {/* Inventory Module — v3.18.5 Auto-Réappro folded + v4.1 Cuisine Centrale folded */}
         <Route path="/inventory" element={<InventoryLayout />}>
           <Route index element={<Navigate to="/inventory/stock" replace />} />
           <Route path="stock" element={<StockPage />} />
@@ -310,9 +317,10 @@ function App() {
           <Route path="commandes" element={<CommandesPage />} />
           <Route path="ocr" element={<ReceiptOCR />} />
           <Route path="autoorder" element={<AutoOrderPage />} />
+          <Route path="cuisine-centrale" element={<CentralKitchenPage />} />
         </Route>
 
-        {/* HR Module */}
+        {/* HR Module — v4.1 Formation folded as sub-route */}
         <Route path="/hr" element={<HrLayout />}>
           <Route index element={<Navigate to="/hr/planning" replace />} />
           <Route path="planning" element={<PlanningPage />} />
@@ -320,6 +328,7 @@ function App() {
           <Route path="conges" element={<CongesPage />} />
           <Route path="equipe" element={<EquipePage />} />
           <Route path="parametres" element={<HrParamsPage />} />
+          <Route path="formation" element={<FormationPage />} />
         </Route>
 
         {/* HACCP Module */}
@@ -341,8 +350,8 @@ function App() {
           <Route path="rapports" element={<RapportsPage />} />
         </Route>
 
-        {/* Formation Module */}
-        <Route path="/formation" element={<FormationPage />} />
+        {/* v4.1 — Formation folded dans /hr/formation, ancienne URL redirige */}
+        <Route path="/formation" element={<Navigate to="/hr/formation" replace />} />
 
         {/* Maintenance Module */}
         <Route path="/maintenance" element={<MaintenancePage />} />
@@ -371,32 +380,41 @@ function App() {
         <Route path="/settings/theme" element={<SettingsTheme />} />
         <Route path="/settings/language" element={<SettingsLanguage />} />
 
-        {/* Régie publicitaire TV (admin) */}
-        <Route path="/ads" element={<AdsAdminPage />} />
+        {/* v4.1 — Ads & Ambiance Module (Régie pub TV + Musique fusionnés) */}
+        <Route path="/ads" element={<AdsLayout />}>
+          <Route index element={<Navigate to="/ads/regie" replace />} />
+          <Route path="regie" element={<AdsAdminPage />} />
+          <Route path="music" element={<MusicPage />} />
+        </Route>
 
-        {/* Music & Radio module */}
-        <Route path="/music" element={<MusicPage />} />
+        {/* v4.1 — Music folded sous /ads/music, ancienne URL redirige */}
+        <Route path="/music" element={<Navigate to="/ads/music" replace />} />
 
         {/* Sauvegarde & Sécurité Module */}
         <Route path="/backup" element={<BackupPage />} />
 
-        {/* Rapport Patron Module */}
-        <Route path="/owner" element={<OwnerReportPage />} />
+        {/* v4.1 — Owner Layout : Rapport + Abonnement + Parrainage fusionnés */}
+        <Route path="/owner" element={<OwnerLayout />}>
+          <Route index element={<Navigate to="/owner/rapport" replace />} />
+          <Route path="rapport" element={<OwnerReportPage />} />
+          <Route path="abonnement" element={<BillingPage />} />
+          <Route path="parrainage" element={<ReferralPage />} />
+        </Route>
 
-        {/* Livraison & Delivery Module */}
-        <Route path="/delivery" element={<DeliveryPage />} />
+        {/* v4.1 — Sales Layout : Livraison + Click&Collect + Traiteur fusionnés */}
+        <Route path="/sales" element={<SalesLayout />}>
+          <Route index element={<Navigate to="/sales/delivery" replace />} />
+          <Route path="delivery" element={<DeliveryPage />} />
+          <Route path="clickcollect" element={<ClickCollectPage />} />
+          <Route path="catering" element={<CateringPage />} />
+        </Route>
 
-        {/* Click & Collect Module */}
-        <Route path="/clickcollect" element={<ClickCollectPage />} />
-
-        {/* Traiteur Module */}
-        <Route path="/catering" element={<CateringPage />} />
-
-        {/* Cuisine Centrale Module */}
-        <Route path="/centralkitchen" element={<CentralKitchenPage />} />
-
-        {/* Billing & Subscription Module */}
-        <Route path="/billing" element={<BillingPage />} />
+        {/* v4.1 — Anciennes URLs standalone redirigent vers les nouveaux Layouts */}
+        <Route path="/delivery" element={<Navigate to="/sales/delivery" replace />} />
+        <Route path="/clickcollect" element={<Navigate to="/sales/clickcollect" replace />} />
+        <Route path="/catering" element={<Navigate to="/sales/catering" replace />} />
+        <Route path="/centralkitchen" element={<Navigate to="/inventory/cuisine-centrale" replace />} />
+        <Route path="/billing" element={<Navigate to="/owner/abonnement" replace />} />
 
         {/* v3.18.5 — Auto-Réapprovisionnement fusionné dans Inventaire.
          * Ancienne URL redirige vers /inventory/autoorder. */}
@@ -407,19 +425,17 @@ function App() {
         <Route path="/community" element={<Navigate to="/" replace />} />
         <Route path="/status" element={<Navigate to="/" replace />} />
 
-        {/* Changelog */}
+        {/* Changelog — accessible via URL mais hors moduleStore (v4.1) */}
         <Route path="/changelog" element={<ChangelogPage />} />
 
-        {/* Referral Program */}
-        <Route path="/referral" element={<ReferralPage />} />
+        {/* v4.1 — Referral folded sous /owner/parrainage, ancienne URL redirige */}
+        <Route path="/referral" element={<Navigate to="/owner/parrainage" replace />} />
 
-        {/* Reputation Module */}
-        <Route path="/reputation" element={<ReputationLayout />}>
-          <Route index element={<Navigate to="/reputation/avis" replace />} />
-          <Route path="avis" element={<AvisPage />} />
-          <Route path="reponses" element={<ReponsesPage />} />
-          <Route path="statistiques" element={<ReputStatsPage />} />
-        </Route>
+        {/* v4.1 — Reputation folded sous /crm/{avis,reponses,reput-stats}, redirects rétro-compat */}
+        <Route path="/reputation" element={<Navigate to="/crm/avis" replace />} />
+        <Route path="/reputation/avis" element={<Navigate to="/crm/avis" replace />} />
+        <Route path="/reputation/reponses" element={<Navigate to="/crm/reponses" replace />} />
+        <Route path="/reputation/statistiques" element={<Navigate to="/crm/reput-stats" replace />} />
 
       </Route>
 
@@ -427,7 +443,7 @@ function App() {
     </Routes>
 
     {/* Bannière MODE DÉMO */}
-    {demoActive && location.pathname !== '/demo' && (
+    {demoActive && !isClientFacing && location.pathname !== '/demo' && (
       <>
         <div
           style={{

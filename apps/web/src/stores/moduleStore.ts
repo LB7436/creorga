@@ -9,6 +9,20 @@ import { persist } from 'zustand/middleware'
 // - 'community' supprimé
 // - 'status' supprimé
 // - 'sustainability' supprimé
+//
+// v4.1 — 10 fusions supplémentaires (28 → 18 modules dans MODULES[]) :
+// - 'contracts' alias (était /invoices/devis) → folded dans 'invoices'
+// - 'centralkitchen' → /inventory/cuisine-centrale (sub-route Inventaire)
+// - 'delivery' + 'clickcollect' + 'catering' → NEW module 'sales' (Ventes externes)
+// - 'reputation' → /crm/avis + /crm/reponses + /crm/reput-stats (sub-routes CRM)
+// - 'music' → /ads/music (sub-route Ads)
+// - 'formation' → /hr/formation (sub-route HR)
+// - 'referral' → /owner/parrainage (sub-route Owner)
+// - 'billing' → /owner/abonnement (sub-route Owner)
+// - 'changelog' retiré du sélecteur (URL /changelog accessible mais hors moduleStore)
+//
+// Le type ModuleId garde tous les anciens IDs pour rétro-compat (utilisé dans
+// ModuleIllustrations Record<ModuleId,...> et help-content.ts).
 export type ModuleId =
   | 'pos'
   | 'clients'
@@ -38,6 +52,7 @@ export type ModuleId =
   | 'referral'
   | 'ads'
   | 'music'
+  | 'sales'   // v4.1 NEW : Ventes externes (delivery + clickcollect + catering)
 
 export interface ModuleDef {
   id: ModuleId
@@ -50,7 +65,9 @@ export interface ModuleDef {
   category: 'core' | 'digital' | 'business' | 'admin'
 }
 
+// v4.1 — 18 modules après fusion (28 → 18)
 export const MODULES: ModuleDef[] = [
+  // ─── CORE OPÉRATIONNEL (8 modules) ───
   {
     id: 'pos',
     name: 'Caisse POS',
@@ -62,19 +79,29 @@ export const MODULES: ModuleDef[] = [
     category: 'core',
   },
   {
-    id: 'clients',
-    name: 'Accès Clients',
-    tagline: 'Interface & commande en ligne',
-    color: '#6D28D9',
-    colorLight: '#ede9fe',
-    path: '/clients',
+    id: 'hr',
+    name: 'Gestion RH & Formation',
+    tagline: 'Planning, congés, équipe & formation',
+    color: '#991B1B',
+    colorLight: '#fee2e2',
+    path: '/hr/planning',
     available: true,
-    category: 'digital',
+    category: 'admin',
+  },
+  {
+    id: 'inventory',
+    name: 'Inventaire & Cuisine Centrale',
+    tagline: 'Stock, recettes, fournisseurs & batch cooking',
+    color: '#92400E',
+    colorLight: '#fef3c7',
+    path: '/inventory',
+    available: true,
+    category: 'core',
   },
   {
     id: 'invoices',
     name: 'Factures & Devis',
-    tagline: 'Facturation professionnelle',
+    tagline: 'Facturation professionnelle, contrats',
     color: '#065F46',
     colorLight: '#d1fae5',
     path: '/invoices',
@@ -82,34 +109,14 @@ export const MODULES: ModuleDef[] = [
     category: 'business',
   },
   {
-    id: 'qrmenu',
-    name: 'Menu QR',
-    tagline: 'Carte numérique & QR code',
-    color: '#7C3AED',
-    colorLight: '#ede9fe',
-    path: '/qrmenu',
-    available: true,
-    category: 'digital',
-  },
-  {
-    id: 'contracts',
-    name: 'Contrats',
-    tagline: 'Clients & fournisseurs',
-    color: '#0E7490',
-    colorLight: '#cffafe',
-    path: '/invoices/devis',
+    id: 'marketing',
+    name: 'CRM, Marketing & Réputation',
+    tagline: 'Clients, fidélité, campagnes & avis',
+    color: '#BE185D',
+    colorLight: '#fce7f3',
+    path: '/crm',
     available: true,
     category: 'business',
-  },
-  {
-    id: 'hr',
-    name: 'Gestion RH',
-    tagline: 'Planning, congés, shifts & équipe',
-    color: '#991B1B',
-    colorLight: '#fee2e2',
-    path: '/hr/planning',  // v3.18.5 : direct au planning (fusion avec module Planning)
-    available: true,
-    category: 'admin',
   },
   {
     id: 'accounting',
@@ -122,26 +129,6 @@ export const MODULES: ModuleDef[] = [
     category: 'business',
   },
   {
-    id: 'marketing',
-    name: 'CRM & Marketing',
-    tagline: 'Clients, fidélité & campagnes',
-    color: '#BE185D',
-    colorLight: '#fce7f3',
-    path: '/crm',
-    available: true,
-    category: 'business',
-  },
-  {
-    id: 'inventory',
-    name: 'Inventaire',
-    tagline: 'Stock, recettes & fournisseurs',
-    color: '#92400E',
-    colorLight: '#fef3c7',
-    path: '/inventory',
-    available: true,
-    category: 'core',
-  },
-  {
     id: 'haccp',
     name: 'HACCP',
     tagline: 'Traçabilité & hygiène alimentaire',
@@ -152,32 +139,76 @@ export const MODULES: ModuleDef[] = [
     category: 'admin',
   },
   {
-    id: 'reputation',
-    name: 'Réputation',
-    tagline: 'Avis clients & e-réputation',
-    color: '#0369A1',
-    colorLight: '#e0f2fe',
-    path: '/reputation',
+    id: 'sales',
+    name: 'Ventes externes',
+    tagline: 'Livraison, Click & Collect, Traiteur',
+    color: '#ea580c',
+    colorLight: '#ffedd5',
+    path: '/sales/delivery',
+    available: true,
+    category: 'core',
+  },
+
+  // ─── DIGITAL / CLIENT (4 modules) ───
+  {
+    id: 'ai',
+    name: 'Assistant IA',
+    tagline: 'Votre copilote intelligent (Robi)',
+    color: '#8b5cf6',
+    colorLight: '#ede9fe',
+    path: '/ai',
     available: true,
     category: 'digital',
   },
   {
-    id: 'formation',
-    name: 'Formation',
-    tagline: 'Formation & certification du personnel',
+    id: 'qrmenu',
+    name: 'Menu QR',
+    tagline: 'Carte numérique & QR code',
     color: '#7C3AED',
     colorLight: '#ede9fe',
-    path: '/formation',
+    path: '/qrmenu',
     available: true,
-    category: 'admin',
+    category: 'digital',
   },
   {
-    id: 'maintenance',
-    name: 'Maintenance',
-    tagline: 'Équipements & interventions',
-    color: '#0891b2',
-    colorLight: '#cffafe',
-    path: '/maintenance',
+    id: 'ads',
+    name: 'Affichage TV & Ambiance',
+    tagline: 'Régie publicitaire & musique (Spotify, radio)',
+    color: '#ef4444',
+    colorLight: '#fee2e2',
+    path: '/ads/regie',
+    available: true,
+    category: 'digital',
+  },
+  {
+    id: 'clients',
+    name: 'Accès Clients',
+    tagline: 'Interface & commande en ligne',
+    color: '#6D28D9',
+    colorLight: '#ede9fe',
+    path: '/clients',
+    available: true,
+    category: 'digital',
+  },
+
+  // ─── ADMINISTRATION (4 modules) ───
+  {
+    id: 'owner',
+    name: 'Rapport Patron & Programme',
+    tagline: 'Vision globale, abonnement & parrainage',
+    color: '#166534',
+    colorLight: '#d1fae5',
+    path: '/owner/rapport',
+    available: true,
+    category: 'business',
+  },
+  {
+    id: 'sites',
+    name: 'Multi-établissements',
+    tagline: 'Gestion des sites et chaînes',
+    color: '#db2777',
+    colorLight: '#fce7f3',
+    path: '/sites',
     available: true,
     category: 'admin',
   },
@@ -192,15 +223,17 @@ export const MODULES: ModuleDef[] = [
     category: 'admin',
   },
   {
-    id: 'sites',
-    name: 'Multi-établissements',
-    tagline: 'Gestion des sites et chaînes',
-    color: '#db2777',
-    colorLight: '#fce7f3',
-    path: '/sites',
+    id: 'backup',
+    name: 'Sauvegarde',
+    tagline: 'Sécurité & restauration',
+    color: '#0284c7',
+    colorLight: '#e0f2fe',
+    path: '/backup',
     available: true,
     category: 'admin',
   },
+
+  // ─── OUTILS (2 modules) ───
   {
     id: 'api',
     name: 'API & Intégrations',
@@ -212,124 +245,14 @@ export const MODULES: ModuleDef[] = [
     category: 'admin',
   },
   {
-    id: 'ai',
-    name: 'Assistant IA',
-    tagline: 'Votre copilote intelligent',
-    color: '#8b5cf6',
-    colorLight: '#ede9fe',
-    path: '/ai',
-    available: true,
-    category: 'digital',
-  },
-  {
-    id: 'backup',
-    name: 'Sauvegarde',
-    tagline: 'Sécurité & restauration',
-    color: '#0284c7',
-    colorLight: '#e0f2fe',
-    path: '/backup',
+    id: 'maintenance',
+    name: 'Maintenance',
+    tagline: 'Équipements & interventions',
+    color: '#0891b2',
+    colorLight: '#cffafe',
+    path: '/maintenance',
     available: true,
     category: 'admin',
-  },
-  {
-    id: 'owner',
-    name: 'Rapport Patron',
-    tagline: 'Vision stratégique globale',
-    color: '#166534',
-    colorLight: '#d1fae5',
-    path: '/owner',
-    available: true,
-    category: 'business',
-  },
-  {
-    id: 'delivery',
-    name: 'Livraison',
-    tagline: 'Uber Eats, Wedely & livreurs',
-    color: '#ea580c',
-    colorLight: '#ffedd5',
-    path: '/delivery',
-    available: true,
-    category: 'core',
-  },
-  {
-    id: 'clickcollect',
-    name: 'Click & Collect',
-    tagline: 'Commandes à emporter',
-    color: '#0d9488',
-    colorLight: '#ccfbf1',
-    path: '/clickcollect',
-    available: true,
-    category: 'core',
-  },
-  {
-    id: 'catering',
-    name: 'Traiteur',
-    tagline: 'Événements livrés & buffets',
-    color: '#9333ea',
-    colorLight: '#f3e8ff',
-    path: '/catering',
-    available: true,
-    category: 'business',
-  },
-  {
-    id: 'centralkitchen',
-    name: 'Cuisine Centrale',
-    tagline: 'Batch cooking & prévisions',
-    color: '#be185d',
-    colorLight: '#fce7f3',
-    path: '/centralkitchen',
-    available: true,
-    category: 'core',
-  },
-  {
-    id: 'billing',
-    name: 'Facturation',
-    tagline: 'Abonnement & paiements',
-    color: '#0ea5e9',
-    colorLight: '#e0f2fe',
-    path: '/billing',
-    available: true,
-    category: 'admin',
-  },
-  {
-    id: 'changelog',
-    name: 'Changelog',
-    tagline: 'Nouveautés & versions',
-    color: '#8b5cf6',
-    colorLight: '#ede9fe',
-    path: '/changelog',
-    available: true,
-    category: 'admin',
-  },
-  {
-    id: 'referral',
-    name: 'Parrainage',
-    tagline: 'Invitez et gagnez 100€',
-    color: '#f59e0b',
-    colorLight: '#fef3c7',
-    path: '/referral',
-    available: true,
-    category: 'business',
-  },
-  {
-    id: 'ads',
-    name: 'Régie publicitaire TV',
-    tagline: 'Pubs sur écrans TV avec IA',
-    color: '#ef4444',
-    colorLight: '#fee2e2',
-    path: '/ads',
-    available: true,
-    category: 'digital',
-  },
-  {
-    id: 'music',
-    name: 'Musique & Radio',
-    tagline: 'Radio · Spotify · Apple · YouTube',
-    color: '#8b5cf6',
-    colorLight: '#ede9fe',
-    path: '/music',
-    available: true,
-    category: 'digital',
   },
 ]
 
