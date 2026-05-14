@@ -264,7 +264,7 @@ function TableCard({
   const statusColor = STATUS_COLORS[table.status]
   const coverCount = table.covers.length
   const filterId = `glow-${table.id}`
-  const tc = timeColorBand(table.status === 'occupied' ? table.openedAt : null)
+  const tc = timeColorBand(table.status === 'occupied' ? table.openedAt ?? null : null)
   const effectiveColor = table.status === 'occupied' ? tc.color : statusColor
   const waiter = table.status === 'occupied' ? assignWaiter(table.id) : null
   const vip = isVIP(table.id) && table.status === 'occupied'

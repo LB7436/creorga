@@ -19,7 +19,7 @@ export default function SettingsModules() {
   const modules = useMemo(() => {
     const q = filter.toLowerCase()
     return MODULES.filter((m) =>
-      !q || m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q) || m.description?.toLowerCase().includes(q)
+      !q || m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q) || m.tagline.toLowerCase().includes(q)
     )
   }, [filter])
 
@@ -89,14 +89,14 @@ export default function SettingsModules() {
                 width: 52, height: 52, borderRadius: 12,
                 background: `${m.color ?? '#6366f1'}15`, color: m.color ?? '#6366f1',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
-              }}>{m.icon ?? '📦'}</div>
+              }}>{m.name.slice(0, 1)}</div>
 
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
                   {c.customLabel || m.name}
                   <span style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>{m.id}</span>
                 </div>
-                <div style={{ color: '#64748b', fontSize: 13 }}>{m.description}</div>
+                <div style={{ color: '#64748b', fontSize: 13 }}>{m.tagline}</div>
                 <input
                   type="text"
                   value={c.customLabel ?? ''}

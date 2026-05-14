@@ -167,6 +167,8 @@ function App() {
   const demoExit = useDemoMode((s) => s.exitDemoMode)
   const demoExpiresAt = useDemoMode((s) => s.expiresAt)
   const [demoRemaining, setDemoRemaining] = useState<number>(0)
+  const isGuestPortal = location.pathname === '/c'
+  const isClientFacing = isGuestPortal || location.pathname === '/login'
 
   useEffect(() => {
     if (!demoActive || !demoExpiresAt) return
@@ -506,13 +508,13 @@ function App() {
     )}
 
     <EnvModeBanner />
-    <BackToStart />
+    {!isClientFacing && <BackToStart />}
     <InstallPrompt />
-    <HelpChatbot />
-    <UniversalSearch />
-    <AssistantLauncher />
-    <AssistantPanel />
-    <RobiOperator />
+    {!isClientFacing && <HelpChatbot />}
+    {!isClientFacing && <UniversalSearch />}
+    {!isClientFacing && <AssistantLauncher />}
+    {!isClientFacing && <AssistantPanel />}
+    {!isClientFacing && <RobiOperator />}
     <BirthdayCelebrate />
     {showOnboarding && (
       <OnboardingWizard

@@ -569,11 +569,11 @@ export default function ClickCollectPage() {
   const handleAdvance = (id: string) => {
     setOrders(prev => prev.map(o => {
       if (o.id !== id) return o
-      if (o.status === 'Reçue') return { ...o, status: 'En préparation' }
+      if (o.status === 'Reçue') return { ...o, status: 'En préparation' as OrderStatus }
       if (o.status === 'En préparation') {
         const lockerNum = Math.floor(Math.random() * 12) + 1
         const lockerCode = Math.floor(1000 + Math.random() * 9000).toString()
-        return { ...o, status: 'Prête', lockerNum, lockerCode }
+        return { ...o, status: 'Prête' as OrderStatus, lockerNum, lockerCode }
       }
       return o
     }).filter(o => !(o.id === id && o.status === 'Prête')))

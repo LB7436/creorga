@@ -1,1059 +1,1787 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { BG, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  ChevronLeft,
+  Coins,
+  Crosshair,
+  Heart,
+  Pause,
+  Play,
+  RotateCcw,
+  Shield,
+  Sparkles,
+  Zap,
+} from 'lucide-react'
+import * as THREE from 'three'
+import { ACCENT, ACCENT2, BG, BORDER, MUTED, SURFACE, SURFACE2, TEXT } from './theme'
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-type Phase = 'menu' | 'prep' | 'wave' | 'gameover' | 'victory'
+type Phase = 'menu' | 'prep' | 'wave' | 'victory' | 'defeat'
 type Difficulty = 'easy' | 'normal' | 'hard'
-type TowerType = 'laser' | 'plasma' | 'cryo' | 'tesla' | 'railgun'
-type EnemyType = 'scout' | 'trooper' | 'tank' | 'stealth' | 'shielded' | 'swarm' | 'flyer' | 'overlord'
+type TowerType = 'pulse' | 'cryo' | 'rail' | 'storm'
+type EnemyType = 'runner' | 'brute' | 'drone' | 'warden'
 
 interface TowerDef {
-  name: string; color: string; cost: number
-  upgradeCosts: [number, number]; sellPct: number
-  baseDamage: number; baseRange: number; baseFireRate: number
-  baseAoe: number; baseSlowMult: number; baseFreezeDur: number
-  chainCount: number; piercing: boolean; ignoreFlying: boolean
+  label: string
+  short: string
+  cost: number
+  color: string
+  range: number
+  damage: number
+  fireRate: number
+  splash: number
+  slow: number
 }
+
 interface EnemyDef {
-  name: string; color: string; shape: 'circle' | 'square' | 'hexagon' | 'diamond' | 'pentagon' | 'triangle'
-  baseHp: number; baseSpeed: number; reward: number; armor: number
-  flying: boolean; stealth: boolean; spawnsOn: EnemyType | null; spawnCount: number
-  size: number
+  label: string
+  color: string
+  hp: number
+  speed: number
+  reward: number
+  armor: number
+  flying: boolean
+  scale: number
 }
+
 interface Tower {
-  id: number; type: TowerType; col: number; row: number
-  level: number; cooldown: number; invested: number
-  angle: number
+  id: number
+  type: TowerType
+  col: number
+  row: number
+  x: number
+  z: number
+  level: number
+  cooldown: number
+  invested: number
+  yaw: number
 }
+
 interface Enemy {
-  id: number; type: EnemyType
-  hp: number; maxHp: number; speed: number; baseSpeed: number
-  seg: number; prog: number; x: number; y: number
-  reward: number; armor: number; flying: boolean; stealth: boolean
-  slowUntil: number; freezeUntil: number
-  dead: boolean; reachedEnd: boolean
-  revealed: boolean
+  id: number
+  type: EnemyType
+  hp: number
+  maxHp: number
+  speed: number
+  seg: number
+  prog: number
+  x: number
+  z: number
+  y: number
+  slowUntil: number
+  dead: boolean
+  reachedEnd: boolean
 }
-interface Projectile {
-  id: number; towerId: number; towerType: TowerType
-  x: number; y: number; tx: number; ty: number
-  enemyId: number; speed: number
-  damage: number; aoe: number; slowMult: number; freezeDur: number
-  chainLeft: number; piercing: boolean
-  dead: boolean; color: string
+
+interface Shot {
+  id: number
+  from: THREE.Vector3
+  to: THREE.Vector3
+  color: string
+  born: number
+  ttl: number
+  width: number
 }
-interface DamageNumber {
-  x: number; y: number; value: number; alpha: number; vy: number
+
+interface Spark {
+  id: number
+  x: number
+  y: number
+  z: number
+  color: string
+  born: number
+  ttl: number
+  radius: number
 }
-interface Particle {
-  x: number; y: number; vx: number; vy: number
-  life: number; maxLife: number; color: string; size: number
+
+interface SpawnItem {
+  type: EnemyType
+  delay: number
 }
-interface Ability {
-  name: string; icon: string; cooldown: number; lastUsed: number
-  description: string
-}
-interface GS {
-  phase: Phase; wave: number; gold: number; lives: number; score: number
-  speedMult: number; difficulty: Difficulty
-  enemies: Enemy[]; towers: Tower[]; projectiles: Projectile[]
-  particles: Particle[]; damageNumbers: DamageNumber[]
-  spawnQueue: { type: EnemyType; delay: number }[]
-  nextSpawnAt: number; frameCount: number; idCounter: number
-  abilities: Ability[]
-  abilityActive: string | null
+
+interface GameState {
+  phase: Phase
+  difficulty: Difficulty
+  paused: boolean
+  wave: number
+  gold: number
+  lives: number
+  score: number
+  speed: number
+  idCounter: number
   selectedTowerId: number | null
   placingType: TowerType | null
-  gridOccupied: Set<string>
+  hoverCell: GridCell | null
+  towers: Tower[]
+  enemies: Enemy[]
+  shots: Shot[]
+  sparks: Spark[]
+  spawnQueue: SpawnItem[]
+  nextSpawnAt: number
+  lastTick: number
+  occupied: Set<string>
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-const COLS = 20, ROWS = 11, TOTAL_WAVES = 15
-const WAYPOINTS: [number, number][] = [
-  [-1, 5], [3, 5], [3, 2], [8, 2], [8, 7], [13, 7], [13, 3], [17, 3], [17, 7], [21, 7]
-]
-const PATH_CELLS = new Set<string>()
-;(function buildPath() {
-  for (let s = 0; s < WAYPOINTS.length - 1; s++) {
-    const [x0, y0] = WAYPOINTS[s]
-    const [x1, y1] = WAYPOINTS[s + 1]
-    if (y0 === y1) {
-      const mn = Math.min(x0, x1), mx = Math.max(x0, x1)
-      for (let c = Math.max(0, mn); c <= Math.min(COLS - 1, mx); c++) PATH_CELLS.add(`${c},${y0}`)
-    } else {
-      const mn = Math.min(y0, y1), mx = Math.max(y0, y1)
-      for (let r = mn; r <= mx; r++) PATH_CELLS.add(`${x0},${r}`)
-    }
-  }
-})()
+interface GridCell {
+  col: number
+  row: number
+}
 
-const HP_MULT = [1, 1.1, 1.25, 1.4, 1.6, 1.8, 2.1, 2.4, 2.8, 3.2, 3.7, 4.3, 5.0, 5.8, 6.8]
+interface HudState {
+  phase: Phase
+  difficulty: Difficulty
+  paused: boolean
+  wave: number
+  gold: number
+  lives: number
+  score: number
+  speed: number
+  selectedTowerId: number | null
+  placingType: TowerType | null
+  hoverCell: GridCell | null
+}
+
+interface ThreeRuntime {
+  scene: THREE.Scene
+  camera: THREE.PerspectiveCamera
+  renderer: THREE.WebGLRenderer
+  raycaster: THREE.Raycaster
+  pointer: THREE.Vector2
+  ground: THREE.Mesh
+  hoverRing: THREE.Mesh
+  rangeRing: THREE.Mesh
+  towerMeshes: Map<number, THREE.Group>
+  enemyMeshes: Map<number, THREE.Group>
+  shotMeshes: Map<number, THREE.Object3D>
+  sparkMeshes: Map<number, THREE.Object3D>
+  resizeObserver: ResizeObserver
+  dispose: () => void
+}
+
+const COLS = 12
+const ROWS = 8
+const CELL = 1.08
+const TOTAL_WAVES = 9
+const SELL_RATIO = 0.55
+
+const PATH_POINTS: [number, number][] = [
+  [-1, 4],
+  [2, 4],
+  [2, 1],
+  [5, 1],
+  [5, 6],
+  [8, 6],
+  [8, 2],
+  [11, 2],
+  [11, 5],
+  [12, 5],
+]
+
+const PATH_CELLS = new Set<string>()
+for (let i = 0; i < PATH_POINTS.length - 1; i += 1) {
+  const [aCol, aRow] = PATH_POINTS[i]
+  const [bCol, bRow] = PATH_POINTS[i + 1]
+  if (aRow === bRow) {
+    const min = Math.max(0, Math.min(aCol, bCol))
+    const max = Math.min(COLS - 1, Math.max(aCol, bCol))
+    for (let col = min; col <= max; col += 1) PATH_CELLS.add(cellKey(col, aRow))
+  } else {
+    const min = Math.max(0, Math.min(aRow, bRow))
+    const max = Math.min(ROWS - 1, Math.max(aRow, bRow))
+    for (let row = min; row <= max; row += 1) PATH_CELLS.add(cellKey(aCol, row))
+  }
+}
 
 const TOWER_DEFS: Record<TowerType, TowerDef> = {
-  laser: {
-    name: 'Laser', color: '#00ffcc', cost: 80, upgradeCosts: [60, 80], sellPct: 0.5,
-    baseDamage: 18, baseRange: 3.5, baseFireRate: 0.6, baseAoe: 0,
-    baseSlowMult: 1, baseFreezeDur: 0, chainCount: 0, piercing: true, ignoreFlying: false,
-  },
-  plasma: {
-    name: 'Plasma', color: '#a855f7', cost: 130, upgradeCosts: [90, 120], sellPct: 0.5,
-    baseDamage: 40, baseRange: 2.8, baseFireRate: 1.8, baseAoe: 1.2,
-    baseSlowMult: 1, baseFreezeDur: 0, chainCount: 0, piercing: false, ignoreFlying: true,
+  pulse: {
+    label: 'Pulse',
+    short: 'P',
+    cost: 80,
+    color: '#14f1d9',
+    range: 2.75,
+    damage: 22,
+    fireRate: 0.62,
+    splash: 0,
+    slow: 0,
   },
   cryo: {
-    name: 'Cryo', color: '#3b82f6', cost: 120, upgradeCosts: [80, 100], sellPct: 0.5,
-    baseDamage: 12, baseRange: 3.0, baseFireRate: 1.2, baseAoe: 0,
-    baseSlowMult: 0.6, baseFreezeDur: 0, chainCount: 0, piercing: false, ignoreFlying: false,
+    label: 'Cryo',
+    short: 'C',
+    cost: 115,
+    color: '#73a7ff',
+    range: 2.55,
+    damage: 12,
+    fireRate: 0.95,
+    splash: 0,
+    slow: 0.48,
   },
-  tesla: {
-    name: 'Tesla', color: '#facc15', cost: 180, upgradeCosts: [120, 150], sellPct: 0.5,
-    baseDamage: 25, baseRange: 3.2, baseFireRate: 1.0, baseAoe: 0,
-    baseSlowMult: 1, baseFreezeDur: 0, chainCount: 1, piercing: false, ignoreFlying: false,
+  rail: {
+    label: 'Rail',
+    short: 'R',
+    cost: 150,
+    color: '#ffb15c',
+    range: 3.75,
+    damage: 72,
+    fireRate: 1.7,
+    splash: 0,
+    slow: 0,
   },
-  railgun: {
-    name: 'Railgun', color: '#f97316', cost: 220, upgradeCosts: [150, 200], sellPct: 0.5,
-    baseDamage: 90, baseRange: 4.5, baseFireRate: 2.5, baseAoe: 0,
-    baseSlowMult: 1, baseFreezeDur: 0, chainCount: 0, piercing: true, ignoreFlying: false,
+  storm: {
+    label: 'Storm',
+    short: 'S',
+    cost: 190,
+    color: '#c084fc',
+    range: 2.45,
+    damage: 38,
+    fireRate: 1.18,
+    splash: 0.92,
+    slow: 0,
   },
 }
-const TOWER_TYPES: TowerType[] = ['laser', 'plasma', 'cryo', 'tesla', 'railgun']
+
+const TOWER_TYPES: TowerType[] = ['pulse', 'cryo', 'rail', 'storm']
 
 const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
-  scout:    { name: 'Scout',    color: '#84cc16', shape: 'circle',   baseHp: 60,   baseSpeed: 2.2, reward: 8,  armor: 0,   flying: false, stealth: false, spawnsOn: null,     spawnCount: 0, size: 10 },
-  trooper:  { name: 'Trooper',  color: '#ef4444', shape: 'square',   baseHp: 120,  baseSpeed: 1.4, reward: 12, armor: 0,   flying: false, stealth: false, spawnsOn: null,     spawnCount: 0, size: 12 },
-  tank:     { name: 'Tank',     color: '#f97316', shape: 'hexagon',  baseHp: 450,  baseSpeed: 0.7, reward: 22, armor: 15,  flying: false, stealth: false, spawnsOn: null,     spawnCount: 0, size: 16 },
-  stealth:  { name: 'Stealth',  color: '#64748b', shape: 'diamond',  baseHp: 140,  baseSpeed: 1.9, reward: 18, armor: 0,   flying: false, stealth: true,  spawnsOn: null,     spawnCount: 0, size: 11 },
-  shielded: { name: 'Shielded', color: '#94a3b8', shape: 'pentagon', baseHp: 200,  baseSpeed: 1.1, reward: 20, armor: 30,  flying: false, stealth: false, spawnsOn: null,     spawnCount: 0, size: 13 },
-  swarm:    { name: 'Swarm',    color: '#f472b6', shape: 'triangle', baseHp: 80,   baseSpeed: 1.7, reward: 10, armor: 0,   flying: false, stealth: false, spawnsOn: 'scout',  spawnCount: 3, size: 9  },
-  flyer:    { name: 'Flyer',    color: '#06b6d4', shape: 'diamond',  baseHp: 160,  baseSpeed: 1.8, reward: 15, armor: 0,   flying: true,  stealth: false, spawnsOn: null,     spawnCount: 0, size: 12 },
-  overlord: { name: 'Overlord', color: '#fbbf24', shape: 'hexagon',  baseHp: 2000, baseSpeed: 0.5, reward: 80, armor: 20,  flying: false, stealth: false, spawnsOn: 'trooper',spawnCount: 4, size: 22 },
+  runner: {
+    label: 'Runner',
+    color: '#8ee86b',
+    hp: 70,
+    speed: 1.16,
+    reward: 9,
+    armor: 0,
+    flying: false,
+    scale: 0.78,
+  },
+  brute: {
+    label: 'Brute',
+    color: '#ff6b6b',
+    hp: 190,
+    speed: 0.72,
+    reward: 17,
+    armor: 7,
+    flying: false,
+    scale: 1.05,
+  },
+  drone: {
+    label: 'Drone',
+    color: '#61d8ff',
+    hp: 115,
+    speed: 1.04,
+    reward: 14,
+    armor: 0,
+    flying: true,
+    scale: 0.72,
+  },
+  warden: {
+    label: 'Warden',
+    color: '#f7d560',
+    hp: 640,
+    speed: 0.48,
+    reward: 65,
+    armor: 14,
+    flying: false,
+    scale: 1.35,
+  },
 }
 
-interface WaveEntry { type: EnemyType; count: number; interval: number }
-const WAVES: { enemies: WaveEntry[]; bonusGold: number }[] = [
-  { enemies: [{ type: 'scout', count: 8, interval: 600 }], bonusGold: 40 },
-  { enemies: [{ type: 'scout', count: 6, interval: 600 }, { type: 'trooper', count: 4, interval: 900 }], bonusGold: 50 },
-  { enemies: [{ type: 'trooper', count: 8, interval: 800 }], bonusGold: 60 },
-  { enemies: [{ type: 'trooper', count: 6, interval: 700 }, { type: 'tank', count: 2, interval: 1800 }], bonusGold: 70 },
-  { enemies: [{ type: 'scout', count: 10, interval: 450 }, { type: 'shielded', count: 4, interval: 1200 }], bonusGold: 80 },
-  { enemies: [{ type: 'tank', count: 4, interval: 1600 }, { type: 'shielded', count: 5, interval: 1000 }], bonusGold: 90 },
-  { enemies: [{ type: 'stealth', count: 8, interval: 700 }, { type: 'swarm', count: 4, interval: 1100 }], bonusGold: 100 },
-  { enemies: [{ type: 'trooper', count: 6, interval: 700 }, { type: 'stealth', count: 6, interval: 700 }, { type: 'tank', count: 3, interval: 1600 }], bonusGold: 110 },
-  { enemies: [{ type: 'flyer', count: 8, interval: 600 }, { type: 'swarm', count: 6, interval: 900 }], bonusGold: 120 },
-  { enemies: [{ type: 'flyer', count: 10, interval: 500 }, { type: 'shielded', count: 6, interval: 1000 }, { type: 'tank', count: 4, interval: 1500 }], bonusGold: 140 },
-  { enemies: [{ type: 'stealth', count: 10, interval: 600 }, { type: 'flyer', count: 8, interval: 600 }, { type: 'tank', count: 5, interval: 1400 }], bonusGold: 160 },
-  { enemies: [{ type: 'overlord', count: 1, interval: 3000 }, { type: 'trooper', count: 12, interval: 500 }], bonusGold: 180 },
-  { enemies: [{ type: 'swarm', count: 12, interval: 600 }, { type: 'overlord', count: 1, interval: 3000 }, { type: 'flyer', count: 10, interval: 500 }], bonusGold: 200 },
-  { enemies: [{ type: 'tank', count: 10, interval: 900 }, { type: 'shielded', count: 8, interval: 900 }, { type: 'overlord', count: 2, interval: 3000 }], bonusGold: 220 },
-  { enemies: [{ type: 'overlord', count: 3, interval: 2500 }, { type: 'stealth', count: 15, interval: 450 }, { type: 'swarm', count: 10, interval: 600 }, { type: 'flyer', count: 12, interval: 400 }], bonusGold: 300 },
+const WAVES: { entries: { type: EnemyType; count: number; gap: number }[]; bonus: number }[] = [
+  { entries: [{ type: 'runner', count: 8, gap: 0.58 }], bonus: 35 },
+  { entries: [{ type: 'runner', count: 9, gap: 0.5 }, { type: 'brute', count: 2, gap: 1.2 }], bonus: 45 },
+  { entries: [{ type: 'runner', count: 8, gap: 0.42 }, { type: 'drone', count: 5, gap: 0.7 }], bonus: 55 },
+  { entries: [{ type: 'brute', count: 7, gap: 0.82 }, { type: 'runner', count: 8, gap: 0.36 }], bonus: 70 },
+  { entries: [{ type: 'drone', count: 10, gap: 0.45 }, { type: 'brute', count: 5, gap: 0.86 }], bonus: 85 },
+  { entries: [{ type: 'warden', count: 1, gap: 1.4 }, { type: 'runner', count: 14, gap: 0.32 }], bonus: 105 },
+  { entries: [{ type: 'brute', count: 10, gap: 0.64 }, { type: 'drone', count: 10, gap: 0.44 }], bonus: 125 },
+  { entries: [{ type: 'warden', count: 2, gap: 1.6 }, { type: 'drone', count: 12, gap: 0.34 }], bonus: 150 },
+  { entries: [{ type: 'warden', count: 3, gap: 1.35 }, { type: 'brute', count: 10, gap: 0.5 }, { type: 'runner', count: 18, gap: 0.25 }], bonus: 220 },
 ]
 
-const ABILITIES: Ability[] = [
-  { name: 'Orbital Strike', icon: '💥', cooldown: 45000, lastUsed: -999999, description: 'AoE nuke on click' },
-  { name: 'EMP Pulse', icon: '⚡', cooldown: 30000, lastUsed: -999999, description: 'Freeze all 3s' },
-  { name: 'Emergency Funds', icon: '💰', cooldown: 60000, lastUsed: -999999, description: '+100 gold' },
-]
+function cellKey(col: number, row: number) {
+  return `${col},${row}`
+}
 
-// ── Tower stat helpers ────────────────────────────────────────────────────────
-function getTowerStats(t: Tower) {
-  const d = TOWER_DEFS[t.type]
-  const lvl = t.level
-  const dmgMult = lvl === 1 ? 1 : lvl === 2 ? 1.6 : 2.5
-  const rangeMult = lvl === 3 && t.type === 'laser' ? 1.5 : lvl === 3 && t.type === 'railgun' ? 1.4 : 1
-  const aoe = d.baseAoe * (lvl === 2 ? 1.5 : lvl === 3 ? 2.5 : 1)
-  const chain = t.type === 'tesla' ? (lvl === 1 ? 1 : lvl === 2 ? 3 : 5) : d.chainCount
-  const freezeDur = t.type === 'cryo' ? (lvl >= 2 ? 1500 : 0) : 0
-  const slowMult = t.type === 'cryo' ? (lvl === 1 ? 0.6 : lvl === 2 ? 0.5 : 0.3) : 1
-  const beams = t.type === 'laser' ? (lvl === 1 ? 1 : lvl === 2 ? 2 : 3) : 1
+function cellToWorld(col: number, row: number) {
   return {
-    damage: d.baseDamage * dmgMult,
-    range: d.baseRange * rangeMult * (t.type === 'railgun' && lvl === 3 ? 1 : 1),
-    fireRate: d.baseFireRate * (lvl === 3 ? 0.85 : 1),
-    aoe, chain, freezeDur, slowMult, beams,
-    piercing: d.piercing || (t.type === 'railgun' && lvl >= 2),
-    color: d.color,
+    x: (col - (COLS - 1) / 2) * CELL,
+    z: (row - (ROWS - 1) / 2) * CELL,
   }
 }
-function getUpgradeCost(t: Tower): number | null {
-  const d = TOWER_DEFS[t.type]
-  if (t.level >= 3) return null
-  return d.upgradeCosts[t.level - 1]
-}
-function getSellValue(t: Tower): number {
-  return Math.floor(t.invested * TOWER_DEFS[t.type].sellPct)
-}
 
-// ── Canvas drawing helpers ────────────────────────────────────────────────────
-function hexPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
-  ctx.beginPath()
-  for (let i = 0; i < 6; i++) {
-    const a = (Math.PI / 3) * i - Math.PI / 6
-    i === 0 ? ctx.moveTo(cx + r * Math.cos(a), cy + r * Math.sin(a)) : ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a))
-  }
-  ctx.closePath()
-}
-function pentPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
-  ctx.beginPath()
-  for (let i = 0; i < 5; i++) {
-    const a = (Math.PI * 2 / 5) * i - Math.PI / 2
-    i === 0 ? ctx.moveTo(cx + r * Math.cos(a), cy + r * Math.sin(a)) : ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a))
-  }
-  ctx.closePath()
-}
-function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy, now: number) {
-  const def = ENEMY_DEFS[e.type]
-  const frozen = e.freezeUntil > now
-  const slowed = e.slowUntil > now
-  let color = def.color
-  if (frozen) color = '#93c5fd'
-  else if (slowed) color = '#bfdbfe'
-  const alpha = (e.stealth && !e.revealed) ? 0.35 : 1
-  ctx.globalAlpha = alpha
-  ctx.shadowColor = color; ctx.shadowBlur = 12
-  ctx.fillStyle = color; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5
-  const s = def.size
-  const { x, y } = e
-  switch (def.shape) {
-    case 'circle':
-      ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
-      break
-    case 'square':
-      ctx.beginPath(); ctx.rect(x - s, y - s, s * 2, s * 2); ctx.fill(); ctx.stroke()
-      break
-    case 'hexagon':
-      hexPath(ctx, x, y, s); ctx.fill(); ctx.stroke()
-      break
-    case 'diamond':
-      ctx.beginPath()
-      ctx.moveTo(x, y - s * 1.2); ctx.lineTo(x + s, y); ctx.lineTo(x, y + s * 1.2); ctx.lineTo(x - s, y)
-      ctx.closePath(); ctx.fill(); ctx.stroke()
-      if (e.flying) {
-        ctx.strokeStyle = color; ctx.lineWidth = 1
-        ctx.beginPath(); ctx.moveTo(x - s * 1.8, y - 2); ctx.lineTo(x - s * 0.5, y); ctx.stroke()
-        ctx.beginPath(); ctx.moveTo(x + s * 1.8, y - 2); ctx.lineTo(x + s * 0.5, y); ctx.stroke()
-      }
-      break
-    case 'pentagon':
-      pentPath(ctx, x, y, s); ctx.fill(); ctx.stroke()
-      break
-    case 'triangle':
-      ctx.beginPath()
-      ctx.moveTo(x, y - s); ctx.lineTo(x + s * 0.9, y + s * 0.6); ctx.lineTo(x - s * 0.9, y + s * 0.6)
-      ctx.closePath(); ctx.fill(); ctx.stroke()
-      break
-  }
-  ctx.shadowBlur = 0; ctx.globalAlpha = 1
-  // HP bar
-  const bw = s * 2.2, bh = 3, bx = x - bw / 2, by = y - s - 7
-  ctx.fillStyle = '#1f2937'; ctx.fillRect(bx, by, bw, bh)
-  const pct = e.hp / e.maxHp
-  ctx.fillStyle = pct > 0.6 ? '#22c55e' : pct > 0.3 ? '#f59e0b' : '#ef4444'
-  ctx.fillRect(bx, by, bw * pct, bh)
-}
-function drawTower(ctx: CanvasRenderingContext2D, t: Tower, cellW: number, cellH: number, selected: boolean) {
-  const def = TOWER_DEFS[t.type]
-  const cx = (t.col + 0.5) * cellW, cy = (t.row + 0.5) * cellH
-  const r = Math.min(cellW, cellH) * 0.35 + t.level * 2
-  const color = def.color
-  ctx.shadowColor = color; ctx.shadowBlur = selected ? 24 : 14
-  ctx.fillStyle = color + '33'; ctx.strokeStyle = color; ctx.lineWidth = 2
-  // base platform
-  hexPath(ctx, cx, cy, r + 4); ctx.fill(); ctx.stroke()
-  ctx.fillStyle = color; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5
-  ctx.shadowBlur = selected ? 30 : 18
-  switch (t.type) {
-    case 'laser':
-      ctx.beginPath(); ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
-      ctx.strokeStyle = color; ctx.lineWidth = 3
-      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(t.angle) * r, cy + Math.sin(t.angle) * r); ctx.stroke()
-      break
-    case 'plasma':
-      hexPath(ctx, cx, cy, r * 0.6); ctx.fill(); ctx.stroke()
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, r * 0.25, 0, Math.PI * 2); ctx.fill()
-      break
-    case 'cryo':
-      ctx.beginPath(); ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
-      for (let i = 0; i < 6; i++) {
-        const a = (Math.PI / 3) * i + t.angle
-        ctx.strokeStyle = '#93c5fd'; ctx.lineWidth = 1.5
-        ctx.beginPath()
-        ctx.moveTo(cx + Math.cos(a) * r * 0.3, cy + Math.sin(a) * r * 0.3)
-        ctx.lineTo(cx + Math.cos(a) * r * 0.7, cy + Math.sin(a) * r * 0.7)
-        ctx.stroke()
-      }
-      break
-    case 'tesla':
-      ctx.beginPath()
-      ctx.moveTo(cx, cy - r * 0.65); ctx.lineTo(cx + r * 0.6, cy + r * 0.35); ctx.lineTo(cx - r * 0.6, cy + r * 0.35)
-      ctx.closePath(); ctx.fill(); ctx.stroke()
-      break
-    case 'railgun':
-      ctx.save(); ctx.translate(cx, cy); ctx.rotate(t.angle)
-      ctx.fillRect(-r * 0.25, -r * 0.6, r * 0.5, r * 1.2); ctx.strokeRect(-r * 0.25, -r * 0.6, r * 0.5, r * 1.2)
-      ctx.restore()
-      break
-  }
-  if (t.level > 1) {
-    ctx.fillStyle = '#fff'; ctx.font = `bold ${Math.floor(cellW * 0.22)}px monospace`
-    ctx.textAlign = 'center'; ctx.fillText(`T${t.level}`, cx, cy + r + 10)
-  }
-  ctx.shadowBlur = 0
+function worldToCell(x: number, z: number): GridCell | null {
+  const col = Math.round(x / CELL + (COLS - 1) / 2)
+  const row = Math.round(z / CELL + (ROWS - 1) / 2)
+  if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return null
+  return { col, row }
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
-export default function TowerDefenseGame({ onBack }: { onBack?: () => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const gsRef = useRef<GS | null>(null)
-  const rafRef = useRef<number>(0)
-  const cellRef = useRef({ w: 40, h: 40 })
+function pathWorldPoint(index: number) {
+  const [col, row] = PATH_POINTS[index]
+  return cellToWorld(col, row)
+}
 
-  const [phase, setPhase] = useState<Phase>('menu')
-  const [gold, setGold] = useState(250)
-  const [lives, setLives] = useState(25)
-  const [wave, setWave] = useState(0)
-  const [score, setScore] = useState(0)
-  const [speedMult, setSpeedMultState] = useState(1)
-  const [selectedTowerId, setSelectedTowerId] = useState<number | null>(null)
-  const [placingType, setPlacingType] = useState<TowerType | null>(null)
-  const [difficulty, setDifficulty] = useState<Difficulty>('normal')
-  const [abilityCooldowns, setAbilityCooldowns] = useState<number[]>([0, 0, 0])
-  const [abilityActive, setAbilityActive] = useState<string | null>(null)
+function distance(a: { x: number; z: number }, b: { x: number; z: number }) {
+  const dx = a.x - b.x
+  const dz = a.z - b.z
+  return Math.hypot(dx, dz)
+}
 
-  const syncHud = useCallback(() => {
-    const gs = gsRef.current; if (!gs) return
-    setGold(gs.gold); setLives(gs.lives); setWave(gs.wave); setScore(gs.score)
-    setSpeedMultState(gs.speedMult); setSelectedTowerId(gs.selectedTowerId)
-    setPlacingType(gs.placingType); setPhase(gs.phase)
-    setAbilityActive(gs.abilityActive)
-    const now = performance.now()
-    setAbilityCooldowns(gs.abilities.map(a => {
-      const elapsed = now - a.lastUsed
-      return Math.max(0, 1 - elapsed / a.cooldown)
-    }))
-  }, [])
-
-  const initGS = useCallback((diff: Difficulty): GS => {
-    const goldMult = diff === 'easy' ? 1.3 : diff === 'hard' ? 0.8 : 1
-    const livesMult = diff === 'easy' ? 1.5 : diff === 'hard' ? 0.7 : 1
-    return {
-      phase: 'prep', wave: 0, gold: Math.floor(250 * goldMult),
-      lives: Math.floor(25 * livesMult), score: 0, speedMult: 1, difficulty: diff,
-      enemies: [], towers: [], projectiles: [], particles: [], damageNumbers: [],
-      spawnQueue: [], nextSpawnAt: 0, frameCount: 0, idCounter: 1,
-      abilities: ABILITIES.map(a => ({ ...a, lastUsed: -999999 })),
-      abilityActive: null, selectedTowerId: null, placingType: null,
-      gridOccupied: new Set(PATH_CELLS),
-    }
-  }, [])
-
-  // ── Drawing ──────────────────────────────────────────────────────────────────
-  const draw = useCallback((gs: GS, now: number) => {
-    const canvas = canvasRef.current; if (!canvas) return
-    const ctx = canvas.getContext('2d'); if (!ctx) return
-    const { w: cw, h: ch } = cellRef.current
-    const W = canvas.width, H = canvas.height
-    // background
-    ctx.fillStyle = BG; ctx.fillRect(0, 0, W, H)
-    // grid
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const key = `${c},${r}`
-        if (PATH_CELLS.has(key)) {
-          ctx.fillStyle = '#0a1f1f'
-          ctx.shadowColor = '#00ffcc'; ctx.shadowBlur = 8
-          ctx.fillRect(c * cw, r * ch, cw, ch)
-          ctx.strokeStyle = '#00ffcc33'; ctx.lineWidth = 1
-          ctx.strokeRect(c * cw, r * ch, cw, ch)
-          ctx.shadowBlur = 0
-        } else {
-          ctx.fillStyle = '#0a0a1a'
-          ctx.fillRect(c * cw, r * ch, cw, ch)
-          ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 0.5
-          ctx.strokeRect(c * cw, r * ch, cw, ch)
-        }
-      }
-    }
-    // path glow overlay
-    ctx.strokeStyle = '#00ffcc'
-    ctx.shadowColor = '#00ffcc'; ctx.shadowBlur = 16; ctx.lineWidth = 3
-    ctx.beginPath()
-    for (let i = 0; i < WAYPOINTS.length; i++) {
-      const [wx, wy] = WAYPOINTS[i]
-      const px = (wx + 0.5) * cw, py = (wy + 0.5) * ch
-      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)
-    }
-    ctx.stroke(); ctx.shadowBlur = 0
-    // placing preview
-    if (gs.placingType) {
-      const def = TOWER_DEFS[gs.placingType]
-      ctx.fillStyle = def.color + '22'; ctx.strokeStyle = def.color + '88'
-      ctx.lineWidth = 1; ctx.setLineDash([4, 4])
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          if (!gs.gridOccupied.has(`${c},${r}`)) {
-            ctx.fillRect(c * cw + 1, r * ch + 1, cw - 2, ch - 2)
-          }
-        }
-      }
-      ctx.setLineDash([])
-    }
-    // towers
-    for (const t of gs.towers) {
-      drawTower(ctx, t, cw, ch, t.id === gs.selectedTowerId)
-    }
-    // range ring for selected tower
-    if (gs.selectedTowerId !== null) {
-      const t = gs.towers.find(x => x.id === gs.selectedTowerId)
-      if (t) {
-        const stats = getTowerStats(t)
-        const cx = (t.col + 0.5) * cw, cy = (t.row + 0.5) * ch
-        ctx.strokeStyle = TOWER_DEFS[t.type].color + '55'
-        ctx.lineWidth = 1; ctx.setLineDash([5, 5])
-        ctx.beginPath(); ctx.arc(cx, cy, stats.range * cw, 0, Math.PI * 2); ctx.stroke()
-        ctx.setLineDash([])
-      }
-    }
-    // projectiles
-    for (const p of gs.projectiles) {
-      if (p.dead) continue
-      ctx.shadowColor = p.color; ctx.shadowBlur = 10
-      ctx.fillStyle = p.color
-      ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill()
-      ctx.shadowBlur = 0
-    }
-    // enemies
-    for (const e of gs.enemies) {
-      if (e.dead || e.reachedEnd) continue
-      drawEnemy(ctx, e, now)
-    }
-    // particles
-    for (const p of gs.particles) {
-      const a = p.life / p.maxLife
-      ctx.globalAlpha = a; ctx.fillStyle = p.color
-      ctx.shadowColor = p.color; ctx.shadowBlur = 6
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.size * a, 0, Math.PI * 2); ctx.fill()
-    }
-    ctx.globalAlpha = 1; ctx.shadowBlur = 0
-    // damage numbers
-    for (const dn of gs.damageNumbers) {
-      ctx.globalAlpha = dn.alpha
-      ctx.fillStyle = '#fbbf24'
-      ctx.font = 'bold 13px monospace'
-      ctx.textAlign = 'center'
-      ctx.fillText(`-${dn.value}`, dn.x, dn.y)
-    }
-    ctx.globalAlpha = 1
-  }, [])
-
-  // ── Segment travel ────────────────────────────────────────────────────────────
-  function posOnPath(seg: number, prog: number): { x: number; y: number } {
-    const cw = cellRef.current.w, ch = cellRef.current.h
-    if (seg >= WAYPOINTS.length - 1) {
-      const [wx, wy] = WAYPOINTS[WAYPOINTS.length - 1]
-      return { x: (wx + 0.5) * cw, y: (wy + 0.5) * ch }
-    }
-    const [ax, ay] = WAYPOINTS[seg]; const [bx, by] = WAYPOINTS[seg + 1]
-    return {
-      x: ((ax + (bx - ax) * prog) + 0.5) * cw,
-      y: ((ay + (by - ay) * prog) + 0.5) * ch,
-    }
+function pathPosition(seg: number, prog: number) {
+  const a = pathWorldPoint(seg)
+  const b = pathWorldPoint(seg + 1)
+  return {
+    x: a.x + (b.x - a.x) * prog,
+    z: a.z + (b.z - a.z) * prog,
   }
-  function segLen(seg: number): number {
-    const [ax, ay] = WAYPOINTS[seg]; const [bx, by] = WAYPOINTS[seg + 1]
-    return Math.sqrt((bx - ax) ** 2 + (by - ay) ** 2)
+}
+
+function pathSegmentLength(seg: number) {
+  return distance(pathWorldPoint(seg), pathWorldPoint(seg + 1))
+}
+
+function createSpawnQueue(waveIndex: number): SpawnItem[] {
+  const wave = WAVES[waveIndex]
+  const queue: SpawnItem[] = []
+  let first = true
+  wave.entries.forEach((entry, entryIndex) => {
+    for (let i = 0; i < entry.count; i += 1) {
+      const delay = first ? 0.55 : entryIndex > 0 && i === 0 ? 1.25 : entry.gap
+      queue.push({ type: entry.type, delay })
+      first = false
+    }
+  })
+  return queue
+}
+
+function difficultySettings(difficulty: Difficulty) {
+  if (difficulty === 'easy') return { gold: 260, lives: 28, hp: 0.82, reward: 1.18 }
+  if (difficulty === 'hard') return { gold: 190, lives: 16, hp: 1.22, reward: 0.88 }
+  return { gold: 225, lives: 22, hp: 1, reward: 1 }
+}
+
+function createGameState(difficulty: Difficulty): GameState {
+  const settings = difficultySettings(difficulty)
+  return {
+    phase: 'prep',
+    difficulty,
+    paused: false,
+    wave: 0,
+    gold: settings.gold,
+    lives: settings.lives,
+    score: 0,
+    speed: 1,
+    idCounter: 1,
+    selectedTowerId: null,
+    placingType: 'pulse',
+    hoverCell: null,
+    towers: [],
+    enemies: [],
+    shots: [],
+    sparks: [],
+    spawnQueue: [],
+    nextSpawnAt: 0,
+    lastTick: performance.now(),
+    occupied: new Set(),
+  }
+}
+
+function createMenuState(difficulty: Difficulty): GameState {
+  return { ...createGameState(difficulty), phase: 'menu', placingType: null }
+}
+
+function toHud(gs: GameState): HudState {
+  return {
+    phase: gs.phase,
+    difficulty: gs.difficulty,
+    paused: gs.paused,
+    wave: gs.wave,
+    gold: gs.gold,
+    lives: gs.lives,
+    score: gs.score,
+    speed: gs.speed,
+    selectedTowerId: gs.selectedTowerId,
+    placingType: gs.placingType,
+    hoverCell: gs.hoverCell,
+  }
+}
+
+function towerStats(tower: Tower) {
+  const def = TOWER_DEFS[tower.type]
+  const level = tower.level
+  return {
+    range: def.range + (level - 1) * 0.34,
+    damage: def.damage * (level === 1 ? 1 : level === 2 ? 1.58 : 2.35),
+    fireRate: def.fireRate * (level === 3 ? 0.78 : level === 2 ? 0.88 : 1),
+    splash: def.splash * (level === 1 ? 1 : level === 2 ? 1.3 : 1.65),
+    slow: def.slow,
+  }
+}
+
+function upgradeCost(tower: Tower) {
+  if (tower.level >= 3) return null
+  return tower.level === 1 ? Math.round(TOWER_DEFS[tower.type].cost * 0.72) : Math.round(TOWER_DEFS[tower.type].cost * 1.08)
+}
+
+function sellValue(tower: Tower) {
+  return Math.round(tower.invested * SELL_RATIO)
+}
+
+function canPlace(gs: GameState, cell: GridCell | null) {
+  if (!cell || !gs.placingType) return false
+  const key = cellKey(cell.col, cell.row)
+  return !PATH_CELLS.has(key) && !gs.occupied.has(key) && gs.gold >= TOWER_DEFS[gs.placingType].cost
+}
+
+function spawnEnemy(gs: GameState, type: EnemyType, now: number) {
+  const def = ENEMY_DEFS[type]
+  const difficulty = difficultySettings(gs.difficulty)
+  const waveScale = 1 + gs.wave * 0.18
+  const maxHp = Math.round(def.hp * waveScale * difficulty.hp)
+  const pos = pathPosition(0, 0)
+  gs.enemies.push({
+    id: gs.idCounter++,
+    type,
+    hp: maxHp,
+    maxHp,
+    speed: def.speed,
+    seg: 0,
+    prog: 0,
+    x: pos.x,
+    z: pos.z,
+    y: def.flying ? 0.82 : 0.22,
+    slowUntil: now - 1,
+    dead: false,
+    reachedEnd: false,
+  })
+}
+
+function damageEnemy(gs: GameState, enemy: Enemy, amount: number, slow: number, now: number) {
+  const def = ENEMY_DEFS[enemy.type]
+  const hit = Math.max(1, amount - def.armor)
+  enemy.hp -= hit
+  if (slow > 0) enemy.slowUntil = Math.max(enemy.slowUntil, now + 1.65)
+  if (enemy.hp <= 0 && !enemy.dead) {
+    const reward = Math.round(def.reward * difficultySettings(gs.difficulty).reward)
+    enemy.dead = true
+    gs.gold += reward
+    gs.score += reward * 12 + Math.round(enemy.maxHp * 0.5)
+    gs.sparks.push({
+      id: gs.idCounter++,
+      x: enemy.x,
+      y: enemy.y,
+      z: enemy.z,
+      color: def.color,
+      born: now,
+      ttl: 0.55,
+      radius: 0.35 + def.scale * 0.15,
+    })
+  }
+}
+
+function launchWave(gs: GameState, now: number) {
+  if (gs.phase !== 'prep' || gs.wave >= TOTAL_WAVES) return
+  gs.phase = 'wave'
+  gs.paused = false
+  gs.wave += 1
+  gs.spawnQueue = createSpawnQueue(gs.wave - 1)
+  gs.nextSpawnAt = now + (gs.spawnQueue[0]?.delay ?? 0)
+  gs.selectedTowerId = null
+  gs.placingType = null
+}
+
+function stepSimulation(gs: GameState, nowMs: number) {
+  if (gs.paused || gs.phase !== 'wave') return
+  const rawDt = Math.min(0.05, Math.max(0, (nowMs - gs.lastTick) / 1000))
+  const dt = rawDt * gs.speed
+  const now = nowMs / 1000
+
+  while (gs.spawnQueue.length > 0 && now >= gs.nextSpawnAt) {
+    const next = gs.spawnQueue.shift()
+    if (!next) break
+    spawnEnemy(gs, next.type, now)
+    gs.nextSpawnAt = now + (gs.spawnQueue[0]?.delay ?? 0)
   }
 
-  // ── Game loop ─────────────────────────────────────────────────────────────────
-  const gameLoop = useCallback((prevTs: number, ts: number) => {
-    const gs = gsRef.current; if (!gs) return
-    const now = performance.now()
-    if (gs.phase !== 'wave' && gs.phase !== 'prep') { draw(gs, now); return }
-
-    const rawDt = Math.min((ts - prevTs) / 1000, 0.05)
-    const dt = rawDt * gs.speedMult
-    gs.frameCount++
-
-    // spawn
-    if (gs.phase === 'wave' && gs.spawnQueue.length > 0) {
-      if (now >= gs.nextSpawnAt) {
-        const entry = gs.spawnQueue.shift()!
-        const def = ENEMY_DEFS[entry.type]
-        const hpMult = HP_MULT[Math.min(gs.wave - 1, 14)]
-        const e: Enemy = {
-          id: gs.idCounter++, type: entry.type,
-          hp: Math.floor(def.baseHp * hpMult), maxHp: Math.floor(def.baseHp * hpMult),
-          speed: def.baseSpeed * 40, baseSpeed: def.baseSpeed * 40,
-          seg: 0, prog: 0, x: 0, y: 0,
-          reward: def.reward, armor: def.armor,
-          flying: def.flying, stealth: def.stealth, revealed: false,
-          slowUntil: 0, freezeUntil: 0,
-          dead: false, reachedEnd: false,
-        }
-        const pos = posOnPath(0, 0); e.x = pos.x; e.y = pos.y
-        gs.enemies.push(e)
-        gs.nextSpawnAt = now + entry.delay
-      }
-    }
-
-    // move enemies
-    const cw = cellRef.current.w
-    for (const e of gs.enemies) {
-      if (e.dead || e.reachedEnd) continue
-      if (e.freezeUntil > now) continue
-      const effSpeed = e.slowUntil > now ? e.speed * 0.55 : e.speed
-      let dist = effSpeed * dt
-      while (dist > 0 && e.seg < WAYPOINTS.length - 1) {
-        const sl = segLen(e.seg) * cw
-        const remaining = sl * (1 - e.prog)
-        if (dist < remaining) {
-          e.prog += dist / sl
-          break
-        } else {
-          dist -= remaining
-          e.seg++; e.prog = 0
-        }
-      }
-      const pos = posOnPath(e.seg, e.prog); e.x = pos.x; e.y = pos.y
-      if (e.seg >= WAYPOINTS.length - 1) {
-        e.reachedEnd = true
-        gs.lives = Math.max(0, gs.lives - 1)
-        if (gs.lives <= 0) { gs.phase = 'gameover'; syncHud(); return }
-      }
-    }
-
-    // tower shooting
-    for (const t of gs.towers) {
-      if (t.cooldown > 0) { t.cooldown -= dt; continue }
-      const stats = getTowerStats(t)
-      const tcx = (t.col + 0.5) * cellRef.current.w
-      const tcy = (t.row + 0.5) * cellRef.current.h
-      const rangePx = stats.range * cellRef.current.w
-
-      // find target (nearest to end = highest seg+prog, or for flyers check ignoreFlying)
-      let target: Enemy | null = null
-      let bestProgress = -Infinity
-      for (const e of gs.enemies) {
-        if (e.dead || e.reachedEnd) continue
-        if (e.flying && !TOWER_DEFS[t.type].ignoreFlying && t.type !== 'laser' && t.type !== 'tesla' && t.type !== 'railgun') continue
-        if (e.stealth && !e.revealed) continue
-        const dist = Math.hypot(e.x - tcx, e.y - tcy)
-        if (dist > rangePx) continue
-        const prog = e.seg + e.prog
-        if (prog > bestProgress) { bestProgress = prog; target = e }
-      }
-      if (!target) continue
-      t.angle = Math.atan2(target.y - tcy, target.x - tcx)
-      t.cooldown = stats.fireRate
-
-      // reveal stealth
-      if (target.stealth) target.revealed = true
-
-      const proj: Projectile = {
-        id: gs.idCounter++, towerId: t.id, towerType: t.type,
-        x: tcx, y: tcy, tx: target.x, ty: target.y,
-        enemyId: target.id,
-        speed: t.type === 'railgun' && t.level === 3 ? 9999 : 350 + t.level * 60,
-        damage: stats.damage, aoe: stats.aoe,
-        slowMult: stats.slowMult, freezeDur: stats.freezeDur,
-        chainLeft: stats.chain - 1, piercing: stats.piercing,
-        dead: false, color: TOWER_DEFS[t.type].color,
-      }
-      // extra beams for laser T2/T3
-      for (let b = 0; b < stats.beams; b++) {
-        if (b > 0) {
-          const extraTarget = gs.enemies.find(e2 =>
-            !e2.dead && !e2.reachedEnd && e2.id !== target!.id &&
-            Math.hypot(e2.x - tcx, e2.y - tcy) <= rangePx
-          )
-          if (extraTarget) {
-            gs.projectiles.push({
-              ...proj, id: gs.idCounter++, enemyId: extraTarget.id,
-              tx: extraTarget.x, ty: extraTarget.y,
-            })
-          }
-        } else {
-          gs.projectiles.push({ ...proj })
-        }
-      }
-    }
-
-    // move projectiles & apply damage
-    for (const p of gs.projectiles) {
-      if (p.dead) continue
-      const target = gs.enemies.find(e => e.id === p.enemyId)
-      if (!target || target.dead || target.reachedEnd) { p.dead = true; continue }
-      p.tx = target.x; p.ty = target.y
-      const dist = Math.hypot(p.tx - p.x, p.ty - p.y)
-      const step = p.speed * dt
-      if (step >= dist) {
-        // hit
-        p.dead = true
-        applyDamage(gs, target, p.damage, p.aoe, p.slowMult, p.freezeDur, p.color, now)
-        // chain lightning
-        if (p.chainLeft > 0) {
-          const chained = gs.enemies
-            .filter(e => !e.dead && !e.reachedEnd && e.id !== target.id && Math.hypot(e.x - target.x, e.y - target.y) < 80)
-            .slice(0, p.chainLeft)
-          for (const ce of chained) {
-            gs.projectiles.push({
-              id: gs.idCounter++, towerId: p.towerId, towerType: p.towerType,
-              x: target.x, y: target.y, tx: ce.x, ty: ce.y,
-              enemyId: ce.id, speed: p.speed,
-              damage: p.damage * 0.7, aoe: 0,
-              slowMult: p.slowMult, freezeDur: p.freezeDur,
-              chainLeft: p.chainLeft - 1, piercing: false,
-              dead: false, color: p.color,
-            })
-          }
-        }
+  for (const enemy of gs.enemies) {
+    if (enemy.dead || enemy.reachedEnd) continue
+    const slowMult = enemy.slowUntil > now ? 0.52 : 1
+    let travel = enemy.speed * slowMult * dt
+    while (travel > 0 && !enemy.reachedEnd) {
+      const segLength = pathSegmentLength(enemy.seg)
+      const remaining = (1 - enemy.prog) * segLength
+      if (travel < remaining) {
+        enemy.prog += travel / segLength
+        travel = 0
       } else {
-        const ratio = step / dist
-        p.x += (p.tx - p.x) * ratio; p.y += (p.ty - p.y) * ratio
-      }
-    }
-    gs.projectiles = gs.projectiles.filter(p => !p.dead)
-
-    // particles
-    for (const p of gs.particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt }
-    gs.particles = gs.particles.filter(p => p.life > 0)
-    // damage numbers
-    for (const dn of gs.damageNumbers) { dn.y += dn.vy * dt; dn.alpha -= dt * 1.5 }
-    gs.damageNumbers = gs.damageNumbers.filter(dn => dn.alpha > 0)
-    // clean dead enemies
-    gs.enemies = gs.enemies.filter(e => !e.dead && !e.reachedEnd)
-
-    // wave clear check
-    if (gs.phase === 'wave' && gs.spawnQueue.length === 0 && gs.enemies.length === 0) {
-      const bonus = 30 + gs.wave * 10 + (WAVES[gs.wave - 1]?.bonusGold ?? 0)
-      gs.gold += bonus
-      gs.score += bonus * 10
-      if (gs.wave >= TOTAL_WAVES) {
-        gs.phase = 'victory'
-      } else {
-        gs.phase = 'prep'
-      }
-      syncHud()
-    }
-
-    // sync HUD every 6 frames
-    if (gs.frameCount % 6 === 0) syncHud()
-    draw(gs, now)
-  }, [draw, syncHud])
-
-  function applyDamage(gs: GS, e: Enemy, dmg: number, aoe: number, slowMult: number, freezeDur: number, color: string, now: number) {
-    if (aoe > 0) {
-      const aoePx = aoe * cellRef.current.w
-      for (const other of gs.enemies) {
-        if (other.dead || other.reachedEnd) continue
-        if (Math.hypot(other.x - e.x, other.y - e.y) <= aoePx) {
-          dealDmg(gs, other, dmg, slowMult, freezeDur, color, now)
-        }
-      }
-    } else {
-      dealDmg(gs, e, dmg, slowMult, freezeDur, color, now)
-    }
-  }
-
-  function dealDmg(gs: GS, e: Enemy, dmg: number, slowMult: number, freezeDur: number, _color: string, now: number) {
-    const actual = Math.max(1, Math.floor(dmg * (1 - e.armor / 100)))
-    e.hp -= actual
-    gs.damageNumbers.push({ x: e.x + (Math.random() - 0.5) * 20, y: e.y - 15, value: actual, alpha: 1, vy: -40 })
-    gs.score += actual
-    if (slowMult < 1) e.slowUntil = now + 2000
-    if (freezeDur > 0) e.freezeUntil = now + freezeDur
-    if (e.hp <= 0) {
-      e.dead = true
-      gs.gold += e.reward
-      gs.score += e.reward * 5
-      spawnParticles(gs, e)
-      // spawn minions
-      const def = ENEMY_DEFS[e.type]
-      if (def.spawnsOn) {
-        const minionDef = ENEMY_DEFS[def.spawnsOn]
-        for (let i = 0; i < def.spawnCount; i++) {
-          const minion: Enemy = {
-            id: gs.idCounter++, type: def.spawnsOn,
-            hp: minionDef.baseHp, maxHp: minionDef.baseHp,
-            speed: minionDef.baseSpeed * 40, baseSpeed: minionDef.baseSpeed * 40,
-            seg: e.seg, prog: e.prog, x: e.x, y: e.y,
-            reward: Math.floor(minionDef.reward / 2), armor: minionDef.armor,
-            flying: minionDef.flying, stealth: false, revealed: false,
-            slowUntil: 0, freezeUntil: 0,
-            dead: false, reachedEnd: false,
+        travel -= remaining
+        enemy.seg += 1
+        enemy.prog = 0
+        if (enemy.seg >= PATH_POINTS.length - 1) {
+          enemy.reachedEnd = true
+          gs.lives -= ENEMY_DEFS[enemy.type].flying ? 2 : 1
+          gs.sparks.push({
+            id: gs.idCounter++,
+            x: enemy.x,
+            y: enemy.y,
+            z: enemy.z,
+            color: '#ef4444',
+            born: now,
+            ttl: 0.6,
+            radius: 0.6,
+          })
+          if (gs.lives <= 0) {
+            gs.lives = 0
+            gs.phase = 'defeat'
           }
-          gs.enemies.push(minion)
         }
       }
     }
+    if (!enemy.reachedEnd) {
+      const pos = pathPosition(enemy.seg, enemy.prog)
+      enemy.x = pos.x
+      enemy.z = pos.z
+    }
   }
 
-  function spawnParticles(gs: GS, e: Enemy) {
-    const color = ENEMY_DEFS[e.type].color
-    for (let i = 0; i < 8; i++) {
-      const angle = (Math.PI * 2 / 8) * i + Math.random() * 0.4
-      const spd = 60 + Math.random() * 80
-      gs.particles.push({
-        x: e.x, y: e.y,
-        vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd,
-        life: 0.3 + Math.random() * 0.2, maxLife: 0.5,
-        color, size: 3 + Math.random() * 3,
+  for (const tower of gs.towers) {
+    if (tower.cooldown > 0) tower.cooldown -= dt
+    if (tower.cooldown > 0) continue
+    const stats = towerStats(tower)
+    let target: Enemy | null = null
+    let bestProgress = -1
+    for (const enemy of gs.enemies) {
+      if (enemy.dead || enemy.reachedEnd) continue
+      const dist = Math.hypot(enemy.x - tower.x, enemy.z - tower.z)
+      if (dist > stats.range) continue
+      const enemyProgress = enemy.seg + enemy.prog
+      if (enemyProgress > bestProgress) {
+        bestProgress = enemyProgress
+        target = enemy
+      }
+    }
+    if (!target) continue
+
+    tower.yaw = Math.atan2(target.x - tower.x, target.z - tower.z)
+    tower.cooldown = stats.fireRate
+    const def = TOWER_DEFS[tower.type]
+    const from = new THREE.Vector3(tower.x, 0.82 + tower.level * 0.08, tower.z)
+    const to = new THREE.Vector3(target.x, target.y + 0.16, target.z)
+    gs.shots.push({
+      id: gs.idCounter++,
+      from,
+      to,
+      color: def.color,
+      born: now,
+      ttl: tower.type === 'rail' ? 0.2 : 0.32,
+      width: tower.type === 'rail' ? 0.045 : 0.03,
+    })
+    damageEnemy(gs, target, stats.damage, stats.slow, now)
+    if (stats.splash > 0) {
+      for (const enemy of gs.enemies) {
+        if (enemy === target || enemy.dead || enemy.reachedEnd) continue
+        const dist = Math.hypot(enemy.x - target.x, enemy.z - target.z)
+        if (dist <= stats.splash) damageEnemy(gs, enemy, stats.damage * 0.55, 0, now)
+      }
+      gs.sparks.push({
+        id: gs.idCounter++,
+        x: target.x,
+        y: 0.18,
+        z: target.z,
+        color: def.color,
+        born: now,
+        ttl: 0.38,
+        radius: stats.splash,
       })
     }
   }
 
-  // ── RAF management ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    let prevTs = performance.now()
-    const loop = (ts: number) => {
-      gameLoop(prevTs, ts)
-      prevTs = ts
-      rafRef.current = requestAnimationFrame(loop)
-    }
-    rafRef.current = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(rafRef.current)
-  }, [gameLoop])
+  gs.enemies = gs.enemies.filter((enemy) => !enemy.dead && !enemy.reachedEnd)
+  gs.shots = gs.shots.filter((shot) => now - shot.born <= shot.ttl)
+  gs.sparks = gs.sparks.filter((spark) => now - spark.born <= spark.ttl)
 
-  // ── Resize ────────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const resize = () => {
-      const canvas = canvasRef.current; const cont = containerRef.current
-      if (!canvas || !cont) return
-      const W = cont.clientWidth, H = cont.clientHeight
-      canvas.width = W; canvas.height = H
-      const cw = Math.floor(W / COLS), ch = Math.floor(H / ROWS)
-      cellRef.current = { w: cw, h: ch }
+  if (gs.phase === 'wave' && gs.spawnQueue.length === 0 && gs.enemies.length === 0) {
+    const wave = WAVES[gs.wave - 1]
+    gs.gold += wave.bonus
+    gs.score += wave.bonus * 10 + gs.lives * 5
+    gs.phase = gs.wave >= TOTAL_WAVES ? 'victory' : 'prep'
+    gs.placingType = gs.wave >= TOTAL_WAVES ? null : 'pulse'
+  }
+}
+
+function makeMaterial(color: string, roughness = 0.55, metalness = 0.22) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness,
+    metalness,
+    emissive: color,
+    emissiveIntensity: 0.05,
+  })
+}
+
+function createTowerMesh(tower: Tower) {
+  const def = TOWER_DEFS[tower.type]
+  const group = new THREE.Group()
+  group.position.set(tower.x, 0, tower.z)
+  group.userData.kind = 'tower'
+  group.userData.id = tower.id
+
+  const color = new THREE.Color(def.color)
+  const baseMat = new THREE.MeshStandardMaterial({
+    color: '#22283a',
+    roughness: 0.48,
+    metalness: 0.62,
+    emissive: color,
+    emissiveIntensity: 0.08,
+  })
+  const accentMat = new THREE.MeshStandardMaterial({
+    color: def.color,
+    roughness: 0.38,
+    metalness: 0.48,
+    emissive: color,
+    emissiveIntensity: 0.5,
+  })
+
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 0.22, 8), baseMat)
+  base.position.y = 0.11
+  group.add(base)
+
+  const column = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.23, 0.58, 8), accentMat)
+  column.position.y = 0.5
+  group.add(column)
+
+  const headGeometry =
+    tower.type === 'rail'
+      ? new THREE.BoxGeometry(0.24, 0.18, 0.72)
+      : tower.type === 'storm'
+        ? new THREE.OctahedronGeometry(0.29, 0)
+        : new THREE.ConeGeometry(0.26, 0.38, 10)
+  const head = new THREE.Mesh(headGeometry, accentMat)
+  head.position.y = 0.89
+  head.position.z = tower.type === 'rail' ? 0.2 : 0
+  group.add(head)
+
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.47, 0.016, 8, 32),
+    new THREE.MeshBasicMaterial({ color: def.color, transparent: true, opacity: 0.55 }),
+  )
+  ring.rotation.x = Math.PI / 2
+  ring.position.y = 0.07
+  group.add(ring)
+
+  return group
+}
+
+function createEnemyMesh(enemy: Enemy) {
+  const def = ENEMY_DEFS[enemy.type]
+  const group = new THREE.Group()
+  group.position.set(enemy.x, enemy.y, enemy.z)
+  group.userData.kind = 'enemy'
+  group.userData.id = enemy.id
+
+  const color = new THREE.Color(def.color)
+  const mat = new THREE.MeshStandardMaterial({
+    color: def.color,
+    roughness: 0.5,
+    metalness: 0.28,
+    emissive: color,
+    emissiveIntensity: def.flying ? 0.36 : 0.18,
+  })
+  const body =
+    enemy.type === 'brute'
+      ? new THREE.Mesh(new THREE.DodecahedronGeometry(0.28 * def.scale, 0), mat)
+      : enemy.type === 'warden'
+        ? new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.38, 0.56, 7), mat)
+        : enemy.type === 'drone'
+          ? new THREE.Mesh(new THREE.OctahedronGeometry(0.27 * def.scale, 0), mat)
+          : new THREE.Mesh(new THREE.SphereGeometry(0.24 * def.scale, 12, 8), mat)
+  body.position.y = def.flying ? 0 : 0.1
+  group.add(body)
+
+  if (def.flying) {
+    const wingMat = new THREE.MeshBasicMaterial({ color: def.color, transparent: true, opacity: 0.42 })
+    const wingGeo = new THREE.BoxGeometry(0.55, 0.02, 0.11)
+    const wing = new THREE.Mesh(wingGeo, wingMat)
+    wing.position.y = -0.02
+    group.add(wing)
+  }
+
+  const hpBg = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.55, 0.055),
+    new THREE.MeshBasicMaterial({ color: '#111827', transparent: true, opacity: 0.7, side: THREE.DoubleSide }),
+  )
+  hpBg.position.set(0, 0.58, 0)
+  hpBg.name = 'hp-bg'
+  group.add(hpBg)
+
+  const hp = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.52, 0.035),
+    new THREE.MeshBasicMaterial({ color: '#22c55e', side: THREE.DoubleSide }),
+  )
+  hp.position.set(0, 0.585, 0.002)
+  hp.name = 'hp'
+  group.add(hp)
+  return group
+}
+
+function createBeam(shot: Shot) {
+  const dir = new THREE.Vector3().subVectors(shot.to, shot.from)
+  const len = dir.length()
+  const group = new THREE.Group()
+  const mat = new THREE.MeshBasicMaterial({ color: shot.color, transparent: true, opacity: 0.86 })
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(shot.width, shot.width, len, 8), mat)
+  beam.position.copy(shot.from).add(shot.to).multiplyScalar(0.5)
+  beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize())
+  group.add(beam)
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(shot.width * 2.5, 8, 6), mat)
+  cap.position.copy(shot.to)
+  group.add(cap)
+  return group
+}
+
+function createSparkMesh(spark: Spark) {
+  const group = new THREE.Group()
+  group.position.set(spark.x, spark.y + 0.03, spark.z)
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(Math.max(0.02, spark.radius - 0.035), spark.radius, 48),
+    new THREE.MeshBasicMaterial({ color: spark.color, transparent: true, opacity: 0.7, side: THREE.DoubleSide }),
+  )
+  ring.rotation.x = -Math.PI / 2
+  group.add(ring)
+  return group
+}
+
+function disposeObject(object: THREE.Object3D) {
+  object.traverse((child) => {
+    const mesh = child as THREE.Mesh
+    if (mesh.geometry) mesh.geometry.dispose()
+    const material = mesh.material
+    if (Array.isArray(material)) material.forEach((m) => m.dispose())
+    else if (material) material.dispose()
+  })
+}
+
+function syncThree(runtime: ThreeRuntime, gs: GameState, now: number) {
+  const towerIds = new Set(gs.towers.map((tower) => tower.id))
+  for (const [id, group] of runtime.towerMeshes) {
+    if (!towerIds.has(id)) {
+      runtime.scene.remove(group)
+      disposeObject(group)
+      runtime.towerMeshes.delete(id)
     }
-    const obs = new ResizeObserver(resize)
-    if (containerRef.current) obs.observe(containerRef.current)
-    resize()
-    return () => obs.disconnect()
+  }
+
+  for (const tower of gs.towers) {
+    let group = runtime.towerMeshes.get(tower.id)
+    if (!group) {
+      group = createTowerMesh(tower)
+      runtime.scene.add(group)
+      runtime.towerMeshes.set(tower.id, group)
+    }
+    group.position.set(tower.x, 0, tower.z)
+    group.rotation.y = THREE.MathUtils.lerp(group.rotation.y, tower.yaw, 0.18)
+    group.scale.setScalar(1 + (tower.level - 1) * 0.08)
+    const selected = gs.selectedTowerId === tower.id
+    group.children.forEach((child) => {
+      const mesh = child as THREE.Mesh
+      const material = mesh.material as THREE.Material | undefined
+      if (material && 'opacity' in material) {
+        material.transparent = true
+        material.opacity = selected ? 1 : 0.92
+      }
+    })
+  }
+
+  const enemyIds = new Set(gs.enemies.map((enemy) => enemy.id))
+  for (const [id, group] of runtime.enemyMeshes) {
+    if (!enemyIds.has(id)) {
+      runtime.scene.remove(group)
+      disposeObject(group)
+      runtime.enemyMeshes.delete(id)
+    }
+  }
+
+  for (const enemy of gs.enemies) {
+    let group = runtime.enemyMeshes.get(enemy.id)
+    if (!group) {
+      group = createEnemyMesh(enemy)
+      runtime.scene.add(group)
+      runtime.enemyMeshes.set(enemy.id, group)
+    }
+    const bob = ENEMY_DEFS[enemy.type].flying ? Math.sin(now * 4 + enemy.id) * 0.08 : 0
+    group.position.set(enemy.x, enemy.y + bob, enemy.z)
+    group.lookAt(runtime.camera.position)
+    const hp = group.getObjectByName('hp') as THREE.Mesh | undefined
+    if (hp) {
+      const pct = Math.max(0.04, enemy.hp / enemy.maxHp)
+      hp.scale.x = pct
+      hp.position.x = -(0.52 * (1 - pct)) / 2
+      const hpMat = hp.material as THREE.MeshBasicMaterial
+      hpMat.color.set(pct > 0.6 ? '#22c55e' : pct > 0.32 ? '#f59e0b' : '#ef4444')
+    }
+  }
+
+  const shotIds = new Set(gs.shots.map((shot) => shot.id))
+  for (const [id, object] of runtime.shotMeshes) {
+    if (!shotIds.has(id)) {
+      runtime.scene.remove(object)
+      disposeObject(object)
+      runtime.shotMeshes.delete(id)
+    }
+  }
+  for (const shot of gs.shots) {
+    let mesh = runtime.shotMeshes.get(shot.id)
+    if (!mesh) {
+      mesh = createBeam(shot)
+      runtime.scene.add(mesh)
+      runtime.shotMeshes.set(shot.id, mesh)
+    }
+    const fade = 1 - Math.min(1, (now - shot.born) / shot.ttl)
+    mesh.traverse((child) => {
+      const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined
+      if (material) material.opacity = fade
+    })
+  }
+
+  const sparkIds = new Set(gs.sparks.map((spark) => spark.id))
+  for (const [id, object] of runtime.sparkMeshes) {
+    if (!sparkIds.has(id)) {
+      runtime.scene.remove(object)
+      disposeObject(object)
+      runtime.sparkMeshes.delete(id)
+    }
+  }
+  for (const spark of gs.sparks) {
+    let mesh = runtime.sparkMeshes.get(spark.id)
+    if (!mesh) {
+      mesh = createSparkMesh(spark)
+      runtime.scene.add(mesh)
+      runtime.sparkMeshes.set(spark.id, mesh)
+    }
+    const age = Math.min(1, (now - spark.born) / spark.ttl)
+    mesh.scale.setScalar(0.35 + age * 1.4)
+    mesh.traverse((child) => {
+      const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined
+      if (material) material.opacity = 0.75 * (1 - age)
+    })
+  }
+
+  const hover = gs.hoverCell
+  if (hover && gs.phase !== 'menu') {
+    const world = cellToWorld(hover.col, hover.row)
+    runtime.hoverRing.visible = true
+    runtime.hoverRing.position.set(world.x, 0.055, world.z)
+    const valid = canPlace(gs, hover)
+    const mat = runtime.hoverRing.material as THREE.MeshBasicMaterial
+    mat.color.set(valid ? '#22c55e' : '#ef4444')
+    mat.opacity = valid ? 0.6 : 0.42
+  } else {
+    runtime.hoverRing.visible = false
+  }
+
+  const selectedTower = gs.selectedTowerId === null ? null : gs.towers.find((tower) => tower.id === gs.selectedTowerId) ?? null
+  if (selectedTower) {
+    const stats = towerStats(selectedTower)
+    runtime.rangeRing.visible = true
+    runtime.rangeRing.position.set(selectedTower.x, 0.065, selectedTower.z)
+    runtime.rangeRing.scale.setScalar(stats.range)
+    const mat = runtime.rangeRing.material as THREE.MeshBasicMaterial
+    mat.color.set(TOWER_DEFS[selectedTower.type].color)
+  } else if (gs.placingType && gs.hoverCell) {
+    const world = cellToWorld(gs.hoverCell.col, gs.hoverCell.row)
+    runtime.rangeRing.visible = true
+    runtime.rangeRing.position.set(world.x, 0.065, world.z)
+    runtime.rangeRing.scale.setScalar(TOWER_DEFS[gs.placingType].range)
+    const mat = runtime.rangeRing.material as THREE.MeshBasicMaterial
+    mat.color.set(TOWER_DEFS[gs.placingType].color)
+  } else {
+    runtime.rangeRing.visible = false
+  }
+}
+
+function buildPath(scene: THREE.Scene) {
+  const mat = new THREE.MeshStandardMaterial({
+    color: '#182035',
+    roughness: 0.7,
+    metalness: 0.2,
+    emissive: '#6d28d9',
+    emissiveIntensity: 0.05,
+  })
+  for (const key of PATH_CELLS) {
+    const [col, row] = key.split(',').map(Number)
+    const world = cellToWorld(col, row)
+    const tile = new THREE.Mesh(new THREE.BoxGeometry(CELL * 0.96, 0.07, CELL * 0.96), mat)
+    tile.position.set(world.x, 0.015, world.z)
+    scene.add(tile)
+  }
+  const start = cellToWorld(0, 4)
+  const end = cellToWorld(COLS - 1, 5)
+  const startMat = makeMaterial('#22c55e', 0.45, 0.25)
+  const endMat = makeMaterial('#ef4444', 0.45, 0.25)
+  const startGate = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.8, 1.0), startMat)
+  startGate.position.set(start.x - CELL * 0.72, 0.42, start.z)
+  scene.add(startGate)
+  const endGate = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.8, 1.0), endMat)
+  endGate.position.set(end.x + CELL * 0.72, 0.42, end.z)
+  scene.add(endGate)
+}
+
+function buildPads(scene: THREE.Scene) {
+  const padMat = new THREE.MeshStandardMaterial({
+    color: '#15182a',
+    roughness: 0.75,
+    metalness: 0.1,
+    emissive: '#141a2f',
+    emissiveIntensity: 0.04,
+  })
+  for (let row = 0; row < ROWS; row += 1) {
+    for (let col = 0; col < COLS; col += 1) {
+      if (PATH_CELLS.has(cellKey(col, row))) continue
+      const { x, z } = cellToWorld(col, row)
+      const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 0.035, 6), padMat)
+      pad.position.set(x, 0.045, z)
+      pad.rotation.y = Math.PI / 6
+      scene.add(pad)
+    }
+  }
+}
+
+function createRuntime(container: HTMLDivElement) {
+  const scene = new THREE.Scene()
+  scene.background = new THREE.Color(BG)
+  scene.fog = new THREE.Fog(BG, 8, 19)
+
+  const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 80)
+  camera.position.set(0, 8.1, 8.8)
+  camera.lookAt(0, 0, 0)
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap
+  renderer.outputColorSpace = THREE.SRGBColorSpace
+  renderer.domElement.style.display = 'block'
+  renderer.domElement.style.width = '100%'
+  renderer.domElement.style.height = '100%'
+  renderer.domElement.style.touchAction = 'none'
+  container.appendChild(renderer.domElement)
+
+  const ambient = new THREE.HemisphereLight('#e9e4ff', '#0a0d17', 1.35)
+  scene.add(ambient)
+  const sun = new THREE.DirectionalLight('#ffffff', 1.9)
+  sun.position.set(4, 9, 5)
+  sun.castShadow = true
+  sun.shadow.mapSize.set(1024, 1024)
+  sun.shadow.camera.near = 1
+  sun.shadow.camera.far = 22
+  sun.shadow.camera.left = -9
+  sun.shadow.camera.right = 9
+  sun.shadow.camera.top = 9
+  sun.shadow.camera.bottom = -9
+  scene.add(sun)
+
+  const groundMat = new THREE.MeshStandardMaterial({
+    color: '#090b14',
+    roughness: 0.82,
+    metalness: 0.08,
+  })
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(COLS * CELL + 1.2, ROWS * CELL + 1.2), groundMat)
+  ground.rotation.x = -Math.PI / 2
+  ground.receiveShadow = true
+  scene.add(ground)
+
+  const grid = new THREE.GridHelper(Math.max(COLS, ROWS) * CELL + 1, Math.max(COLS, ROWS), '#2f3457', '#171b31')
+  grid.position.y = 0.04
+  scene.add(grid)
+  buildPath(scene)
+  buildPads(scene)
+
+  const hoverRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.42, 0.48, 32),
+    new THREE.MeshBasicMaterial({ color: '#22c55e', transparent: true, opacity: 0.55, side: THREE.DoubleSide }),
+  )
+  hoverRing.rotation.x = -Math.PI / 2
+  hoverRing.visible = false
+  scene.add(hoverRing)
+
+  const rangeRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.985, 1, 96),
+    new THREE.MeshBasicMaterial({ color: ACCENT, transparent: true, opacity: 0.32, side: THREE.DoubleSide }),
+  )
+  rangeRing.rotation.x = -Math.PI / 2
+  rangeRing.visible = false
+  scene.add(rangeRing)
+
+  const raycaster = new THREE.Raycaster()
+  const pointer = new THREE.Vector2()
+
+  const runtime: ThreeRuntime = {
+    scene,
+    camera,
+    renderer,
+    raycaster,
+    pointer,
+    ground,
+    hoverRing,
+    rangeRing,
+    towerMeshes: new Map(),
+    enemyMeshes: new Map(),
+    shotMeshes: new Map(),
+    sparkMeshes: new Map(),
+    resizeObserver: new ResizeObserver(() => {
+      const width = Math.max(1, container.clientWidth)
+      const height = Math.max(1, container.clientHeight)
+      camera.aspect = width / height
+      camera.updateProjectionMatrix()
+      renderer.setSize(width, height, false)
+    }),
+    dispose: () => undefined,
+  }
+
+  runtime.resizeObserver.observe(container)
+  const width = Math.max(1, container.clientWidth)
+  const height = Math.max(1, container.clientHeight)
+  camera.aspect = width / height
+  camera.updateProjectionMatrix()
+  renderer.setSize(width, height, false)
+
+  runtime.dispose = () => {
+    runtime.resizeObserver.disconnect()
+    for (const group of runtime.towerMeshes.values()) disposeObject(group)
+    for (const group of runtime.enemyMeshes.values()) disposeObject(group)
+    for (const group of runtime.shotMeshes.values()) disposeObject(group)
+    for (const group of runtime.sparkMeshes.values()) disposeObject(group)
+    disposeObject(scene)
+    renderer.dispose()
+    renderer.forceContextLoss()
+    renderer.domElement.remove()
+  }
+  return runtime
+}
+
+function raycastCell(runtime: ThreeRuntime, event: PointerEvent | React.PointerEvent<HTMLDivElement>) {
+  const rect = runtime.renderer.domElement.getBoundingClientRect()
+  runtime.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+  runtime.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+  runtime.raycaster.setFromCamera(runtime.pointer, runtime.camera)
+  const hit = runtime.raycaster.intersectObject(runtime.ground, false)[0]
+  if (!hit) return null
+  return worldToCell(hit.point.x, hit.point.z)
+}
+
+export default function TowerDefenseGame({ onBack }: { onBack?: () => void }) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const runtimeRef = useRef<ThreeRuntime | null>(null)
+  const gsRef = useRef<GameState>(createMenuState('normal'))
+  const rafRef = useRef<number>(0)
+  const hudTickRef = useRef(0)
+  const [hud, setHud] = useState<HudState>(() => toHud(gsRef.current))
+
+  const selectedTower = hud.selectedTowerId === null
+    ? null
+    : gsRef.current.towers.find((tower) => tower.id === hud.selectedTowerId) ?? null
+  const selectedStats = selectedTower ? towerStats(selectedTower) : null
+  const selectedUpgradeCost = selectedTower ? upgradeCost(selectedTower) : null
+  const selectedSell = selectedTower ? sellValue(selectedTower) : null
+
+  const syncHud = useCallback(() => {
+    setHud(toHud(gsRef.current))
   }, [])
 
-  // ── Start game ────────────────────────────────────────────────────────────────
-  const startGame = useCallback((diff: Difficulty) => {
-    const gs = initGS(diff)
-    gsRef.current = gs
-    syncHud()
-  }, [initGS, syncHud])
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const runtime = createRuntime(container)
+    runtimeRef.current = runtime
 
-  // ── Launch wave ───────────────────────────────────────────────────────────────
-  const launchWave = useCallback(() => {
-    const gs = gsRef.current; if (!gs || gs.phase !== 'prep') return
-    gs.wave++
-    const waveDef = WAVES[gs.wave - 1]
-    if (!waveDef) return
-    const queue: { type: EnemyType; delay: number }[] = []
-    for (const entry of waveDef.enemies) {
-      for (let i = 0; i < entry.count; i++) queue.push({ type: entry.type, delay: entry.interval })
+    const animate = (nowMs: number) => {
+      const gs = gsRef.current
+      stepSimulation(gs, nowMs)
+      gs.lastTick = nowMs
+      const now = nowMs / 1000
+      syncThree(runtime, gs, now)
+
+      const cameraDrift = gs.phase === 'menu' ? Math.sin(now * 0.4) * 0.45 : 0
+      runtime.camera.position.x = THREE.MathUtils.lerp(runtime.camera.position.x, cameraDrift, 0.02)
+      runtime.camera.position.y = THREE.MathUtils.lerp(runtime.camera.position.y, 8.1, 0.03)
+      runtime.camera.position.z = THREE.MathUtils.lerp(runtime.camera.position.z, 8.8, 0.03)
+      runtime.camera.lookAt(0, 0, 0)
+      runtime.renderer.render(runtime.scene, runtime.camera)
+
+      if (nowMs - hudTickRef.current > 120) {
+        hudTickRef.current = nowMs
+        syncHud()
+      }
+      rafRef.current = requestAnimationFrame(animate)
     }
-    // shuffle slightly for variety
-    gs.spawnQueue = queue
-    gs.nextSpawnAt = performance.now() + 500
-    gs.phase = 'wave'
+    rafRef.current = requestAnimationFrame(animate)
+    return () => {
+      cancelAnimationFrame(rafRef.current)
+      runtime.dispose()
+      runtimeRef.current = null
+    }
+  }, [syncHud])
+
+  const startGame = useCallback((difficulty: Difficulty) => {
+    gsRef.current = createGameState(difficulty)
     syncHud()
   }, [syncHud])
 
-  // ── Canvas click ──────────────────────────────────────────────────────────────
-  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const gs = gsRef.current; if (!gs) return
-    const rect = (e.target as HTMLCanvasElement).getBoundingClientRect()
-    const mx = e.clientX - rect.left, my = e.clientY - rect.top
-    const cw = cellRef.current.w, ch = cellRef.current.h
-    const col = Math.floor(mx / cw), row = Math.floor(my / ch)
-
-    // ability: orbital strike
-    if (gs.abilityActive === 'Orbital Strike') {
-      const now = performance.now()
-      const aIdx = gs.abilities.findIndex(a => a.name === 'Orbital Strike')
-      if (aIdx >= 0 && now - gs.abilities[aIdx].lastUsed >= gs.abilities[aIdx].cooldown) {
-        gs.abilities[aIdx].lastUsed = now
-        const cx = col * cw + cw / 2, cy = row * ch + ch / 2
-        const radius = 2.5 * cw
-        for (const en of gs.enemies) {
-          if (!en.dead && !en.reachedEnd && Math.hypot(en.x - cx, en.y - cy) <= radius) {
-            dealDmg(gs, en, 500, 1, 0, '#f97316', now)
-          }
-        }
-        for (let i = 0; i < 16; i++) {
-          const angle = (Math.PI * 2 / 16) * i
-          gs.particles.push({ x: cx, y: cy, vx: Math.cos(angle) * 150, vy: Math.sin(angle) * 150, life: 0.6, maxLife: 0.6, color: '#f97316', size: 5 })
-        }
-        gs.abilityActive = null
-      }
-      syncHud(); return
-    }
-
-    if (gs.placingType) {
-      const key = `${col},${row}`
-      if (!gs.gridOccupied.has(key) && col >= 0 && col < COLS && row >= 0 && row < ROWS) {
-        const def = TOWER_DEFS[gs.placingType]
-        if (gs.gold >= def.cost) {
-          gs.gold -= def.cost
-          const t: Tower = {
-            id: gs.idCounter++, type: gs.placingType, col, row,
-            level: 1, cooldown: 0, invested: def.cost, angle: 0,
-          }
-          gs.towers.push(t); gs.gridOccupied.add(key)
-          gs.placingType = null
-          syncHud()
-        }
-      }
-      return
-    }
-    // select tower
-    const clicked = gs.towers.find(t => t.col === col && t.row === row)
-    gs.selectedTowerId = clicked ? clicked.id : null
+  const resetGame = useCallback(() => {
+    const difficulty = gsRef.current.difficulty
+    gsRef.current = createMenuState(difficulty)
     syncHud()
   }, [syncHud])
 
-  // ── UI actions ────────────────────────────────────────────────────────────────
-  const selectPlacing = useCallback((type: TowerType) => {
-    const gs = gsRef.current; if (!gs) return
+  const chooseDifficulty = useCallback((difficulty: Difficulty) => {
+    const gs = gsRef.current
+    gs.difficulty = difficulty
+    syncHud()
+  }, [syncHud])
+
+  const chooseTower = useCallback((type: TowerType) => {
+    const gs = gsRef.current
+    if (gs.phase === 'menu' || gs.phase === 'victory' || gs.phase === 'defeat') return
     gs.placingType = gs.placingType === type ? null : type
     gs.selectedTowerId = null
     syncHud()
   }, [syncHud])
 
-  const upgradeTower = useCallback(() => {
-    const gs = gsRef.current; if (!gs || gs.selectedTowerId === null) return
-    const t = gs.towers.find(x => x.id === gs.selectedTowerId); if (!t) return
-    const cost = getUpgradeCost(t); if (cost === null || gs.gold < cost) return
-    gs.gold -= cost; t.level++; t.invested += cost
+  const startWave = useCallback(() => {
+    launchWave(gsRef.current, performance.now() / 1000)
     syncHud()
   }, [syncHud])
 
-  const sellTower = useCallback(() => {
-    const gs = gsRef.current; if (!gs || gs.selectedTowerId === null) return
-    const idx = gs.towers.findIndex(x => x.id === gs.selectedTowerId); if (idx < 0) return
-    const t = gs.towers[idx]
-    gs.gold += getSellValue(t)
-    gs.gridOccupied.delete(`${t.col},${t.row}`)
-    gs.towers.splice(idx, 1)
+  const togglePause = useCallback(() => {
+    const gs = gsRef.current
+    if (gs.phase !== 'wave') return
+    gs.paused = !gs.paused
+    syncHud()
+  }, [syncHud])
+
+  const cycleSpeed = useCallback(() => {
+    const gs = gsRef.current
+    gs.speed = gs.speed === 1 ? 1.5 : gs.speed === 1.5 ? 2 : 1
+    syncHud()
+  }, [syncHud])
+
+  const upgradeSelected = useCallback(() => {
+    const gs = gsRef.current
+    if (gs.selectedTowerId === null) return
+    const tower = gs.towers.find((item) => item.id === gs.selectedTowerId)
+    if (!tower) return
+    const cost = upgradeCost(tower)
+    if (cost === null || gs.gold < cost) return
+    gs.gold -= cost
+    tower.level += 1
+    tower.invested += cost
+    syncHud()
+  }, [syncHud])
+
+  const sellSelected = useCallback(() => {
+    const gs = gsRef.current
+    if (gs.selectedTowerId === null) return
+    const index = gs.towers.findIndex((item) => item.id === gs.selectedTowerId)
+    if (index < 0) return
+    const [tower] = gs.towers.splice(index, 1)
+    gs.occupied.delete(cellKey(tower.col, tower.row))
+    gs.gold += sellValue(tower)
     gs.selectedTowerId = null
     syncHud()
   }, [syncHud])
 
-  const toggleSpeed = useCallback(() => {
-    const gs = gsRef.current; if (!gs) return
-    gs.speedMult = gs.speedMult === 1 ? 2 : gs.speedMult === 2 ? 3 : 1
+  const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const runtime = runtimeRef.current
+    if (!runtime) return
+    const cell = raycastCell(runtime, event)
+    const gs = gsRef.current
+    if (
+      gs.hoverCell?.col !== cell?.col ||
+      gs.hoverCell?.row !== cell?.row
+    ) {
+      gs.hoverCell = cell
+      syncHud()
+    }
+  }, [syncHud])
+
+  const handlePointerLeave = useCallback(() => {
+    gsRef.current.hoverCell = null
     syncHud()
   }, [syncHud])
 
-  const useAbility = useCallback((idx: number) => {
-    const gs = gsRef.current; if (!gs) return
-    const a = gs.abilities[idx]; if (!a) return
-    const now = performance.now()
-    if (now - a.lastUsed < a.cooldown) return
-    if (a.name === 'Orbital Strike') {
-      gs.abilityActive = gs.abilityActive === 'Orbital Strike' ? null : 'Orbital Strike'
-      syncHud(); return
+  const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const runtime = runtimeRef.current
+    const gs = gsRef.current
+    if (!runtime || gs.phase === 'menu' || gs.phase === 'victory' || gs.phase === 'defeat') return
+    const cell = raycastCell(runtime, event)
+    if (!cell) return
+    const key = cellKey(cell.col, cell.row)
+    const tower = gs.towers.find((item) => item.col === cell.col && item.row === cell.row)
+    if (tower) {
+      gs.selectedTowerId = tower.id
+      gs.placingType = null
+      syncHud()
+      return
     }
-    if (a.name === 'EMP Pulse') {
-      a.lastUsed = now
-      const until = now + 3000
-      for (const e of gs.enemies) { if (!e.dead) e.freezeUntil = until }
+    if (!gs.placingType || PATH_CELLS.has(key) || gs.occupied.has(key)) {
+      gs.selectedTowerId = null
+      syncHud()
+      return
     }
-    if (a.name === 'Emergency Funds') {
-      a.lastUsed = now; gs.gold += 100
+    const def = TOWER_DEFS[gs.placingType]
+    if (gs.gold < def.cost) return
+    const { x, z } = cellToWorld(cell.col, cell.row)
+    const placed: Tower = {
+      id: gs.idCounter++,
+      type: gs.placingType,
+      col: cell.col,
+      row: cell.row,
+      x,
+      z,
+      level: 1,
+      cooldown: 0.2,
+      invested: def.cost,
+      yaw: 0,
     }
+    gs.towers.push(placed)
+    gs.occupied.add(key)
+    gs.gold -= def.cost
+    gs.selectedTowerId = placed.id
+    gs.placingType = null
     syncHud()
   }, [syncHud])
 
-  const closeSelection = useCallback(() => {
-    const gs = gsRef.current; if (!gs) return
-    gs.selectedTowerId = null; gs.placingType = null; syncHud()
-  }, [syncHud])
+  const availableWaves = useMemo(() => `${Math.min(hud.wave + 1, TOTAL_WAVES)}/${TOTAL_WAVES}`, [hud.wave])
+  const difficultyCopy = hud.difficulty === 'easy'
+    ? 'Plus de vies et economie souple'
+    : hud.difficulty === 'hard'
+      ? 'Peu de vies, ennemis renforces'
+      : 'Equilibre service tablette'
 
-  // ── Derived UI state ──────────────────────────────────────────────────────────
-  const selectedTower = gsRef.current?.towers.find(t => t.id === selectedTowerId) ?? null
-  const selectedStats = selectedTower ? getTowerStats(selectedTower) : null
-  const upgradeCost = selectedTower ? getUpgradeCost(selectedTower) : null
-  const sellVal = selectedTower ? getSellValue(selectedTower) : null
-
-  const towerBtnStyle = (type: TowerType): React.CSSProperties => ({
-    padding: '6px 10px', borderRadius: 6, border: `2px solid ${TOWER_DEFS[type].color}`,
-    background: placingType === type ? TOWER_DEFS[type].color + '44' : SURFACE2,
-    color: TOWER_DEFS[type].color, cursor: 'pointer', fontSize: 12, fontWeight: 700,
-    opacity: (gsRef.current?.gold ?? 0) < TOWER_DEFS[type].cost ? 0.5 : 1,
-  })
-  const upBtnStyle = (canAfford: boolean): React.CSSProperties => ({
-    padding: '7px 10px', borderRadius: 6, border: '2px solid #00ffcc',
-    background: canAfford ? '#00ffcc22' : '#1f2937', color: canAfford ? '#00ffcc' : MUTED,
-    cursor: canAfford ? 'pointer' : 'not-allowed', fontWeight: 700, fontSize: 12,
-  })
-  const styles: Record<string, React.CSSProperties> = {
-    root: { position: 'relative', width: '100%', height: '100%', background: BG, fontFamily: 'monospace', overflow: 'hidden', display: 'flex', flexDirection: 'column', color: TEXT },
-    canvasArea: { flex: 1, position: 'relative', minHeight: 0 },
-    canvas: { display: 'block', width: '100%', height: '100%', cursor: placingType ? 'crosshair' : abilityActive === 'Orbital Strike' ? 'cell' : 'default' },
-    topBar: { display: 'flex', alignItems: 'center', gap: 16, padding: '6px 12px', background: SURFACE, borderBottom: `1px solid ${BORDER}`, flexShrink: 0, flexWrap: 'wrap' },
-    stat: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 700 },
-    abilityBar: { display: 'flex', gap: 8, padding: '4px 12px', background: SURFACE2, borderBottom: `1px solid ${BORDER}`, flexShrink: 0 },
-    bottomPanel: { display: 'flex', gap: 6, padding: '6px 12px', background: SURFACE, borderTop: `1px solid ${BORDER}`, flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' },
-    waveBtn: { padding: '8px 18px', borderRadius: 8, border: '2px solid #00ffcc', background: '#00ffcc22', color: '#00ffcc', cursor: 'pointer', fontSize: 14, fontWeight: 700 },
-    speedBtn: { padding: '4px 10px', borderRadius: 6, border: '1px solid #facc15', background: '#facc1522', color: '#facc15', cursor: 'pointer', fontSize: 12 },
-    sidePanel: { position: 'absolute', top: 0, right: 0, bottom: 0, width: 180, background: SURFACE + 'ee', borderLeft: `1px solid ${BORDER}`, padding: 12, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 },
-    sellBtn: { padding: '7px 10px', borderRadius: 6, border: '2px solid #ef4444', background: '#ef444422', color: '#ef4444', cursor: 'pointer', fontWeight: 700, fontSize: 12 },
-    closeBtn: { padding: '4px 8px', borderRadius: 4, border: '1px solid ' + BORDER, background: SURFACE2, color: MUTED, cursor: 'pointer', alignSelf: 'flex-end', fontSize: 11 },
-  }
-
-  // ── Menu screen ───────────────────────────────────────────────────────────────
-  if (phase === 'menu') {
-    return (
-      <div style={{ ...styles.root, alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', maxWidth: 400, padding: 32 }}>
-          <div style={{ fontSize: 42, fontWeight: 900, letterSpacing: 4, color: '#00ffcc', textShadow: '0 0 30px #00ffcc, 0 0 60px #00ffcc55' }}>
-            CYBER DEFENSE
-          </div>
-          <div style={{ color: MUTED, marginTop: 8, fontSize: 13 }}>Defend the grid. Destroy the swarm.</div>
-          <div style={{ margin: '24px 0', display: 'flex', gap: 10, justifyContent: 'center' }}>
-            {(['easy', 'normal', 'hard'] as Difficulty[]).map(d => (
-              <button key={d} onClick={() => setDifficulty(d)} style={{
-                padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 13,
-                border: `2px solid ${difficulty === d ? '#00ffcc' : BORDER}`,
-                background: difficulty === d ? '#00ffcc22' : SURFACE2,
-                color: difficulty === d ? '#00ffcc' : MUTED,
-              }}>{d.toUpperCase()}</button>
-            ))}
-          </div>
-          <div style={{ fontSize: 11, color: MUTED, marginBottom: 20 }}>
-            {difficulty === 'easy' ? 'Gold ×1.3 | Lives ×1.5' : difficulty === 'hard' ? 'Gold ×0.8 | Lives ×0.7' : 'Standard balance'}
-          </div>
-          <button onClick={() => startGame(difficulty)} style={{
-            padding: '14px 40px', borderRadius: 10, fontSize: 18, fontWeight: 900, cursor: 'pointer',
-            border: '2px solid #00ffcc', background: '#00ffcc22', color: '#00ffcc',
-            boxShadow: '0 0 24px #00ffcc55', letterSpacing: 2,
-          }}>DÉMARRER</button>
-          {onBack && <div style={{ marginTop: 16 }}>
-            <button onClick={onBack} style={{ background: 'none', border: 'none', color: MUTED, cursor: 'pointer', fontSize: 13 }}>← Retour</button>
-          </div>}
-        </div>
-      </div>
-    )
-  }
-
-  // ── Game over / Victory ───────────────────────────────────────────────────────
-  if (phase === 'gameover' || phase === 'victory') {
-    const stars = phase === 'victory' ? (lives > 15 ? 3 : lives > 5 ? 2 : 1) : 0
-    return (
-      <div style={{ ...styles.root, alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', padding: 32, maxWidth: 360 }}>
-          {phase === 'victory' ? (
-            <>
-              <div style={{ fontSize: 36, fontWeight: 900, color: '#facc15', textShadow: '0 0 30px #facc15' }}>VICTOIRE</div>
-              <div style={{ fontSize: 28, margin: '8px 0' }}>{'★'.repeat(stars)}{'☆'.repeat(3 - stars)}</div>
-            </>
-          ) : (
-            <div style={{ fontSize: 36, fontWeight: 900, color: '#ef4444', textShadow: '0 0 30px #ef4444' }}>GAME OVER</div>
-          )}
-          <div style={{ margin: '16px 0', color: MUTED, fontSize: 14 }}>
-            <div>Score: <span style={{ color: TEXT, fontWeight: 700 }}>{score.toLocaleString()}</span></div>
-            <div>Vagues: <span style={{ color: TEXT }}>{wave}/{TOTAL_WAVES}</span></div>
-            <div>Vies restantes: <span style={{ color: TEXT }}>{lives}</span></div>
-          </div>
-          <button onClick={() => startGame(difficulty)} style={{
-            padding: '12px 32px', borderRadius: 8, fontSize: 16, fontWeight: 700, cursor: 'pointer',
-            border: '2px solid #00ffcc', background: '#00ffcc22', color: '#00ffcc', margin: '4px',
-          }}>REJOUER</button>
-          <button onClick={() => setPhase('menu')} style={{
-            padding: '12px 32px', borderRadius: 8, fontSize: 16, fontWeight: 700, cursor: 'pointer',
-            border: `1px solid ${BORDER}`, background: SURFACE2, color: MUTED, margin: '4px',
-          }}>MENU</button>
-        </div>
-      </div>
-    )
-  }
-
-  // ── In-game UI ────────────────────────────────────────────────────────────────
   return (
     <div style={styles.root}>
-      {/* Top HUD */}
-      <div style={styles.topBar}>
-        <span style={{ ...styles.stat, color: '#ef4444' }}>❤️ {lives}</span>
-        <span style={{ ...styles.stat, color: '#facc15' }}>💰 {gold}</span>
-        <span style={{ ...styles.stat, color: '#00ffcc' }}>Vague {wave}/{TOTAL_WAVES}</span>
-        <span style={{ ...styles.stat, color: '#a855f7' }}>⭐ {score.toLocaleString()}</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button onClick={toggleSpeed} style={styles.speedBtn}>{speedMult}x</button>
-          {onBack && <button onClick={onBack} style={{ ...styles.speedBtn, borderColor: BORDER, color: MUTED }}>← Quitter</button>}
-        </div>
-      </div>
+      <div
+        ref={containerRef}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
+        onPointerDown={handlePointerDown}
+        style={styles.scene}
+      />
 
-      {/* Ability bar */}
-      <div style={styles.abilityBar}>
-        {gsRef.current?.abilities.map((a, i) => {
-          const cd = abilityCooldowns[i]
-          const ready = cd === 0
-          const isActive = abilityActive === a.name
-          return (
-            <button key={a.name} onClick={() => useAbility(i)} title={a.description} style={{
-              position: 'relative', padding: '4px 12px', borderRadius: 6, cursor: ready ? 'pointer' : 'not-allowed',
-              border: `2px solid ${isActive ? '#f97316' : ready ? '#00ffcc' : BORDER}`,
-              background: isActive ? '#f9731622' : ready ? '#00ffcc11' : SURFACE,
-              color: ready ? TEXT : MUTED, fontSize: 12, overflow: 'hidden',
-            }}>
-              {cd > 0 && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${(1 - cd) * 100}%`, background: '#00ffcc22', transition: 'width 0.1s' }} />}
-              <span style={{ position: 'relative' }}>{a.icon} {a.name}</span>
+      {hud.phase === 'menu' && (
+        <div style={styles.menuOverlay}>
+          <div style={styles.menuPanel}>
+            <div style={styles.logoMark}>
+              <Shield size={28} />
+            </div>
+            <h1 style={styles.title}>Defense 3D</h1>
+            <p style={styles.subtitle}>Protegez la ligne, gardez la table en jeu.</p>
+            <div style={styles.difficultyRow}>
+              {(['easy', 'normal', 'hard'] as Difficulty[]).map((difficulty) => (
+                <button
+                  key={difficulty}
+                  onClick={() => chooseDifficulty(difficulty)}
+                  style={{
+                    ...styles.difficultyButton,
+                    borderColor: hud.difficulty === difficulty ? ACCENT2 : BORDER,
+                    color: hud.difficulty === difficulty ? TEXT : MUTED,
+                    background: hud.difficulty === difficulty ? 'rgba(6,182,212,0.18)' : 'rgba(14,13,32,0.92)',
+                  }}
+                >
+                  {difficulty}
+                </button>
+              ))}
+            </div>
+            <p style={styles.menuNote}>{difficultyCopy}</p>
+            <button onClick={() => startGame(hud.difficulty)} style={styles.primaryButton}>
+              <Play size={18} />
+              Demarrer
             </button>
-          )
-        })}
-      </div>
-
-      {/* Canvas area */}
-      <div ref={containerRef} style={styles.canvasArea}>
-        <canvas ref={canvasRef} style={styles.canvas} onClick={handleCanvasClick} />
-        {/* Tower info panel */}
-        {selectedTower && selectedStats && (
-          <div style={styles.sidePanel}>
-            <button onClick={closeSelection} style={styles.closeBtn}>✕ Fermer</button>
-            <div style={{ fontWeight: 900, color: TOWER_DEFS[selectedTower.type].color, fontSize: 14 }}>
-              {TOWER_DEFS[selectedTower.type].name}
-            </div>
-            <div style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: TOWER_DEFS[selectedTower.type].color + '33', color: TOWER_DEFS[selectedTower.type].color, fontWeight: 700 }}>
-              Tier {selectedTower.level}
-            </div>
-            <div style={{ color: MUTED, fontSize: 11, lineHeight: 1.6 }}>
-              <div>Dégâts: <span style={{ color: TEXT }}>{Math.round(selectedStats.damage)}</span></div>
-              <div>Portée: <span style={{ color: TEXT }}>{selectedStats.range.toFixed(1)}</span></div>
-              <div>Cadence: <span style={{ color: TEXT }}>{selectedStats.fireRate.toFixed(1)}s</span></div>
-              {selectedStats.aoe > 0 && <div>AoE: <span style={{ color: TEXT }}>{selectedStats.aoe.toFixed(1)}</span></div>}
-              {selectedStats.chain > 1 && <div>Chaînes: <span style={{ color: TEXT }}>{selectedStats.chain}</span></div>}
-              {selectedStats.freezeDur > 0 && <div>Gel: <span style={{ color: '#93c5fd' }}>{(selectedStats.freezeDur / 1000).toFixed(1)}s</span></div>}
-            </div>
-            {upgradeCost !== null && (
-              <button onClick={upgradeTower} style={upBtnStyle(gold >= upgradeCost)}>
-                ↑ Améliorer {upgradeCost}💰
+            {onBack && (
+              <button onClick={onBack} style={styles.ghostButton}>
+                <ChevronLeft size={16} />
+                Retour
               </button>
             )}
-            {upgradeCost === null && <div style={{ color: '#facc15', fontSize: 11, fontWeight: 700 }}>MAX LEVEL</div>}
-            <button onClick={sellTower} style={styles.sellBtn}>
-              Vendre {sellVal}💰
-            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Bottom panel */}
-      <div style={styles.bottomPanel}>
-        {TOWER_TYPES.map(type => (
-          <button key={type} onClick={() => selectPlacing(type)} style={towerBtnStyle(type)}>
-            <div style={{ fontSize: 11, marginBottom: 2 }}>{TOWER_DEFS[type].name}</div>
-            <div style={{ fontSize: 10, opacity: 0.8 }}>{TOWER_DEFS[type].cost}💰</div>
-          </button>
-        ))}
-        <div style={{ marginLeft: 'auto' }}>
-          {phase === 'prep' && (
-            <button onClick={launchWave} style={styles.waveBtn}>
-              ▶ Vague {wave + 1}/{TOTAL_WAVES}
-            </button>
-          )}
-          {phase === 'wave' && (
-            <div style={{ color: '#00ffcc', fontSize: 13, fontWeight: 700 }}>
-              Vague {wave} en cours…
+      {hud.phase !== 'menu' && (
+        <>
+          <div style={styles.topHud}>
+            <Metric icon={<Heart size={15} />} value={hud.lives} label="Vies" color="#ef4444" />
+            <Metric icon={<Coins size={15} />} value={hud.gold} label="Credit" color="#f59e0b" />
+            <Metric icon={<Zap size={15} />} value={`${hud.wave}/${TOTAL_WAVES}`} label="Vague" color={ACCENT2} />
+            <Metric icon={<Sparkles size={15} />} value={hud.score.toLocaleString('fr-FR')} label="Score" color={ACCENT} />
+            <div style={styles.topActions}>
+              <button onClick={cycleSpeed} style={styles.compactButton}>{hud.speed}x</button>
+              <button onClick={togglePause} disabled={hud.phase !== 'wave'} style={styles.compactButton}>
+                {hud.paused ? <Play size={14} /> : <Pause size={14} />}
+              </button>
+              <button onClick={resetGame} style={styles.compactButton}>
+                <RotateCcw size={14} />
+              </button>
+              {onBack && (
+                <button onClick={onBack} style={styles.compactButton}>
+                  <ChevronLeft size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div style={styles.towerBar}>
+            {TOWER_TYPES.map((type) => {
+              const def = TOWER_DEFS[type]
+              const active = hud.placingType === type
+              const affordable = hud.gold >= def.cost
+              return (
+                <button
+                  key={type}
+                  onClick={() => chooseTower(type)}
+                  disabled={!affordable && !active}
+                  style={{
+                    ...styles.towerButton,
+                    borderColor: active ? def.color : BORDER,
+                    background: active ? `${def.color}22` : 'rgba(14,13,32,0.88)',
+                    opacity: affordable || active ? 1 : 0.48,
+                  }}
+                >
+                  <span style={{ ...styles.towerGlyph, color: def.color }}>{def.short}</span>
+                  <span style={styles.towerText}>{def.label}</span>
+                  <span style={styles.towerCost}>{def.cost}</span>
+                </button>
+              )
+            })}
+            <div style={styles.waveDock}>
+              {hud.phase === 'prep' ? (
+                <button onClick={startWave} style={styles.waveButton}>
+                  <Play size={16} />
+                  Vague {availableWaves}
+                </button>
+              ) : hud.phase === 'wave' ? (
+                <div style={styles.waveLive}>
+                  <Crosshair size={15} />
+                  Vague active
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {selectedTower && selectedStats && (
+            <div style={styles.sidePanel}>
+              <div style={styles.sideHead}>
+                <div>
+                  <p style={{ ...styles.sideTitle, color: TOWER_DEFS[selectedTower.type].color }}>
+                    {TOWER_DEFS[selectedTower.type].label}
+                  </p>
+                  <p style={styles.sideSub}>Niveau {selectedTower.level}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    gsRef.current.selectedTowerId = null
+                    syncHud()
+                  }}
+                  style={styles.panelClose}
+                >
+                  Fermer
+                </button>
+              </div>
+              <div style={styles.statGrid}>
+                <MiniStat label="Degats" value={Math.round(selectedStats.damage)} />
+                <MiniStat label="Portee" value={selectedStats.range.toFixed(1)} />
+                <MiniStat label="Cadence" value={`${selectedStats.fireRate.toFixed(1)}s`} />
+                <MiniStat label="Zone" value={selectedStats.splash ? selectedStats.splash.toFixed(1) : '-'} />
+              </div>
+              <button
+                onClick={upgradeSelected}
+                disabled={selectedUpgradeCost === null || hud.gold < selectedUpgradeCost}
+                style={{
+                  ...styles.panelButton,
+                  borderColor: selectedUpgradeCost !== null && hud.gold >= selectedUpgradeCost ? ACCENT2 : BORDER,
+                  color: selectedUpgradeCost !== null && hud.gold >= selectedUpgradeCost ? TEXT : MUTED,
+                }}
+              >
+                {selectedUpgradeCost === null ? 'Niveau max' : `Ameliorer ${selectedUpgradeCost}`}
+              </button>
+              <button onClick={sellSelected} style={{ ...styles.panelButton, color: '#ff8b8b', borderColor: 'rgba(239,68,68,0.32)' }}>
+                Vendre {selectedSell}
+              </button>
             </div>
           )}
-        </div>
-      </div>
+
+          {(hud.phase === 'victory' || hud.phase === 'defeat') && (
+            <div style={styles.resultOverlay}>
+              <div style={styles.resultPanel}>
+                <h2 style={{ ...styles.resultTitle, color: hud.phase === 'victory' ? '#facc15' : '#ef4444' }}>
+                  {hud.phase === 'victory' ? 'Victoire' : 'Defense rompue'}
+                </h2>
+                <p style={styles.resultScore}>{hud.score.toLocaleString('fr-FR')}</p>
+                <p style={styles.resultText}>
+                  {hud.phase === 'victory'
+                    ? `Base intacte avec ${hud.lives} vies restantes.`
+                    : `Vous avez tenu ${hud.wave} vagues.`}
+                </p>
+                <button onClick={() => startGame(hud.difficulty)} style={styles.primaryButton}>
+                  <RotateCcw size={18} />
+                  Rejouer
+                </button>
+                <button onClick={resetGame} style={styles.ghostButton}>Menu</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
+}
+
+function Metric({ icon, value, label, color }: { icon: React.ReactNode; value: React.ReactNode; label: string; color: string }) {
+  return (
+    <div style={styles.metric}>
+      <span style={{ color, display: 'flex' }}>{icon}</span>
+      <span style={styles.metricValue}>{value}</span>
+      <span style={styles.metricLabel}>{label}</span>
+    </div>
+  )
+}
+
+function MiniStat({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div style={styles.miniStat}>
+      <span style={styles.miniLabel}>{label}</span>
+      <strong style={styles.miniValue}>{value}</strong>
+    </div>
+  )
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  root: {
+    position: 'relative',
+    width: '100%',
+    minHeight: 'calc(100vh - 112px)',
+    height: 'min(780px, calc(100vh - 64px))',
+    overflow: 'hidden',
+    background: BG,
+    color: TEXT,
+    fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+  },
+  scene: {
+    position: 'absolute',
+    inset: 0,
+    cursor: 'crosshair',
+    touchAction: 'none',
+  },
+  menuOverlay: {
+    position: 'absolute',
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    pointerEvents: 'none',
+  },
+  menuPanel: {
+    width: 'min(380px, 92vw)',
+    padding: 24,
+    borderRadius: 12,
+    background: 'rgba(8,9,18,0.86)',
+    border: `1px solid ${BORDER}`,
+    boxShadow: '0 18px 45px rgba(0,0,0,0.38)',
+    textAlign: 'center',
+    pointerEvents: 'auto',
+  },
+  logoMark: {
+    width: 58,
+    height: 58,
+    margin: '0 auto 14px',
+    borderRadius: 12,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: ACCENT2,
+    background: 'rgba(6,182,212,0.12)',
+    border: '1px solid rgba(6,182,212,0.24)',
+  },
+  title: {
+    margin: 0,
+    fontSize: 32,
+    fontWeight: 900,
+    letterSpacing: 0,
+  },
+  subtitle: {
+    margin: '8px 0 18px',
+    color: MUTED,
+    fontSize: 13,
+  },
+  difficultyRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: 8,
+    marginBottom: 10,
+  },
+  difficultyButton: {
+    border: '1px solid',
+    borderRadius: 8,
+    padding: '9px 10px',
+    textTransform: 'capitalize',
+    cursor: 'pointer',
+    fontWeight: 800,
+  },
+  menuNote: {
+    minHeight: 18,
+    margin: '0 0 18px',
+    fontSize: 12,
+    color: MUTED,
+  },
+  primaryButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minWidth: 150,
+    padding: '12px 18px',
+    borderRadius: 8,
+    border: '1px solid rgba(6,182,212,0.48)',
+    background: ACCENT2,
+    color: '#021018',
+    cursor: 'pointer',
+    fontSize: 14,
+    fontWeight: 900,
+  },
+  ghostButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    padding: '9px 12px',
+    borderRadius: 8,
+    border: `1px solid ${BORDER}`,
+    background: 'rgba(14,13,32,0.82)',
+    color: MUTED,
+    cursor: 'pointer',
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  topHud: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    pointerEvents: 'none',
+  },
+  metric: {
+    minWidth: 82,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '8px 10px',
+    borderRadius: 8,
+    background: 'rgba(8,9,18,0.82)',
+    border: `1px solid ${BORDER}`,
+    pointerEvents: 'auto',
+  },
+  metricValue: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: TEXT,
+  },
+  metricLabel: {
+    fontSize: 10,
+    color: MUTED,
+  },
+  topActions: {
+    marginLeft: 'auto',
+    display: 'flex',
+    gap: 6,
+    pointerEvents: 'auto',
+  },
+  compactButton: {
+    minWidth: 38,
+    height: 36,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    border: `1px solid ${BORDER}`,
+    background: 'rgba(8,9,18,0.86)',
+    color: TEXT,
+    cursor: 'pointer',
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  towerBar: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 12,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    pointerEvents: 'none',
+  },
+  towerButton: {
+    minWidth: 78,
+    display: 'grid',
+    gridTemplateColumns: '24px 1fr',
+    alignItems: 'center',
+    gap: '2px 8px',
+    border: '1px solid',
+    borderRadius: 8,
+    padding: '8px 10px',
+    color: TEXT,
+    cursor: 'pointer',
+    pointerEvents: 'auto',
+  },
+  towerGlyph: {
+    gridRow: 'span 2',
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'rgba(255,255,255,0.07)',
+    fontWeight: 900,
+    fontSize: 12,
+  },
+  towerText: {
+    fontSize: 12,
+    fontWeight: 900,
+    lineHeight: 1,
+  },
+  towerCost: {
+    color: MUTED,
+    fontSize: 10,
+    lineHeight: 1,
+  },
+  waveDock: {
+    marginLeft: 'auto',
+    pointerEvents: 'auto',
+  },
+  waveButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '12px 16px',
+    borderRadius: 8,
+    border: '1px solid rgba(20,241,217,0.42)',
+    background: 'rgba(20,241,217,0.16)',
+    color: TEXT,
+    cursor: 'pointer',
+    fontWeight: 900,
+  },
+  waveLive: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '12px 16px',
+    borderRadius: 8,
+    border: `1px solid ${BORDER}`,
+    background: 'rgba(8,9,18,0.82)',
+    color: ACCENT2,
+    fontWeight: 900,
+  },
+  sidePanel: {
+    position: 'absolute',
+    top: 64,
+    right: 12,
+    width: 232,
+    padding: 12,
+    borderRadius: 10,
+    border: `1px solid ${BORDER}`,
+    background: 'rgba(8,9,18,0.9)',
+    boxShadow: '0 14px 35px rgba(0,0,0,0.35)',
+  },
+  sideHead: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 10,
+  },
+  sideTitle: {
+    margin: 0,
+    fontSize: 16,
+    fontWeight: 900,
+  },
+  sideSub: {
+    margin: '2px 0 0',
+    color: MUTED,
+    fontSize: 11,
+  },
+  panelClose: {
+    height: 28,
+    borderRadius: 6,
+    border: `1px solid ${BORDER}`,
+    background: SURFACE2,
+    color: MUTED,
+    cursor: 'pointer',
+    fontSize: 11,
+  },
+  statGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 6,
+    marginBottom: 10,
+  },
+  miniStat: {
+    padding: 8,
+    borderRadius: 8,
+    background: SURFACE,
+    border: `1px solid ${BORDER}`,
+  },
+  miniLabel: {
+    display: 'block',
+    color: MUTED,
+    fontSize: 10,
+    marginBottom: 2,
+  },
+  miniValue: {
+    color: TEXT,
+    fontSize: 13,
+  },
+  panelButton: {
+    width: '100%',
+    marginTop: 6,
+    padding: '9px 10px',
+    borderRadius: 8,
+    border: '1px solid',
+    background: SURFACE2,
+    cursor: 'pointer',
+    fontWeight: 800,
+  },
+  resultOverlay: {
+    position: 'absolute',
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'rgba(5,5,15,0.45)',
+    padding: 20,
+  },
+  resultPanel: {
+    width: 'min(340px, 92vw)',
+    padding: 24,
+    borderRadius: 12,
+    border: `1px solid ${BORDER}`,
+    background: 'rgba(8,9,18,0.92)',
+    textAlign: 'center',
+    boxShadow: '0 18px 45px rgba(0,0,0,0.4)',
+  },
+  resultTitle: {
+    margin: 0,
+    fontSize: 26,
+    fontWeight: 900,
+  },
+  resultScore: {
+    margin: '8px 0 0',
+    color: TEXT,
+    fontSize: 34,
+    fontWeight: 900,
+  },
+  resultText: {
+    color: MUTED,
+    margin: '4px 0 18px',
+    fontSize: 13,
+  },
 }

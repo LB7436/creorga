@@ -11,6 +11,7 @@ export interface PortalConfig {
   welcomeMessage: string
   accentColor: string
   tableNumber: string
+  themeMode?: 'dark' | 'light'
   logoDataUrl?: string | null
   restaurantName?: string
   updatedAt: number

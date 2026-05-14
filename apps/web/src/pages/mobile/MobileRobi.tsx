@@ -483,7 +483,7 @@ export default function MobileRobi() {
                       onSelect={() => { a.selectConversation(c.id); setDrawerOpen(false) }}
                       onArchive={() => a.archiveConversation(c.id)}
                       onDelete={() => a.deleteConversation(c.id)}
-                      onRename={(t) => a.renameConversation(c.id, t)} />
+                      onRename={(t: string) => a.renameConversation(c.id, t)} />
                   ))
                 )}
 
@@ -505,7 +505,7 @@ export default function MobileRobi() {
                         onSelect={() => { a.selectConversation(c.id); a.unarchiveConversation(c.id); setDrawerOpen(false) }}
                         onArchive={() => a.unarchiveConversation(c.id)}
                         onDelete={() => a.deleteConversation(c.id)}
-                        onRename={(t) => a.renameConversation(c.id, t)}
+                        onRename={(t: string) => a.renameConversation(c.id, t)}
                         archived />
                     ))}
                   </>

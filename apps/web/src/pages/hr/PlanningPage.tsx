@@ -341,7 +341,7 @@ export default function PlanningPage() {
     if (!showShifts) return []
     let list = sectionFilter === 'Toutes' ? shifts : shifts.filter(s => s.section === sectionFilter)
     if (viewMode === 'employee' && viewAsName) {
-      list = list.filter(s => String(s.employee || '').toLowerCase().includes(String(viewAsName).toLowerCase()))
+      list = list.filter(s => s.employeeName.toLowerCase().includes(String(viewAsName).toLowerCase()))
     }
     return list
   }, [shifts, sectionFilter, showShifts, viewMode, viewAsName])

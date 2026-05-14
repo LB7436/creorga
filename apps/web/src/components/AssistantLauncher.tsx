@@ -10,24 +10,27 @@ import { useAssistant } from '@/stores/assistantStore'
 export default function AssistantLauncher() {
   const a = useAssistant()
   if (a.open) return null
+  const compact = a.launcherSize !== 'normal'
+  const size = compact ? 48 : 64
+  const mascotSize = compact ? 42 : 56
 
   return (
     <motion.button
       initial={{ scale: 0 }} animate={{ scale: 1 }}
-      whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
+      whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
       onClick={() => a.setOpen(true)}
       title={`Ouvrir ${a.name} (Ctrl+Shift+A)`}
       style={{
-        position: 'fixed', bottom: 96, right: 24, zIndex: 9996,
-        width: 64, height: 64, borderRadius: '50%', cursor: 'pointer',
+        position: 'fixed', bottom: compact ? 74 : 96, right: compact ? 14 : 24, zIndex: 9996,
+        width: size, height: size, borderRadius: '50%', cursor: 'pointer',
         border: 'none',
-        background: 'linear-gradient(135deg,#8b5cf6,#ec4899)',
-        boxShadow: '0 12px 32px rgba(139,92,246,0.5), 0 0 0 4px rgba(167,139,250,0.15)',
+        background: '#7c3aed',
+        boxShadow: compact ? '0 8px 18px rgba(0,0,0,0.28)' : '0 12px 28px rgba(0,0,0,0.32)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 0,
       }}
     >
-      <AssistantMascot variant={a.mascot} size={56} />
+      <AssistantMascot variant={a.mascot} size={mascotSize} />
       {a.messages.length > 0 && (
         <div style={{
           position: 'absolute', top: -2, right: -2,

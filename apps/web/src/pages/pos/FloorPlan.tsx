@@ -145,7 +145,7 @@ export default function FloorPlan() {
   const themeId = useTheme((s) => s.themeId)
   const setTheme = useTheme((s) => s.setTheme)
   const theme = THEMES.find((t) => t.id === themeId) || THEMES[1]
-  const isDark = themeId !== 'light'
+  const isDark = themeId !== 'indigo'
 
   // Realtime: any table or order event triggers a cache refresh.
   useSocketEvent('table:updated', () => {

@@ -9,6 +9,14 @@ const api = axios.create({
   withCredentials: true,
 })
 
+const isDemoSession = () => {
+  if (typeof window === 'undefined') return false
+  return (
+    window.localStorage.getItem('creorga-demo-mode') === 'true' ||
+    window.localStorage.getItem('creorga-demo-state')?.includes('"active":true') === true
+  )
+}
+
 // Ajouter le token aux requêtes
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken
@@ -63,8 +71,10 @@ api.interceptors.response.use(
         return api(originalRequest)
       } catch (refreshError) {
         processQueue(refreshError, null)
-        useAuthStore.getState().logout()
-        window.location.href = '/login'
+        if (!isDemoSession()) {
+          useAuthStore.getState().logout()
+          window.location.href = '/login'
+        }
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false

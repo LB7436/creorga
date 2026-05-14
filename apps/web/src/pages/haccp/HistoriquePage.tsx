@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react'
+import { Fragment, useState, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Download,
@@ -737,9 +737,8 @@ export default function HistoriquePage() {
                   const hasPhotos = entry.photos && entry.photos.length > 0
 
                   return (
-                    <>
+                    <Fragment key={entry.id}>
                       <tr
-                        key={entry.id}
                         onClick={() => hasPhotos && setExpandedRow(isOpen ? null : entry.id)}
                         style={{
                           borderBottom: '1px solid #f1f5f9',
@@ -852,7 +851,7 @@ export default function HistoriquePage() {
                           </motion.tr>
                         )}
                       </AnimatePresence>
-                    </>
+                    </Fragment>
                   )
                 })}
               </tbody>

@@ -34,7 +34,7 @@ export default function GameLauncher({ gameId, onClose, accent }: Props) {
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       style={{
-        position: 'fixed', inset: 0, zIndex: 1000,
+        position: 'absolute', inset: 0, zIndex: 1000,
         background: 'linear-gradient(135deg,#0a0a14,#1a0a2e)',
         color: '#f1f5f9', overflow: 'hidden',
         display: 'flex', flexDirection: 'column',

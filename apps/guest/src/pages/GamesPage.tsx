@@ -37,6 +37,18 @@ const ALL_GAMES = [
   { id: 'sudoku',     name: 'Sudoku',      emoji: '🔢', desc: 'Bientôt',                playable: false },
 ]
 
+const GAME_IMAGES = [
+  'https://images.unsplash.com/photo-1606167668584-78701c57f13d?auto=format&fit=crop&w=900&q=80',
+  'https://images.unsplash.com/photo-1611996575749-79a3a250f948?auto=format&fit=crop&w=900&q=80',
+  'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=900&q=80',
+  'https://images.unsplash.com/photo-1553481187-be93c21490a9?auto=format&fit=crop&w=900&q=80',
+]
+
+function visualFor(id: string) {
+  const seed = id.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)
+  return GAME_IMAGES[seed % GAME_IMAGES.length]
+}
+
 export default function GamesPage() {
   const { config } = usePortalConfig(2500)
   const enabled = config?.games || {}
@@ -50,12 +62,20 @@ export default function GamesPage() {
     .filter((g, i, arr) => arr.findIndex(x => x.id === g.id) === i)
 
   const accent = config?.accentColor || '#a78bfa'
+  const light = config?.themeMode === 'light'
+  const theme = {
+    bg: light ? '#f8fafc' : 'linear-gradient(180deg, #0a0a14 0%, #1a0a2e 100%)',
+    text: light ? '#0f172a' : '#f1f5f9',
+    muted: light ? '#64748b' : '#94a3b8',
+    surface: light ? 'rgba(255,255,255,0.92)' : 'rgba(16,16,32,0.88)',
+    border: light ? '#dbe4f0' : 'rgba(255,255,255,0.1)',
+  }
 
   return (
     <div style={{
       padding: 16,
-      background: 'linear-gradient(180deg, #0a0a14 0%, #1a0a2e 100%)',
-      color: '#f1f5f9',
+      background: theme.bg,
+      color: theme.text,
       minHeight: '100%',
     }}>
       <header style={{ marginBottom: 16, paddingTop: 20 }}>
@@ -67,7 +87,7 @@ export default function GamesPage() {
         }}>
           🎮 Jeux à votre table
         </h1>
-        <p style={{ margin: '4px 0 0', color: '#94a3b8', fontSize: 13 }}>
+        <p style={{ margin: '4px 0 0', color: theme.muted, fontSize: 13 }}>
           {visibleGames.length} jeu(x) — gratuits, sans inscription
         </p>
       </header>
@@ -75,9 +95,9 @@ export default function GamesPage() {
       {visibleGames.length === 0 ? (
         <div style={{
           padding: 40, textAlign: 'center',
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: 14, color: '#94a3b8',
+          background: theme.surface,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 14, color: theme.muted,
         }}>
           <div style={{ fontSize: 40 }}>🚧</div>
           <div style={{ marginTop: 8, fontWeight: 600 }}>
@@ -95,11 +115,14 @@ export default function GamesPage() {
               onClick={() => setActiveGame(g.id)}
               style={{
                 padding: 16, borderRadius: 14, cursor: 'pointer', textAlign: 'center',
-                border: g.playable ? `1px solid ${accent}40` : '1px solid rgba(255,255,255,0.08)',
-                background: g.playable
-                  ? `linear-gradient(135deg, ${accent}15, rgba(236,72,153,0.08))`
-                  : 'rgba(255,255,255,0.03)',
-                color: '#f1f5f9',
+                border: g.playable ? `1px solid ${accent}55` : `1px solid ${theme.border}`,
+                backgroundImage: g.playable
+                  ? `linear-gradient(180deg, ${light ? 'rgba(255,255,255,0.7)' : 'rgba(10,10,20,0.42)'}, ${theme.surface}), url(${visualFor(g.id)})`
+                  : 'none',
+                backgroundColor: theme.surface,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                color: theme.text,
                 transition: 'all .15s', position: 'relative',
               }}
               onMouseEnter={(e) => {
@@ -120,10 +143,10 @@ export default function GamesPage() {
                 }}>JOUABLE</span>
               )}
               <div style={{ fontSize: 36 }}>{g.emoji}</div>
-              <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, color: '#f1f5f9' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, color: theme.text }}>
                 {g.name}
               </div>
-              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
+              <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>
                 {g.desc}
               </div>
             </button>

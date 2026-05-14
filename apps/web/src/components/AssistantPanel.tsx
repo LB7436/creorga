@@ -49,11 +49,21 @@ export default function AssistantPanel() {
   const [showDrawer, setShowDrawer] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   const [pendingPreview, setPendingPreview] = useState<any>(null)
+  const [viewport, setViewport] = useState(() => ({
+    width: typeof window === 'undefined' ? 1280 : window.innerWidth,
+    height: typeof window === 'undefined' ? 900 : window.innerHeight,
+  }))
   const recognitionRef = useRef<any>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scanInputRef = useRef<HTMLInputElement>(null)
   const docInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const onResize = () => setViewport({ width: window.innerWidth, height: window.innerHeight })
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   // v3.18 — handle file attachment
   async function handleAttach(file: File, kind: AssistantAttachment['kind']) {
@@ -297,13 +307,36 @@ export default function AssistantPanel() {
 
   if (!a.open) return null
 
+  const panelSizes = {
+    compact: { width: 340, height: 470 },
+    normal: { width: 420, height: 600 },
+    wide: { width: 560, height: 680 },
+  } as const
+  const selectedSize = panelSizes[a.panelSize ?? 'compact']
+  const mobile = viewport.width < 720
+  const safeBottom = mobile ? 76 : 88
+  const compactPanel = a.panelSize === 'compact' && a.panelMode === 'overlay'
+  const overlayWidth = Math.min(selectedSize.width, Math.max(300, viewport.width - 24))
+  const overlayHeight = Math.min(selectedSize.height, Math.max(360, viewport.height - safeBottom - 20))
   const panelStyle: React.CSSProperties = a.panelMode === 'full'
-    ? { position: 'fixed', inset: 0, zIndex: 9999 }
+    ? { position: 'fixed', inset: mobile ? '8px 8px 76px 8px' : 8, zIndex: 9999, borderRadius: 10 }
     : a.panelMode === 'dock'
-    ? { position: 'fixed', top: 0, right: 0, bottom: 0, width: 420, zIndex: 9999 }
-    : { position: 'fixed', bottom: 96, right: 24, width: 420, height: 600, zIndex: 9999, borderRadius: 18 }
+    ? { position: 'fixed', top: 8, right: 8, bottom: mobile ? 76 : 8, width: mobile ? 'calc(100vw - 16px)' : Math.min(460, viewport.width - 24), zIndex: 9999, borderRadius: 10 }
+    : { position: 'fixed', bottom: safeBottom, right: mobile ? 8 : 16, width: overlayWidth, height: overlayHeight, zIndex: 9999, borderRadius: 10 }
+
+  const cyclePanelSize = () => {
+    if (a.panelMode === 'full') {
+      a.setPanelMode('overlay')
+      return
+    }
+    const next = a.panelSize === 'compact' ? 'normal' : a.panelSize === 'normal' ? 'wide' : 'compact'
+    a.setPanelSize(next)
+  }
 
   const SUGGESTIONS = [
+    'Quel jeu recommandes-tu pour une table de 4 ?',
+    'Explique Scoopa en 20 secondes',
+    'Lance un défi rapide pour les clients',
     'Mets 3 cafés sur la table 1',
     'Qui travaille aujourd\'hui ?',
     'Crée une facture pour Brasserie du Centre de 850€',
@@ -321,16 +354,16 @@ export default function AssistantPanel() {
         initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
         style={{
           ...panelStyle,
-          background: 'linear-gradient(180deg, #0a0a14 0%, #1a0a2e 100%)',
+          background: '#0a0a14',
           color: '#f1f5f9',
-          boxShadow: '0 32px 80px rgba(139,92,246,0.4), 0 0 0 1px rgba(167,139,250,0.2)',
+          boxShadow: '0 18px 46px rgba(0,0,0,0.38), 0 0 0 1px rgba(167,139,250,0.18)',
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}
       >
         {/* Header */}
         <header style={{
-          padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12,
-          background: 'linear-gradient(135deg, rgba(139,92,246,0.2), rgba(236,72,153,0.1))',
+          padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8,
+          background: '#11111d',
           borderBottom: '1px solid rgba(255,255,255,0.08)',
         }}>
           {/* v3.18 — bouton menu (drawer conversations) */}
@@ -352,16 +385,20 @@ export default function AssistantPanel() {
             </div>
           </div>
           {/* v3.18 — bouton + nouvelle conversation */}
-          <button onClick={() => a.newConversation()} title="Nouvelle conversation"
+          {!compactPanel && <button onClick={() => a.newConversation()} title="Nouvelle conversation"
             style={{ ...iconBtn, background: 'linear-gradient(135deg,#8b5cf6,#ec4899)', color: '#fff' }}>
             <Plus size={14} />
-          </button>
+          </button>}
           <button onClick={() => setShowSettings((s) => !s)} title="Paramètres"
             style={iconBtn}><Settings size={14} /></button>
-          <button onClick={() => a.setVoiceEnabled(!a.voiceEnabled)} title={a.voiceEnabled ? 'Désactiver voix' : 'Activer voix'}
-            style={iconBtn}>{a.voiceEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}</button>
-          <button onClick={() => a.setPanelMode(a.panelMode === 'full' ? 'overlay' : 'full')} title="Plein écran"
-            style={iconBtn}>{a.panelMode === 'full' ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
+          {!compactPanel && <button onClick={() => a.setVoiceEnabled(!a.voiceEnabled)} title={a.voiceEnabled ? 'Désactiver voix' : 'Activer voix'}
+            style={iconBtn}>{a.voiceEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}</button>}
+          <button onClick={cyclePanelSize} title="Reduire / agrandir"
+            style={iconBtn}>{a.panelSize === 'compact' ? <Maximize2 size={14} /> : <Minimize2 size={14} />}</button>
+          {!compactPanel && <button onClick={() => a.setPanelMode(a.panelMode === 'dock' ? 'overlay' : 'dock')} title="Ancrer sur le cote"
+            style={iconBtn}>{a.panelMode === 'dock' ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>}
+          {!compactPanel && <button onClick={() => a.setPanelMode(a.panelMode === 'full' ? 'overlay' : 'full')} title="Plein écran"
+            style={iconBtn}>{a.panelMode === 'full' ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>}
           <button onClick={() => a.setOpen(false)} title="Fermer (Ctrl+Shift+A)" style={iconBtn}><X size={14} /></button>
         </header>
 
@@ -379,6 +416,10 @@ export default function AssistantPanel() {
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <input type="checkbox" checked={a.autoListen} onChange={(e) => a.setAutoListen(e.target.checked)} />
                   Écoute automatique à l'ouverture
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input type="checkbox" checked={a.launcherSize === 'compact'} onChange={(e) => a.setLauncherSize(e.target.checked ? 'compact' : 'normal')} />
+                  Bulle compacte dans les menus
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ flex: 1 }}>Vitesse voix · {a.voiceSpeed.toFixed(1)}</span>
@@ -638,7 +679,7 @@ export default function AssistantPanel() {
                         onSelect={() => { a.selectConversation(c.id); setShowDrawer(false) }}
                         onArchive={() => a.archiveConversation(c.id)}
                         onDelete={() => a.deleteConversation(c.id)}
-                        onRename={(t) => a.renameConversation(c.id, t)} />
+                        onRename={(t: string) => a.renameConversation(c.id, t)} />
                     ))
                   )}
                   {archivedConvs.length > 0 && (
@@ -658,7 +699,7 @@ export default function AssistantPanel() {
                           onSelect={() => { a.selectConversation(c.id); a.unarchiveConversation(c.id); setShowDrawer(false) }}
                           onArchive={() => a.unarchiveConversation(c.id)}
                           onDelete={() => a.deleteConversation(c.id)}
-                          onRename={(t) => a.renameConversation(c.id, t)}
+                          onRename={(t: string) => a.renameConversation(c.id, t)}
                           archived />
                       ))}
                     </>

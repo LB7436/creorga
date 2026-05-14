@@ -1343,7 +1343,7 @@ async function executeIntent(intent: IntentMatch): Promise<{ success: boolean; s
     case 'hr.punch-in': {
       const punches = loadJson<any[]>('punches.json', [])
       const userId = (intent.params as any).userId || 'default'
-      const last = punches.findLast?.((p: any) => p.userId === userId) || punches.filter((p: any) => p.userId === userId).slice(-1)[0]
+      const last = punches.filter((p: any) => p.userId === userId).slice(-1)[0]
       if (last && !last.outAt) {
         return { success: false, summary: '⚠️ Vous êtes déjà pointé en service. Utilisez "je termine" pour clôturer.' }
       }
@@ -1662,7 +1662,7 @@ Tape ou parle naturellement, je comprends !`,
         let food = 0, drinks = 0
         for (const t of state.tables) {
           for (const item of (t.items || [])) {
-            const cat = String(item.category || '').toLowerCase()
+            const cat = String((item as any).category || '').toLowerCase()
             const isFood = /plat|cuisine|food|entr[ée]e|dessert|burger|pizza/.test(cat) || /plat/.test(String(item.name || '').toLowerCase())
             const price = (item.price || 0) * (item.qty || 1)
             if (isFood) food += price; else drinks += price
@@ -1868,7 +1868,7 @@ router.post('/intent', async (req, res) => {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question: text, currentPath, userId: userId || 'default' }),
   })
-  const data = await r.json()
+  const data = await r.json() as any
   res.json({ kind: 'answer', ...data })
 })
 
@@ -1952,4 +1952,3 @@ router.post('/customers/create', (req, res) => {
 })
 
 export default router
-

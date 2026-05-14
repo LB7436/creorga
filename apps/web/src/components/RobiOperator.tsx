@@ -157,10 +157,10 @@ export default function RobiOperator() {
       {/* Status pill discret en bas droite quand connecté */}
       {connected && !pending && (
         <div style={{
-          position: 'fixed', bottom: 8, right: 8, zIndex: 9998,
-          padding: '4px 10px', borderRadius: 999, fontSize: 10, fontWeight: 700,
-          background: 'rgba(139,92,246,0.12)', color: '#a78bfa',
-          border: '1px solid rgba(139,92,246,0.3)',
+          position: 'fixed', bottom: 8, left: 8, zIndex: 1000,
+          padding: '4px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700,
+          background: 'rgba(10,10,20,0.82)', color: '#a78bfa',
+          border: '1px solid rgba(139,92,246,0.25)',
           display: 'inline-flex', alignItems: 'center', gap: 4,
           pointerEvents: 'none',
         }}>

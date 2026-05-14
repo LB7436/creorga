@@ -230,7 +230,7 @@ function AdForm({ ad, onSave, onClose, aiBusy, setAiBusy }: any) {
           </button>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <Field label="Prix €" value={price} onChange={(v) => setPrice(v as any)} type="number" />
+            <Field label="Prix €" value={price} onChange={(v: string) => setPrice(v)} type="number" />
             <Field label="CTA" value={cta} onChange={setCta} placeholder="Commandez !" />
           </div>
 

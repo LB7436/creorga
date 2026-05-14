@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  ArrowLeft, Phone, Send, Paperclip, Smile, Mic, Check, CheckCheck, Image as ImageIcon,
+  ArrowLeft, Send, Paperclip, Check, CheckCheck, Image as ImageIcon,
+  Coffee, MessageCircle, Table2, UserRound, Users,
 } from 'lucide-react'
+import { loadGuestClient, recordGuestEvent } from './guestClient'
 
 // Palette — dark guest theme
 const BG = '#05050f'
@@ -12,11 +14,12 @@ const BORDER = 'rgba(255,255,255,0.08)'
 const TEXT = '#f8fafc'
 const MUTED = '#94a3b8'
 const INDIGO = '#6366f1'
-const STAFF_BUBBLE = '#f1f5f9'
-const STAFF_TEXT = '#0f172a'
+const STAFF_BUBBLE = 'rgba(148,163,184,0.16)'
+const STAFF_TEXT = TEXT
 
 type MsgStatus = 'sent' | 'delivered' | 'read'
 type MsgKind = 'text' | 'quick' | 'image' | 'system'
+type ChannelId = 'staff' | 'cafe' | 'tables' | 'players' | 'owner'
 
 type Message = {
   id: string
@@ -39,6 +42,42 @@ const QUICK_ACTIONS = [
   { emoji: '🚶', label: 'Appeler le serveur' },
   { emoji: '❄️', label: 'Baisser le chauffage' },
 ]
+
+const CHANNELS: { id: ChannelId; label: string; desc: string; icon: typeof Users }[] = [
+  { id: 'staff', label: 'Personnel', desc: 'Serveur/serveuse', icon: MessageCircle },
+  { id: 'cafe', label: 'Cafe', desc: 'Groupe public', icon: Coffee },
+  { id: 'tables', label: 'Tables', desc: 'Table a table', icon: Table2 },
+  { id: 'players', label: 'Joueurs', desc: 'Defis individuels', icon: Users },
+  { id: 'owner', label: 'Patron', desc: 'Message plus tard', icon: UserRound },
+]
+
+const CHANNEL_QUICK_ACTIONS: Partial<Record<ChannelId, { emoji: string; label: string }[]>> = {
+  cafe: [
+    { emoji: '📸', label: 'Partager une photo' },
+    { emoji: '🎲', label: 'Qui veut jouer ?' },
+    { emoji: '🎶', label: 'Bonne ambiance ici' },
+  ],
+  tables: [
+    { emoji: '🎯', label: 'Table 2, une partie ?' },
+    { emoji: '🤝', label: 'On cherche deux joueurs' },
+    { emoji: '🏆', label: 'Mini tournoi ?' },
+  ],
+  players: [
+    { emoji: '🎮', label: 'Defi individuel' },
+    { emoji: '🏅', label: 'Revanche ?' },
+    { emoji: '👋', label: 'Salut, tu joues ?' },
+  ],
+  owner: [
+    { emoji: '✍️', label: 'Message au patron' },
+    { emoji: '⭐', label: 'Suggestion' },
+    { emoji: '🧾', label: 'Question facture' },
+  ],
+}
+
+function quickActionsFor(channel: ChannelId) {
+  const actions = CHANNEL_QUICK_ACTIONS[channel] ?? QUICK_ACTIONS
+  return actions.filter((item) => !item.label.toLowerCase().includes('appeler'))
+}
 
 const STAFF_REPLIES = [
   "Bien reçu, j'arrive tout de suite !",
@@ -63,6 +102,38 @@ const INITIAL_MESSAGES: Message[] = [
   { id: 'm12', from: 'staff', staffName: 'Marie', text: 'Je reste à votre disposition 😊', kind: 'text', time: Date.now() - 1000 * 60 * 5 },
 ]
 
+function initialMessagesFor(channel: ChannelId): Message[] {
+  void INITIAL_MESSAGES
+  const now = Date.now()
+  if (channel === 'cafe') {
+    return [
+      { id: 'c1', from: 'system', text: 'Groupe cafe: messages visibles par les clients connectes.', kind: 'system', time: now - 60000 },
+      { id: 'c2', from: 'staff', staffName: 'Creorga', text: 'Bienvenue dans le groupe du cafe. Vous pouvez discuter et partager une photo du moment.', kind: 'text', time: now - 45000 },
+    ]
+  }
+  if (channel === 'tables') {
+    return [
+      { id: 't1', from: 'system', text: 'Table a table: proposez une partie ou un tournoi local.', kind: 'system', time: now - 60000 },
+      { id: 't2', from: 'staff', staffName: 'Table 2', text: 'On cherche une autre table pour Petits Chevaux 3D.', kind: 'text', time: now - 42000 },
+    ]
+  }
+  if (channel === 'players') {
+    return [
+      { id: 'p1', from: 'system', text: 'Joueurs: defis individuels et invitations avec code.', kind: 'system', time: now - 60000 },
+      { id: 'p2', from: 'staff', staffName: 'Joueur local', text: 'Disponible pour un duel rapide.', kind: 'text', time: now - 43000 },
+    ]
+  }
+  if (channel === 'owner') {
+    return [
+      { id: 'o1', from: 'system', text: 'Message au patron: il pourra le consulter plus tard dans Creorga.', kind: 'system', time: now - 60000 },
+    ]
+  }
+  return [
+    { id: 's1', from: 'system', text: 'Conversation avec le personnel de service.', kind: 'system', time: now - 1000 * 60 * 3 },
+    { id: 's2', from: 'staff', staffName: 'Marie', text: 'Bonjour, ecrivez ici pour demander du pain, de l eau, l addition ou une aide a table.', kind: 'text', time: now - 1000 * 60 * 2 },
+  ]
+}
+
 function fmtTime(t: number) {
   return new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 }
@@ -72,8 +143,9 @@ function shouldShowTimestamp(curr: Message, prev?: Message) {
   return curr.time - prev.time > 1000 * 60 * 3
 }
 
-export default function ChatSection() {
-  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES)
+export default function ChatSection({ onBack }: { onBack?: () => void }) {
+  const [channel, setChannel] = useState<ChannelId>('staff')
+  const [messages, setMessages] = useState<Message[]>(() => initialMessagesFor('staff'))
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [unread, setUnread] = useState(0)
@@ -84,6 +156,13 @@ export default function ChatSection() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isTyping])
+
+  useEffect(() => {
+    setMessages(initialMessagesFor(channel))
+    setInput('')
+    setUnread(0)
+    setIsTyping(false)
+  }, [channel])
 
   const pushStaffReply = (replyText?: string) => {
     setIsTyping(true)
@@ -111,6 +190,7 @@ export default function ChatSection() {
     }
     setMessages(prev => [...prev, msg])
     setInput('')
+    recordGuestEvent('chat', loadGuestClient(), { channel, text: trimmed, kind })
     // Progress status: sent → delivered → read
     setTimeout(() => {
       setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'delivered' } : m))
@@ -118,7 +198,13 @@ export default function ChatSection() {
     setTimeout(() => {
       setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'read' } : m))
     }, 1400)
-    pushStaffReply()
+    if (channel === 'staff') pushStaffReply()
+    if (channel === 'owner') {
+      setMessages(prev => [
+        ...prev,
+        { id: `o-${Date.now()}`, from: 'system', text: 'Message laisse au patron pour consultation plus tard.', kind: 'system', time: Date.now() },
+      ])
+    }
   }
 
   const handleSend = () => sendMessage(input, 'text')
@@ -150,7 +236,14 @@ export default function ChatSection() {
         backdropFilter: 'blur(16px)',
         borderBottom: `1px solid ${BORDER}`,
       }}>
-        <button style={iconBtn} aria-label="Retour">
+        <button
+          style={iconBtn}
+          aria-label="Retour"
+          onClick={() => {
+            if (channel !== 'staff') setChannel('staff')
+            else onBack?.()
+          }}
+        >
           <ArrowLeft size={20} />
         </button>
 
@@ -171,7 +264,9 @@ export default function ChatSection() {
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: TEXT }}>Le Personnel</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: TEXT }}>
+            {CHANNELS.find((item) => item.id === channel)?.label ?? 'Personnel'}
+          </div>
           <AnimatePresence mode="wait">
             {isTyping ? (
               <motion.div
@@ -197,9 +292,6 @@ export default function ChatSection() {
           </AnimatePresence>
         </div>
 
-        <button style={{ ...iconBtn, background: 'rgba(99,102,241,0.15)', color: INDIGO }} aria-label="Appeler">
-          <Phone size={18} />
-        </button>
       </div>
 
       {/* ─── QUICK ACTIONS BAR ─── */}
@@ -210,10 +302,45 @@ export default function ChatSection() {
         background: 'rgba(10,10,22,0.6)',
       }}>
         <div style={{
+          display: 'flex',
+          gap: 8,
+          overflowX: 'auto',
+          paddingRight: 14,
+          marginBottom: 9,
+          scrollbarWidth: 'none',
+        }}>
+          {CHANNELS.map((item) => {
+            const Icon = item.icon
+            const active = item.id === channel
+            return (
+              <button
+                key={item.id}
+                onClick={() => setChannel(item.id)}
+                style={{
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  borderRadius: 999,
+                  padding: '8px 11px',
+                  border: `1px solid ${active ? 'rgba(99,102,241,0.72)' : BORDER}`,
+                  background: active ? 'rgba(99,102,241,0.22)' : SURFACE,
+                  color: active ? TEXT : MUTED,
+                  fontSize: 12,
+                  fontWeight: 800,
+                }}
+              >
+                <Icon size={13} />
+                {item.label}
+              </button>
+            )
+          })}
+        </div>
+        <div style={{
           display: 'flex', gap: 8, overflowX: 'auto',
           paddingRight: 14, scrollbarWidth: 'none',
         }}>
-          {QUICK_ACTIONS.map(q => (
+          {quickActionsFor(channel).map(q => (
             <button
               key={q.label}
               onClick={() => handleQuick(q.label)}
@@ -429,12 +556,11 @@ export default function ChatSection() {
           </div>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button style={iconBtn} aria-label="Joindre un fichier">
-            <Paperclip size={18} />
-          </button>
-          <button style={iconBtn} aria-label="Emojis">
-            <Smile size={18} />
-          </button>
+          {channel === 'cafe' && (
+            <button style={iconBtn} aria-label="Partager une photo">
+              <Paperclip size={18} />
+            </button>
+          )}
 
           <div style={{
             flex: 1,
@@ -459,27 +585,25 @@ export default function ChatSection() {
             />
           </div>
 
-          {input.trim() ? (
-            <motion.button
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              onClick={handleSend}
-              style={{
-                width: 40, height: 40, borderRadius: 20,
-                background: INDIGO, color: '#fff',
-                border: 'none', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 14px rgba(99,102,241,0.5)',
-              }}
-              aria-label="Envoyer"
-            >
-              <Send size={17} />
-            </motion.button>
-          ) : (
-            <button style={iconBtn} aria-label="Message vocal">
-              <Mic size={18} />
-            </button>
-          )}
+          <motion.button
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            onClick={handleSend}
+            disabled={!input.trim()}
+            style={{
+              width: 40, height: 40, borderRadius: 20,
+              background: input.trim() ? INDIGO : SURFACE,
+              color: '#fff',
+              border: `1px solid ${input.trim() ? 'transparent' : BORDER}`,
+              cursor: input.trim() ? 'pointer' : 'default',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: input.trim() ? 1 : 0.55,
+              boxShadow: input.trim() ? '0 4px 14px rgba(99,102,241,0.5)' : 'none',
+            }}
+            aria-label="Envoyer"
+          >
+            <Send size={17} />
+          </motion.button>
         </div>
       </div>
 

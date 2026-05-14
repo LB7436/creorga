@@ -4,29 +4,33 @@ import { useGuest, store } from '../store'
 const S = {
   page: { padding: '24px 20px' },
   hero: {
-    background: 'linear-gradient(135deg, #6366f1, #818cf8)',
-    borderRadius: 20,
-    padding: '32px 24px',
+    backgroundImage: 'linear-gradient(135deg, rgba(91,95,240,0.9), rgba(124,58,237,0.74)), url(https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=900&q=80)',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    borderRadius: 14,
+    padding: '30px 22px',
     color: '#fff',
-    marginBottom: 24,
+    marginBottom: 22,
+    border: '1px solid rgba(255,255,255,0.16)',
+    boxShadow: '0 20px 45px rgba(0,0,0,0.22)',
   },
   heroTitle: { fontSize: 24, fontWeight: 700, marginBottom: 6 },
   heroSub: { fontSize: 14, opacity: 0.8 },
   section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 16, fontWeight: 700, color: '#1a1a2e', marginBottom: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: 700, color: '#e2e8f0', marginBottom: 12 },
   grid: { display: 'grid' as const, gridTemplateColumns: '1fr 1fr', gap: 12 },
   card: (bg: string) => ({
     background: bg,
-    borderRadius: 16,
+    borderRadius: 12,
     padding: '20px 16px',
     cursor: 'pointer',
-    border: 'none',
+    border: '1px solid rgba(255,255,255,0.1)',
     textAlign: 'left' as const,
-    transition: 'transform .15s',
+    transition: 'background-color .15s, border-color .15s',
   }),
   cardIcon: { fontSize: 28, marginBottom: 8 },
-  cardTitle: { fontSize: 14, fontWeight: 600, color: '#1a1a2e' },
-  cardDesc: { fontSize: 11, color: '#6b7280', marginTop: 4 },
+  cardTitle: { fontSize: 14, fontWeight: 700, color: '#f8fafc' },
+  cardDesc: { fontSize: 11, color: '#cbd5e1', marginTop: 4 },
   tableInput: {
     display: 'flex' as const,
     gap: 8,
@@ -82,22 +86,22 @@ export default function GuestHome({ onNavigate }: { onNavigate: (tab: GuestTab) 
       <div style={S.section}>
         <div style={S.sectionTitle}>Explorer</div>
         <div style={S.grid}>
-          <button style={S.card('#ede9fe')} onClick={() => onNavigate('menu')}>
+          <button style={S.card('rgba(99,102,241,0.18)')} onClick={() => onNavigate('menu')}>
             <div style={S.cardIcon}>📋</div>
             <div style={S.cardTitle}>Voir le Menu</div>
             <div style={S.cardDesc}>Parcourez notre carte</div>
           </button>
-          <button style={S.card('#dbeafe')} onClick={() => onNavigate('order')}>
+          <button style={S.card('rgba(14,165,233,0.16)')} onClick={() => onNavigate('order')}>
             <div style={S.cardIcon}>🛒</div>
             <div style={S.cardTitle}>Commander</div>
             <div style={S.cardDesc}>Passez commande depuis votre table</div>
           </button>
-          <button style={S.card('#fce7f3')} onClick={() => onNavigate('feedback')}>
+          <button style={S.card('rgba(236,72,153,0.15)')} onClick={() => onNavigate('feedback')}>
             <div style={S.cardIcon}>⭐</div>
             <div style={S.cardTitle}>Laisser un Avis</div>
             <div style={S.cardDesc}>Partagez votre experience</div>
           </button>
-          <button style={S.card('#d1fae5')} onClick={() => onNavigate('account')}>
+          <button style={S.card('rgba(16,185,129,0.16)')} onClick={() => onNavigate('account')}>
             <div style={S.cardIcon}>🎁</div>
             <div style={S.cardTitle}>Fidelite</div>
             <div style={S.cardDesc}>Vos points & recompenses</div>

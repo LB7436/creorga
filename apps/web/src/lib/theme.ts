@@ -31,7 +31,7 @@ export const THEMES = {
   },
 } as const
 
-export type ThemeColors = typeof THEMES.light
+export type ThemeColors = (typeof THEMES)[ResolvedTheme]
 
 function getSystemTheme(): ResolvedTheme {
   if (typeof window === 'undefined') return 'dark'
@@ -46,7 +46,7 @@ interface ThemeState {
 
 export const useTheme = create<ThemeState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       theme: 'dark' as Theme,
       resolvedTheme: 'dark' as ResolvedTheme,
       setTheme: (theme: Theme) => {

@@ -214,7 +214,7 @@ function ApiPage() {
             <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
               <button
                 onClick={() => setActiveCat('all')}
-                style={{ padding: '8px 14px', borderRadius: 20, border: 'none', background: activeCat === 'all' ? '#111827' : '#fff', color: activeCat === 'all' ? '#fff' : '#6b7280', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid #e5e7eb' }}
+                style={{ padding: '8px 14px', borderRadius: 20, background: activeCat === 'all' ? '#111827' : '#fff', color: activeCat === 'all' ? '#fff' : '#6b7280', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid #e5e7eb' }}
               >
                 Toutes ({INTEGRATIONS.length})
               </button>

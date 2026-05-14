@@ -120,7 +120,11 @@ export default function RelancesPage() {
   const toggleId = (id: string) => setSelectedIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
   const renderPreview = (tpl: string, inv: OverdueInvoice) =>
-    tpl.replaceAll('{client_nom}', inv.client).replaceAll('{facture_num}', inv.numero).replaceAll('{montant}', inv.montant.toLocaleString('fr-FR')).replaceAll('{retard_jours}', String(inv.retard));
+    tpl
+      .replace(/\{client_nom\}/g, inv.client)
+      .replace(/\{facture_num\}/g, inv.numero)
+      .replace(/\{montant\}/g, inv.montant.toLocaleString('fr-FR'))
+      .replace(/\{retard_jours\}/g, String(inv.retard));
 
   const stats = [
     { label: 'Factures en retard', value: '8', hint: 'En cours', color: palette.relance2 },

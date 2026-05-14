@@ -76,7 +76,7 @@ router.post('/workflow', async (req, res) => {
   if (!text) return res.status(400).json({ error: 'text required' })
   const steps = splitWorkflow(text)
   const port = process.env.PORT || 3002
-  const callIntent = (step: string) =>
+  const callIntent = (step: string): Promise<any> =>
     fetch(`http://localhost:${port}/api/agent/intent`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: step, currentPath, userId }),
@@ -264,7 +264,7 @@ router.get('/briefing/:userId', async (req, res) => {
   const facts = loadMemoryFacts(userId)
 
   // Use existing /execute commands
-  const callExec = async (commandId: string) => {
+  const callExec = async (commandId: string): Promise<any> => {
     try {
       const r = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/execute`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -444,7 +444,7 @@ router.post('/whatsapp/draft-reply', async (req, res) => {
       currentPath: '/m', userId: 'patron-vacation',
     }),
   })
-  const data = await r.json()
+  const data = await r.json() as any
   res.json({
     from, message,
     suggestedReply: data.text || 'Merci, je reviens vers toi dès que possible.',

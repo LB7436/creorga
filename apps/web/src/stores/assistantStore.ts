@@ -61,6 +61,8 @@ interface AssistantState {
   voiceSpeed: number
   autoListen: boolean
   panelMode: 'overlay' | 'dock' | 'full'
+  panelSize: 'compact' | 'normal' | 'wide'
+  launcherSize: 'compact' | 'normal'
   voiceProfile: 'auto' | 'masculine' | 'feminine' | 'robotic' | 'warm' | 'energetic'
   wakeWordEnabled: boolean
   drivingMode: boolean
@@ -71,6 +73,8 @@ interface AssistantState {
   setVoiceSpeed: (s: number) => void
   setAutoListen: (b: boolean) => void
   setPanelMode: (m: 'overlay' | 'dock' | 'full') => void
+  setPanelSize: (s: AssistantState['panelSize']) => void
+  setLauncherSize: (s: AssistantState['launcherSize']) => void
   setVoiceProfile: (p: AssistantState['voiceProfile']) => void
   setWakeWordEnabled: (b: boolean) => void
   setDrivingMode: (b: boolean) => void
@@ -122,6 +126,8 @@ export const useAssistant = create<AssistantState>()(
       voiceSpeed: 1.0,
       autoListen: false,
       panelMode: 'overlay',
+      panelSize: 'compact',
+      launcherSize: 'compact',
       voiceProfile: 'auto',
       wakeWordEnabled: false,
       drivingMode: false,
@@ -132,6 +138,8 @@ export const useAssistant = create<AssistantState>()(
       setVoiceSpeed: (s) => set({ voiceSpeed: Math.max(0.5, Math.min(2, s)) }),
       setAutoListen: (b) => set({ autoListen: b }),
       setPanelMode: (m) => set({ panelMode: m }),
+      setPanelSize: (s) => set({ panelSize: s }),
+      setLauncherSize: (s) => set({ launcherSize: s }),
       setVoiceProfile: (p) => set({ voiceProfile: p }),
       setWakeWordEnabled: (b) => set({ wakeWordEnabled: b }),
       setDrivingMode: (b) => set({ drivingMode: b }),
@@ -252,6 +260,7 @@ export const useAssistant = create<AssistantState>()(
       partialize: (s) => ({
         mascot: s.mascot, name: s.name, voiceEnabled: s.voiceEnabled,
         voiceSpeed: s.voiceSpeed, autoListen: s.autoListen, panelMode: s.panelMode,
+        panelSize: s.panelSize, launcherSize: s.launcherSize,
         voiceProfile: s.voiceProfile, wakeWordEnabled: s.wakeWordEnabled,
         drivingMode: s.drivingMode, biometricGuard: s.biometricGuard,
         conversations: s.conversations.map((c) => ({

@@ -11,12 +11,11 @@ const tabs: { id: GuestTab; label: string; icon: string }[] = [
 
 const S = {
   bar: {
-    position: 'fixed' as const,
+    position: 'absolute' as const,
     bottom: 0,
-    left: '50%',
-    transform: 'translateX(-50%)',
+    left: 0,
+    right: 0,
     width: '100%',
-    maxWidth: 480,
     display: 'flex' as const,
     justifyContent: 'space-around' as const,
     alignItems: 'center' as const,

@@ -12,6 +12,14 @@ import GamesSection from './GamesSection'
 import ChatSection from './ChatSection'
 import { useAuthStore } from '@/stores/authStore'
 import api from '@/lib/api'
+import { usePortalConfig } from '@/hooks/usePortalConfig'
+import GuestRegistrationModal from './GuestRegistrationModal'
+import {
+  guestDisplayName,
+  loadGuestClient,
+  recordGuestEvent,
+  type GuestClientProfile,
+} from './guestClient'
 
 // ─── Types ─────────────────────────────────────────────
 
@@ -28,6 +36,19 @@ export const SURFACE2 = '#16153a'
 export const BORDER = 'rgba(168,85,247,0.18)'
 export const TEXT = '#f8fafc'
 export const MUTED = '#94a3b8'
+
+function guestTheme(mode?: 'dark' | 'light') {
+  if (mode === 'light') {
+    return {
+      bg: '#f6f8fb',
+      surface: '#ffffff',
+      border: '#dbe4f0',
+      text: '#0f172a',
+      muted: '#64748b',
+    }
+  }
+  return { bg: BG, surface: SURFACE, border: BORDER, text: TEXT, muted: MUTED }
+}
 
 // ─── Announcements ──────────────────────────────────────
 
@@ -102,12 +123,16 @@ type Tab = 'jeux' | 'menu' | 'chat' | 'avis'
 
 export default function GuestHome() {
   const company = useAuthStore((s) => s.company)
+  const { config } = usePortalConfig(2500)
   const [searchParams] = useSearchParams()
   const tableId = searchParams.get('table')
 
   const [tab, setTab] = useState<Tab>('jeux')
   const [lang, setLang] = useState('fr')
   const [announcements] = useState<Announcement[]>([])
+  const [guestClient, setGuestClient] = useState<GuestClientProfile | null>(() => loadGuestClient())
+  const [registrationOpen, setRegistrationOpen] = useState(false)
+  const [registrationReason, setRegistrationReason] = useState('Creorga cree votre fiche client pour les commandes, les avis et les records de jeux.')
 
   // Cart state shared with menu
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -121,10 +146,32 @@ export default function GuestHome() {
     localStorage.setItem('creorga-cart', JSON.stringify(cart))
   }, [cart])
 
+  useEffect(() => {
+    const refreshGuest = () => setGuestClient(loadGuestClient())
+    window.addEventListener('creorga-guest-client-updated', refreshGuest)
+    window.addEventListener('storage', refreshGuest)
+    return () => {
+      window.removeEventListener('creorga-guest-client-updated', refreshGuest)
+      window.removeEventListener('storage', refreshGuest)
+    }
+  }, [])
+
+  const requireGuestClient = (reason: string) => {
+    const current = loadGuestClient()
+    if (current) {
+      setGuestClient(current)
+      return true
+    }
+    setRegistrationReason(reason)
+    setRegistrationOpen(true)
+    return false
+  }
+
   const cartCount = cart.reduce((s, i) => s + i.qty, 0)
   const cartTotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
 
   const addToCart = (product: { id: string; name: string; price: number; emoji: string }) => {
+    if (!requireGuestClient('Inscrivez-vous pour commander: email, mobile et pseudo permettent au serveur et au patron de retrouver votre demande.')) return
     setCart(prev => {
       const existing = prev.find(i => i.id === product.id)
       if (existing) return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
@@ -138,31 +185,44 @@ export default function GuestHome() {
 
   const clearCart = () => setCart([])
 
-  const tabs: { id: Tab; icon: React.ReactNode; label: string; badge?: number }[] = [
-    { id: 'jeux', icon: <Gamepad2 className="h-5 w-5" />, label: 'Jeux' },
-    { id: 'menu', icon: <UtensilsCrossed className="h-5 w-5" />, label: 'Menu', badge: cartCount || undefined },
-    { id: 'chat', icon: <MessagesSquare className="h-5 w-5" />, label: 'Chat' },
-    { id: 'avis', icon: <MessageSquare className="h-5 w-5" />, label: 'Avis' },
+  const toggles = config?.toggles ?? {}
+  const accent = config?.accentColor || ACCENT
+  const restaurantName = config?.restaurantName || company?.name || 'Creorga'
+  const theme = guestTheme(config?.themeMode)
+
+  const tabs: { id: Tab; icon: React.ReactNode; label: string; badge?: number; visible: boolean }[] = [
+    { id: 'jeux', icon: <Gamepad2 className="h-5 w-5" />, label: 'Jeux', visible: toggles.games !== false },
+    { id: 'menu', icon: <UtensilsCrossed className="h-5 w-5" />, label: 'Menu', badge: cartCount || undefined, visible: toggles.menu !== false },
+    { id: 'chat', icon: <MessagesSquare className="h-5 w-5" />, label: 'Chat', visible: toggles.chat !== false },
+    { id: 'avis', icon: <MessageSquare className="h-5 w-5" />, label: 'Avis', visible: toggles.reviews !== false },
   ]
+  const visibleTabs = tabs.filter((item) => item.visible)
+
+  useEffect(() => {
+    const current = tabs.find((item) => item.id === tab)
+    if (current && !current.visible) {
+      setTab(visibleTabs[0]?.id ?? 'jeux')
+    }
+  }, [tab, toggles.games, toggles.menu, toggles.chat, toggles.reviews])
 
   return (
-    <div className="flex min-h-screen flex-col" style={{ background: BG, color: TEXT }}>
+    <div className="flex min-h-screen flex-col" style={{ background: theme.bg, color: theme.text }}>
 
       {/* Header */}
       <header
         className="sticky top-0 z-30 flex items-center justify-between border-b px-4 py-3"
-        style={{ background: BG, borderColor: BORDER }}
+        style={{ background: theme.bg, borderColor: theme.border }}
       >
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ background: ACCENT }}>
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ background: accent }}>
             <span className="text-white text-xs font-bold">C</span>
           </div>
           <div>
-            <p className="text-sm font-semibold leading-tight" style={{ color: TEXT }}>
-              {company?.name ?? 'Creorga'}
+            <p className="text-sm font-semibold leading-tight" style={{ color: theme.text }}>
+              {restaurantName}
             </p>
             {tableId && (
-              <p className="text-[10px]" style={{ color: MUTED }}>Table {tableId}</p>
+              <p className="text-[10px]" style={{ color: theme.muted }}>Table {tableId}</p>
             )}
           </div>
         </div>
@@ -174,14 +234,12 @@ export default function GuestHome() {
         <AnnouncementsBanner items={announcements} />
 
         {/* JEUX */}
-        {tab === 'jeux' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <GamesSection />
-          </motion.div>
+        {tab === 'jeux' && toggles.games !== false && (
+          <GamesSection />
         )}
 
         {/* MENU */}
-        {tab === 'menu' && (
+        {tab === 'menu' && toggles.menu !== false && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <GuestMenu
               cart={cart}
@@ -190,21 +248,28 @@ export default function GuestHome() {
               clearCart={clearCart}
               cartCount={cartCount}
               cartTotal={cartTotal}
+              guestClient={guestClient}
+              requireGuestClient={requireGuestClient}
+              tableNumber={tableId}
             />
           </motion.div>
         )}
 
         {/* CHAT */}
-        {tab === 'chat' && (
+        {tab === 'chat' && toggles.chat !== false && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <ChatSection />
+            <ChatSection onBack={() => setTab('jeux')} />
           </motion.div>
         )}
 
         {/* AVIS */}
-        {tab === 'avis' && (
+        {tab === 'avis' && toggles.reviews !== false && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <GuestFeedback onBack={() => setTab('jeux')} />
+            <GuestFeedback
+              onBack={() => setTab('jeux')}
+              guestClient={guestClient}
+              requireGuestClient={requireGuestClient}
+            />
           </motion.div>
         )}
       </main>
@@ -212,14 +277,14 @@ export default function GuestHome() {
       {/* Bottom nav */}
       <nav
         className="fixed bottom-0 left-0 right-0 z-40 flex items-center border-t"
-        style={{ background: BG, borderColor: BORDER }}
+        style={{ background: theme.surface, borderColor: theme.border }}
       >
-        {tabs.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className="flex-1 flex flex-col items-center gap-0.5 py-3 transition-colors relative"
-            style={{ color: tab === t.id ? ACCENT : MUTED }}
+            style={{ color: tab === t.id ? accent : theme.muted }}
           >
             {t.icon}
             <span className="text-[10px] font-medium">{t.label}</span>
@@ -248,9 +313,13 @@ export default function GuestHome() {
         ))}
       </nav>
 
-      <div className="fixed bottom-16 left-0 right-0 text-center">
-        <p className="text-[9px]" style={{ color: 'rgba(139,127,192,0.3)' }}>Creorga v1.0</p>
-      </div>
+      <GuestRegistrationModal
+        open={registrationOpen}
+        reason={registrationReason}
+        onClose={() => setRegistrationOpen(false)}
+        onSaved={(profile) => setGuestClient(profile)}
+      />
+
     </div>
   )
 }
@@ -317,9 +386,10 @@ const MOCK_MENU: MenuCategory[] = [
 ]
 
 const TVA_RATE = 0.17 // Luxembourg standard TVA
+const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
 function GuestMenu({
-  cart, addToCart, updateQty, clearCart, cartCount, cartTotal,
+  cart, addToCart, updateQty, clearCart, cartCount, cartTotal, guestClient, requireGuestClient, tableNumber,
 }: {
   cart: CartItem[]
   addToCart: (p: { id: string; name: string; price: number; emoji: string }) => void
@@ -327,6 +397,9 @@ function GuestMenu({
   clearCart: () => void
   cartCount: number
   cartTotal: number
+  guestClient: GuestClientProfile | null
+  requireGuestClient: (reason: string) => boolean
+  tableNumber: string | null
 }) {
   const companyId = useAuthStore((s) => s.companyId)
   const [categories, setCategories] = useState<MenuCategory[]>([])
@@ -368,6 +441,42 @@ function GuestMenu({
     }).finally(() => setLoading(false))
   }, [companyId])
 
+  useEffect(() => {
+    if (companyId) return
+    let cancelled = false
+    fetch(`${BACKEND}/api/portal-config/menu`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
+      .then((payload) => {
+        if (cancelled) return
+        const enriched = (payload.categories ?? []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          emoji: c.icon || '🍽️',
+          products: (c.products ?? []).map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            description: p.description || '',
+            emoji: p.emoji || p.icon || c.icon || '🍽️',
+          })),
+        })).filter((cat: MenuCategory) => cat.products.length)
+        if (enriched.length) {
+          setCategories(enriched)
+          setActiveCategory(enriched[0].id)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCategories(MOCK_MENU)
+          setActiveCategory('boissons')
+        }
+      })
+    return () => { cancelled = true }
+  }, [companyId])
+
   const handleAdd = (product: MenuProduct) => {
     addToCart({ id: product.id, name: product.name, price: product.price, emoji: product.emoji })
     setAddedId(product.id)
@@ -375,8 +484,16 @@ function GuestMenu({
   }
 
   const handleSendOrder = () => {
+    if (!requireGuestClient('Inscrivez-vous pour envoyer une commande: le serveur verra votre nom, mobile, table et historique client.')) return
     setOrderState('sending')
     setTimeout(() => {
+      recordGuestEvent('order', guestClient ?? loadGuestClient(), {
+        items: cart.map((item) => ({ id: item.id, name: item.name, qty: item.qty, price: item.price })),
+        subtotal,
+        tva,
+        total,
+        tableNumber,
+      })
       setOrderState('success')
       clearCart()
     }, 1500)
@@ -466,6 +583,32 @@ function GuestMenu({
 
   return (
     <div style={{ paddingBottom: cartCount > 0 ? 70 : 0 }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+        borderRadius: 14,
+        border: `1px solid ${BORDER}`,
+        background: SURFACE,
+        padding: '10px 12px',
+        marginBottom: 12,
+      }}>
+        <div>
+          <p style={{ fontSize: 12, fontWeight: 800, color: TEXT }}>Menu connecte POS + stock</p>
+          <p style={{ fontSize: 10.5, color: MUTED, marginTop: 2 }}>
+            Profil: {guestClient ? guestDisplayName(guestClient) : 'inscription requise pour commander'}
+          </p>
+        </div>
+        {!guestClient && (
+          <button
+            onClick={() => requireGuestClient('Inscrivez-vous pour commander et retrouver vos commandes dans Creorga.')}
+            style={{ border: 'none', borderRadius: 10, padding: '8px 10px', background: ACCENT, color: '#fff', fontSize: 11, fontWeight: 800 }}
+          >
+            Inscription
+          </button>
+        )}
+      </div>
       {/* Category tabs */}
       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, marginBottom: 16 }}>
         {categories.map((cat) => (
@@ -861,7 +1004,15 @@ function ConfettiDots() {
   )
 }
 
-function GuestFeedback({ onBack }: { onBack: () => void }) {
+function GuestFeedback({
+  onBack,
+  guestClient,
+  requireGuestClient,
+}: {
+  onBack: () => void
+  guestClient: GuestClientProfile | null
+  requireGuestClient: (reason: string) => boolean
+}) {
   const [rating, setRating] = useState(0)
   const [hovered, setHovered] = useState(0)
   const [catRatings, setCatRatings] = useState<Record<string, number>>({})
@@ -876,6 +1027,8 @@ function GuestFeedback({ onBack }: { onBack: () => void }) {
 
   const submit = async () => {
     if (!rating) return
+    const profile = loadGuestClient() ?? guestClient
+    if (!profile && !requireGuestClient('Inscrivez-vous pour envoyer un avis: il sera rattache a votre fiche client Creorga.')) return
     setState('submitting')
     setErrorMsg('')
     try {
@@ -886,12 +1039,20 @@ function GuestFeedback({ onBack }: { onBack: () => void }) {
           rating,
           categoryRatings: catRatings,
           comment: comment.trim() || null,
+          customer: profile ? {
+            id: profile.id,
+            name: profile.displayName,
+            email: profile.email,
+            phone: profile.phone,
+          } : null,
         }),
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Erreur') }
+      recordGuestEvent('review', profile, { rating, categoryRatings: catRatings, comment: comment.trim() || null })
       setState('success')
     } catch (err: unknown) {
       // In demo mode, just succeed
+      recordGuestEvent('review', profile, { rating, categoryRatings: catRatings, comment: comment.trim() || null, offline: true })
       setState('success')
     }
   }

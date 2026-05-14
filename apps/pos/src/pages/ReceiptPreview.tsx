@@ -57,10 +57,11 @@ export default function ReceiptPreview({ type, tableId, onClose, onPrint }: Prop
   const [tab, setTab] = useState<'preview' | 'send' | 'template'>('preview')
 
   if (!table) return null
+  const receiptTable = table
 
   const allItems = useMemo(() => {
     const flat: { name: string; price: number; qty: number; note: string; category: string }[] = []
-    for (const cover of table.covers) {
+    for (const cover of receiptTable.covers) {
       for (const item of cover.items) {
         const menuItem = menu.find(m => m.id === item.menuItemId)
         const category = menuItem?.category || 'Cuisine'
@@ -73,7 +74,7 @@ export default function ReceiptPreview({ type, tableId, onClose, onPrint }: Prop
       }
     }
     return flat
-  }, [table, menu])
+  }, [receiptTable, menu])
 
   const totals = useMemo(() => {
     let food = 0, drink = 0
@@ -157,7 +158,7 @@ export default function ReceiptPreview({ type, tableId, onClose, onPrint }: Prop
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: fs, color: '#333', marginTop: 2 }}>
           <span>{t.server} : {staffName}</span>
-          <span>{t.table} : {table.name}</span>
+          <span>{t.table} : {receiptTable.name}</span>
         </div>
 
         <div style={{ borderTop: '1px dashed #999', margin: '8px 0' }} />

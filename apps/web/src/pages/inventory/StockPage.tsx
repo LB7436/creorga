@@ -578,14 +578,14 @@ function backendToIngredient(b: any): Ingredient {
     barcode: b.barcode || '',
     categorie: (b.category || 'Épicerie') as Categorie,
     stockActuel: b.quantity || 0,
-    unite: (b.unit || 'unité') as Unite,
+    unite: b.unit || 'unité',
     seuilMinimum: b.lowStockThreshold || 0,
     valeur: (b.quantity || 0) * (b.avgUnitPrice || 0),
     dernierAppro: new Date(b.lastUpdated || Date.now()).toISOString().slice(0, 10),
     fournisseur: b.lastSupplier || 'Inconnu',
-    dluo: undefined,
+    dluo: new Date(b.expiryDate || b.bestBeforeDate || Date.now()).toISOString().slice(0, 10),
     location: 'Réserve' as Location,
-    saison: 'Aucune' as Saison,
+    saison: 'Aucune' as Season,
     cogs: b.avgUnitPrice || 0,
   }
 }

@@ -5,8 +5,8 @@
  * boutons d'action et helpers promesse.
  */
 
-import toast, { type Toast, type ToastOptions } from 'react-hot-toast'
-import { createElement, type ReactNode } from 'react'
+import toast, { type Renderable, type Toast, type ToastOptions } from 'react-hot-toast'
+import { createElement } from 'react'
 
 /* ------------------------------------------------------------------ */
 /* Styles                                                             */
@@ -66,17 +66,17 @@ export interface ToastAction {
   onClick: () => void
 }
 
-interface ToastCustomOptions extends ToastOptions {
+interface ToastCustomOptions extends Omit<ToastOptions, 'icon'> {
   action?: ToastAction
-  icon?: ReactNode
+  icon?: Renderable
 }
 
 function renderWithAction(
   t: Toast,
-  message: ReactNode,
+  message: Renderable,
   action?: ToastAction,
   variantColor?: string,
-): ReactNode {
+) {
   return createElement(
     'div',
     {
@@ -118,7 +118,7 @@ function renderWithAction(
 /* ------------------------------------------------------------------ */
 
 export function toastSuccess(
-  message: ReactNode,
+  message: Renderable,
   opts?: ToastCustomOptions,
 ): string {
   return toast.custom(
@@ -133,7 +133,7 @@ export function toastSuccess(
 }
 
 export function toastError(
-  message: ReactNode,
+  message: Renderable,
   opts?: ToastCustomOptions,
 ): string {
   return toast.custom(
@@ -148,7 +148,7 @@ export function toastError(
 }
 
 export function toastWarning(
-  message: ReactNode,
+  message: Renderable,
   opts?: ToastCustomOptions,
 ): string {
   return toast.custom(
@@ -163,7 +163,7 @@ export function toastWarning(
 }
 
 export function toastInfo(
-  message: ReactNode,
+  message: Renderable,
   opts?: ToastCustomOptions,
 ): string {
   return toast.custom(
@@ -178,7 +178,7 @@ export function toastInfo(
 }
 
 export function toastLoading(
-  message: ReactNode,
+  message: Renderable,
   opts?: ToastOptions,
 ): string {
   return toast.loading(message as string, {
@@ -190,18 +190,18 @@ export function toastLoading(
 export function toastPromise<T>(
   promise: Promise<T>,
   msgs: {
-    loading: ReactNode
-    success: ReactNode | ((value: T) => ReactNode)
-    error: ReactNode | ((err: unknown) => ReactNode)
+    loading: Renderable
+    success: Renderable | ((value: T) => Renderable)
+    error: Renderable | ((err: unknown) => Renderable)
   },
   opts?: ToastOptions,
 ): Promise<T> {
   return toast.promise(
     promise,
     {
-      loading: msgs.loading as string,
-      success: msgs.success as string,
-      error: msgs.error as string,
+      loading: msgs.loading,
+      success: msgs.success,
+      error: msgs.error,
     },
     {
       style: BASE_STYLE,
@@ -222,7 +222,7 @@ export function toastDismiss(id?: string): void {
  * Retourne une promesse résolue à true si l'utilisateur annule.
  */
 export function toastWithUndo(
-  message: ReactNode,
+  message: Renderable,
   opts?: { duration?: number; undoLabel?: string },
 ): Promise<boolean> {
   return new Promise((resolve) => {

@@ -6,6 +6,7 @@ import QRCodeCanvas from '@/components/QRCodeCanvas'
 import PhotoWall from '@/components/PhotoWall'
 import { useBrand } from '@/stores/brandStore'
 import { usePortalConfig } from '@/hooks/usePortalConfig'
+import { GUEST_GAMES } from '@/pages/guest/games/catalog'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,6 +32,7 @@ interface PortalSettings {
   welcomeMessage: string
   accentColor: string
   tableNumber: string
+  themeMode: 'dark' | 'light'
 }
 
 // ---------------------------------------------------------------------------
@@ -40,44 +42,17 @@ interface PortalSettings {
 const STORAGE_KEY = 'creorga-guest-portal-settings'
 
 const PORTAL_TOGGLES: PortalToggle[] = [
-  { id: 'showMenu', label: 'Afficher le menu', description: 'Les clients peuvent consulter votre carte', emoji: '\u{1F4CB}', previewTab: 'menu' },
-  { id: 'tableOrder', label: 'Commande en ligne', description: 'Permettre la commande depuis la table', emoji: '\u{1F6D2}', previewTab: 'order' },
-  { id: 'enableGames', label: 'Activer les jeux', description: 'Section divertissement pour les clients', emoji: '\u{1F3AE}', previewTab: 'games' },
-  { id: 'enableChat', label: 'Activer le chat', description: 'Communication directe avec le personnel', emoji: '\u{1F4AC}', previewTab: 'chat' },
-  { id: 'askReviews', label: 'Demander les avis', description: 'Formulaire de notation après la visite', emoji: '⭐', previewTab: 'reviews' },
-  { id: 'showAnnouncements', label: 'Afficher les annonces', description: 'Promotions et actualités', emoji: '\u{1F4E2}', previewTab: 'annonces' },
+  { id: 'menu', label: 'Afficher le menu', description: 'Les clients peuvent consulter votre carte', emoji: '\u{1F4CB}', previewTab: 'menu' },
+  { id: 'order', label: 'Commande en ligne', description: 'Permettre la commande depuis la table', emoji: '\u{1F6D2}', previewTab: 'order' },
+  { id: 'games', label: 'Activer les jeux', description: 'Section divertissement pour les clients', emoji: '\u{1F3AE}', previewTab: 'games' },
+  { id: 'chat', label: 'Activer le chat', description: 'Communication directe avec le personnel', emoji: '\u{1F4AC}', previewTab: 'chat' },
+  { id: 'reviews', label: 'Demander les avis', description: 'Formulaire de notation après la visite', emoji: '⭐', previewTab: 'reviews' },
+  { id: 'announcements', label: 'Afficher les annonces', description: 'Promotions et actualités', emoji: '\u{1F4E2}', previewTab: 'annonces' },
 ]
 
-const GAMES: GameEntry[] = [
-  { id: 'chess', name: 'Échecs', emoji: '♟️' },
-  { id: 'solitaire', name: 'Solitaire', emoji: '\u{1F0CF}' },
-  { id: 'blackjack', name: 'Blackjack', emoji: '\u{1F0A1}' },
-  { id: 'snake', name: 'Snake', emoji: '\u{1F40D}' },
-  { id: 'minesweeper', name: 'Démineur', emoji: '\u{1F4A3}' },
-  { id: '2048', name: '2048', emoji: '\u{1F522}' },
-  { id: 'bingo', name: 'Bingo', emoji: '\u{1F3B1}' },
-  { id: 'simon', name: 'Simon', emoji: '\u{1F534}' },
-  { id: 'yahtzee', name: 'Yahtzee', emoji: '\u{1F3B2}' },
-  { id: 'motus', name: 'Motus', emoji: '\u{1F520}' },
-  { id: 'poker', name: 'Poker', emoji: '\u{1F0CF}' },
-  { id: 'mastermind', name: 'Mastermind', emoji: '\u{1F9E0}' },
-  { id: 'hangman', name: 'Pendu', emoji: '\u{1F464}' },
-  { id: 'war', name: 'Bataille', emoji: '⚔️' },
-  { id: 'memory', name: 'Memory', emoji: '\u{1F9E9}' },
-  { id: 'puzzle', name: 'Puzzle', emoji: '\u{1F9E9}' },
-  { id: 'highlow', name: 'Plus ou Moins', emoji: '\u{1F4CA}' },
-  { id: 'farkle', name: 'Farkle', emoji: '\u{1F3B2}' },
-  { id: 'tictactoe', name: 'Morpion', emoji: '❌' },
-  { id: 'wordsearch', name: 'Mots Mêlés', emoji: '\u{1F524}' },
-  { id: 'numbermemory', name: 'Mémoire des Nombres', emoji: '\u{1F4AF}' },
-  { id: 'reaction', name: 'Réaction', emoji: '⚡' },
-  { id: 'pig', name: 'Cochon', emoji: '\u{1F437}' },
-  { id: 'connect4', name: 'Puissance 4', emoji: '\u{1F534}' },
-  { id: '421', name: '421', emoji: '\u{1F3B2}' },
-  { id: 'quiz', name: 'Quiz', emoji: '❓' },
-  { id: 'reversi', name: 'Reversi', emoji: '⚫' },
-  { id: 'towerdefense', name: 'Tower Defense', emoji: '\u{1F3F0}' },
-]
+const GAMES: GameEntry[] = GUEST_GAMES
+  .filter((game) => game.available)
+  .map((game) => ({ id: game.id, name: game.name, emoji: game.icon }))
 
 const ACCENT_COLORS = [
   { id: 'indigo', label: 'Indigo', value: '#6366f1' },
@@ -88,16 +63,22 @@ const ACCENT_COLORS = [
   { id: 'cyan', label: 'Cyan', value: '#06b6d4' },
 ]
 
+const PORTAL_VISUALS = {
+  menu: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=900&q=80',
+  games: 'https://images.unsplash.com/photo-1611996575749-79a3a250f948?auto=format&fit=crop&w=900&q=80',
+  dining: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=900&q=80',
+}
+
 // ---------------------------------------------------------------------------
 // Default settings
 // ---------------------------------------------------------------------------
 
 function createDefaults(): PortalSettings {
   const toggles: Record<string, boolean> = {}
-  PORTAL_TOGGLES.forEach((t) => { toggles[t.id] = t.id === 'showMenu' })
+  PORTAL_TOGGLES.forEach((t) => { toggles[t.id] = true })
   const games: Record<string, boolean> = {}
-  GAMES.forEach((g) => { games[g.id] = false })
-  return { toggles, games, welcomeMessage: '', accentColor: '#6366f1', tableNumber: '1' }
+  GAMES.forEach((g) => { games[g.id] = true })
+  return { toggles, games, welcomeMessage: '', accentColor: '#6366f1', tableNumber: '1', themeMode: 'dark' }
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +146,16 @@ function Section({ title, delay, children }: { title: string; delay: number; chi
 
 function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; restaurantName: string }) {
   const accent = settings.accentColor || '#6366f1'
+  const dark = settings.themeMode !== 'light'
+  const phone = {
+    bg: dark ? '#060513' : '#f8fafc',
+    surface: dark ? '#111024' : '#ffffff',
+    surface2: dark ? '#1c1a3a' : '#eef2ff',
+    text: dark ? '#f8fafc' : '#0f172a',
+    muted: dark ? '#a5b4fc' : '#64748b',
+    faint: dark ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
+    nav: dark ? '#0d0b1e' : '#ffffff',
+  }
   const enabledTabs = PORTAL_TOGGLES.filter((t) => settings.toggles[t.id] && t.previewTab)
   const [activeTab, setActiveTab] = useState(enabledTabs[0]?.previewTab || 'menu')
 
@@ -191,11 +182,20 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
       case 'menu':
         return (
           <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#1e293b', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Notre Carte</p>
+            <div style={{
+              height: 74,
+              borderRadius: 12,
+              backgroundImage: `linear-gradient(135deg, rgba(0,0,0,0.12), ${accent}44), url(${PORTAL_VISUALS.menu})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              marginBottom: 4,
+              border: `1px solid ${phone.faint}`,
+            }} />
+            <p style={{ fontSize: 11, fontWeight: 700, color: phone.text, margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Notre Carte</p>
             {['Entrées', 'Plats', 'Desserts', 'Boissons'].map((cat, i) => (
               <div key={cat} style={{
-                background: '#f8fafc', borderRadius: 10, padding: '10px 12px',
-                border: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 10,
+                background: phone.surface, borderRadius: 10, padding: '10px 12px',
+                border: `1px solid ${phone.faint}`, display: 'flex', alignItems: 'center', gap: 10,
               }}>
                 <div style={{
                   width: 32, height: 32, borderRadius: 8, background: `${accent}18`,
@@ -204,8 +204,8 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
                   {['\u{1F957}', '\u{1F355}', '\u{1F370}', '\u{1F377}'][i]}
                 </div>
                 <div>
-                  <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#1e293b' }}>{cat}</p>
-                  <p style={{ margin: 0, fontSize: 9, color: '#94a3b8' }}>{[4, 6, 3, 8][i]} articles</p>
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: phone.text }}>{cat}</p>
+                  <p style={{ margin: 0, fontSize: 9, color: phone.muted }}>{[4, 6, 3, 8][i]} articles</p>
                 </div>
               </div>
             ))}
@@ -232,15 +232,31 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
       case 'games':
         return (
           <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#1e293b', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Jeux</p>
+            <div style={{
+              height: 78,
+              borderRadius: 12,
+              backgroundImage: `linear-gradient(135deg, rgba(0,0,0,0.18), ${accent}55), url(${PORTAL_VISUALS.games})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              border: `1px solid ${phone.faint}`,
+              display: 'flex',
+              alignItems: 'flex-end',
+              padding: 10,
+              color: '#fff',
+              fontSize: 12,
+              fontWeight: 800,
+            }}>
+              Zone jeux premium
+            </div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: phone.text, margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Jeux</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
               {(activeGames.length > 0 ? activeGames.slice(0, 6) : GAMES.slice(0, 6)).map((g) => (
                 <div key={g.id} style={{
-                  background: '#f8fafc', borderRadius: 8, padding: '8px 4px', textAlign: 'center',
-                  border: '1px solid #f1f5f9',
+                  background: phone.surface, borderRadius: 8, padding: '8px 4px', textAlign: 'center',
+                  border: `1px solid ${phone.faint}`,
                 }}>
                   <div style={{ fontSize: 18 }}>{g.emoji}</div>
-                  <p style={{ margin: '2px 0 0', fontSize: 8, color: '#64748b', fontWeight: 500 }}>{g.name}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: 8, color: phone.muted, fontWeight: 500 }}>{g.name}</p>
                 </div>
               ))}
             </div>
@@ -311,7 +327,7 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
       {/* Phone frame */}
       <div style={{
         width: 280, height: 560, borderRadius: 36, background: '#111827', padding: 8,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)',
+        boxShadow: dark ? '0 24px 70px rgba(15,23,42,0.28), 0 0 0 1px rgba(255,255,255,0.08)' : '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)',
         position: 'relative', overflow: 'hidden',
       }}>
         {/* Notch */}
@@ -321,8 +337,8 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
         }} />
         {/* Screen */}
         <div style={{
-          width: '100%', height: '100%', borderRadius: 28, background: '#ffffff', overflow: 'hidden',
-          display: 'flex', flexDirection: 'column',
+          width: '100%', height: '100%', borderRadius: 28, background: phone.bg, overflow: 'hidden',
+          display: 'flex', flexDirection: 'column', color: phone.text,
         }}>
           {/* Status bar */}
           <div style={{ height: 36, background: accent, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 6 }}>
@@ -331,13 +347,13 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
 
           {/* Welcome message */}
           {settings.welcomeMessage && (
-            <div style={{ padding: '8px 12px', background: `${accent}08`, borderBottom: '1px solid #f1f5f9' }}>
-              <p style={{ margin: 0, fontSize: 9, color: '#64748b', lineHeight: 1.4 }}>{settings.welcomeMessage}</p>
+            <div style={{ padding: '8px 12px', background: `${accent}12`, borderBottom: `1px solid ${phone.faint}` }}>
+              <p style={{ margin: 0, fontSize: 9, color: phone.muted, lineHeight: 1.4 }}>{settings.welcomeMessage}</p>
             </div>
           )}
 
           {/* Table badge */}
-          <div style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid #f1f5f9' }}>
+          <div style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: `1px solid ${phone.faint}` }}>
             <div style={{
               background: `${accent}15`, borderRadius: 6, padding: '2px 8px',
               fontSize: 9, fontWeight: 700, color: accent,
@@ -347,7 +363,7 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
           </div>
 
           {/* Content area */}
-          <div style={{ flex: 1, overflow: 'hidden' }}>
+          <div style={{ flex: 1, overflow: 'hidden', background: phone.bg }}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
@@ -365,7 +381,7 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
           {/* Bottom nav */}
           {enabledTabs.length > 0 && (
             <div style={{
-              display: 'flex', borderTop: '1px solid #e2e8f0', background: '#fff',
+              display: 'flex', borderTop: `1px solid ${phone.faint}`, background: phone.nav,
               padding: '6px 4px 10px',
             }}>
               {enabledTabs.map((tab) => {
@@ -382,7 +398,7 @@ function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; 
                     <span style={{ fontSize: 14 }}>{tab.emoji}</span>
                     <span style={{
                       fontSize: 7, fontWeight: isActive ? 700 : 500,
-                      color: isActive ? accent : '#94a3b8',
+                      color: isActive ? accent : phone.muted,
                     }}>
                       {tab.label.split(' ').slice(-1)[0]}
                     </span>
@@ -418,10 +434,21 @@ export default function ClientsConfig() {
       const raw = localStorage.getItem(STORAGE_KEY)
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<PortalSettings>
+        const parsedGames = parsed.games ?? {}
+        const hasAnyGameEnabled = Object.values(parsedGames).some(Boolean)
+        if (!hasAnyGameEnabled) {
+          const migrated = {
+            ...createDefaults(),
+            ...parsed,
+            toggles: { ...createDefaults().toggles, ...(parsed.toggles ?? {}) },
+            games: createDefaults().games,
+          }
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated))
+        }
         setSettings((prev) => ({
           ...prev, ...parsed,
           toggles: { ...prev.toggles, ...(parsed.toggles ?? {}) },
-          games: { ...prev.games, ...(parsed.games ?? {}) },
+          games: hasAnyGameEnabled ? { ...prev.games, ...parsedGames } : prev.games,
         }))
       }
     } catch { /* ignore */ }
@@ -439,6 +466,7 @@ export default function ClientsConfig() {
       welcomeMessage: next.welcomeMessage,
       accentColor: next.accentColor,
       tableNumber: next.tableNumber,
+      themeMode: next.themeMode,
     }).catch(() => { /* offline ok */ })
   }, [updateRemoteConfig])
 
@@ -447,6 +475,7 @@ export default function ClientsConfig() {
   const setWelcome = (msg: string) => persist({ ...settings, welcomeMessage: msg })
   const setAccent = (c: string) => persist({ ...settings, accentColor: c })
   const setTable = (n: string) => persist({ ...settings, tableNumber: n })
+  const setThemeMode = (mode: 'dark' | 'light') => persist({ ...settings, themeMode: mode })
 
   const selectAllGames = () => {
     const g: Record<string, boolean> = {}
@@ -618,6 +647,40 @@ export default function ClientsConfig() {
                   onFocus={(e) => { e.currentTarget.style.borderColor = '#6366f1' }}
                   onBlur={(e) => { e.currentTarget.style.borderColor = '#e2e8f0' }}
                 />
+              </div>
+
+              {/* Theme */}
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 10, color: '#334155' }}>
+                  Design de l'expÃ©rience client
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+                  {([
+                    { id: 'dark' as const, label: 'Sombre', desc: 'Immersif, premium, parfait le soir', bg: '#070617', fg: '#f8fafc' },
+                    { id: 'light' as const, label: 'Clair', desc: 'Lumineux, lisible, style cafÃ© moderne', bg: '#f8fafc', fg: '#0f172a' },
+                  ]).map((theme) => {
+                    const active = settings.themeMode === theme.id
+                    return (
+                      <button
+                        key={theme.id}
+                        onClick={() => setThemeMode(theme.id)}
+                        style={{
+                          border: active ? `2px solid ${settings.accentColor}` : '1px solid #e2e8f0',
+                          borderRadius: 14,
+                          padding: 12,
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          background: theme.bg,
+                          color: theme.fg,
+                          boxShadow: active ? `0 0 0 4px ${settings.accentColor}18` : 'none',
+                        }}
+                      >
+                        <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{theme.label}</span>
+                        <span style={{ display: 'block', fontSize: 11, opacity: 0.72, marginTop: 4 }}>{theme.desc}</span>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* Accent color */}

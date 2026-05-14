@@ -142,6 +142,7 @@ export default function DashboardPage() {
 
   return (
     <motion.div
+      className="pos-dashboard-dark"
       variants={stagger}
       initial="hidden"
       animate="show"

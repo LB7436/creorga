@@ -15,12 +15,16 @@ interface Alert {
 }
 
 async function runCmd(commandId: string, input?: any) {
-  const r = await fetch(`${BACKEND}/api/agent/execute`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ commandId, input }),
-  })
-  if (!r.ok) return null
-  return r.json()
+  try {
+    const r = await fetch(`${BACKEND}/api/agent/execute`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commandId, input }),
+    })
+    if (!r.ok) return null
+    return r.json()
+  } catch {
+    return null
+  }
 }
 
 export default function MobileAlerts() {
