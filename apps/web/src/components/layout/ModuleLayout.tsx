@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { ChevronLeft } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useThemeColors, useTheme } from '@/lib/theme'
+import RobiSuggestionBanner from '@/components/RobiSuggestionBanner'
 
 interface NavItem { label: string; path: string; icon: LucideIcon }
 interface ModuleLayoutProps { title: string; color: string; items: NavItem[]; backPath?: string; banner?: React.ReactNode }
@@ -114,6 +115,7 @@ export default function ModuleLayout({ title, color, items, backPath = '/modules
             {banner}
           </div>
         )}
+        <RobiSuggestionBanner />
         <Outlet />
       </div>
     </div>

@@ -5,6 +5,7 @@ import HelpChatbot from '@/components/HelpChatbot'
 import AssistantPanel from '@/components/AssistantPanel'
 import RobiOperator from '@/components/RobiOperator'
 import AssistantLauncher from '@/components/AssistantLauncher'
+import QuickActionsFAB from '@/components/QuickActionsFAB'
 import BirthdayCelebrate from '@/components/BirthdayCelebrate'
 import UniversalSearch from '@/components/UniversalSearch'
 import OnboardingWizard from '@/components/OnboardingWizard'
@@ -529,6 +530,7 @@ function App() {
     {!isClientFacing && <HelpChatbot />}
     {!isClientFacing && <UniversalSearch />}
     {!isClientFacing && <AssistantLauncher />}
+    {!isClientFacing && <QuickActionsFAB />}
     {!isClientFacing && <AssistantPanel />}
     {!isClientFacing && <RobiOperator />}
     <BirthdayCelebrate />
