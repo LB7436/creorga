@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, Maximize2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useThemeColors, useTheme } from '@/lib/theme'
 import RobiSuggestionBanner from '@/components/RobiSuggestionBanner'
@@ -11,11 +12,41 @@ export default function ModuleLayout({ title, color, items, backPath = '/modules
   const navigate = useNavigate()
   const colors = useThemeColors()
   const isDark = useTheme((s) => s.resolvedTheme) === 'dark'
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false)
+  const [kiosk, setKiosk] = useState(() => typeof window !== 'undefined' && localStorage.getItem('creorga.kioskMode') === 'true')
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 768px)')
+    const update = () => setIsMobile(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
+    const onFullscreen = () => {
+      const active = !!document.fullscreenElement
+      setKiosk(active)
+      localStorage.setItem('creorga.kioskMode', String(active))
+    }
+    document.addEventListener('fullscreenchange', onFullscreen)
+    return () => document.removeEventListener('fullscreenchange', onFullscreen)
+  }, [])
+
+  const toggleKiosk = async () => {
+    if (!document.fullscreenElement) {
+      await document.documentElement.requestFullscreen?.()
+      setKiosk(true)
+      localStorage.setItem('creorga.kioskMode', 'true')
+    } else {
+      await document.exitFullscreen?.()
+    }
+  }
 
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
       {/* sidebar */}
-      <aside
+      {!isMobile && !kiosk && <aside
         style={{
           width: 208,
           flexShrink: 0,
@@ -94,7 +125,7 @@ export default function ModuleLayout({ title, color, items, backPath = '/modules
             </NavLink>
           ))}
         </nav>
-      </aside>
+      </aside>}
 
       {/* content area
        * v3.18.8 — DARK THEME GLOBAL : tous les modules en sombre par cohérence.
@@ -105,11 +136,19 @@ export default function ModuleLayout({ title, color, items, backPath = '/modules
         style={{
           flex: 1,
           overflowY: 'auto',
-          background: 'linear-gradient(145deg, #0a0a1a 0%, #0f0f2e 30%, #0d0b24 60%, #080818 100%)',
+          background: `linear-gradient(180deg, ${color}14 0%, transparent 220px), linear-gradient(145deg, #0a0a1a 0%, #0f0f2e 30%, #0d0b24 60%, #080818 100%)`,
           color: '#f1f5f9',
           transition: 'background 0.3s ease',
+          paddingBottom: isMobile ? 72 : 0,
         }}
       >
+        <button
+          onClick={toggleKiosk}
+          title="Mode kiosk"
+          style={{ position: 'sticky', top: 12, right: 12, float: 'right', zIndex: 20, margin: 12, width: 36, height: 36, borderRadius: 12, border: `1px solid ${colors.border}`, background: 'rgba(15,23,42,0.76)', color: '#cbd5e1', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
+        >
+          <Maximize2 size={16} />
+        </button>
         {banner && (
           <div style={{ borderBottom: `1px solid ${colors.border}` }}>
             {banner}
@@ -118,6 +157,30 @@ export default function ModuleLayout({ title, color, items, backPath = '/modules
         <RobiSuggestionBanner />
         <Outlet />
       </div>
+      {isMobile && !kiosk && (
+        <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 70, height: 64, background: colors.bgSidebar, borderTop: `1px solid ${colors.border}`, display: 'grid', gridTemplateColumns: `repeat(${Math.min(4, items.length)}, 1fr)` }}>
+          {items.slice(0, 4).map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              style={({ isActive }) => ({
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 3,
+                color: isActive ? color : colors.textLight,
+                textDecoration: 'none',
+                fontSize: 10,
+                fontWeight: 800,
+              })}
+            >
+              <item.icon size={17} />
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+      )}
     </div>
   )
 }

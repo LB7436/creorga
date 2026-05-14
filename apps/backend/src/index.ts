@@ -65,6 +65,8 @@ import agentRoutes from './routes/agent'
 import helpFeedbackRoutes from './routes/help-feedback'
 import assistantRoutes from './routes/assistant'
 import assistantAdvancedRoutes from './routes/assistant-advanced'
+import ownerRoutes from './routes/owner'
+import { auditLog } from './middleware/audit-log'
 
 const app = express()
 const httpServer = createServer(app)
@@ -110,6 +112,7 @@ app.use(cors(corsOptions))
 // v3.16 — bump JSON body limit pour OCR vision (images base64 ~ 1-5 MB)
 app.use(express.json({ limit: '20mb' }))
 app.use(cookieParser())
+app.use(auditLog)
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -147,6 +150,7 @@ app.use('/api/ads', adsRoutes)
 app.use('/api/ai', aiActionsRoutes)
 app.use('/api/agent', agentRoutes)
 app.use('/api/help/feedback', helpFeedbackRoutes)
+app.use('/api/owner', ownerRoutes)
 // v3.9 — assistantRoutes MUST be before agentRoutes to take precedence on /intent
 app.use('/api/agent', assistantRoutes)
 app.use('/api/agent', assistantAdvancedRoutes)

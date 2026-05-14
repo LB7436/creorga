@@ -1,4 +1,4 @@
-import { BarChart3, CreditCard, Heart } from 'lucide-react'
+import { Activity, BarChart3, CreditCard, Heart } from 'lucide-react'
 import ModuleLayout from '@/components/layout/ModuleLayout'
 
 // v4.1 — Nouveau Layout regroupant ce qui concerne le patron / propriétaire :
@@ -9,6 +9,7 @@ const items = [
   { label: 'Rapport', path: '/owner/rapport', icon: BarChart3 },
   { label: 'Abonnement', path: '/owner/abonnement', icon: CreditCard },
   { label: 'Parrainage', path: '/owner/parrainage', icon: Heart },
+  { label: 'Activite', path: '/owner/activite', icon: Activity },
 ]
 
 export default function OwnerLayout() {

@@ -50,6 +50,7 @@ export default function UniversalSearch() {
   const [query, setQuery] = useState('')
   const [selectedIdx, setSelectedIdx] = useState(0)
   const [liveResults, setLiveResults] = useState<SearchItem[]>([])
+  const [entityResults, setEntityResults] = useState<SearchItem[]>([])
   const navigate = useNavigate()
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -105,12 +106,56 @@ export default function UniversalSearch() {
     return undefined
   }, [query, navigate])
 
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 2 || /^[$@#]/.test(q)) {
+      setEntityResults([])
+      return
+    }
+    const timeout = window.setTimeout(async () => {
+      try {
+        const [customers, invoices, shifts] = await Promise.all([
+          fetch('/api/crm/customers?limit=3&search=' + encodeURIComponent(q)).then((r) => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/invoices').then((r) => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/hr/shifts').then((r) => r.ok ? r.json() : null).catch(() => null),
+        ])
+        const customerItems = ((customers?.customers || customers || []) as any[]).slice(0, 3).map((c) => ({
+          type: 'customer' as const,
+          label: `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.email || 'Client',
+          sublabel: c.email || c.phone || 'Fiche client',
+          icon: Users,
+          action: () => { navigate(`/crm/clients/${c.id || ''}`); setOpen(false) },
+        }))
+        const invoiceItems = ((invoices?.invoices || invoices || []) as any[]).slice(0, 3).map((inv) => ({
+          type: 'invoice' as const,
+          label: `Facture ${inv.number || inv.id}`,
+          sublabel: `${inv.customerName || inv.status || ''}`,
+          icon: FileText,
+          action: () => { navigate(`/invoices/factures/${inv.number || inv.id}`); setOpen(false) },
+        }))
+        const shiftItems = ((shifts?.shifts || shifts || []) as any[]).slice(0, 2).map((shift) => ({
+          type: 'command' as const,
+          label: `Shift ${shift.employeeName || shift.userName || shift.id}`,
+          sublabel: shift.date || 'Planning RH',
+          icon: Zap,
+          action: () => { navigate('/hr/planning'); setOpen(false) },
+        }))
+        setEntityResults([...customerItems, ...invoiceItems, ...shiftItems])
+      } catch {
+        setEntityResults([])
+      }
+    }, 260)
+    return () => window.clearTimeout(timeout)
+  }, [query, navigate])
+
   const items = useMemo<SearchItem[]>(() => {
     const q = query.toLowerCase().trim()
     const results: SearchItem[] = []
 
     // If prefix-driven, just live results
     if (/^[$@#]/.test(query)) return liveResults
+
+    results.push(...entityResults)
 
     // Modules
     for (const m of MODULES) {
@@ -136,9 +181,15 @@ export default function UniversalSearch() {
       }
     }
 
+    results.push(
+      { type: 'command', label: '🤖 Robi peut verifier les ventes du jour', sublabel: 'Commande IA', icon: Zap, action: () => { navigate('/ai?intent=ventes-du-jour'); setOpen(false) } },
+      { type: 'command', label: '🤖 Robi peut relancer les clients inactifs', sublabel: 'CRM + SMS', icon: Users, action: () => { navigate('/crm/fidelite'); setOpen(false) } },
+      { type: 'command', label: '🤖 Robi peut detecter les ruptures stock', sublabel: 'Inventaire', icon: Package, action: () => { navigate('/inventory/stock?filter=low'); setOpen(false) } },
+    )
+
     // Truncate
     return results.slice(0, 30)
-  }, [query, liveResults, navigate])
+  }, [query, liveResults, entityResults, navigate])
 
   // Keyboard nav
   useEffect(() => {

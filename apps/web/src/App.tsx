@@ -152,6 +152,7 @@ import ApiPage from '@/pages/api/ApiPage'
 import AiAssistantPage from '@/pages/ai/AiAssistantPage'
 import BackupPage from '@/pages/backup/BackupPage'
 import OwnerReportPage from '@/pages/owner/OwnerReportPage'
+import ActiviteAuditPage from '@/pages/owner/ActiviteAuditPage'
 import DeliveryPage from '@/pages/delivery/DeliveryPage'
 import ClickCollectPage from '@/pages/clickcollect/ClickCollectPage'
 import CateringPage from '@/pages/catering/CateringPage'
@@ -401,6 +402,7 @@ function App() {
           <Route path="rapport" element={<OwnerReportPage />} />
           <Route path="abonnement" element={<BillingPage />} />
           <Route path="parrainage" element={<ReferralPage />} />
+          <Route path="activite" element={<ActiviteAuditPage />} />
         </Route>
 
         {/* v4.1 — Sales Layout : Livraison + Click&Collect + Traiteur fusionnés */}
