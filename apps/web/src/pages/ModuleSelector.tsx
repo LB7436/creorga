@@ -8,6 +8,7 @@ import AdminQuickMenu from '@/components/AdminQuickMenu'
 import { useModuleConfig } from '@/stores/moduleConfigStore'
 import { useEnvMode } from '@/stores/envModeStore'
 import { useSharedModuleConfig } from '@/hooks/useSharedModuleConfig'
+import { useModuleUXStore } from '@/stores/moduleUXStore'
 
 // v3.18.7 — Illustrations SVG 3D-style remplacent les emojis simples
 import { ModuleIllustration, MODULE_EMOJI } from '@/components/illustrations/ModuleIllustrations'
@@ -95,9 +96,11 @@ function FloatingOrbs() {
 interface ModuleCardProps {
   mod: ModuleDef
   onClick: () => void
+  pinned: boolean
+  onTogglePin: () => void
 }
 
-function ModuleCard({ mod, onClick }: ModuleCardProps) {
+function ModuleCard({ mod, onClick, pinned, onTogglePin }: ModuleCardProps) {
   // v3.18.7 — illustration SVG 3D-style avec fallback emoji
   const emoji = MODULE_EMOJI[mod.id] || '📁'
 
@@ -151,6 +154,34 @@ function ModuleCard({ mod, onClick }: ModuleCardProps) {
         el.style.transform = `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.03)`
       }}
     >
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onTogglePin()
+        }}
+        title={pinned ? 'Retirer des favoris' : 'Epingler ce module'}
+        style={{
+          position: 'absolute',
+          top: 12,
+          right: 12,
+          zIndex: 3,
+          width: 30,
+          height: 30,
+          borderRadius: 10,
+          border: `1px solid ${pinned ? hexToRgba(mod.color, 0.55) : 'rgba(255,255,255,0.08)'}`,
+          background: pinned ? hexToRgba(mod.color, 0.24) : 'rgba(15,23,42,0.48)',
+          color: pinned ? '#facc15' : 'rgba(226,232,240,0.75)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 15,
+          boxShadow: pinned ? `0 8px 24px ${hexToRgba(mod.color, 0.18)}` : 'none',
+        }}
+      >
+        📌
+      </button>
+
       {/* gradient glow behind icon */}
       <div
         style={{
@@ -235,6 +266,11 @@ export default function ModuleSelector() {
   const { user, company } = useAuthStore()
   const logout = useAuthStore((s) => s.logout)
   const setActiveModule = useModuleStore((s) => s.setActiveModule)
+  const usageStats = useModuleUXStore((s) => s.usageStats)
+  const pinnedModules = useModuleUXStore((s) => s.pinnedModules)
+  const viewMode = useModuleUXStore((s) => s.viewMode)
+  const recordModuleOpen = useModuleUXStore((s) => s.recordModuleOpen)
+  const togglePin = useModuleUXStore((s) => s.togglePin)
 
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<CategoryFilter>('all')
@@ -249,6 +285,8 @@ export default function ModuleSelector() {
     return merged
   }, [localModuleConfig, remoteModuleConfig])
   const comingSoonMode = useEnvMode((s) => s.comingSoonMode)
+  const serviceIds = useMemo(() => new Set<ModuleId>(['pos', 'hr', 'sales', 'haccp', 'qrmenu']), [])
+  const adminIds = useMemo(() => new Set<ModuleId>(['owner', 'sites', 'rgpd', 'backup', 'api', 'maintenance']), [])
 
   // Apply display-mode filter from SettingsModules:
   //   - "hidden"     → exclude completely
@@ -258,14 +296,28 @@ export default function ModuleSelector() {
     return MODULES.filter((m) => {
       const cfg = moduleConfig[m.id]
       if (cfg?.displayMode === 'hidden') return false
+      if (viewMode === 'service' && !serviceIds.has(m.id)) return false
+      if (viewMode === 'admin' && !adminIds.has(m.id)) return false
       const matchCategory = category === 'all' || m.category === category
       const matchSearch =
         !search ||
         m.name.toLowerCase().includes(search.toLowerCase()) ||
         m.tagline.toLowerCase().includes(search.toLowerCase())
       return matchCategory && matchSearch
+    }).sort((a, b) => {
+      const pinnedA = pinnedModules.indexOf(a.id)
+      const pinnedB = pinnedModules.indexOf(b.id)
+      if (pinnedA !== -1 || pinnedB !== -1) {
+        if (pinnedA === -1) return 1
+        if (pinnedB === -1) return -1
+        return pinnedA - pinnedB
+      }
+      const statsA = usageStats[a.id]
+      const statsB = usageStats[b.id]
+      if ((statsB?.count ?? 0) !== (statsA?.count ?? 0)) return (statsB?.count ?? 0) - (statsA?.count ?? 0)
+      return (statsB?.lastOpened ?? 0) - (statsA?.lastOpened ?? 0)
     })
-  }, [category, search, moduleConfig])
+  }, [category, search, moduleConfig, viewMode, serviceIds, adminIds, pinnedModules, usageStats])
 
   const handleModule = (mod: ModuleDef) => {
     const cfg = moduleConfig[mod.id]
@@ -275,6 +327,7 @@ export default function ModuleSelector() {
       return
     }
     setActiveModule(mod.id)
+    recordModuleOpen(mod.id)
     navigate(mod.path)
   }
 
@@ -575,7 +628,12 @@ export default function ModuleSelector() {
               const displayMod = cfg?.customLabel ? { ...mod, name: cfg.customLabel } : mod
               return (
                 <div key={mod.id} data-tour="module-card" data-module-id={mod.id} style={{ position: 'relative' }}>
-                  <ModuleCard mod={displayMod} onClick={() => handleModule(mod)} />
+                  <ModuleCard
+                    mod={displayMod}
+                    onClick={() => handleModule(mod)}
+                    pinned={pinnedModules.includes(mod.id)}
+                    onTogglePin={() => togglePin(mod.id)}
+                  />
                   {isComingSoon && (
                     <div style={{
                       position: 'absolute', inset: 0, borderRadius: 18,
@@ -596,7 +654,7 @@ export default function ModuleSelector() {
             })}
             {/* legacy render slot replaced by above block */}
             {false && filteredModules.map((mod) => (
-              <ModuleCard key={mod.id} mod={mod} onClick={() => handleModule(mod)} />
+              <ModuleCard key={mod.id} mod={mod} onClick={() => handleModule(mod)} pinned={false} onTogglePin={() => undefined} />
             ))}
 
             {filteredModules.length === 0 && (

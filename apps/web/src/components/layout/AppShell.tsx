@@ -31,6 +31,7 @@ import CommandPalette from '@/components/CommandPalette'
 import AccessibilityMenu from '@/components/AccessibilityMenu'
 import HelpWidget from '@/components/HelpWidget'
 import OfflineIndicator from '@/components/OfflineIndicator'
+import ViewModeToggle from '@/components/ViewModeToggle'
 
 export default function AppShell() {
   const navigate = useNavigate()
@@ -239,6 +240,9 @@ export default function AppShell() {
 
         {/* ── right: actions ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* modules button */}
+          <ViewModeToggle />
+
           {/* modules button */}
           <button
             onClick={handleGoModules}

@@ -580,6 +580,7 @@ const MAP: Record<ModuleId, (props: { size: number }) => JSX.Element> = {
   referral: Referral,
   ads: Ads,
   music: Music,
+  sales: Delivery,
 }
 
 export function ModuleIllustration({ id, size = 56 }: { id: ModuleId; size?: number }) {
@@ -589,7 +590,7 @@ export function ModuleIllustration({ id, size = 56 }: { id: ModuleId; size?: num
 }
 
 // Permet aussi de récupérer un fallback emoji si besoin
-export const MODULE_EMOJI: Record<ModuleId, string> = {
+export const MODULE_EMOJI: Partial<Record<ModuleId, string>> = {
   pos: '🛒',
   clients: '📱',
   invoices: '🧾',
