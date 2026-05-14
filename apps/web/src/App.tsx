@@ -6,6 +6,7 @@ import AssistantPanel from '@/components/AssistantPanel'
 import RobiOperator from '@/components/RobiOperator'
 import AssistantLauncher from '@/components/AssistantLauncher'
 import QuickActionsFAB from '@/components/QuickActionsFAB'
+import DailyBriefingPill from '@/components/DailyBriefingPill'
 import BirthdayCelebrate from '@/components/BirthdayCelebrate'
 import UniversalSearch from '@/components/UniversalSearch'
 import OnboardingWizard from '@/components/OnboardingWizard'
@@ -529,6 +530,7 @@ function App() {
     <InstallPrompt />
     {!isClientFacing && <HelpChatbot />}
     {!isClientFacing && <UniversalSearch />}
+    {!isClientFacing && <DailyBriefingPill />}
     {!isClientFacing && <AssistantLauncher />}
     {!isClientFacing && <QuickActionsFAB />}
     {!isClientFacing && <AssistantPanel />}

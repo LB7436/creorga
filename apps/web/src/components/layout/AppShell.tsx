@@ -32,6 +32,7 @@ import AccessibilityMenu from '@/components/AccessibilityMenu'
 import HelpWidget from '@/components/HelpWidget'
 import OfflineIndicator from '@/components/OfflineIndicator'
 import ViewModeToggle from '@/components/ViewModeToggle'
+import ModuleTabs from '@/components/ModuleTabs'
 
 export default function AppShell() {
   const navigate = useNavigate()
@@ -512,6 +513,7 @@ export default function AppShell() {
           </div>
         </div>
       </header>
+      <ModuleTabs />
 
       {/* ── main content ── */}
       <main style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
