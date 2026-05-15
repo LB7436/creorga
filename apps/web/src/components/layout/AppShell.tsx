@@ -34,6 +34,54 @@ import OfflineIndicator from '@/components/OfflineIndicator'
 import ViewModeToggle from '@/components/ViewModeToggle'
 import ModuleTabs from '@/components/ModuleTabs'
 
+function LiveCustomerCount() {
+  const navigate = useNavigate()
+  const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      try {
+        const res = await fetch('/api/floor-state')
+        if (!res.ok) return
+        const data = await res.json()
+        const tables = Array.isArray(data.tables) ? data.tables : Array.isArray(data) ? data : []
+        const next = tables.reduce((sum: number, table: any) => {
+          const occupied = String(table.status || table.state || '').toLowerCase().includes('occup')
+          if (!occupied) return sum
+          return sum + Number(table.guests || table.covers || table.people || table.seats || 1)
+        }, 0)
+        if (alive) setCount(next)
+      } catch {
+        if (alive) setCount(0)
+      }
+    }
+    load()
+    const id = window.setInterval(load, 10_000)
+    return () => { alive = false; window.clearInterval(id) }
+  }, [])
+
+  return (
+    <button
+      onClick={() => navigate('/pos/floor')}
+      title="Clients en salle"
+      style={{
+        height: 36,
+        padding: '0 12px',
+        borderRadius: 999,
+        border: '1px solid rgba(34,197,94,0.35)',
+        background: 'rgba(16,185,129,0.1)',
+        color: '#86efac',
+        fontSize: 12,
+        fontWeight: 800,
+        cursor: 'pointer',
+      }}
+    >
+      {'\u{1F465}'} {count}
+    </button>
+  )
+}
+
 export default function AppShell() {
   const navigate = useNavigate()
   const { user, company } = useAuthStore()
@@ -243,6 +291,8 @@ export default function AppShell() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* modules button */}
           <ViewModeToggle />
+
+          <LiveCustomerCount />
 
           {/* modules button */}
           <button

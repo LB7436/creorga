@@ -192,4 +192,10 @@ httpServer.listen(PORT, () => {
     startProactiveWorker()
     logger.info('[proactive] worker démarré — alertes auto (10 min)')
   }).catch((e) => logger.warn('[proactive] non démarré:', e?.message))
+
+  // v4.6 — Détecteur de doublons clients (scan toutes les 24h)
+  import('./jobs/duplicate-detector').then(({ startDuplicateDetector }) => {
+    startDuplicateDetector()
+    logger.info('[duplicate-detector] worker démarré — scan customers.json (24h)')
+  }).catch((e) => logger.warn('[duplicate-detector] non démarré:', e?.message))
 })

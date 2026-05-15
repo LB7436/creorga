@@ -147,12 +147,14 @@ import ClientsB2BPage from '@/pages/events/ClientsB2BPage'
 // Sites & API Pages
 import SitesPage from '@/pages/sites/SitesPage'
 import ApiPage from '@/pages/api/ApiPage'
+import MarketplacePage from '@/pages/api/MarketplacePage'
 
 // New modules
 import AiAssistantPage from '@/pages/ai/AiAssistantPage'
 import BackupPage from '@/pages/backup/BackupPage'
 import OwnerReportPage from '@/pages/owner/OwnerReportPage'
 import ActiviteAuditPage from '@/pages/owner/ActiviteAuditPage'
+import MacrosPage from '@/pages/owner/MacrosPage'
 import DeliveryPage from '@/pages/delivery/DeliveryPage'
 import ClickCollectPage from '@/pages/clickcollect/ClickCollectPage'
 import CateringPage from '@/pages/catering/CateringPage'
@@ -164,6 +166,8 @@ import CommunityPage from '@/pages/community/CommunityPage'
 import StatusPage from '@/pages/status/StatusPage'
 import ChangelogPage from '@/pages/changelog/ChangelogPage'
 import ReferralPage from '@/pages/referral/ReferralPage'
+import OnboardingTour from '@/components/OnboardingTour'
+import { registerPush } from '@/lib/pushNotifications'
 
 function App() {
   const location = useLocation()
@@ -187,6 +191,10 @@ function App() {
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [demoActive, demoExpiresAt, demoExit])
+
+  useEffect(() => {
+    registerPush()
+  }, [])
 
   const demoMinutes = Math.floor(demoRemaining / 60000)
   const demoSeconds = Math.floor((demoRemaining % 60000) / 1000)
@@ -245,6 +253,7 @@ function App() {
         <Route path="camera" element={<MobileCamera />} />
       </Route>
       <Route path="/modules" element={<RequireAuth><ModuleSelector /></RequireAuth>} />
+      <Route path="/tour" element={<RequireAuth><ModuleSelector /></RequireAuth>} />
       <Route path="/pos/kitchen" element={<RequireAuth><Kitchen /></RequireAuth>} />
       <Route path="/qrmenu" element={<RequireAuth><QrMenuPage /></RequireAuth>} />
 
@@ -370,6 +379,7 @@ function App() {
 
         {/* API & Intégrations Module */}
         <Route path="/api" element={<ApiPage />} />
+        <Route path="/api/marketplace" element={<MarketplacePage />} />
 
         {/* Assistant IA — v3.18 fusion : page unique avec sélecteur de provider local/cloud/auto */}
         {/* /ai/local et /ai/settings deviennent alias vers /ai */}
@@ -403,6 +413,7 @@ function App() {
           <Route path="abonnement" element={<BillingPage />} />
           <Route path="parrainage" element={<ReferralPage />} />
           <Route path="activite" element={<ActiviteAuditPage />} />
+          <Route path="macros" element={<MacrosPage />} />
         </Route>
 
         {/* v4.1 — Sales Layout : Livraison + Click&Collect + Traiteur fusionnés */}
@@ -532,6 +543,7 @@ function App() {
     <InstallPrompt />
     {!isClientFacing && <HelpChatbot />}
     {!isClientFacing && <UniversalSearch />}
+    {!isClientFacing && <OnboardingTour />}
     {!isClientFacing && <DailyBriefingPill />}
     {!isClientFacing && <AssistantLauncher />}
     {!isClientFacing && <QuickActionsFAB />}

@@ -69,3 +69,28 @@ export function auditLog(req: Request, res: Response, next: NextFunction) {
 export function readAuditEntries() {
   return readAuditLog()
 }
+
+/**
+ * v4.6 — dataDir(req) helper multi-tenant.
+ *
+ * Si req.user.siteId présent → retourne data/sites/{siteId}/, sinon data/.
+ *
+ * Pas de refactor massif : seuls les endpoints critiques peuvent migrer
+ * progressivement vers ce helper.
+ *
+ * TODO follow-up : migrer inventory, invoices, customers vers dataDir(req)
+ * pour vrai support multi-tenant. Pour l'instant, fallback mono-site.
+ */
+export function dataDir(req?: Request): string {
+  const siteId = req && (req as any).user?.siteId
+  if (siteId && typeof siteId === 'string' && /^[a-zA-Z0-9_-]+$/.test(siteId)) {
+    const dir = path.join(DATA_DIR, 'sites', siteId)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    return dir
+  }
+  return DATA_DIR
+}
+
+export function dataPath(filename: string, req?: Request): string {
+  return path.join(dataDir(req), filename)
+}
