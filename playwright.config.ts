@@ -13,6 +13,8 @@ export default defineConfig({
   reporter: process.env.CI ? 'github' : 'list',
   use: {
     baseURL: 'http://localhost:5174',
+    // Utilise le Google Chrome installé (pas de téléchargement Chromium)
+    channel: 'chrome',
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
