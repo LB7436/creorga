@@ -70,6 +70,7 @@ import { auditLog } from './middleware/audit-log'
 import { assertProductionSecrets, buildCorsOrigin, authLimiter, aiLimiter, publicLimiter } from './lib/security'
 import { deviceOrUserAuth } from './middleware/deviceAuth'
 import { initMonitoring } from './lib/monitoring'
+import { startStockSyncJob } from './lib/stockStore'
 
 // Refuse de démarrer en production avec des secrets de dev ou absents.
 assertProductionSecrets()
@@ -172,6 +173,8 @@ const PORT = parseInt(process.env.PORT || '3002', 10)
 httpServer.listen(PORT, () => {
   logger.info(`Serveur Creorga démarré sur http://localhost:${PORT}`)
   logger.info(`Environnement: ${process.env.NODE_ENV || 'development'}`)
+  // Réplication stock JSON → Prisma Ingredient (no-op si DB indisponible)
+  startStockSyncJob()
   // Janitor : auto-close any table session opened > 8h sans encaissement
   import('./jobs/closeStaleFloorSessions').then(({ startStaleSessionJanitor }) => {
     startStaleSessionJanitor()

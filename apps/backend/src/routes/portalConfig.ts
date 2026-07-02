@@ -1,7 +1,6 @@
 import { Router } from 'express'
-import fs from 'fs'
-import path from 'path'
 import prisma from '../lib/prisma'
+import { loadStock, stockStatusFor } from '../lib/stockStore'
 
 /**
  * Portal config — shared between the admin "/clients" (5174) page and the
@@ -34,25 +33,6 @@ const DEFAULT_CONFIG: PortalConfig = {
 
 let current: PortalConfig = { ...DEFAULT_CONFIG }
 const clientEvents: Array<Record<string, unknown>> = []
-const STOCK_FILE = path.resolve(process.cwd(), 'data', 'inventory-stock.json')
-
-function loadStockEntries(): Array<{ name: string; quantity?: number; unit?: string; lowStockThreshold?: number }> {
-  try {
-    if (!fs.existsSync(STOCK_FILE)) return []
-    const parsed = JSON.parse(fs.readFileSync(STOCK_FILE, 'utf8'))
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
-function stockForProduct(productName: string, stock: ReturnType<typeof loadStockEntries>) {
-  const normalized = productName.toLowerCase()
-  return stock.find((entry) => {
-    const name = String(entry.name || '').toLowerCase()
-    return name && (normalized.includes(name) || name.includes(normalized))
-  })
-}
 
 function fallbackMenu() {
   const categories = [
@@ -102,22 +82,18 @@ router.get('/menu', async (_req, res) => {
         },
       },
     })
-    const stock = loadStockEntries()
+    const stock = loadStock()
     const categoriesWithStock = categories.map((category) => ({
       ...category,
       products: category.products.map((product) => {
-        const entry = stockForProduct(product.name, stock)
-        const qty = Number(entry?.quantity ?? NaN)
-        const tracked = Number.isFinite(qty)
-        const isAvailable = !tracked || qty > 0
-        const low = tracked && qty > 0 && qty <= Number(entry?.lowStockThreshold ?? 0)
+        const s = stockStatusFor(product.name, stock)
         return {
           ...product,
-          stockTracked: tracked,
-          stockQty: tracked ? qty : null,
-          stockUnit: entry?.unit ?? null,
-          stockStatus: !tracked ? 'UNTRACKED' : qty <= 0 ? 'OUT' : low ? 'LOW' : 'OK',
-          isAvailable,
+          stockTracked: s.tracked,
+          stockQty: s.qty,
+          stockUnit: s.unit,
+          stockStatus: s.status,
+          isAvailable: s.isAvailable,
         }
       }),
     }))

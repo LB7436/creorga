@@ -1,24 +1,9 @@
 import { Router } from 'express'
 import fs from 'fs'
 import path from 'path'
+import { loadStock, saveStock, type StockEntry as SharedStockEntry } from '../lib/stockStore'
 
 const STORE_DIR = path.resolve(process.cwd(), 'data')
-const STORE_FILE = path.join(STORE_DIR, 'inventory-stock.json')
-
-function ensureStore() {
-  if (!fs.existsSync(STORE_DIR)) fs.mkdirSync(STORE_DIR, { recursive: true })
-}
-
-function loadStock(): StockEntry[] {
-  ensureStore()
-  if (!fs.existsSync(STORE_FILE)) return []
-  try { return JSON.parse(fs.readFileSync(STORE_FILE, 'utf8')) } catch { return [] }
-}
-
-function saveStock(entries: StockEntry[]) {
-  ensureStore()
-  fs.writeFileSync(STORE_FILE, JSON.stringify(entries, null, 2), 'utf8')
-}
 
 /**
  * Inventory AI helpers — uses Ollama + Gemma 2B to parse OCR'd supplier
@@ -56,18 +41,8 @@ interface ParsedReceipt {
 
 const router = Router()
 
-// Disk-persisted stock (data/inventory-stock.json)
-interface StockEntry {
-  id: string
-  name: string
-  category: string
-  unit: string
-  quantity: number
-  avgUnitPrice: number
-  lastSupplier?: string
-  lastUpdated: number
-  lowStockThreshold?: number
-}
+// Stock persisté sur disque — accès centralisé via lib/stockStore
+type StockEntry = SharedStockEntry
 let stock: StockEntry[] = loadStock()
 const uid = () => Math.random().toString(36).slice(2, 10)
 
@@ -86,7 +61,7 @@ router.post('/stock/bulk', (req, res) => {
     if (existing) {
       // Weighted average price
       const newQty = existing.quantity + item.qty
-      existing.avgUnitPrice = (existing.avgUnitPrice * existing.quantity + item.unitPrice * item.qty) / Math.max(1, newQty)
+      existing.avgUnitPrice = ((existing.avgUnitPrice ?? 0) * existing.quantity + item.unitPrice * item.qty) / Math.max(1, newQty)
       existing.quantity = newQty
       existing.lastSupplier = supplier
       existing.lastUpdated = Date.now()
