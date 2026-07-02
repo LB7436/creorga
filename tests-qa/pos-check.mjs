@@ -1,0 +1,11 @@
+import { chromium } from '@playwright/test'
+const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const page = await browser.newPage()
+await page.goto('http://localhost:5175', { waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(2000)
+console.log('AVANT:', (await page.evaluate(() => document.body.innerText.replace(/\s+/g,' ').slice(0,200))))
+await page.getByText('Marie', { exact: false }).first().click()
+await page.waitForTimeout(1000)
+console.log('APRÈS clic Marie:', (await page.evaluate(() => document.body.innerText.replace(/\s+/g,' ').slice(0,200))))
+await page.screenshot({ path: 'tests-qa/screenshots/pos-after-marie.png' })
+await browser.close()

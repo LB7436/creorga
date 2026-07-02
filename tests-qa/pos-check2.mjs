@@ -1,0 +1,11 @@
+import { chromium } from '@playwright/test'
+const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const page = await browser.newPage()
+await page.goto('http://localhost:5175', { waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(2000)
+await page.getByText('Marie', { exact: false }).first().click()
+await page.waitForTimeout(800)
+const txt = await page.evaluate(() => document.body.innerText.replace(/\s+/g,' '))
+console.log('PIN présent:', /PIN|code/i.test(txt))
+console.log('Texte complet:', txt.slice(0, 600))
+await browser.close()

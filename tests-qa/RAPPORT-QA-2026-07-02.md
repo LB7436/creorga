@@ -35,15 +35,20 @@ et vérification des 5 autres apps (POS, Guest, Superadmin, Marketing, portail /
    (port de Marketing) au lieu de 5178 : selon l'ordre de démarrage, les mauvaises
    apps répondaient sur les mauvais ports. → corrigé.
 
-## ⚠️ Constats non corrigés (à décider)
+## ✅ Passe 2 — améliorations et audit exhaustif (même jour)
 
-- **Boutons OAuth Google / Apple / Microsoft sur /login : décoratifs** — aucun handler,
-  aucune réaction au clic. Soit brancher un vrai OAuth, soit les retirer (fausse promesse UX).
-- **/agenda** : redirige vers /hr/planning (fusion volontaire v4.1) — comportement normal.
-- ~500 contrôles non testés au-delà du cap de 30 clics/page (pages très denses :
-  /reputation 114, /c 102, /api 96, /settings/modules 72) — relancer l'audit avec un
-  cap plus élevé si besoin.
-- Les clics destructifs (supprimer, payer, encaisser, reset…) sont volontairement exclus
+- **Boutons OAuth Google/Apple/Microsoft (/login)** : corrigés — affichent désormais
+  « La connexion X arrive bientôt » au lieu de ne rien faire ; lien « Demander un accès »
+  (href="#" mort) → mailto contact@creorga.lu.
+- **Audit exhaustif sans plafond** relancé sur les 12 pages les plus denses
+  (/reputation 114 contrôles, /c 102, /api 96, /settings/modules 72, /music 60…) :
+  **0 bouton mort réel, 0 erreur JS, 0 écran blanc.**
+- **POS audité en profondeur** : 0 erreur JS, 0 API KO ; sélection d'employé → pavé PIN OK,
+  changement de langue FR/DE/EN/PT OK (vérifié manuellement).
+- Faux positifs documentés : onglet « Jeux » déjà actif sur /c (clic sans effet = normal) ;
+  2×401 sur /invoices = expiration du token à 15 min suivie d'un refresh réussi (flux normal
+  depuis la correction du bug n°4).
+- Les clics destructifs (supprimer, payer, encaisser, reset…) restent volontairement exclus
   de l'audit automatique — à tester manuellement avant une release.
 
 ## Environnement testé

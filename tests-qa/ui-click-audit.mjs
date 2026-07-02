@@ -18,7 +18,7 @@ const OUT_DIR = path.resolve('tests-qa')
 const SHOT_DIR = path.join(OUT_DIR, 'screenshots')
 fs.mkdirSync(SHOT_DIR, { recursive: true })
 
-const PAGES = [
+const DEFAULT_PAGES = [
   '/', '/modules', '/pos', '/pos/kitchen', '/crm', '/clients', '/invoices',
   '/inventory', '/hr', '/haccp', '/accounting', '/sales', '/agenda',
   '/reputation', '/ads', '/ai', '/owner', '/qrmenu', '/clickcollect',
@@ -26,6 +26,9 @@ const PAGES = [
   '/rgpd', '/changelog', '/community', '/formation', '/settings/modules',
   '/settings/theme', '/settings/language', '/admin', '/api', '/c?table=1',
 ]
+// Surcharge possible : QA_PAGES="/crm,/pos" QA_CAP=200 node tests-qa/ui-click-audit.mjs
+const PAGES = process.env.QA_PAGES ? process.env.QA_PAGES.split(',') : DEFAULT_PAGES
+const CAP = Number(process.env.QA_CAP || 30)
 
 // Boutons destructifs / de session à ne PAS cliquer
 const SKIP_RE = /déconnexion|deconnexion|logout|supprimer|delete|réinitialiser|reinitialiser|reset|vider|effacer|retirer|annuler l|payer|encaisser/i
@@ -104,7 +107,7 @@ for (const route of PAGES) {
       if (seen.has(key)) return false
       seen.add(key)
       return true
-    }).slice(0, 30)
+    }).slice(0, CAP)
 
     for (const c of toTest) {
       report.testedButtons++

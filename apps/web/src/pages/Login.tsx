@@ -49,6 +49,7 @@ const STATS = [
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [testimonialIdx, setTestimonialIdx] = useState(0)
+  const [oauthNotice, setOauthNotice] = useState('')
   const navigate = useNavigate()
   const setAuth = useAuthStore((s) => s.setAuth)
 
@@ -279,20 +280,24 @@ export default function Login() {
                 }}>ou continuer avec</span>
               </div>
 
-              {/* OAuth */}
+              {/* OAuth — pas encore branché : on l'affiche honnêtement */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 {['Google', 'Apple', 'Microsoft'].map((p) => (
-                  <button key={p} type="button" style={oauthStyle}
+                  <button key={p} type="button" style={oauthStyle} title="Bientôt disponible"
+                    onClick={() => setOauthNotice(`La connexion ${p} arrive bientôt — utilisez votre email en attendant.`)}
                     onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}>
                     {p}
                   </button>
                 ))}
               </div>
+              {oauthNotice && (
+                <div style={{ fontSize: 12, color: '#fbbf24', textAlign: 'center' }}>{oauthNotice}</div>
+              )}
             </form>
 
             <div style={{ marginTop: 20, textAlign: 'center', fontSize: 12, color: '#94a3b8' }}>
-              Pas encore de compte ? <a href="#" style={{ color: '#a78bfa', fontWeight: 600, textDecoration: 'none' }}>Demander un accès</a>
+              Pas encore de compte ? <a href="mailto:contact@creorga.lu?subject=Demande%20d%27acc%C3%A8s%20Creorga" style={{ color: '#a78bfa', fontWeight: 600, textDecoration: 'none' }}>Demander un accès</a>
             </div>
 
             {/* Quick demo hint */}
