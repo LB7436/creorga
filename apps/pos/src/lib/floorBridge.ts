@@ -8,6 +8,10 @@ import { usePOS } from '../store/posStore'
  * One-way sync (POS → backend). Readers on 5174 poll independently.
  */
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
+// Token device POS (requis en production, cf. backend middleware/deviceAuth)
+export const DEVICE_TOKEN = (import.meta as any).env?.VITE_POS_DEVICE_TOKEN || ''
+export const deviceHeaders = (): Record<string, string> =>
+  DEVICE_TOKEN ? { 'X-Device-Token': DEVICE_TOKEN } : {}
 
 let lastSerialised = ''
 let syncTimer: ReturnType<typeof setTimeout> | null = null
@@ -31,7 +35,7 @@ async function push(tables: any[]) {
 
     await fetch(`${BACKEND}/api/floor-state`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...deviceHeaders() },
       body: JSON.stringify({ tables: mapped }),
     })
   } catch { /* backend down: ignore */ }

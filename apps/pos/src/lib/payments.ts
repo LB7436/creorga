@@ -25,11 +25,13 @@ export interface ChargeResult {
   error?: string
 }
 
+import { deviceHeaders } from './floorBridge'
+
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
 export async function listProviders(): Promise<{ provider: PaymentProvider; enabled: boolean }[]> {
   try {
-    const res = await fetch(`${API_BASE}/payments/providers`)
+    const res = await fetch(`${API_BASE}/payments/providers`, { headers: deviceHeaders() })
     const data = await res.json()
     return data.providers || []
   } catch {
@@ -41,7 +43,7 @@ export async function chargePayment(req: ChargeRequest): Promise<ChargeResult> {
   try {
     const res = await fetch(`${API_BASE}/payments/charge`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...deviceHeaders() },
       body: JSON.stringify(req),
     })
     return await res.json()

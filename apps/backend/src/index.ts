@@ -68,9 +68,13 @@ import assistantAdvancedRoutes from './routes/assistant-advanced'
 import ownerRoutes from './routes/owner'
 import { auditLog } from './middleware/audit-log'
 import { assertProductionSecrets, buildCorsOrigin, authLimiter, aiLimiter, publicLimiter } from './lib/security'
+import { deviceOrUserAuth } from './middleware/deviceAuth'
+import { initMonitoring } from './lib/monitoring'
 
 // Refuse de démarrer en production avec des secrets de dev ou absents.
 assertProductionSecrets()
+// Sentry (no-op sans SENTRY_DSN)
+initMonitoring()
 
 const app = express()
 const httpServer = createServer(app)
@@ -115,9 +119,9 @@ app.use('/api/auth', authLimiter, authRoutes)
 app.use('/api/tables', authenticate, tablesRoutes)
 app.use('/api/categories', authenticate, categoriesRoutes)
 app.use('/api/products', authenticate, productsRoutes)
-// TODO(sécurité): le POS appelle /api/orders /api/payments /api/floor-state
-// /api/module-config sans token — à migrer vers un token device POS, puis protéger.
-app.use('/api/orders', ordersRoutes)
+// Routes partagées POS/web : token device (X-Device-Token) ou JWT utilisateur.
+// Strict en production uniquement — cf. middleware/deviceAuth.
+app.use('/api/orders', deviceOrUserAuth, ordersRoutes)
 app.use('/api/stats', authenticate, statsRoutes)
 app.use('/api/companies', authenticate, companiesRoutes)
 app.use('/api/modules', authenticate, requireCompany, modulesRoutes)
@@ -133,10 +137,10 @@ app.use('/api/reputation', authenticate, requireCompany, reputationRoutes)
 app.use('/api/events', authenticate, requireCompany, eventsRoutes)
 app.use('/api/stripe', stripeRoutes) // webhooks signés côté Stripe
 app.use('/api/email', authenticate, emailRoutes)
-app.use('/api/payments', paymentsRoutes) // POS sans token — cf. TODO ci-dessus
+app.use('/api/payments', deviceOrUserAuth, paymentsRoutes)
 app.use('/api/portal-config', publicLimiter, portalConfigRoutes) // portail client public (QR)
-app.use('/api/floor-state', floorStateRoutes) // POS sans token — cf. TODO ci-dessus
-app.use('/api/module-config', moduleConfigRoutes) // POS sans token — cf. TODO ci-dessus
+app.use('/api/floor-state', deviceOrUserAuth, floorStateRoutes)
+app.use('/api/module-config', deviceOrUserAuth, moduleConfigRoutes)
 // Mounted on /api/inventory-ocr to avoid clash with the auth-protected /api/inventory
 app.use('/api/inventory-ocr', authenticate, inventoryAIRoutes)
 app.use('/api/ads', authenticate, adsRoutes)
