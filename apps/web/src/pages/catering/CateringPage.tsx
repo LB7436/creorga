@@ -271,10 +271,18 @@ function CateringPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button style={btnSecondary}>
+          <button style={btnSecondary} onClick={() => {
+            const header = 'ID;Client;Date;Lieu;Couverts;Menu;Montant;Statut'
+            const rows = ORDERS.map((o) => `${o.id};${o.client};${o.date};${o.lieu};${o.guests};${o.menu};${o.amount};${o.status}`)
+            const blob = new Blob(['﻿' + [header, ...rows].join('\n')], { type: 'text/csv;charset=utf-8' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url; a.download = `traiteur-commandes-${new Date().toISOString().slice(0, 10)}.csv`
+            a.click(); URL.revokeObjectURL(url)
+          }}>
             <Download size={16} /> Exporter
           </button>
-          <button style={btnPrimary}>
+          <button style={btnPrimary} onClick={() => setTab('builder')}>
             <Plus size={16} /> Nouvelle commande
           </button>
         </div>

@@ -1,0 +1,70 @@
+[
+  {
+    "text": "Mode kiosk",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Tous",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Google",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "TripAdvisor",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Facebook",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Interne",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "5★",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "4★",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "3★",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "2★",
+    "reaction": "appel réseau"
+  },
+  {
+    "text": "1★",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Répondu",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Non répondu",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "7j",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "30j",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "90j",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Tout",
+    "reaction": "AUCUNE RÉACTION"
+  }
+]

@@ -1,0 +1,46 @@
+[
+  {
+    "text": "Mode kiosk",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Carte & commandes",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Livreurs",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Zones & dispatch",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Commissions",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Avis & pourboires",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "♿",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "🏠",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Centre d'aide Creorga",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Ouvrir Robi (Ctrl+Shift+A)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Actions rapides",
+    "reaction": "change le contenu"
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "text": "Mode kiosk",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "File de commandes",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Créneaux",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Casiers",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "SMS automatiques",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Programmées",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Station d'emballage",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "♿",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "🏠",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Centre d'aide Creorga",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Ouvrir Robi (Ctrl+Shift+A)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Actions rapides",
+    "reaction": "change le contenu"
+  }
+]

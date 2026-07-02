@@ -1,0 +1,22 @@
+[
+  {
+    "text": "Mode kiosk",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "🖥 Ouvrir l'écran TV",
+    "reaction": "navigue → /ads/tv"
+  },
+  {
+    "text": "+ Nouvelle pub",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "♿",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "🏠",
+    "reaction": "change le contenu"
+  }
+]

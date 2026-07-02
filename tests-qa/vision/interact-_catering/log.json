@@ -1,0 +1,66 @@
+[
+  {
+    "text": "Mode kiosk",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Exporter",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Nouvelle commande",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Vue d'ensemble",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Commandes",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Formules",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Menu sur-mesure",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Livraison",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Équipement",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Personnel",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Clients récurrents",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "♿",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "🏠",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Centre d'aide Creorga",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Ouvrir Robi (Ctrl+Shift+A)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Actions rapides",
+    "reaction": "change le contenu"
+  }
+]
