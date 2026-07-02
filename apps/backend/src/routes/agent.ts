@@ -2,6 +2,7 @@ import { Router } from 'express'
 import fs from 'fs'
 import path from 'path'
 import { getFloorState } from './floorState'
+import { internalHeaders } from '../lib/security'
 
 /**
  * Agent execution endpoint — runs commands defined in the Help Center catalog.
@@ -1310,7 +1311,7 @@ router.post('/super-ask', async (req, res) => {
   // Étape 1 : tentative parseIntent direct (rapide)
   try {
     const intentRes = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/intent`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders() },
       body: JSON.stringify({ text, currentPath, userId }),
     })
     const data = await intentRes.json() as any
@@ -1348,7 +1349,7 @@ router.post('/super-ask', async (req, res) => {
               || ROBI_INTENT_CATALOG.find((c) => c.id === intentId)?.ex
             if (!phrase) continue
             const intentRes = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/intent`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders() },
               body: JSON.stringify({ text: phrase, currentPath, userId }),
             })
             const data = await intentRes.json() as any
@@ -1421,7 +1422,7 @@ Réponds UNIQUEMENT avec ce JSON :
         // Reconstruit la phrase exemple pour faire matcher parseIntent
         const example = ROBI_INTENT_CATALOG.find((c) => c.id === pick.intent)!.ex
         const intentRes = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/intent`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders() },
           body: JSON.stringify({ text: example, currentPath, userId }),
         })
         const data = await intentRes.json() as any
@@ -1440,7 +1441,7 @@ Réponds UNIQUEMENT avec ce JSON :
   // Étape 3 : fallback smart-query avec FULL context (pas filtré)
   try {
     const sqRes = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/smart-query`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders() },
       body: JSON.stringify({ question: text, currentPath, userId }),
     })
     const sqData = await sqRes.json() as any

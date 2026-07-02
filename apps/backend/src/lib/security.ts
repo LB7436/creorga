@@ -1,6 +1,16 @@
 import rateLimit from 'express-rate-limit'
+import crypto from 'crypto'
 
 export const isProduction = () => process.env.NODE_ENV === 'production'
+
+/**
+ * Token de service pour les appels internes serveur→serveur (ex. super-ask
+ * qui rappelle /api/agent/intent en loopback). Généré au boot, jamais exposé.
+ */
+export const INTERNAL_API_TOKEN =
+  process.env.INTERNAL_API_TOKEN || crypto.randomBytes(24).toString('hex')
+
+export const internalHeaders = () => ({ 'X-Internal-Token': INTERNAL_API_TOKEN })
 
 const WEAK_SECRETS = [
   'dev-jwt-secret-creorga-change-in-production',

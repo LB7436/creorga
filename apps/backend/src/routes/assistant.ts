@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import fs from 'fs'
 import path from 'path'
+import { internalHeaders } from '../lib/security'
 
 /**
  * Personal Assistant intent engine — parses natural language requests
@@ -620,7 +621,7 @@ async function executeIntent(intent: IntentMatch): Promise<{ success: boolean; s
     }
 
     case 'web.search': {
-      const r = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/web-search?q=${encodeURIComponent(intent.params.query)}`)
+      const r = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/web-search?q=${encodeURIComponent(intent.params.query)}`, { headers: internalHeaders() })
       if (!r.ok) return { success: false, summary: '❌ Recherche web indisponible.' }
       const data = await r.json() as { results?: any[] }
       const results = data.results || []
@@ -1865,7 +1866,7 @@ router.post('/intent', async (req, res) => {
 
   // Fall back to smart-query
   const r = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/smart-query`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders() },
     body: JSON.stringify({ question: text, currentPath, userId: userId || 'default' }),
   })
   const data = await r.json() as any

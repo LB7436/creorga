@@ -1,0 +1,23 @@
+import { chromium } from '@playwright/test'
+const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } })
+await page.goto('http://localhost:5174/login', { waitUntil: 'domcontentloaded' })
+await page.evaluate(() => { localStorage.setItem('creorga-onboarded', '1'); localStorage.setItem('creorga.onboardingDone', String(Date.now())) })
+await page.locator('input[type="email"]').fill('admin@creorga.local')
+await page.locator('input[placeholder="••••••••"]').fill('Admin1234!')
+await page.locator('button[type="submit"]').click()
+await page.waitForURL('**/welcome')
+await page.goto('http://localhost:5174/modules', { waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(1500)
+// Ouvre Robi via le raccourci
+await page.keyboard.press('Control+Shift+A')
+await page.waitForTimeout(1200)
+await page.screenshot({ path: 'tests-qa/vision/12-robi-open.png' })
+// Envoie une question
+const input = page.locator('textarea, input[placeholder*="obi"], input[placeholder*="uestion"], input[type="text"]').last()
+await input.fill('Quel est le chiffre d\'affaires du jour ?').catch((e) => console.log('input introuvable:', e.message.slice(0, 60)))
+await page.keyboard.press('Enter')
+await page.waitForTimeout(6000)
+await page.screenshot({ path: 'tests-qa/vision/13-robi-reponse.png' })
+console.log('OK')
+await browser.close()

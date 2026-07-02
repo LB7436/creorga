@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import fs from 'fs'
 import path from 'path'
+import { internalHeaders } from '../lib/security'
 
 /**
  * Advanced assistant features (v3.11) :
@@ -267,7 +268,7 @@ router.get('/briefing/:userId', async (req, res) => {
   const callExec = async (commandId: string): Promise<any> => {
     try {
       const r = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/execute`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders() },
         body: JSON.stringify({ commandId }),
       })
       return await r.json()
@@ -438,7 +439,7 @@ router.post('/whatsapp/draft-reply', async (req, res) => {
   if (!message) return res.status(400).json({ error: 'message required' })
   // Compose a context-aware reply via Gemma smart-query
   const r = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/smart-query`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders() },
     body: JSON.stringify({
       question: `Un employé "${from || 'staff'}" m'a envoyé sur WhatsApp : "${message}". Rédige une réponse courte pour lui (2 phrases max).`,
       currentPath: '/m', userId: 'patron-vacation',

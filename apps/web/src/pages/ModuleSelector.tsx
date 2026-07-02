@@ -560,6 +560,43 @@ export default function ModuleSelector() {
             }}
           />
         </div>
+
+        {/* ── actions rapides : la caisse accessible en 1 clic depuis l'accueil ── */}
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 14, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => navigate('/pos/floor')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '12px 22px',
+              borderRadius: 14, border: 'none', cursor: 'pointer',
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff',
+              fontSize: 14, fontWeight: 700, boxShadow: '0 8px 24px rgba(99,102,241,0.35)',
+            }}
+          >
+            🧾 Prendre une commande
+          </button>
+          <button
+            onClick={() => navigate('/pos/kitchen')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '12px 18px',
+              borderRadius: 14, cursor: 'pointer',
+              border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)',
+              color: '#e2e8f0', fontSize: 14, fontWeight: 600,
+            }}
+          >
+            👨‍🍳 Écran cuisine
+          </button>
+          <button
+            onClick={() => navigate('/pos/dashboard')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '12px 18px',
+              borderRadius: 14, cursor: 'pointer',
+              border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)',
+              color: '#e2e8f0', fontSize: 14, fontWeight: 600,
+            }}
+          >
+            💶 Caisse du jour
+          </button>
+        </div>
       </motion.div>
 
       {/* ── category tabs ── */}

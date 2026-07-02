@@ -19,6 +19,17 @@ function getBackend(): string {
 }
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
+// Les routes /api/agent exigent un token — on l'ajoute à chaque appel Robi.
+function authHeaders(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem('creorga-auth')
+    const token = raw ? JSON.parse(raw)?.state?.accessToken : null
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  } catch {
+    return {}
+  }
+}
+
 async function fileToDataUrl(file: File): Promise<string> {
   return new Promise((res, rej) => {
     const r = new FileReader()
@@ -85,7 +96,7 @@ export default function AssistantPanel() {
     if (!pendingPreview) return
     try {
       const r = await fetch(`${BACKEND}${pendingPreview.confirmEndpoint}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(pendingPreview.confirmPayload),
       })
       const data = await r.json()
@@ -209,7 +220,7 @@ export default function AssistantPanel() {
       if (firstImage && firstImage.dataUrl) {
         const b64 = firstImage.dataUrl.replace(/^data:image\/\w+;base64,/, '')
         const r = await fetch(`${BE}/api/agent/photo-magic`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify({ imageBase64: b64, hint: text || '', currentPath: location.pathname }),
           signal: AbortSignal.timeout(180_000),
         })
@@ -242,7 +253,7 @@ export default function AssistantPanel() {
         }
         const b64 = firstPdf.dataUrl.replace(/^data:application\/pdf;base64,/, '')
         const r = await fetch(`${BE}/api/agent/process-pdf`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify({ pdfBase64: b64, hint: text || '', currentPath: location.pathname }),
           signal: AbortSignal.timeout(180_000),
         })
@@ -261,7 +272,7 @@ export default function AssistantPanel() {
       // v3.18.8 — DEFAULT : texte seul → super-ask (agent tool-loop avec Gemma)
       // Le super-agent essaie 3 niveaux : parseIntent → Gemma intent pick → smart-query
       const r = await fetch(`${BE}/api/agent/super-ask`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ text: hasText ? text : userText, currentPath: location.pathname, userId: 'default' }),
       })
       const data = await r.json()

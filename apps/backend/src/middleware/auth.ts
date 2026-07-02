@@ -1,6 +1,7 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import logger from '../lib/logger'
+import { INTERNAL_API_TOKEN } from '../lib/security'
 
 export interface AuthPayload {
   userId: string
@@ -12,6 +13,13 @@ export interface AuthRequest extends Request {
 }
 
 export function authenticate(req: AuthRequest, res: Response, next: NextFunction): void {
+  // Appels internes serveur→serveur (super-ask → intent, workers…)
+  if (req.headers['x-internal-token'] === INTERNAL_API_TOKEN) {
+    req.user = { userId: 'internal-service', email: 'internal@creorga.local' }
+    next()
+    return
+  }
+
   const authHeader = req.headers.authorization
   if (!authHeader?.startsWith('Bearer ')) {
     res.status(401).json({ message: 'Token manquant' })

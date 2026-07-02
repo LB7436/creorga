@@ -67,10 +67,15 @@ export default function OnboardingTour() {
     let done = false
     try { done = !!localStorage.getItem(STORAGE_KEY) } catch { /* */ }
 
+    // Jamais pendant le wizard de configuration initiale (/setup) ni tant
+    // qu'il n'est pas terminé — sinon les deux modales se superposent.
+    const setupDone = !!localStorage.getItem('creorga-onboarded')
+    const onSetup = location.pathname.startsWith('/setup')
+
     if (onTourRoute) {
       setOpen(true)
       setStepIdx(0)
-    } else if (!done) {
+    } else if (!done && setupDone && !onSetup) {
       // Délai pour ne pas spammer sur load initial
       const t = window.setTimeout(() => setOpen(true), 1200)
       return () => window.clearTimeout(t)

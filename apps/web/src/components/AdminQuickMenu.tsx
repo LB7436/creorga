@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { useEnvMode } from '@/stores/envModeStore'
 
@@ -45,7 +46,9 @@ export default function AdminQuickMenu() {
         }}
       >⚙</button>
 
-      {open && (
+      {/* Portal vers <body> : échappe aux stacking contexts des parents
+          (backdrop-filter/transform) qui piégeaient le panneau SOUS les cartes. */}
+      {open && createPortal(
         <div ref={popRef} style={popover}>
           <div style={popHeader}>⚡ Admin panel</div>
 
@@ -75,7 +78,8 @@ export default function AdminQuickMenu() {
           <div style={popFooter}>
             Creorga OS v2.0 · Café um Rond-Point
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )
@@ -115,11 +119,14 @@ function ToggleRow({ label, emoji, value, onChange, color }: { label: string; em
 }
 
 const popover: React.CSSProperties = {
-  position: 'absolute', right: 32, top: 72, width: 340, zIndex: 1000,
-  background: 'rgba(15,15,35,0.95)', backdropFilter: 'blur(16px)',
+  // fixed + zIndex très haut : le panneau doit passer AU-DESSUS des cartes
+  // modules et des boutons flottants (Robi, +, chat), sinon les clics sont
+  // interceptés par les éléments en dessous.
+  position: 'fixed', right: 24, top: 64, width: 340, zIndex: 5000,
+  maxHeight: 'calc(100vh - 88px)', overflowY: 'auto',
+  background: 'rgba(15,15,35,0.97)', backdropFilter: 'blur(16px)',
   border: '1px solid rgba(139,92,246,0.25)', borderRadius: 16,
   boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(139,92,246,0.1)',
-  overflow: 'hidden',
 }
 const popHeader: React.CSSProperties = {
   padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)',
