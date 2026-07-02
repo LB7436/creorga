@@ -64,7 +64,7 @@ interface InvoiceDesign {
 const mockFactures: Facture[] = [
   { id: 1, numero: 'F-2026-0089', client: 'Restaurant Le Pavillon', clientType: 'B2B', date: '2026-04-10', echeance: '2026-05-10', montant: 2450.00, montantPaye: 2450.00, statut: 'PAID', recurring: true, peppol: true, proofUploaded: true },
   { id: 2, numero: 'F-2026-0088', client: 'Brasserie Mansfeld', clientType: 'B2B', date: '2026-04-08', echeance: '2026-05-08', montant: 1280.00, montantPaye: 0, statut: 'SENT', recurring: false, peppol: true, proofUploaded: false },
-  { id: 3, numero: 'F-2026-0087', client: 'Caf\é des Artistes', clientType: 'B2C', date: '2026-04-05', echeance: '2026-05-05', montant: 890.00, montantPaye: 0, statut: 'DRAFT', recurring: false, peppol: false, proofUploaded: false },
+  { id: 3, numero: 'F-2026-0087', client: 'Café des Artistes', clientType: 'B2C', date: '2026-04-05', echeance: '2026-05-05', montant: 890.00, montantPaye: 0, statut: 'DRAFT', recurring: false, peppol: false, proofUploaded: false },
   { id: 4, numero: 'F-2026-0086', client: 'Hotel Parc Belair', clientType: 'B2B', date: '2026-03-28', echeance: '2026-04-28', montant: 3200.00, montantPaye: 1600.00, statut: 'PARTIAL', recurring: true, peppol: true, proofUploaded: true },
   { id: 5, numero: 'F-2026-0085', client: 'Trattoria Roma', clientType: 'B2B', date: '2026-03-15', echeance: '2026-04-15', montant: 630.00, montantPaye: 0, statut: 'OVERDUE', recurring: false, peppol: false, proofUploaded: false, lateFees: 12.60 },
   { id: 6, numero: 'F-2026-0084', client: 'Wine Bar Clausen', clientType: 'B2C', date: '2026-03-10', echeance: '2026-04-10', montant: 1750.00, montantPaye: 1750.00, statut: 'PAID', recurring: false, peppol: false, proofUploaded: true },
@@ -74,8 +74,8 @@ const mockFactures: Facture[] = [
 
 const statutConfig: Record<string, { label: string; color: string }> = {
   DRAFT:   { label: 'Brouillon', color: '#475569' },
-  SENT:    { label: 'Envoy\ée', color: '#3b82f6' },
-  PAID:    { label: 'Pay\ée', color: '#10b981' },
+  SENT:    { label: 'Envoyée', color: '#3b82f6' },
+  PAID:    { label: 'Payée', color: '#10b981' },
   PARTIAL: { label: 'Partiel', color: '#f59e0b' },
   OVERDUE: { label: 'En retard', color: '#ef4444' },
 }
@@ -85,13 +85,13 @@ const TAUX_TVA = [3, 8, 14, 17]
 const DESIGNS: InvoiceDesign[] = [
   { id: 'classique', nom: 'Classique', headerBg: '#ffffff', headerColor: '#1e293b', accentColor: '#1e293b', fontFamily: 'system-ui, sans-serif', borderStyle: '2px solid #1e293b', description: 'Noir et blanc, lignes nettes' },
   { id: 'moderne',   nom: 'Moderne',   headerBg: '#4338ca', headerColor: '#ffffff', accentColor: '#4338ca', fontFamily: 'system-ui, sans-serif', borderStyle: 'none', description: 'Accent indigo, contemporain' },
-  { id: 'elegant',   nom: '\Él\égant', headerBg: '#1a1a2e', headerColor: '#d4af37', accentColor: '#d4af37', fontFamily: 'Georgia, serif', borderStyle: '1px solid #d4af37', description: 'Serif, accents dor\és' },
+  { id: 'elegant',   nom: 'Élégant', headerBg: '#1a1a2e', headerColor: '#d4af37', accentColor: '#d4af37', fontFamily: 'Georgia, serif', borderStyle: '1px solid #d4af37', description: 'Serif, accents dorés' },
   { id: 'compact',   nom: 'Compact',   headerBg: '#f8fafc', headerColor: '#334155', accentColor: '#64748b', fontFamily: 'system-ui, sans-serif', borderStyle: '1px solid #e2e8f0', description: 'Minimal, dense, efficace' },
   { id: 'luxembourg', nom: 'Luxembourg', headerBg: '#00A1DE', headerColor: '#ffffff', accentColor: '#EF4135', fontFamily: 'system-ui, sans-serif', borderStyle: '3px solid #00A1DE', description: 'Couleurs du Luxembourg' },
 ]
 
 const ENTREPRISE = {
-  nom: 'Caf\é um Rond-Point',
+  nom: 'Café um Rond-Point',
   adresse: '12 Rue du Rond-Point, L-3750 Rumelange',
   tel: '+352 26 56 12 34',
   tva: 'LU12345678',
@@ -106,20 +106,20 @@ const NUMBERING_FORMATS = [
   { id: 'std',   label: 'F-YYYY-NNNN',   example: 'F-2026-0089' },
   { id: 'month', label: 'F-YYYYMM-NNN',  example: 'F-202604-089' },
   { id: 'short', label: 'FA-NNNN',       example: 'FA-0089' },
-  { id: 'custom', label: 'Personnalis\é', example: 'INV/2026/089' },
+  { id: 'custom', label: 'Personnalisé', example: 'INV/2026/089' },
 ]
 
 const chartRevenue = [
   { mois: 'Nov', ca: 12400 },
-  { mois: 'D\éc', ca: 15200 },
+  { mois: 'Déc', ca: 15200 },
   { mois: 'Jan', ca: 13800 },
-  { mois: 'F\év', ca: 14500 },
+  { mois: 'Fév', ca: 14500 },
   { mois: 'Mar', ca: 16300 },
   { mois: 'Avr', ca: 18120 },
 ]
 
 const chartPie = [
-  { name: 'Pay\ées', value: 12720, color: '#10b981' },
+  { name: 'Payées', value: 12720, color: '#10b981' },
   { name: 'En attente', value: 4480,  color: '#3b82f6' },
   { name: 'En retard',  value: 1610,  color: '#ef4444' },
   { name: 'Partiel',    value: 1600,  color: '#f59e0b' },
@@ -322,21 +322,21 @@ function InvoicePreview({
       <div style={{ padding: '20px 28px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: '#94a3b8', marginBottom: 4, fontWeight: 600 }}>Facturer \à</div>
+            <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: '#94a3b8', marginBottom: 4, fontWeight: 600 }}>Facturer à</div>
             <div style={{ fontWeight: 700, fontSize: 13 }}>{client.nom || 'Client'}</div>
             {client.adresse && <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{client.adresse}</div>}
             {client.email && <div style={{ fontSize: 10, color: '#64748b' }}>{client.email}</div>}
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 10, color: '#64748b' }}>Date: <strong>{date || '\—'}</strong></div>
-            <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>\Éch\éance: <strong>{echeance || '\—'}</strong></div>
+            <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>Échéance: <strong>{echeance || '\—'}</strong></div>
           </div>
         </div>
 
         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
           <thead>
             <tr style={{ borderBottom: `2px solid ${design.accentColor}` }}>
-              {['Description', 'Qt\é', 'Prix HT', 'TVA', 'Total HT'].map(h => (
+              {['Description', 'Qté', 'Prix HT', 'TVA', 'Total HT'].map(h => (
                 <th key={h} style={{ textAlign: h === 'Description' ? 'left' : 'right', padding: '8px 6px', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, color: design.accentColor, fontWeight: 700 }}>
                   {h}
                 </th>
@@ -347,7 +347,7 @@ function InvoicePreview({
             {articles.length === 0 && (
               <tr>
                 <td colSpan={5} style={{ padding: '20px 6px', textAlign: 'center', color: '#94a3b8', fontSize: 10 }}>
-                  Aucun article ajout\é
+                  Aucun article ajouté
                 </td>
               </tr>
             )}
@@ -485,17 +485,17 @@ function InvoiceModal({ onClose }: { onClose: () => void }) {
             <h2 style={{ fontSize: 20, fontWeight: 800, color: '#1e293b', margin: 0 }}>Nouvelle facture</h2>
             <p style={{ fontSize: 13, color: '#64748b', margin: '2px 0 0' }}>
               {numero} {peppolEnabled && <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 8, background: '#e0f2fe', color: '#0369a1', fontSize: 11, fontWeight: 700 }}>PEPPOL</span>}
-              {recurring && <span style={{ marginLeft: 6, padding: '2px 8px', borderRadius: 8, background: '#f0fdf4', color: '#15803d', fontSize: 11, fontWeight: 700 }}>R\écurrente</span>}
+              {recurring && <span style={{ marginLeft: 6, padding: '2px 8px', borderRadius: 8, background: '#f0fdf4', color: '#15803d', fontSize: 11, fontWeight: 700 }}>Récurrente</span>}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={() => showToast('Brouillon enregistr\é')} style={{ ...smallBtnStyle, background: '#f1f5f9' }}>
+            <button onClick={() => showToast('Brouillon enregistré')} style={{ ...smallBtnStyle, background: '#f1f5f9' }}>
               <Save size={14} /> Enregistrer
             </button>
-            <button onClick={() => showToast('Email envoy\é au client')} style={{ ...smallBtnStyle, background: '#065F46', color: '#fff', border: 'none' }}>
+            <button onClick={() => showToast('Email envoyé au client')} style={{ ...smallBtnStyle, background: '#065F46', color: '#fff', border: 'none' }}>
               <Mail size={14} /> Envoyer
             </button>
-            <button onClick={() => showToast('T\él\échargement du PDF...')} style={{ ...smallBtnStyle, background: '#4338ca', color: '#fff', border: 'none' }}>
+            <button onClick={() => showToast('Téléchargement du PDF...')} style={{ ...smallBtnStyle, background: '#4338ca', color: '#fff', border: 'none' }}>
               <Download size={14} /> PDF
             </button>
             <button onClick={onClose}
@@ -512,7 +512,7 @@ function InvoiceModal({ onClose }: { onClose: () => void }) {
             {/* E-invoicing & numbering */}
             <div style={{ ...cardStyle, padding: 20 }}>
               <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <ShieldCheck size={14} style={{ color: '#0369a1' }} /> Facturation \électronique & num\érotation
+                <ShieldCheck size={14} style={{ color: '#0369a1' }} /> Facturation électronique & numérotation
               </h3>
 
               <label style={{
@@ -521,14 +521,14 @@ function InvoiceModal({ onClose }: { onClose: () => void }) {
                 border: `1px solid ${peppolEnabled ? '#7dd3fc' : '#e2e8f0'}`, borderRadius: 10, cursor: 'pointer',
               }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Activer facturation \électronique (Peppol)</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Activer facturation électronique (Peppol)</div>
                   <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Conforme Luxembourg - obligatoire B2G</div>
                 </div>
                 <input type="checkbox" checked={peppolEnabled} onChange={e => setPeppolEnabled(e.target.checked)} style={{ width: 18, height: 18 }} />
               </label>
 
               <div style={{ marginTop: 14 }}>
-                <label style={labelStyle}>Format de num\érotation</label>
+                <label style={labelStyle}>Format de numérotation</label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                   {NUMBERING_FORMATS.map(f => (
                     <button key={f.id}
@@ -553,7 +553,7 @@ function InvoiceModal({ onClose }: { onClose: () => void }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <Repeat size={16} style={{ color: recurring ? '#15803d' : '#94a3b8' }} />
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Facturation r\écurrente</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Facturation récurrente</div>
                     <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Pour contrats B2B mensuels</div>
                   </div>
                 </div>
@@ -577,7 +577,7 @@ function InvoiceModal({ onClose }: { onClose: () => void }) {
                   <QrCode size={16} style={{ color: showQR ? '#b45309' : '#94a3b8' }} />
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>QR code SEPA Instant</div>
-                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Affich\é sur la facture PDF</div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Affiché sur la facture PDF</div>
                   </div>
                 </div>
                 <input type="checkbox" checked={showQR} onChange={e => setShowQR(e.target.checked)} style={{ width: 18, height: 18 }} />
@@ -586,10 +586,10 @@ function InvoiceModal({ onClose }: { onClose: () => void }) {
 
             {/* Entreprise */}
             <div style={{ ...cardStyle, padding: 20 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: '0 0 16px' }}>En-t\ête entreprise</h3>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: '0 0 16px' }}>En-tête entreprise</h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div><label style={labelStyle}>Nom</label><input style={inputStyle} value={entreprise.nom} onChange={e => setEntreprise({ ...entreprise, nom: e.target.value })} /></div>
-                <div><label style={labelStyle}>T\él\éphone</label><input style={inputStyle} value={entreprise.tel} onChange={e => setEntreprise({ ...entreprise, tel: e.target.value })} /></div>
+                <div><label style={labelStyle}>Téléphone</label><input style={inputStyle} value={entreprise.tel} onChange={e => setEntreprise({ ...entreprise, tel: e.target.value })} /></div>
                 <div><label style={labelStyle}>Adresse</label><input style={inputStyle} value={entreprise.adresse} onChange={e => setEntreprise({ ...entreprise, adresse: e.target.value })} /></div>
                 <div><label style={labelStyle}>N\° TVA</label><input style={inputStyle} value={entreprise.tva} onChange={e => setEntreprise({ ...entreprise, tva: e.target.value })} /></div>
                 <div><label style={labelStyle}>IBAN</label><input style={inputStyle} value={entreprise.iban} onChange={e => setEntreprise({ ...entreprise, iban: e.target.value })} /></div>
@@ -602,7 +602,7 @@ function InvoiceModal({ onClose }: { onClose: () => void }) {
               <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: '0 0 16px' }}>Client</h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={labelStyle}>Nom / Soci\ét\é</label>
+                  <label style={labelStyle}>Nom / Société</label>
                   <input style={inputStyle} placeholder="Rechercher ou saisir..." value={client.nom} onChange={e => setClient({ ...client, nom: e.target.value })} />
                 </div>
                 <div><label style={labelStyle}>Adresse</label><input style={inputStyle} value={client.adresse} onChange={e => setClient({ ...client, adresse: e.target.value })} /></div>
@@ -615,7 +615,7 @@ function InvoiceModal({ onClose }: { onClose: () => void }) {
               <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: '0 0 16px' }}>Dates</h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div><label style={labelStyle}>Date de facture</label><input style={inputStyle} type="date" value={date} readOnly /></div>
-                <div><label style={labelStyle}>\Éch\éance</label><input style={inputStyle} type="date" value={echeance} onChange={e => setEcheance(e.target.value)} /></div>
+                <div><label style={labelStyle}>Échéance</label><input style={inputStyle} type="date" value={echeance} onChange={e => setEcheance(e.target.value)} /></div>
               </div>
             </div>
 
@@ -636,7 +636,7 @@ function InvoiceModal({ onClose }: { onClose: () => void }) {
                       <input style={inputStyle} placeholder="Article" value={art.description} onChange={e => updateArticle(art.id, 'description', e.target.value)} />
                     </div>
                     <div>
-                      {art.id === articles[0]?.id && <label style={labelStyle}>Qt\é</label>}
+                      {art.id === articles[0]?.id && <label style={labelStyle}>Qté</label>}
                       <input style={{ ...inputStyle, textAlign: 'center' }} type="number" min={1} value={art.quantite} onChange={e => updateArticle(art.id, 'quantite', Math.max(1, parseInt(e.target.value) || 1))} />
                     </div>
                     <div>
@@ -682,7 +682,7 @@ function InvoiceModal({ onClose }: { onClose: () => void }) {
             <div style={{ ...cardStyle, padding: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>Design</h3>
-                <button onClick={() => showToast('Import de design bient\ôt disponible')} style={{ ...smallBtnStyle, fontSize: 12, padding: '6px 12px' }}>
+                <button onClick={() => showToast('Import de design bientôt disponible')} style={{ ...smallBtnStyle, fontSize: 12, padding: '6px 12px' }}>
                   <Upload size={13} /> Importer
                 </button>
               </div>
@@ -716,7 +716,7 @@ function InvoiceModal({ onClose }: { onClose: () => void }) {
             display: 'flex', flexDirection: 'column', alignItems: 'center',
             padding: '28px 20px',
           }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 1 }}>Aper\çu en direct</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 1 }}>Aperçu en direct</div>
             <InvoicePreview
               design={design} entreprise={entreprise} client={client}
               articles={articles} date={date} echeance={echeance}
@@ -795,8 +795,8 @@ export default function FacturesPage() {
   const stats = [
     { label: 'Brouillons', value: String(aEnvoyer), icon: Send, color: '#475569' },
     { label: 'En attente', value: String(enAttente), icon: Clock, color: '#3b82f6' },
-    { label: 'Pay\ées', value: String(payees), icon: CheckCircle2, color: '#10b981' },
-    { label: 'CA encaiss\é', value: `${fmt(totalCA)} \€`, icon: CreditCard, color: '#4338ca' },
+    { label: 'Payées', value: String(payees), icon: CheckCircle2, color: '#10b981' },
+    { label: 'CA encaissé', value: `${fmt(totalCA)} \€`, icon: CreditCard, color: '#4338ca' },
   ]
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -810,17 +810,17 @@ export default function FacturesPage() {
   }
 
   const handleBatchEmail = () => {
-    if (selected.length === 0) { showToast('Aucune facture s\électionn\ée'); return }
-    showToast(`${selected.length} facture(s) envoy\ée(s) par email`)
+    if (selected.length === 0) { showToast('Aucune facture sélectionnée'); return }
+    showToast(`${selected.length} facture(s) envoyée(s) par email`)
     setSelected([])
   }
   const handleBatchPDF = () => {
-    if (selected.length === 0) { showToast('Aucune facture s\électionn\ée'); return }
-    showToast(`Export PDF de ${selected.length} facture(s) lanc\é`)
+    if (selected.length === 0) { showToast('Aucune facture sélectionnée'); return }
+    showToast(`Export PDF de ${selected.length} facture(s) lancé`)
     setSelected([])
   }
   const handleBankWebhook = () => {
-    showToast('Webhook bancaire simul\é : 2 factures marqu\ées pay\ées')
+    showToast('Webhook bancaire simulé : 2 factures marquées payées')
   }
 
   const openAction = (kind: 'split' | 'credit' | 'proof' | 'portal' | 'reminder', inv: Facture) => {
@@ -836,7 +836,7 @@ export default function FacturesPage() {
         <motion.div variants={itemVariants} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
           <div>
             <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1e293b', marginBottom: 4 }}>Factures</h1>
-            <p style={{ fontSize: 14, color: '#475569' }}>Gestion, suivi & facturation \électronique Luxembourg</p>
+            <p style={{ fontSize: 14, color: '#475569' }}>Gestion, suivi & facturation électronique Luxembourg</p>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={handleBankWebhook}
@@ -873,7 +873,7 @@ export default function FacturesPage() {
         <motion.div variants={itemVariants} style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16, marginBottom: 20 }}>
           <div style={{ ...cardStyle }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>\Évolution du CA (6 mois)</h3>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>Évolution du CA (6 mois)</h3>
               <span style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>+11,2%</span>
             </div>
             <ResponsiveContainer width="100%" height={200}>
@@ -887,7 +887,7 @@ export default function FacturesPage() {
             </ResponsiveContainer>
           </div>
           <div style={{ ...cardStyle }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: '0 0 14px' }}>R\épartition par statut</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: '0 0 14px' }}>Répartition par statut</h3>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie data={chartPie} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={75} paddingAngle={3}>
@@ -923,11 +923,11 @@ export default function FacturesPage() {
                   {overdues.length} facture(s) en retard \— {fmt(overdues.reduce((s, f) => s + f.montant, 0))} \€
                 </div>
                 <div style={{ fontSize: 12, color: '#991b1b', marginTop: 2 }}>
-                  Int\ér\êts l\égaux cumul\és (taux LU {(LUX_LATE_RATE * 100).toFixed(1)}%) : {fmt(totalLateFees)} \€
+                  Intérêts légaux cumulés (taux LU {(LUX_LATE_RATE * 100).toFixed(1)}%) : {fmt(totalLateFees)} \€
                 </div>
               </div>
             </div>
-            <button onClick={() => showToast('Relances automatiques envoy\ées')} style={{ ...smallBtnStyle, background: '#dc2626', color: '#fff', border: 'none', padding: '10px 18px' }}>
+            <button onClick={() => showToast('Relances automatiques envoyées')} style={{ ...smallBtnStyle, background: '#dc2626', color: '#fff', border: 'none', padding: '10px 18px' }}>
               <Bell size={14} /> Envoyer relances
             </button>
           </motion.div>
@@ -939,7 +939,7 @@ export default function FacturesPage() {
             <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
             <input
               value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Rechercher num\éro ou client..."
+              placeholder="Rechercher numéro ou client..."
               style={{ ...inputStyle, padding: '10px 14px 10px 36px' }}
             />
           </div>
@@ -976,7 +976,7 @@ export default function FacturesPage() {
               alignItems: 'center', justifyContent: 'space-between',
             }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#4338ca' }}>
-              {selected.length} facture(s) s\électionn\ée(s)
+              {selected.length} facture(s) sélectionnée(s)
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={handleBatchEmail} style={{ ...smallBtnStyle, background: '#4338ca', color: '#fff', border: 'none' }}>
@@ -1004,7 +1004,7 @@ export default function FacturesPage() {
                       : <Square size={16} style={{ color: '#cbd5e1' }} />}
                   </button>
                 </th>
-                {['Num\éro', 'Client', 'Date', '\Éch\éance', 'Montant', 'Statut', 'Actions'].map(h => (
+                {['Numéro', 'Client', 'Date', 'Échéance', 'Montant', 'Statut', 'Actions'].map(h => (
                   <th key={h} style={{
                     textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600,
                     color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5,
@@ -1040,7 +1040,7 @@ export default function FacturesPage() {
                           <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{facture.numero}</div>
                           <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
                             {facture.peppol && <span style={{ padding: '1px 6px', borderRadius: 6, background: '#e0f2fe', color: '#0369a1', fontSize: 9, fontWeight: 700 }}>PEPPOL</span>}
-                            {facture.recurring && <span style={{ padding: '1px 6px', borderRadius: 6, background: '#f0fdf4', color: '#15803d', fontSize: 9, fontWeight: 700 }}>R\ÉCURRENT</span>}
+                            {facture.recurring && <span style={{ padding: '1px 6px', borderRadius: 6, background: '#f0fdf4', color: '#15803d', fontSize: 9, fontWeight: 700 }}>RÉCURRENT</span>}
                           </div>
                         </div>
                       </div>
@@ -1057,7 +1057,7 @@ export default function FacturesPage() {
                       </div>
                       {facture.lateFees && (
                         <div style={{ fontSize: 10, color: '#dc2626', marginTop: 2, fontWeight: 600 }}>
-                          + {fmt(facture.lateFees)} \€ int\ér\êts
+                          + {fmt(facture.lateFees)} \€ intérêts
                         </div>
                       )}
                     </td>
@@ -1065,7 +1065,7 @@ export default function FacturesPage() {
                       {fmt(facture.montant)} \€
                       {facture.statut === 'PARTIAL' && (
                         <div style={{ fontSize: 10, color: '#f59e0b', marginTop: 2, fontWeight: 600 }}>
-                          Pay\é : {fmt(facture.montantPaye)} \€
+                          Payé : {fmt(facture.montantPaye)} \€
                         </div>
                       )}
                     </td>
@@ -1079,7 +1079,7 @@ export default function FacturesPage() {
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        <button onClick={() => openAction('reminder', facture)} title="Cr\éer relance"
+                        <button onClick={() => openAction('reminder', facture)} title="Créer relance"
                           style={{ width: 28, height: 28, borderRadius: 6, background: '#fef3c7', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <Bell size={12} style={{ color: '#b45309' }} />
                         </button>
@@ -1091,7 +1091,7 @@ export default function FacturesPage() {
                           style={{ width: 28, height: 28, borderRadius: 6, background: '#fef2f2', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <Scissors size={12} style={{ color: '#dc2626' }} />
                         </button>
-                        <button onClick={() => openAction('credit', facture)} title="Cr\éer avoir"
+                        <button onClick={() => openAction('credit', facture)} title="Créer avoir"
                           style={{ width: 28, height: 28, borderRadius: 6, background: '#f3e8ff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <FileMinus size={12} style={{ color: '#7c3aed' }} />
                         </button>
@@ -1114,7 +1114,7 @@ export default function FacturesPage() {
         {actionModal === 'split' && actionInvoice && (
           <ActionModal title={`Scinder ${actionInvoice.numero}`} onClose={() => setActionModal(null)}>
             <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 16px' }}>
-              Le client a pay\é partiellement. Cr\éer une seconde facture pour le solde restant.
+              Le client a payé partiellement. Créer une seconde facture pour le solde restant.
             </p>
             <div style={{ background: '#f8fafc', borderRadius: 12, padding: 16, marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
@@ -1122,7 +1122,7 @@ export default function FacturesPage() {
                 <strong>{fmt(actionInvoice.montant)} \€</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
-                <span style={{ color: '#64748b' }}>D\éj\à pay\é</span>
+                <span style={{ color: '#64748b' }}>Déjà payé</span>
                 <strong style={{ color: '#10b981' }}>{fmt(actionInvoice.montantPaye)} \€</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, paddingTop: 8, borderTop: '1px solid #e2e8f0' }}>
@@ -1130,16 +1130,16 @@ export default function FacturesPage() {
                 <strong style={{ color: '#dc2626' }}>{fmt(actionInvoice.montant - actionInvoice.montantPaye)} \€</strong>
               </div>
             </div>
-            <button onClick={() => { showToast('Facture compl\émentaire cr\é\ée'); setActionModal(null) }}
+            <button onClick={() => { showToast('Facture complémentaire créée'); setActionModal(null) }}
               style={{ ...smallBtnStyle, width: '100%', padding: '12px 16px', background: '#dc2626', color: '#fff', border: 'none', justifyContent: 'center' }}>
-              <Scissors size={14} /> Cr\éer facture de solde
+              <Scissors size={14} /> Créer facture de solde
             </button>
           </ActionModal>
         )}
         {actionModal === 'credit' && actionInvoice && (
           <ActionModal title={`Avoir pour ${actionInvoice.numero}`} onClose={() => setActionModal(null)}>
             <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 16px' }}>
-              Cr\éer une note de cr\édit li\ée \à cette facture.
+              Créer une note de crédit liée à cette facture.
             </p>
             <label style={labelStyle}>Motif</label>
             <select style={{ ...inputStyle, marginBottom: 12 }}>
@@ -1150,9 +1150,9 @@ export default function FacturesPage() {
             </select>
             <label style={labelStyle}>Montant de l'avoir</label>
             <input type="number" style={{ ...inputStyle, marginBottom: 16 }} defaultValue={actionInvoice.montant} />
-            <button onClick={() => { showToast('Avoir cr\é\é et li\é \à la facture'); setActionModal(null) }}
+            <button onClick={() => { showToast('Avoir créé et lié à la facture'); setActionModal(null) }}
               style={{ ...smallBtnStyle, width: '100%', padding: '12px 16px', background: '#7c3aed', color: '#fff', border: 'none', justifyContent: 'center' }}>
-              <FileMinus size={14} /> Cr\éer l'avoir
+              <FileMinus size={14} /> Créer l'avoir
             </button>
           </ActionModal>
         )}
@@ -1164,7 +1164,7 @@ export default function FacturesPage() {
             }}>
               <Upload size={32} style={{ color: '#94a3b8', margin: '0 auto 8px' }} />
               <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginBottom: 4 }}>
-                D\époser un fichier
+                Déposer un fichier
               </div>
               <div style={{ fontSize: 12, color: '#64748b' }}>
                 PDF, PNG, JPG - max 10 Mo
@@ -1176,19 +1176,19 @@ export default function FacturesPage() {
                 borderRadius: 10, fontSize: 13, color: '#15803d', marginBottom: 16,
                 display: 'flex', alignItems: 'center', gap: 8,
               }}>
-                <CheckCircle2 size={14} /> Preuve d\éj\à t\él\évers\ée : recu_virement.pdf
+                <CheckCircle2 size={14} /> Preuve déjà téléversée : recu_virement.pdf
               </div>
             )}
-            <button onClick={() => { showToast('Preuve enregistr\ée'); setActionModal(null) }}
+            <button onClick={() => { showToast('Preuve enregistrée'); setActionModal(null) }}
               style={{ ...smallBtnStyle, width: '100%', padding: '12px 16px', background: '#0369a1', color: '#fff', border: 'none', justifyContent: 'center' }}>
-              <Upload size={14} /> T\él\éverser
+              <Upload size={14} /> Téléverser
             </button>
           </ActionModal>
         )}
         {actionModal === 'portal' && actionInvoice && (
-          <ActionModal title="Acc\ès portail client" onClose={() => setActionModal(null)}>
+          <ActionModal title="Accès portail client" onClose={() => setActionModal(null)}>
             <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 16px' }}>
-              Envoyer un lien s\écuris\é au client pour consulter ses factures, t\él\écharger les PDF et payer en ligne.
+              Envoyer un lien sécurisé au client pour consulter ses factures, télécharger les PDF et payer en ligne.
             </p>
             <div style={{ background: '#f8fafc', borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 12, color: '#475569', fontFamily: 'monospace', wordBreak: 'break-all' }}>
               https://portal.creorga.lu/c/{actionInvoice.id}/k/9f2a8b1c...
@@ -1202,31 +1202,31 @@ export default function FacturesPage() {
                 <Send size={13} /> SMS
               </button>
             </div>
-            <button onClick={() => { showToast('Lien envoy\é au client'); setActionModal(null) }}
+            <button onClick={() => { showToast('Lien envoyé au client'); setActionModal(null) }}
               style={{ ...smallBtnStyle, width: '100%', padding: '12px 16px', background: '#15803d', color: '#fff', border: 'none', justifyContent: 'center' }}>
-              <Link2 size={14} /> Envoyer l'acc\ès
+              <Link2 size={14} /> Envoyer l'accès
             </button>
           </ActionModal>
         )}
         {actionModal === 'reminder' && actionInvoice && (
           <ActionModal title={`Relance - ${actionInvoice.numero}`} onClose={() => setActionModal(null)}>
             <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 16px' }}>
-              Cr\éer une relance li\ée \à cette facture.
+              Créer une relance liée à cette facture.
             </p>
             <label style={labelStyle}>Niveau de relance</label>
             <select style={{ ...inputStyle, marginBottom: 12 }}>
-              <option>1\ère relance - amicale</option>
-              <option>2\ème relance - ferme</option>
+              <option>1ère relance - amicale</option>
+              <option>2ème relance - ferme</option>
               <option>Mise en demeure</option>
             </select>
-            <label style={labelStyle}>Int\ér\êts l\égaux \à appliquer</label>
+            <label style={labelStyle}>Intérêts légaux à appliquer</label>
             <div style={{ background: '#fef3c7', borderRadius: 10, padding: 12, fontSize: 13, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
               <Percent size={14} style={{ color: '#b45309' }} />
-              <span>Taux l\égal Luxembourg {(LUX_LATE_RATE * 100).toFixed(1)}% : <strong>{fmt(actionInvoice.montant * LUX_LATE_RATE / 12)} \€ / mois</strong></span>
+              <span>Taux légal Luxembourg {(LUX_LATE_RATE * 100).toFixed(1)}% : <strong>{fmt(actionInvoice.montant * LUX_LATE_RATE / 12)} \€ / mois</strong></span>
             </div>
-            <button onClick={() => { showToast('Relance cr\é\ée et li\ée'); setActionModal(null) }}
+            <button onClick={() => { showToast('Relance créée et liée'); setActionModal(null) }}
               style={{ ...smallBtnStyle, width: '100%', padding: '12px 16px', background: '#b45309', color: '#fff', border: 'none', justifyContent: 'center' }}>
-              <Bell size={14} /> Cr\éer la relance
+              <Bell size={14} /> Créer la relance
             </button>
           </ActionModal>
         )}

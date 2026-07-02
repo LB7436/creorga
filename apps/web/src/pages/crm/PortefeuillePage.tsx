@@ -46,7 +46,7 @@ const palette = { indigo: '#6366f1', emerald: '#10b981', amber: '#f59e0b', rose:
 
 const makeTx = (seed: number, startBalance: number): Transaction[] => {
   const descTop = ['Rechargement en caisse', 'Recharge SMS', 'Rechargement bar', 'Recharge carte'];
-  const descSpend = ['Boisson au bar', 'Menu du jour', 'Caf\é & croissant', 'Plateau ap\éro', 'Addition table'];
+  const descSpend = ['Boisson au bar', 'Menu du jour', 'Café & croissant', 'Plateau apéro', 'Addition table'];
   const out: Transaction[] = [];
   let bal = startBalance;
   for (let i = 0; i < 20; i++) {
@@ -69,10 +69,10 @@ const makeTx = (seed: number, startBalance: number): Transaction[] => {
 
 const customers: Customer[] = [
   { id: 1, name: 'Marie Schmit', phone: '+352 621 123 456', initials: 'MS', color: palette.indigo, balance: 85.50, totalTopUp: 300, lastActivity: '12 avr. 2026', transactions: makeTx(1, 85.50), autoTopup: { enabled: true, threshold: 20, amount: 50 }, isVIP: true, expiresAt: '2026-10-15' },
-  { id: 2, name: 'Luc M\üller', phone: '+352 621 234 567', initials: 'LM', color: palette.emerald, balance: 120.00, totalTopUp: 500, lastActivity: '11 avr. 2026', transactions: makeTx(2, 120), group: 'Famille M\üller', isVIP: true },
+  { id: 2, name: 'Luc Müller', phone: '+352 621 234 567', initials: 'LM', color: palette.emerald, balance: 120.00, totalTopUp: 500, lastActivity: '11 avr. 2026', transactions: makeTx(2, 120), group: 'Famille Müller', isVIP: true },
   { id: 3, name: 'Sophie Weber', phone: '+352 621 345 678', initials: 'SW', color: palette.amber, balance: 45.20, totalTopUp: 200, lastActivity: '10 avr. 2026', transactions: makeTx(3, 45.2), giftCard: 25 },
   { id: 4, name: 'Pierre Hoffmann', phone: '+352 621 456 789', initials: 'PH', color: '#ef4444', balance: 200.00, totalTopUp: 800, lastActivity: '9 avr. 2026', transactions: makeTx(4, 200), autoTopup: { enabled: true, threshold: 30, amount: 100 }, isVIP: true },
-  { id: 5, name: 'Claire Reuter', phone: '+352 621 567 890', initials: 'CR', color: palette.violet, balance: 30.00, totalTopUp: 150, lastActivity: '8 avr. 2026', transactions: makeTx(5, 30), group: 'Famille M\üller' },
+  { id: 5, name: 'Claire Reuter', phone: '+352 621 567 890', initials: 'CR', color: palette.violet, balance: 30.00, totalTopUp: 150, lastActivity: '8 avr. 2026', transactions: makeTx(5, 30), group: 'Famille Müller' },
   { id: 6, name: 'Jean-Marc Biver', phone: '+352 621 678 901', initials: 'JB', color: '#ec4899', balance: 67.80, totalTopUp: 250, lastActivity: '7 avr. 2026', transactions: makeTx(6, 67.8) },
   { id: 7, name: 'Anne Faber', phone: '+352 621 789 012', initials: 'AF', color: palette.sky, balance: 5.20, totalTopUp: 180, lastActivity: '6 avr. 2026', transactions: makeTx(7, 5.2), expiresAt: '2026-05-20' },
   { id: 8, name: 'Thomas Kremer', phone: '+352 621 890 123', initials: 'TK', color: '#14b8a6', balance: 0, totalTopUp: 100, lastActivity: '3 avr. 2026', transactions: makeTx(8, 0) },
@@ -183,7 +183,7 @@ export default function PortefeuillePage() {
       {/* Header */}
       <motion.div variants={item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1e293b', margin: 0 }}>Portefeuille num\érique</h1>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1e293b', margin: 0 }}>Portefeuille numérique</h1>
           <p style={{ color: '#475569', marginTop: 6, fontSize: 14 }}>Soldes, recharges, promos et P2P pour vos clients</p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -197,7 +197,7 @@ export default function PortefeuillePage() {
           </button>
           <button onClick={() => setBulkOpen(true)}
             style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 14px rgba(99,102,241,0.35)' }}>
-            + Recharge group\ée
+            + Recharge groupée
           </button>
         </div>
       </motion.div>
@@ -223,10 +223,10 @@ export default function PortefeuillePage() {
         <div style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
             <div>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>V\élocit\é de circulation</h3>
-              <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>Recharges vs d\épenses (7 derniers jours)</p>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>Vélocité de circulation</h3>
+              <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>Recharges vs dépenses (7 derniers jours)</p>
             </div>
-            <div style={{ fontSize: 13, color: '#6366f1', fontWeight: 700 }}>{totalVelocity.toFixed(0)} \€ cumul\é</div>
+            <div style={{ fontSize: 13, color: '#6366f1', fontWeight: 700 }}>{totalVelocity.toFixed(0)} \€ cumulé</div>
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={velocityData}>
@@ -235,13 +235,13 @@ export default function PortefeuillePage() {
               <YAxis stroke="#94a3b8" style={{ fontSize: 11 }} />
               <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} />
               <Bar dataKey="topup" fill="#10b981" radius={[6, 6, 0, 0]} name="Rechargements" />
-              <Bar dataKey="spend" fill="#6366f1" radius={[6, 6, 0, 0]} name="D\épenses" />
+              <Bar dataKey="spend" fill="#6366f1" radius={[6, 6, 0, 0]} name="Dépenses" />
             </BarChart>
           </ResponsiveContainer>
         </div>
         <div style={cardStyle}>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>Top 5 utilisateurs</h3>
-          <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 14px' }}>Total d\épens\é cumul\é</p>
+          <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 14px' }}>Total dépensé cumulé</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {topSpenders.map((s, i) => {
               const max = Math.max(...topSpenders.map(x => x.depense));
@@ -273,13 +273,13 @@ export default function PortefeuillePage() {
           <div>
             <div style={{ fontSize: 14, fontWeight: 800, color: '#7c2d12' }}>Promos top-up actives</div>
             <div style={{ fontSize: 12, color: '#92400e', marginTop: 2 }}>
-              {TOPUP_PROMOS.slice(1).map(p => `+${p.bonus}% d\ès ${p.min} \€`).join(' \· ')}
+              {TOPUP_PROMOS.slice(1).map(p => `+${p.bonus}% dès ${p.min} \€`).join(' \· ')}
             </div>
           </div>
         </div>
-        <button onClick={() => showToast('R\ègles de promo mises \à jour')}
+        <button onClick={() => showToast('Règles de promo mises à jour')}
           style={{ background: '#fff', color: '#7c2d12', border: 'none', borderRadius: 10, padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-          G\érer les promos
+          Gérer les promos
         </button>
       </motion.div>
 
@@ -288,14 +288,14 @@ export default function PortefeuillePage() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Rechercher par nom ou t\él\éphone..."
+          placeholder="Rechercher par nom ou téléphone..."
           style={{ flex: '1 1 260px', padding: '10px 14px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 14, color: '#1e293b', outline: 'none' }}
         />
         <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}
           style={{ padding: '10px 14px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 14, color: '#1e293b', cursor: 'pointer' }}>
           <option value="balance">Trier par solde</option>
           <option value="name">Trier par nom</option>
-          <option value="activity">Trier par activit\é</option>
+          <option value="activity">Trier par activité</option>
         </select>
         <div style={{ display: 'flex', gap: 4, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 4, flexWrap: 'wrap' }}>
           {([
@@ -304,7 +304,7 @@ export default function PortefeuillePage() {
             ['low', 'Solde bas'],
             ['none', 'Sans solde'],
             ['vip', 'VIP'],
-            ['expiring', 'Expire bient\ôt'],
+            ['expiring', 'Expire bientôt'],
           ] as [FilterKey, string][]).map(([k, l]) => (
             <button key={k} onClick={() => setFilter(k)}
               style={{ padding: '6px 12px', fontSize: 12, fontWeight: 600,
@@ -323,11 +323,11 @@ export default function PortefeuillePage() {
           padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <div style={{ fontSize: 13, color: '#7f1d1d' }}>
-            <strong>{disputes} transaction(s) contest\ée(s)</strong> en attente de r\évision
+            <strong>{disputes} transaction(s) contestée(s)</strong> en attente de révision
           </div>
-          <button onClick={() => showToast('Voir les litiges \— bient\ôt disponible')}
+          <button onClick={() => showToast('Voir les litiges \— bientôt disponible')}
             style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-            R\éviser
+            Réviser
           </button>
         </motion.div>
       )}
@@ -335,7 +335,7 @@ export default function PortefeuillePage() {
       {/* Table */}
       <motion.div variants={item} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 1fr 1fr 1.2fr 1fr', padding: '14px 22px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
-          {['Client', 'T\él\éphone', 'Solde', 'Total rechargé', 'Derni\ère utilisation', 'Statut'].map((h) => (
+          {['Client', 'Téléphone', 'Solde', 'Total rechargé', 'Dernière utilisation', 'Statut'].map((h) => (
             <span key={h} style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.6 }}>{h}</span>
           ))}
         </div>
@@ -367,7 +367,7 @@ export default function PortefeuillePage() {
           </div>
         ))}
         {filtered.length === 0 && (
-          <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Aucun client trouv\é</div>
+          <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Aucun client trouvé</div>
         )}
       </motion.div>
 
@@ -402,7 +402,7 @@ export default function PortefeuillePage() {
                       border: 'none', borderBottom: panelTab === t ? '2px solid #6366f1' : '2px solid transparent',
                       cursor: 'pointer',
                     }}>
-                    {t === 'overview' ? 'Vue d\'ensemble' : t === 'history' ? 'Historique' : 'R\ègles & auto'}
+                    {t === 'overview' ? 'Vue d\'ensemble' : t === 'history' ? 'Historique' : 'Règles & auto'}
                   </button>
                 ))}
               </div>
@@ -416,11 +416,11 @@ export default function PortefeuillePage() {
                       <div style={{ fontSize: 34, fontWeight: 800, marginTop: 4 }}>{selected.balance.toFixed(2)} \€</div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, fontSize: 12, opacity: 0.9 }}>
                         <span>Total rechargé : {selected.totalTopUp.toFixed(0)} \€</span>
-                        <span>D\épens\é : {(selected.totalTopUp - selected.balance).toFixed(0)} \€</span>
+                        <span>Dépensé : {(selected.totalTopUp - selected.balance).toFixed(0)} \€</span>
                       </div>
                       {selected.expiresAt && (
                         <div style={{ marginTop: 10, padding: '6px 10px', background: 'rgba(255,255,255,0.2)', borderRadius: 8, fontSize: 11 }}>
-                          Expire le {selected.expiresAt} (inactivit\é 6 mois)
+                          Expire le {selected.expiresAt} (inactivité 6 mois)
                         </div>
                       )}
                     </div>
@@ -446,7 +446,7 @@ export default function PortefeuillePage() {
                         {[10, 20, 50, 100].map((v) => {
                           const promo = TOPUP_PROMOS.filter(p => v >= p.min).slice(-1)[0];
                           return (
-                            <button key={v} onClick={() => showToast(`+${v}\€ recharg\é${promo.bonus ? ` (+${promo.bonus}% bonus)` : ''}`)}
+                            <button key={v} onClick={() => showToast(`+${v}\€ rechargé${promo.bonus ? ` (+${promo.bonus}% bonus)` : ''}`)}
                               style={{ padding: '12px 0', background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', position: 'relative' }}>
                               +{v}\€
                               {promo.bonus > 0 && (
@@ -459,7 +459,7 @@ export default function PortefeuillePage() {
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                         <input value={customAmount} onChange={(e) => setCustomAmount(e.target.value)} type="number" placeholder="Montant perso."
                           style={{ flex: 1, padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, color: '#1e293b', outline: 'none' }} />
-                        <button onClick={() => { showToast(`+${customAmount}\€ recharg\é`); setCustomAmount(''); }}
+                        <button onClick={() => { showToast(`+${customAmount}\€ rechargé`); setCustomAmount(''); }}
                           style={{ padding: '10px 18px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                           Recharger
                         </button>
@@ -469,14 +469,14 @@ export default function PortefeuillePage() {
                     {/* Deduct & Refund */}
                     <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <input value={deductAmount} onChange={(e) => setDeductAmount(e.target.value)} type="number" placeholder="D\éduire"
+                        <input value={deductAmount} onChange={(e) => setDeductAmount(e.target.value)} type="number" placeholder="Déduire"
                           style={{ flex: 1, padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13, color: '#1e293b', outline: 'none' }} />
-                        <button onClick={() => { showToast(`-${deductAmount}\€ d\éduit`); setDeductAmount(''); }}
+                        <button onClick={() => { showToast(`-${deductAmount}\€ déduit`); setDeductAmount(''); }}
                           style={{ padding: '10px 14px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                           \−
                         </button>
                       </div>
-                      <button onClick={() => showToast('Remboursement cr\édit\é sur le wallet')}
+                      <button onClick={() => showToast('Remboursement crédité sur le wallet')}
                         style={{ padding: '10px 14px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                         Rembourser via wallet
                       </button>
@@ -488,11 +488,11 @@ export default function PortefeuillePage() {
                         style={{ padding: '10px 14px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                         QR Pay en caisse
                       </button>
-                      <button onClick={() => showToast('Relev\é PDF g\én\ér\é')}
+                      <button onClick={() => showToast('Relevé PDF généré')}
                         style={{ padding: '10px 14px', background: '#fff', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                        Relev\é PDF
+                        Relevé PDF
                       </button>
-                      <button onClick={() => showToast('Lien SMS envoy\é')}
+                      <button onClick={() => showToast('Lien SMS envoyé')}
                         style={{ padding: '10px 14px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                         Lien recharge SMS
                       </button>
@@ -524,7 +524,7 @@ export default function PortefeuillePage() {
                             {t.disputed ? (
                               <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 5, background: '#dc2626', color: '#fff', fontWeight: 700 }}>LITIGE</span>
                             ) : (
-                              <button onClick={() => showToast('Transaction signal\ée pour r\évision')}
+                              <button onClick={() => showToast('Transaction signalée pour révision')}
                                 style={{ background: 'transparent', border: '1px solid #e2e8f0', color: '#94a3b8', fontSize: 10, padding: '2px 6px', borderRadius: 5, cursor: 'pointer' }}>
                                 Contester
                               </button>
@@ -559,12 +559,12 @@ export default function PortefeuillePage() {
                       {selected.autoTopup?.enabled && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                           <div>
-                            <label style={{ fontSize: 11, color: '#64748b' }}>Seuil d\éclencheur</label>
+                            <label style={{ fontSize: 11, color: '#64748b' }}>Seuil déclencheur</label>
                             <input type="number" defaultValue={selected.autoTopup.threshold}
                               style={{ width: '100%', padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, color: '#1e293b', outline: 'none', marginTop: 4 }} />
                           </div>
                           <div>
-                            <label style={{ fontSize: 11, color: '#64748b' }}>Montant \à recharger</label>
+                            <label style={{ fontSize: 11, color: '#64748b' }}>Montant à recharger</label>
                             <input type="number" defaultValue={selected.autoTopup.amount}
                               style={{ width: '100%', padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, color: '#1e293b', outline: 'none', marginTop: 4 }} />
                           </div>
@@ -575,12 +575,12 @@ export default function PortefeuillePage() {
                     {/* Expiration rules */}
                     <div style={{ padding: 14, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: '#7c2d12' }}>Expiration du solde</div>
-                      <div style={{ fontSize: 12, color: '#92400e', marginTop: 4, marginBottom: 8 }}>Le solde expire apr\ès une p\ériode d'inactivit\é</div>
+                      <div style={{ fontSize: 12, color: '#92400e', marginTop: 4, marginBottom: 8 }}>Le solde expire après une période d'inactivité</div>
                       <select style={{ width: '100%', padding: '8px 10px', border: '1px solid #fde68a', borderRadius: 8, fontSize: 13, background: '#fff', color: '#1e293b' }}>
                         <option>Jamais</option>
-                        <option>Apr\ès 6 mois</option>
-                        <option>Apr\ès 12 mois</option>
-                        <option>Apr\ès 24 mois</option>
+                        <option>Après 6 mois</option>
+                        <option>Après 12 mois</option>
+                        <option>Après 24 mois</option>
                       </select>
                     </div>
 
@@ -588,11 +588,11 @@ export default function PortefeuillePage() {
                     <div style={{ padding: 14, background: '#f3e8ff', border: '1px solid #e9d5ff', borderRadius: 12 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: '#6b21a8' }}>Wallet de groupe</div>
                       <div style={{ fontSize: 12, color: '#7c3aed', marginTop: 4, marginBottom: 8 }}>
-                        {selected.group ? `Membre du groupe : ${selected.group}` : 'Aucun groupe associ\é'}
+                        {selected.group ? `Membre du groupe : ${selected.group}` : 'Aucun groupe associé'}
                       </div>
                       <button onClick={() => showToast('Gestion des groupes ouverte')}
                         style={{ padding: '8px 14px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                        {selected.group ? 'Modifier le groupe' : 'Cr\éer un groupe'}
+                        {selected.group ? 'Modifier le groupe' : 'Créer un groupe'}
                       </button>
                     </div>
                   </div>
@@ -612,8 +612,8 @@ export default function PortefeuillePage() {
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 20, padding: 28, width: 560, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
-              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#1e293b' }}>Recharge group\ée</h3>
-              <p style={{ margin: '6px 0 18px 0', color: '#64748b', fontSize: 14 }}>S\électionnez les clients et le montant \à cr\éditer</p>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#1e293b' }}>Recharge groupée</h3>
+              <p style={{ margin: '6px 0 18px 0', color: '#64748b', fontSize: 14 }}>Sélectionnez les clients et le montant à créditer</p>
               <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
                 <input value={bulkAmount} onChange={(e) => setBulkAmount(e.target.value)} type="number" placeholder="Montant par client"
                   style={{ flex: 1, padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, color: '#1e293b', outline: 'none' }} />
@@ -636,7 +636,7 @@ export default function PortefeuillePage() {
                   style={{ padding: '10px 20px', background: '#fff', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                   Annuler
                 </button>
-                <button onClick={() => { showToast(`${bulkSelected.length} clients recharg\és`); setBulkOpen(false); setBulkSelected([]); }}
+                <button onClick={() => { showToast(`${bulkSelected.length} clients rechargés`); setBulkOpen(false); setBulkSelected([]); }}
                   style={{ padding: '10px 20px', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                   Recharger {bulkSelected.length} clients
                 </button>
@@ -660,14 +660,14 @@ export default function PortefeuillePage() {
               <textarea value={csvText} onChange={(e) => setCsvText(e.target.value)}
                 style={{ width: '100%', minHeight: 180, padding: 12, border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 13, fontFamily: 'monospace', color: '#1e293b', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
               <div style={{ marginTop: 14, padding: 12, background: '#f8fafc', borderRadius: 10, fontSize: 12, color: '#475569' }}>
-                {csvText.split('\n').filter(Boolean).length} ligne(s) d\étect\ée(s) \· Total : {csvText.split('\n').reduce((s, l) => s + (Number(l.split(';')[1]) || 0), 0).toFixed(2)} \€
+                {csvText.split('\n').filter(Boolean).length} ligne(s) détectée(s) \· Total : {csvText.split('\n').reduce((s, l) => s + (Number(l.split(';')[1]) || 0), 0).toFixed(2)} \€
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
                 <button onClick={() => setCsvOpen(false)}
                   style={{ padding: '10px 20px', background: '#fff', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                   Annuler
                 </button>
-                <button onClick={() => { showToast('CSV import\é avec succ\ès'); setCsvOpen(false); }}
+                <button onClick={() => { showToast('CSV importé avec succès'); setCsvOpen(false); }}
                   style={{ padding: '10px 20px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                   Importer
                 </button>
@@ -687,7 +687,7 @@ export default function PortefeuillePage() {
               onClick={(e) => e.stopPropagation()}
               style={{ background: '#fff', borderRadius: 20, padding: 28, width: 460 }}>
               <h3 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#1e293b' }}>Transfert entre clients (P2P)</h3>
-              <p style={{ margin: '6px 0 18px', color: '#64748b', fontSize: 13 }}>Transf\érer un montant du wallet d'un client vers un autre</p>
+              <p style={{ margin: '6px 0 18px', color: '#64748b', fontSize: 13 }}>Transférer un montant du wallet d'un client vers un autre</p>
               <label style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>De</label>
               <select style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, marginTop: 4, marginBottom: 12, color: '#1e293b', background: '#fff' }}>
                 {customers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.balance.toFixed(2)} \€)</option>)}
@@ -695,7 +695,7 @@ export default function PortefeuillePage() {
               <label style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>Vers</label>
               <select value={transferTo} onChange={e => setTransferTo(e.target.value)}
                 style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, marginTop: 4, marginBottom: 12, color: '#1e293b', background: '#fff' }}>
-                <option value="">S\électionner...</option>
+                <option value="">Sélectionner...</option>
                 {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <label style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>Montant</label>
@@ -710,9 +710,9 @@ export default function PortefeuillePage() {
                   style={{ padding: '10px 18px', background: '#fff', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                   Annuler
                 </button>
-                <button onClick={() => { showToast(`Transfert de ${transferAmount}\€ effectu\é`); setTransferOpen(false); setTransferAmount(''); setTransferTo(''); }}
+                <button onClick={() => { showToast(`Transfert de ${transferAmount}\€ effectué`); setTransferOpen(false); setTransferAmount(''); setTransferTo(''); }}
                   style={{ padding: '10px 18px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-                  Transf\érer
+                  Transférer
                 </button>
               </div>
             </motion.div>
@@ -730,7 +730,7 @@ export default function PortefeuillePage() {
               onClick={(e) => e.stopPropagation()}
               style={{ background: '#fff', borderRadius: 20, padding: 32, width: 360, textAlign: 'center' }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#1e293b' }}>QR Pay - {selected.name}</h3>
-              <p style={{ margin: '6px 0 18px', color: '#64748b', fontSize: 13 }}>Le client scanne ce QR \à la caisse pour payer instantan\ément</p>
+              <p style={{ margin: '6px 0 18px', color: '#64748b', fontSize: 13 }}>Le client scanne ce QR à la caisse pour payer instantanément</p>
               <div style={{ width: 220, height: 220, background: '#1e293b', borderRadius: 16, margin: '0 auto', padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width={200} height={200} style={{ background: '#fff', borderRadius: 8 }}>
                   {Array.from({ length: 16 }).flatMap((_, r) =>

@@ -96,20 +96,20 @@ const MOCK_CUSTOMERS: Customer[] = [
   {
     id: '1', firstName: 'Marc', lastName: 'Schmit', email: 'marc.schmit@pt.lu',
     phone: '+352 621 123 456', address: '12 rue de la Gare', city: 'Luxembourg-Ville', postalCode: '1616',
-    birthDate: '1985-03-15', anniversaryDate: '2015-06-20', firstVisit: '2024-06-10', notes: 'Pr\éf\ère la terrasse',
+    birthDate: '1985-03-15', anniversaryDate: '2015-06-20', firstVisit: '2024-06-10', notes: 'Préfère la terrasse',
     loyaltyPoints: 720, loyaltyTier: 'Gold', walletBalance: 45.00,
     totalSpent: 2340.50, visitCount: 87, avgBasket: 26.90,
     lastVisit: '2026-04-14T19:30:00', createdAt: '2024-06-10T10:00:00',
-    tags: ['Client fid\èle', 'VIP'], marketingConsent: true, emailOptIn: true, smsOptIn: true, onTab: false,
-    preferredTable: 'Table 12 - Terrasse', dietary: ['V\ég\étarien'], allergens: ['Gluten'],
+    tags: ['Client fidèle', 'VIP'], marketingConsent: true, emailOptIn: true, smsOptIn: true, onTab: false,
+    preferredTable: 'Table 12 - Terrasse', dietary: ['Végétarien'], allergens: ['Gluten'],
     nps: 9, churnRisk: 'LOW', clv: 4680, instagram: '@marcschmit',
     linkedMembers: ['2'],
     complaints: [], timeline: [
       { id: 't1', date: '2026-04-14T19:30:00', type: 'VISIT', label: 'Visite', detail: 'Table 12, 3 personnes, 34.50 \€' },
       { id: 't2', date: '2026-04-10T10:00:00', type: 'EMAIL', label: 'Email ouvert', detail: 'Newsletter Avril' },
-      { id: 't3', date: '2026-04-05T20:00:00', type: 'EVENT', label: '\Év\énement', detail: 'Soir\ée d\égustation vin' },
-      { id: 't4', date: '2026-03-28T13:00:00', type: 'VISIT', label: 'Visite', detail: 'D\éjeuner, 2 personnes' },
-      { id: 't5', date: '2026-03-20T19:45:00', type: 'RESERVATION', label: 'R\éservation', detail: 'Confirm\ée via SMS' },
+      { id: 't3', date: '2026-04-05T20:00:00', type: 'EVENT', label: 'Événement', detail: 'Soirée dégustation vin' },
+      { id: 't4', date: '2026-03-28T13:00:00', type: 'VISIT', label: 'Visite', detail: 'Déjeuner, 2 personnes' },
+      { id: 't5', date: '2026-03-20T19:45:00', type: 'RESERVATION', label: 'Réservation', detail: 'Confirmée via SMS' },
     ],
     orders: [
       { id: 'o1', createdAt: '2026-04-14T19:30:00', total: 34.50, itemsCount: 3, status: 'PAID', paymentMethod: 'Carte' },
@@ -120,13 +120,13 @@ const MOCK_CUSTOMERS: Customer[] = [
     ]
   },
   {
-    id: '2', firstName: 'L\éa', lastName: 'Muller', email: 'lea.muller@education.lu',
+    id: '2', firstName: 'Léa', lastName: 'Muller', email: 'lea.muller@education.lu',
     phone: '+352 691 234 567', address: '5 avenue Monterey', city: 'Luxembourg-Ville', postalCode: '2163',
     birthDate: '1992-07-22', firstVisit: '2025-01-15',
     loyaltyPoints: 340, loyaltyTier: 'Silver', walletBalance: 20.00,
     totalSpent: 890.00, visitCount: 34, avgBasket: 26.18,
     lastVisit: '2026-04-12T12:00:00', createdAt: '2025-01-15T14:00:00',
-    tags: ['Client fid\èle'], marketingConsent: true, emailOptIn: true, smsOptIn: false, onTab: false,
+    tags: ['Client fidèle'], marketingConsent: true, emailOptIn: true, smsOptIn: false, onTab: false,
     dietary: [], allergens: [], nps: 8, churnRisk: 'LOW', clv: 1780,
     linkedMembers: ['1'],
     complaints: [], timeline: [
@@ -140,13 +140,13 @@ const MOCK_CUSTOMERS: Customer[] = [
   },
   {
     id: '3', firstName: 'Tom', lastName: 'Reuter', email: 'tom.reuter@gmail.com',
-    phone: '+352 661 345 678', address: '28 rue du Foss\é', city: 'Esch-sur-Alzette', postalCode: '4123',
+    phone: '+352 661 345 678', address: '28 rue du Fossé', city: 'Esch-sur-Alzette', postalCode: '4123',
     birthDate: '1990-11-03', firstVisit: '2024-09-20', notes: 'Allergique aux noix',
     loyaltyPoints: 580, loyaltyTier: 'Gold', walletBalance: 75.00,
     totalSpent: 1560.00, visitCount: 62, avgBasket: 25.16,
     lastVisit: '2026-04-13T20:15:00', createdAt: '2024-09-20T09:00:00',
     tags: ['VIP', 'Allergique'], marketingConsent: false, emailOptIn: false, smsOptIn: true, onTab: true,
-    preferredTable: 'Table 8 - Coin fen\être', dietary: [], allergens: ['Noix', 'Arachides'],
+    preferredTable: 'Table 8 - Coin fenêtre', dietary: [], allergens: ['Noix', 'Arachides'],
     nps: 10, churnRisk: 'LOW', clv: 3120, instagram: '@tomreuter',
     linkedMembers: [],
     complaints: [],
@@ -163,10 +163,10 @@ const MOCK_CUSTOMERS: Customer[] = [
     loyaltyPoints: 120, loyaltyTier: 'Bronze', walletBalance: 10.00,
     totalSpent: 320.00, visitCount: 12, avgBasket: 26.67,
     lastVisit: '2026-04-01T18:00:00', createdAt: '2025-11-05T11:00:00',
-    tags: ['Nouveau', 'V\ég\étarien'], marketingConsent: true, emailOptIn: true, smsOptIn: true, onTab: false,
-    dietary: ['V\ég\étarien', 'Kosher'], allergens: [], nps: 7, churnRisk: 'MEDIUM', clv: 640,
+    tags: ['Nouveau', 'Végétarien'], marketingConsent: true, emailOptIn: true, smsOptIn: true, onTab: false,
+    dietary: ['Végétarien', 'Kosher'], allergens: [], nps: 7, churnRisk: 'MEDIUM', clv: 640,
     linkedMembers: [],
-    complaints: [{ id: 'c1', date: '2026-03-10', subject: 'Attente trop longue', status: 'RESOLVED', resolution: 'Excuses + caf\é offert' }],
+    complaints: [{ id: 'c1', date: '2026-03-10', subject: 'Attente trop longue', status: 'RESOLVED', resolution: 'Excuses + café offert' }],
     timeline: [{ id: 't9', date: '2026-04-01T18:00:00', type: 'VISIT', label: 'Visite' }],
     orders: [
       { id: 'o11', createdAt: '2026-04-01T18:00:00', total: 24.00, itemsCount: 2, status: 'PAID', paymentMethod: 'Carte' },
@@ -179,12 +179,12 @@ const MOCK_CUSTOMERS: Customer[] = [
     loyaltyPoints: 910, loyaltyTier: 'Gold', walletBalance: 120.00,
     totalSpent: 4200.00, visitCount: 156, avgBasket: 26.92,
     lastVisit: '2026-04-14T12:30:00', createdAt: '2023-03-01T08:00:00',
-    tags: ['VIP', 'Grand \év\énement'], marketingConsent: true, emailOptIn: true, smsOptIn: true, onTab: false,
-    preferredTable: 'Table 1 - Priv\ée', dietary: [], allergens: [],
+    tags: ['VIP', 'Grand événement'], marketingConsent: true, emailOptIn: true, smsOptIn: true, onTab: false,
+    preferredTable: 'Table 1 - Privée', dietary: [], allergens: [],
     nps: 10, churnRisk: 'LOW', clv: 8400, facebook: 'pierre.hoffmann',
     linkedMembers: [],
     complaints: [],
-    timeline: [{ id: 't10', date: '2026-04-14T12:30:00', type: 'VISIT', label: 'Visite r\éguli\ère' }],
+    timeline: [{ id: 't10', date: '2026-04-14T12:30:00', type: 'VISIT', label: 'Visite régulière' }],
     orders: [
       { id: 'o13', createdAt: '2026-04-14T12:30:00', total: 38.00, itemsCount: 3, status: 'PAID', paymentMethod: 'Wallet' },
       { id: 'o14', createdAt: '2026-04-12T19:00:00', total: 55.00, itemsCount: 4, status: 'PAID', paymentMethod: 'Carte' },
@@ -198,9 +198,9 @@ const MOCK_CUSTOMERS: Customer[] = [
     totalSpent: 85.00, visitCount: 3, avgBasket: 28.33,
     lastVisit: '2026-02-20T19:00:00', createdAt: '2026-01-10T16:00:00',
     tags: ['Nouveau'], marketingConsent: false, emailOptIn: false, smsOptIn: false, onTab: false,
-    dietary: ['V\égan'], allergens: [], nps: 6, churnRisk: 'HIGH', clv: 170,
+    dietary: ['Végan'], allergens: [], nps: 6, churnRisk: 'HIGH', clv: 170,
     linkedMembers: [],
-    complaints: [{ id: 'c2', date: '2026-02-22', subject: 'Plat v\égan indisponible', status: 'OPEN' }],
+    complaints: [{ id: 'c2', date: '2026-02-22', subject: 'Plat végan indisponible', status: 'OPEN' }],
     timeline: [{ id: 't11', date: '2026-02-20T19:00:00', type: 'VISIT', label: 'Visite' }],
     orders: [
       { id: 'o18', createdAt: '2026-02-20T19:00:00', total: 32.00, itemsCount: 2, status: 'PAID', paymentMethod: 'Carte' },
@@ -213,7 +213,7 @@ const MOCK_CUSTOMERS: Customer[] = [
     loyaltyPoints: 260, loyaltyTier: 'Silver', walletBalance: 35.00,
     totalSpent: 680.00, visitCount: 28, avgBasket: 24.29,
     lastVisit: '2026-04-11T20:00:00', createdAt: '2025-05-22T10:00:00',
-    tags: ['Client fid\èle'], marketingConsent: true, emailOptIn: true, smsOptIn: false, onTab: true,
+    tags: ['Client fidèle'], marketingConsent: true, emailOptIn: true, smsOptIn: false, onTab: true,
     dietary: [], allergens: ['Lactose'], nps: 8, churnRisk: 'LOW', clv: 1360,
     linkedMembers: [],
     complaints: [], timeline: [{ id: 't12', date: '2026-04-11T20:00:00', type: 'VISIT', label: 'Visite' }],
@@ -224,7 +224,7 @@ const MOCK_CUSTOMERS: Customer[] = [
   {
     id: '8', firstName: 'Anna', lastName: 'Braun', email: 'anna.braun@gmail.com',
     phone: '+352 691 890 123', address: '6 rue de Bonnevoie', city: 'Luxembourg-Ville', postalCode: '1260',
-    birthDate: '1998-04-25', firstVisit: '2026-04-14', notes: '\Étudiante, r\éductions possibles',
+    birthDate: '1998-04-25', firstVisit: '2026-04-14', notes: 'Étudiante, réductions possibles',
     loyaltyPoints: 0, loyaltyTier: 'Bronze', walletBalance: 0,
     totalSpent: 0, visitCount: 0, avgBasket: 0,
     lastVisit: '', createdAt: '2026-04-14T15:00:00',
@@ -243,17 +243,17 @@ const TIER_CONFIG = {
 }
 
 const TAG_COLORS: Record<string, { bg: string; text: string }> = {
-  'Client fid\èle':       { bg: '#DBEAFE', text: '#1E40AF' },
+  'Client fidèle':       { bg: '#DBEAFE', text: '#1E40AF' },
   'VIP':                    { bg: '#FEF3C7', text: '#92400E' },
   'Nouveau':                { bg: '#D1FAE5', text: '#065F46' },
   'Allergique':             { bg: '#FEE2E2', text: '#991B1B' },
-  'V\ég\étarien':    { bg: '#DCFCE7', text: '#166534' },
-  'Grand \év\énement': { bg: '#EDE9FE', text: '#6B21A8' },
+  'Végétarien':    { bg: '#DCFCE7', text: '#166534' },
+  'Grand événement': { bg: '#EDE9FE', text: '#6B21A8' },
   'Difficile':              { bg: '#FFE4E6', text: '#9F1239' },
 }
 const DIETARY_COLORS: Record<string, string> = {
-  'V\ég\étarien': '#16a34a',
-  'V\égan': '#15803d',
+  'Végétarien': '#16a34a',
+  'Végan': '#15803d',
   'Kosher': '#2563eb',
   'Halal': '#0891b2',
   'Sans gluten': '#d97706',
@@ -261,12 +261,12 @@ const DIETARY_COLORS: Record<string, string> = {
 const CHURN_CONFIG = {
   LOW:    { label: 'Faible', color: '#10b981', bg: '#ecfdf5' },
   MEDIUM: { label: 'Moyen',  color: '#f59e0b', bg: '#fffbeb' },
-  HIGH:   { label: '\Élev\é', color: '#ef4444', bg: '#fef2f2' },
+  HIGH:   { label: 'Élevé', color: '#ef4444', bg: '#fef2f2' },
 }
 
-const ALL_TAGS = ['Client fid\èle', 'VIP', 'Nouveau', 'Allergique', 'V\ég\étarien', 'Grand \év\énement', 'Difficile']
-const DIETARY_OPTIONS = ['V\ég\étarien', 'V\égan', 'Kosher', 'Halal', 'Sans gluten']
-const ALLERGEN_OPTIONS = ['Gluten', 'Lactose', 'Noix', 'Arachides', 'Crustac\és', 'Oeufs', 'Soja', 'Poisson']
+const ALL_TAGS = ['Client fidèle', 'VIP', 'Nouveau', 'Allergique', 'Végétarien', 'Grand événement', 'Difficile']
+const DIETARY_OPTIONS = ['Végétarien', 'Végan', 'Kosher', 'Halal', 'Sans gluten']
+const ALLERGEN_OPTIONS = ['Gluten', 'Lactose', 'Noix', 'Arachides', 'Crustacés', 'Oeufs', 'Soja', 'Poisson']
 
 const AVATAR_COLORS = ['#7C3AED', '#2563EB', '#059669', '#D97706', '#DC2626', '#7C3AED', '#0891B2', '#4F46E5']
 
@@ -281,7 +281,7 @@ const FILTER_CHIPS: { key: FilterChip; label: string }[] = [
   { key: 'inactive', label: 'Inactifs (30j+)' },
   { key: 'vip', label: 'VIP' },
   { key: 'new', label: 'Nouveaux' },
-  { key: 'churn', label: 'Risque \élev\é' },
+  { key: 'churn', label: 'Risque élevé' },
 ]
 
 const PAGE_SIZE = 5
@@ -398,7 +398,7 @@ export default function ClientsPage() {
   }
 
   function handleExportCSV() {
-    const header = 'Pr\énom,Nom,Email,T\él\éphone,Points,Tier,Solde,Total,Visites,CLV,NPS,Churn'
+    const header = 'Prénom,Nom,Email,Téléphone,Points,Tier,Solde,Total,Visites,CLV,NPS,Churn'
     const rows = filtered.map(c =>
       `${c.firstName},${c.lastName},${c.email},${c.phone},${c.loyaltyPoints},${c.loyaltyTier},${c.walletBalance},${c.totalSpent},${c.visitCount},${c.clv},${c.nps || ''},${c.churnRisk}`
     )
@@ -410,7 +410,7 @@ export default function ClientsPage() {
     a.download = `clients_creorga_${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
-    toast.success('Export CSV t\él\écharg\é')
+    toast.success('Export CSV téléchargé')
   }
 
   function handleGdprExport(c: Customer) {
@@ -422,11 +422,11 @@ export default function ClientsPage() {
     a.download = `rgpd_${c.firstName}_${c.lastName}_${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(url)
-    toast.success('Donn\ées client export\ées (RGPD)')
+    toast.success('Données client exportées (RGPD)')
   }
 
   function handleGdprDelete() {
-    toast.success(`Donn\ées de ${selected?.firstName} ${selected?.lastName} anonymis\ées`)
+    toast.success(`Données de ${selected?.firstName} ${selected?.lastName} anonymisées`)
     setGdprConfirm(false)
     setSelected(null)
   }
@@ -475,7 +475,8 @@ export default function ClientsPage() {
 
   const totalClients = customers.length
   const totalCLV = customers.reduce((s, c) => s + c.clv, 0)
-  const avgNPS = customers.filter(c => c.nps).reduce((s, c) => s + (c.nps || 0), 0) / customers.filter(c => c.nps).length
+  const npsClients = customers.filter(c => c.nps)
+  const avgNPS = npsClients.length ? npsClients.reduce((s, c) => s + (c.nps || 0), 0) / npsClients.length : 0
   const churnHigh = customers.filter(c => c.churnRisk === 'HIGH').length
 
   return (
@@ -485,7 +486,7 @@ export default function ClientsPage() {
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: '#1e293b', margin: 0 }}>Clients</h1>
           <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
-            Base clients, fid\élit\é, CLV & conformit\é RGPD &mdash; {customers.length} clients
+            Base clients, fidélité, CLV & conformité RGPD &mdash; {customers.length} clients
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -541,7 +542,7 @@ export default function ClientsPage() {
           <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
           <input value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0) }}
-            placeholder="Rechercher par nom, email ou t\él\éphone..."
+            placeholder="Rechercher par nom, email ou téléphone..."
             style={{
               width: '100%', padding: '10px 16px 10px 38px',
               borderRadius: 12, border: '1px solid #e2e8f0',
@@ -584,7 +585,7 @@ export default function ClientsPage() {
         {filtered.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 200, color: '#94a3b8' }}>
             <Users size={40} style={{ marginBottom: 12, opacity: 0.4 }} />
-            <p style={{ fontWeight: 500, margin: 0 }}>Aucun client trouv\é</p>
+            <p style={{ fontWeight: 500, margin: 0 }}>Aucun client trouvé</p>
           </div>
         ) : (
           <>
@@ -598,7 +599,7 @@ export default function ClientsPage() {
                     Contact
                   </th>
                   <th onClick={() => handleSort('points')} style={{ padding: '12px 16px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>Fid\élit\é <SortIcon col="points" /></span>
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>Fidélité <SortIcon col="points" /></span>
                   </th>
                   <th onClick={() => handleSort('clv')} style={{ padding: '12px 16px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none' }}>
                     <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>CLV <SortIcon col="clv" /></span>
@@ -695,7 +696,7 @@ export default function ClientsPage() {
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
                     style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 500, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: page === 0 ? 'default' : 'pointer', opacity: page === 0 ? 0.4 : 1 }}>
-                    Pr\éc\édent
+                    Précédent
                   </button>
                   <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
                     style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 500, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: page >= totalPages - 1 ? 'default' : 'pointer', opacity: page >= totalPages - 1 ? 0.4 : 1 }}>
@@ -751,8 +752,8 @@ export default function ClientsPage() {
                   {([
                     ['overview', 'Vue d\'ensemble'],
                     ['timeline', 'Timeline'],
-                    ['prefs', 'Pr\éf\érences'],
-                    ['complaints', 'R\éclamations'],
+                    ['prefs', 'Préférences'],
+                    ['complaints', 'Réclamations'],
                     ['gdpr', 'RGPD'],
                   ] as [PanelTab, string][]).map(([key, label]) => (
                     <button key={key} onClick={() => setPanelTab(key)}
@@ -775,7 +776,7 @@ export default function ClientsPage() {
                     {/* Contact */}
                     <div style={{ background: '#f8fafc', borderRadius: 14, padding: 16, border: '1px solid #f1f5f9' }}>
                       <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <User size={11} /> Coordonn\ées
+                        <User size={11} /> Coordonnées
                       </p>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -813,7 +814,7 @@ export default function ClientsPage() {
                         )}
                         {selected.firstVisit && (
                           <div>
-                            <div style={{ fontSize: 10, color: '#9a3412' }}>Premi\ère visite</div>
+                            <div style={{ fontSize: 10, color: '#9a3412' }}>Première visite</div>
                             <div style={{ fontSize: 13, fontWeight: 700, color: '#7c2d12' }}>{fmtDate(selected.firstVisit)}</div>
                           </div>
                         )}
@@ -857,7 +858,7 @@ export default function ClientsPage() {
                             <div style={{ fontSize: 24, fontWeight: 800, color: '#15803d', marginTop: 4 }}>{selected.nps}/10</div>
                           </div>
                           <div style={{ fontSize: 11, color: '#15803d', fontWeight: 600 }}>
-                            {selected.nps >= 9 ? 'Promoteur' : selected.nps >= 7 ? 'Passif' : 'D\étracteur'}
+                            {selected.nps >= 9 ? 'Promoteur' : selected.nps >= 7 ? 'Passif' : 'Détracteur'}
                           </div>
                         </div>
                       </div>
@@ -866,10 +867,10 @@ export default function ClientsPage() {
                     {/* Stats */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                       {[
-                        { label: 'Total d\épens\é', value: fmt(selected.totalSpent), icon: CreditCard, color: '#7C3AED' },
+                        { label: 'Total dépensé', value: fmt(selected.totalSpent), icon: CreditCard, color: '#7C3AED' },
                         { label: 'Visites', value: String(selected.visitCount), icon: BarChart3, color: '#2563EB' },
                         { label: 'Panier moyen', value: fmt(selected.avgBasket), icon: ShoppingBag, color: '#D97706' },
-                        { label: 'Derni\ère visite', value: selected.lastVisit ? fmtDate(selected.lastVisit) : '\—', icon: Clock, color: '#059669' },
+                        { label: 'Dernière visite', value: selected.lastVisit ? fmtDate(selected.lastVisit) : '\—', icon: Clock, color: '#059669' },
                       ].map(stat => (
                         <div key={stat.label} style={{ background: '#f8fafc', borderRadius: 12, padding: 12, border: '1px solid #f1f5f9' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -885,7 +886,7 @@ export default function ClientsPage() {
                     {selected.linkedMembers.length > 0 && (
                       <div style={{ background: '#faf5ff', borderRadius: 14, padding: 16, border: '1px solid #e9d5ff' }}>
                         <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#7c3aed', letterSpacing: '0.06em', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <Link2 size={11} /> Membres li\és
+                          <Link2 size={11} /> Membres liés
                         </p>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                           {selected.linkedMembers.map(id => {
@@ -908,7 +909,7 @@ export default function ClientsPage() {
                     {/* Social */}
                     {(selected.instagram || selected.facebook) && (
                       <div style={{ background: '#f8fafc', borderRadius: 14, padding: 16, border: '1px solid #f1f5f9' }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '0 0 8px' }}>R\éseaux sociaux</p>
+                        <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '0 0 8px' }}>Réseaux sociaux</p>
                         <div style={{ display: 'flex', gap: 8 }}>
                           {selected.instagram && (
                             <a href="#" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#e1306c', textDecoration: 'none', fontWeight: 600 }}>
@@ -926,12 +927,12 @@ export default function ClientsPage() {
 
                     {/* Action buttons */}
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => toast.success('Email envoy\é')}
+                      <button onClick={() => toast.success('Email envoyé')}
                         disabled={!selected.emailOptIn}
                         style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', borderRadius: 10, fontSize: 12, fontWeight: 600, background: selected.emailOptIn ? '#EFF6FF' : '#f1f5f9', color: selected.emailOptIn ? '#2563EB' : '#94a3b8', border: `1px solid ${selected.emailOptIn ? '#BFDBFE' : '#e2e8f0'}`, cursor: selected.emailOptIn ? 'pointer' : 'not-allowed' }}>
                         <Mail size={14} /> Email
                       </button>
-                      <button onClick={() => toast.success('SMS envoy\é')}
+                      <button onClick={() => toast.success('SMS envoyé')}
                         disabled={!selected.smsOptIn}
                         style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', borderRadius: 10, fontSize: 12, fontWeight: 600, background: selected.smsOptIn ? '#F0FDF4' : '#f1f5f9', color: selected.smsOptIn ? '#16A34A' : '#94a3b8', border: `1px solid ${selected.smsOptIn ? '#BBF7D0' : '#e2e8f0'}`, cursor: selected.smsOptIn ? 'pointer' : 'not-allowed' }}>
                         <MessageSquare size={14} /> SMS
@@ -974,7 +975,7 @@ export default function ClientsPage() {
                     )}
 
                     <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '16px 0 10px' }}>
-                      Derni\ères commandes
+                      Dernières commandes
                     </p>
                     {selected.orders.length === 0 ? (
                       <p style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '16px 0' }}>Aucune commande</p>
@@ -999,7 +1000,7 @@ export default function ClientsPage() {
                     {/* Preferred table */}
                     <div style={{ background: '#f8fafc', borderRadius: 14, padding: 16, border: '1px solid #f1f5f9' }}>
                       <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Heart size={11} /> Table pr\éf\ér\ée
+                        <Heart size={11} /> Table préférée
                       </p>
                       <input type="text" defaultValue={selected.preferredTable || ''} placeholder="Ex: Table 12 - Terrasse"
                         style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none', color: '#1e293b', background: '#fff', boxSizing: 'border-box' }} />
@@ -1008,7 +1009,7 @@ export default function ClientsPage() {
                     {/* Dietary */}
                     <div style={{ background: '#f8fafc', borderRadius: 14, padding: 16, border: '1px solid #f1f5f9' }}>
                       <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Utensils size={11} /> R\égime alimentaire
+                        <Utensils size={11} /> Régime alimentaire
                       </p>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {DIETARY_OPTIONS.map(d => {
@@ -1032,7 +1033,7 @@ export default function ClientsPage() {
                     {/* Allergens */}
                     <div style={{ background: '#fef2f2', borderRadius: 14, padding: 16, border: '1px solid #fecaca' }}>
                       <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#991b1b', letterSpacing: '0.06em', margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <AlertTriangle size={11} /> Allerg\ènes \— importants pour la cuisine
+                        <AlertTriangle size={11} /> Allergènes \— importants pour la cuisine
                       </p>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {ALLERGEN_OPTIONS.map(a => {
@@ -1055,7 +1056,7 @@ export default function ClientsPage() {
                     {/* Communication prefs */}
                     <div style={{ background: '#f8fafc', borderRadius: 14, padding: 16, border: '1px solid #f1f5f9' }}>
                       <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <MessageCircle size={11} /> Pr\éf\érences de communication
+                        <MessageCircle size={11} /> Préférences de communication
                       </p>
                       {[
                         { key: 'emailOptIn', label: 'Email transactionnel', value: selected.emailOptIn, icon: Mail },
@@ -1081,7 +1082,7 @@ export default function ClientsPage() {
                     {/* Custom tags */}
                     <div style={{ background: '#f8fafc', borderRadius: 14, padding: 16, border: '1px solid #f1f5f9' }}>
                       <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Tag size={11} /> Tags personnalis\és
+                        <Tag size={11} /> Tags personnalisés
                       </p>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {ALL_TAGS.map(t => {
@@ -1108,16 +1109,16 @@ export default function ClientsPage() {
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
                       <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <AlertTriangle size={11} /> Historique des r\éclamations
+                        <AlertTriangle size={11} /> Historique des réclamations
                       </p>
-                      <button onClick={() => toast.success('Formulaire r\éclamation ouvert')}
+                      <button onClick={() => toast.success('Formulaire réclamation ouvert')}
                         style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#7C3AED', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
                         + Nouvelle
                       </button>
                     </div>
                     {selected.complaints.length === 0 ? (
                       <div style={{ padding: 20, textAlign: 'center', color: '#10b981', fontSize: 13, fontWeight: 600, background: '#f0fdf4', borderRadius: 12, border: '1px solid #bbf7d0' }}>
-                        Aucune r\éclamation \à ce jour
+                        Aucune réclamation à ce jour
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1129,12 +1130,12 @@ export default function ClientsPage() {
                                 padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700,
                                 background: cm.status === 'RESOLVED' ? '#D1FAE5' : cm.status === 'OPEN' ? '#FEE2E2' : '#FEF3C7',
                                 color: cm.status === 'RESOLVED' ? '#065F46' : cm.status === 'OPEN' ? '#991B1B' : '#92400E',
-                              }}>{cm.status === 'RESOLVED' ? 'R\ésolu' : cm.status === 'OPEN' ? 'Ouvert' : 'En cours'}</span>
+                              }}>{cm.status === 'RESOLVED' ? 'Résolu' : cm.status === 'OPEN' ? 'Ouvert' : 'En cours'}</span>
                             </div>
                             <div style={{ fontSize: 11, color: '#94a3b8' }}>{fmtDate(cm.date)}</div>
                             {cm.resolution && (
                               <div style={{ marginTop: 8, padding: 8, background: '#f0fdf4', borderRadius: 8, fontSize: 12, color: '#166534' }}>
-                                <strong>R\ésolution :</strong> {cm.resolution}
+                                <strong>Résolution :</strong> {cm.resolution}
                               </div>
                             )}
                           </div>
@@ -1149,10 +1150,10 @@ export default function ClientsPage() {
                     <div style={{ background: '#eff6ff', borderRadius: 14, padding: 16, border: '1px solid #bfdbfe' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                         <Shield size={14} style={{ color: '#2563eb' }} />
-                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1e40af' }}>Conformit\é RGPD</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1e40af' }}>Conformité RGPD</div>
                       </div>
                       <p style={{ fontSize: 12, color: '#1e3a8a', margin: 0, lineHeight: 1.5 }}>
-                        Conform\ément au R\èglement G\én\éral sur la Protection des Donn\ées (UE 2016/679), ce client peut exercer ses droits :
+                        Conformément au Règlement Général sur la Protection des Données (UE 2016/679), ce client peut exercer ses droits :
                       </p>
                     </div>
 
@@ -1162,18 +1163,18 @@ export default function ClientsPage() {
                         <Download size={16} style={{ color: '#2563eb' }} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Droit \à la portabilit\é</div>
-                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Exporter toutes les donn\ées au format JSON</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Droit à la portabilité</div>
+                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Exporter toutes les données au format JSON</div>
                       </div>
                     </button>
 
-                    <button onClick={() => toast.success('Droit de rectification notifi\é')}
+                    <button onClick={() => toast.success('Droit de rectification notifié')}
                       style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 14, width: '100%', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, cursor: 'pointer', textAlign: 'left' }}>
                       <div style={{ width: 36, height: 36, borderRadius: 10, background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <FileText size={16} style={{ color: '#16a34a' }} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Droit \à la rectification</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Droit à la rectification</div>
                         <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Corriger les informations inexactes</div>
                       </div>
                     </button>
@@ -1184,13 +1185,13 @@ export default function ClientsPage() {
                         <Trash2 size={16} style={{ color: '#dc2626' }} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#991b1b' }}>Droit \à l'oubli</div>
-                        <div style={{ fontSize: 11, color: '#b91c1c', marginTop: 2 }}>Anonymiser les donn\ées personnelles</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#991b1b' }}>Droit à l'oubli</div>
+                        <div style={{ fontSize: 11, color: '#b91c1c', marginTop: 2 }}>Anonymiser les données personnelles</div>
                       </div>
                     </button>
 
                     <div style={{ marginTop: 8, padding: 12, background: '#f8fafc', borderRadius: 10, fontSize: 11, color: '#64748b', lineHeight: 1.5 }}>
-                      <strong>Note :</strong> L'anonymisation conserve les donn\ées comptables (factures, commandes) anonymis\ées, conform\ément \à l'obligation l\égale de conservation de 10 ans au Luxembourg.
+                      <strong>Note :</strong> L'anonymisation conserve les données comptables (factures, commandes) anonymisées, conformément à l'obligation légale de conservation de 10 ans au Luxembourg.
                     </div>
                   </>
                 )}
@@ -1214,7 +1215,7 @@ export default function ClientsPage() {
               </div>
               <h3 style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', margin: 0 }}>Confirmer l'anonymisation</h3>
               <p style={{ fontSize: 13, color: '#64748b', margin: '10px 0 20px', lineHeight: 1.5 }}>
-                Les donn\ées personnelles de <strong>{selected.firstName} {selected.lastName}</strong> seront d\éfinitivement anonymis\ées. Cette action est irr\éversible.
+                Les données personnelles de <strong>{selected.firstName} {selected.lastName}</strong> seront définitivement anonymisées. Cette action est irréversible.
               </p>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={() => setGdprConfirm(false)}
@@ -1255,7 +1256,7 @@ export default function ClientsPage() {
                 <div style={{ marginBottom: 20 }}>
                   <p style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 10 }}>Inscription rapide</p>
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <button onClick={() => toast('Fonctionnalit\é \à venir')}
+                    <button onClick={() => toast('Fonctionnalité à venir')}
                       style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '11px 0', borderRadius: 10, background: '#fff', color: '#1e293b', border: '1.5px solid #e2e8f0', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
@@ -1265,7 +1266,7 @@ export default function ClientsPage() {
                       </svg>
                       Google
                     </button>
-                    <button onClick={() => toast('Fonctionnalit\é \à venir')}
+                    <button onClick={() => toast('Fonctionnalité à venir')}
                       style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '11px 0', borderRadius: 10, background: '#000', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                       <svg width="15" height="18" viewBox="0 0 15 18" fill="white">
                         <path d="M14.94 13.42c-.35.82-.52 1.18-.97 1.91-.63.99-1.52 2.24-2.62 2.25-1.23.01-1.54-.8-3.21-.79-1.67.01-2.01.8-3.24.79-1.1-.01-1.94-1.13-2.57-2.12C.76 13.02.2 10.21 1.04 8.31c.6-1.35 1.67-2.2 2.83-2.2 1.05 0 1.72.81 2.59.81.84 0 1.36-.81 2.58-.81.97 0 1.92.53 2.52 1.44-2.22 1.22-1.86 4.38.38 5.22zM10.11.63C9.4 1.48 8.3 2.13 7.22 2.05 7.06.93 7.56.01 8.23-.01c.97-.03 1.55.64 1.88.64z"/>
@@ -1282,7 +1283,7 @@ export default function ClientsPage() {
                 <form onSubmit={handleNewSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <div>
-                      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Pr\énom *</label>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Prénom *</label>
                       <input value={newForm.firstName} onChange={e => setNewForm(f => ({ ...f, firstName: e.target.value }))} placeholder="Jean"
                         style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none', color: '#1e293b', background: '#fff', boxSizing: 'border-box' }} />
                     </div>
@@ -1298,7 +1299,7 @@ export default function ClientsPage() {
                       style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none', color: '#1e293b', background: '#fff', boxSizing: 'border-box' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>T\él\éphone mobile</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Téléphone mobile</label>
                     <input value={newForm.phone} onChange={e => setNewForm(f => ({ ...f, phone: e.target.value }))} placeholder="+352 621 000 000"
                       style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none', color: '#1e293b', background: '#fff', boxSizing: 'border-box' }} />
                   </div>
@@ -1308,7 +1309,7 @@ export default function ClientsPage() {
                       style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none', color: '#1e293b', background: '#fff', boxSizing: 'border-box' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Notes (allergies, pr\éf\érences...)</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Notes (allergies, préférences...)</label>
                     <textarea value={newForm.notes} onChange={e => setNewForm(f => ({ ...f, notes: e.target.value }))} rows={2}
                       style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit', color: '#1e293b', background: '#fff', boxSizing: 'border-box' }} />
                   </div>
@@ -1327,7 +1328,7 @@ export default function ClientsPage() {
                     </button>
                     <button type="submit"
                       style={{ flex: 1, padding: '11px 0', borderRadius: 10, background: '#7C3AED', color: '#fff', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                      Cr\éer le client
+                      Créer le client
                     </button>
                   </div>
                 </form>

@@ -1,0 +1,29 @@
+[
+  {
+    "route": "/crm/clients",
+    "title": "CRM, Marketing & Réputation",
+    "btns": 27,
+    "inputs": 1,
+    "bodyLen": 32743,
+    "suspects": [],
+    "jsErrors": 0
+  },
+  {
+    "route": "/crm/fidelite",
+    "title": "CRM, Marketing & Réputation",
+    "btns": 52,
+    "inputs": 4,
+    "bodyLen": 103778,
+    "suspects": [],
+    "jsErrors": 0
+  },
+  {
+    "route": "/crm/portefeuille",
+    "title": "CRM, Marketing & Réputation",
+    "btns": 30,
+    "inputs": 2,
+    "bodyLen": 65458,
+    "suspects": [],
+    "jsErrors": 0
+  }
+]
