@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Volume2 } from 'lucide-react'
+import api from '@/lib/api'
 
 export default function DailyBriefingPill() {
   const location = useLocation()
@@ -17,8 +18,9 @@ export default function DailyBriefingPill() {
     setLoading(true)
     setOpen(true)
     try {
-      const res = await fetch('/api/agent/daily-briefing', { method: 'POST' })
-      const data = await res.json().catch(() => ({}))
+      // via le client API authentifié (la route /api/agent exige un token)
+      const res = await api.post('/agent/daily-briefing')
+      const data = res.data ?? {}
       const text = data.summary || data.message || data.text || 'Tout est calme pour le moment. Robi n a pas detecte de point urgent.'
       setBriefing(text)
       if ('speechSynthesis' in window) {

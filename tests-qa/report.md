@@ -1,6 +1,6 @@
 # QA Audit Report
 
-**2026-04-23T17:00:02.057Z**
+**2026-07-02T12:49:51.645Z**
 
 **Score : 41/41** (0 échecs)
 
@@ -17,7 +17,7 @@
 | Auth | fallback mode | ✅ | DB indisponible → fallback |
 | Payments | 6 gateways listés | ✅ | 6 providers |
 | FloorState | GET state | ✅ | 12 tables |
-| FloorState | addChair | ✅ | id=yf3g3l2o |
+| FloorState | addChair | ✅ | id=vngge7td |
 | FloorState | addItemToChair | ✅ | 1 items |
 | FloorState | transfer chair t2→t5 | ✅ | tableId=t5 |
 | FloorState | transfer item ch→ch | ✅ |  |
@@ -25,7 +25,7 @@
 | Portal | GET guest side | ✅ | sync confirmé |
 | AI | ollama running | ✅ |  |
 | AI | gemma2:2b installed | ✅ |  |
-| AI | inference responds | ✅ | okay |
+| AI | inference responds | ✅ | ok |
 | FrontEnd | / | ✅ | status 200 |
 | FrontEnd | /login | ✅ | status 200 |
 | FrontEnd | /modules | ✅ | status 200 |

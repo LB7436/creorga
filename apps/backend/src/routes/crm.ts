@@ -34,6 +34,24 @@ router.get('/customers', async (req: any, res: Response) => {
 
     res.json({ customers, total, page: parseInt(page as string), limit: take })
   } catch (error) {
+    // DB indisponible (mode sans Docker) → fallback sur data/customers.json
+    try {
+      const fs = await import('fs')
+      const path = await import('path')
+      const file = path.resolve(process.cwd(), 'data', 'customers.json')
+      const all: any[] = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : []
+      const { search, page = '1', limit = '20' } = req.query
+      const q = String(search || '').toLowerCase()
+      const filtered = q
+        ? all.filter((c) =>
+            [c.firstName, c.lastName, c.email, c.phone].some((v) => String(v || '').toLowerCase().includes(q)))
+        : all
+      const take = parseInt(limit as string)
+      const skip = (parseInt(page as string) - 1) * take
+      logger.warn('GET /customers: DB indisponible, fallback customers.json')
+      res.json({ customers: filtered.slice(skip, skip + take), total: filtered.length, page: parseInt(page as string), limit: take, source: 'fallback' })
+      return
+    } catch { /* fallback impossible → 500 ci-dessous */ }
     logger.error('Erreur GET /customers:', error)
     res.status(500).json({ message: 'Erreur serveur' })
   }

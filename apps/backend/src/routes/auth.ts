@@ -267,6 +267,21 @@ router.post('/refresh', async (req, res) => {
 
     res.json({ accessToken })
   } catch (error) {
+    // DB indisponible (mode sans Docker) → en dev, ré-émettre une session
+    // fallback pour ne pas déconnecter l'utilisateur toutes les 15 min.
+    if (fallbackAdminAllowed() && req.cookies?.refreshToken) {
+      const r = buildFallbackResponse()
+      res.cookie('refreshToken', r.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        path: '/',
+      })
+      logger.warn('Refresh: DB indisponible, session fallback ré-émise')
+      res.json({ accessToken: r.accessToken })
+      return
+    }
     logger.error('Erreur refresh:', error)
     res.status(500).json({ message: 'Erreur lors du refresh' })
   }

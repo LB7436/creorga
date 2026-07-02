@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Sparkles, X, Check } from 'lucide-react'
+import api from '@/lib/api'
 
 type Suggestion = {
   id?: string
@@ -26,9 +27,10 @@ export default function RobiSuggestionBanner() {
   useEffect(() => {
     let cancelled = false
     const poll = async () => {
-      const res = await fetch('/api/agent/proactive/inbox').catch(() => null)
-      if (!res?.ok) return
-      const data = await res.json().catch(() => [])
+      // via le client API authentifié (la route /api/agent exige un token)
+      const res = await api.get('/agent/proactive/inbox').catch(() => null)
+      if (!res) return
+      const data = res.data ?? []
       if (!cancelled) setSuggestions(Array.isArray(data) ? data : data.items ?? data.notifications ?? [])
     }
     poll()
