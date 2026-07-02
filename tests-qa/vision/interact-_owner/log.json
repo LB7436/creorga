@@ -1,0 +1,46 @@
+[
+  {
+    "text": "Mode kiosk",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Mensuel",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Annuel",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Exporter PDF",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Agir",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Générer le rapport",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "♿",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "🏠",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Centre d'aide Creorga",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Ouvrir Robi (Ctrl+Shift+A)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Actions rapides",
+    "reaction": "change le contenu"
+  }
+]

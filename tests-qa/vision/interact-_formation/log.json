@@ -1,0 +1,66 @@
+[
+  {
+    "text": "Mode kiosk",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "👁 Voir en tant que…",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Exporter le rapport",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Planifier une session",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Tableau de bord",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Modules",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Employés",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Certifications",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Vidéothèque",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Calendrier",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Conformité",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "♿",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "🏠",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Centre d'aide Creorga",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Ouvrir Robi (Ctrl+Shift+A)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Actions rapides",
+    "reaction": "change le contenu"
+  }
+]

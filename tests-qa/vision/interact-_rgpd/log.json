@@ -1,0 +1,54 @@
+[
+  {
+    "text": "Exporter registre CNPD",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Nouvelle demande",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Violations",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Consentements",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "CCTV",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Audits",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Formation",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Politiques",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "♿",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "🏠",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Centre d'aide Creorga",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Ouvrir Robi (Ctrl+Shift+A)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Actions rapides",
+    "reaction": "change le contenu"
+  }
+]

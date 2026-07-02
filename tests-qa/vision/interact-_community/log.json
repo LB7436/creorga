@@ -1,0 +1,22 @@
+[
+  {
+    "text": "Personnaliser le dashboard",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Centre d'aide Creorga",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "🌙 Bilan du soir",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Ouvrir Robi (Ctrl+Shift+A)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Actions rapides",
+    "reaction": "clic impossible (recouvert)"
+  }
+]

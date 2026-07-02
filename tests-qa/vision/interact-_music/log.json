@@ -1,0 +1,22 @@
+[
+  {
+    "text": "Mode kiosk",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "📻 Radio",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "🎵 Spotify",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "🎬 YouTube",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "🍎 Apple Music",
+    "reaction": "AUCUNE RÉACTION"
+  }
+]

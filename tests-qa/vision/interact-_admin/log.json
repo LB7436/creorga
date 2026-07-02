@@ -1,0 +1,34 @@
+[
+  {
+    "text": "Choisir un fichier",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Ouvert",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Fermé",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Enregistrer les modifications",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "🏠",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Centre d'aide Creorga",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Ouvrir Robi (Ctrl+Shift+A)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Actions rapides",
+    "reaction": "change le contenu"
+  }
+]
