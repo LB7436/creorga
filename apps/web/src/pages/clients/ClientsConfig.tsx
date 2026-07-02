@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useAuthStore } from '@/stores/authStore'
 import LogoUploader from '@/components/LogoUploader'
 import QRCodeCanvas from '@/components/QRCodeCanvas'
@@ -63,12 +63,6 @@ const ACCENT_COLORS = [
   { id: 'cyan', label: 'Cyan', value: '#06b6d4' },
 ]
 
-const PORTAL_VISUALS = {
-  menu: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=900&q=80',
-  games: 'https://images.unsplash.com/photo-1611996575749-79a3a250f948?auto=format&fit=crop&w=900&q=80',
-  dining: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=900&q=80',
-}
-
 // ---------------------------------------------------------------------------
 // Default settings
 // ---------------------------------------------------------------------------
@@ -79,6 +73,14 @@ function createDefaults(): PortalSettings {
   const games: Record<string, boolean> = {}
   GAMES.forEach((g) => { games[g.id] = true })
   return { toggles, games, welcomeMessage: '', accentColor: '#6366f1', tableNumber: '1', themeMode: 'dark' }
+}
+
+function getPortalPreviewUrl(settings: PortalSettings) {
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:5174'
+  const url = new URL('/c', origin)
+  url.searchParams.set('table', settings.tableNumber || '1')
+  url.searchParams.set('preview', 'admin')
+  return url.toString()
 }
 
 // ---------------------------------------------------------------------------
@@ -144,278 +146,78 @@ function Section({ title, delay, children }: { title: string; delay: number; chi
 // Phone Preview
 // ---------------------------------------------------------------------------
 
-function PhonePreview({ settings, restaurantName }: { settings: PortalSettings; restaurantName: string }) {
+function PhonePreview({ settings }: { settings: PortalSettings }) {
   const accent = settings.accentColor || '#6366f1'
   const dark = settings.themeMode !== 'light'
-  const phone = {
-    bg: dark ? '#060513' : '#f8fafc',
-    surface: dark ? '#111024' : '#ffffff',
-    surface2: dark ? '#1c1a3a' : '#eef2ff',
-    text: dark ? '#f8fafc' : '#0f172a',
-    muted: dark ? '#a5b4fc' : '#64748b',
-    faint: dark ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
-    nav: dark ? '#0d0b1e' : '#ffffff',
-  }
-  const enabledTabs = PORTAL_TOGGLES.filter((t) => settings.toggles[t.id] && t.previewTab)
-  const [activeTab, setActiveTab] = useState(enabledTabs[0]?.previewTab || 'menu')
-
-  useEffect(() => {
-    if (!enabledTabs.find((t) => t.previewTab === activeTab)) {
-      setActiveTab(enabledTabs[0]?.previewTab || '')
-    }
-  }, [settings.toggles])
-
-  const activeGames = GAMES.filter((g) => settings.games[g.id])
-
-  const renderContent = () => {
-    if (!activeTab) {
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: 20, textAlign: 'center' }}>
-          <div style={{ fontSize: 36, marginBottom: 10 }}>{'\u{1F6AB}'}</div>
-          <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Aucune fonctionnalité activée</p>
-          <p style={{ fontSize: 10, color: '#cbd5e1', margin: '4px 0 0' }}>Activez des options dans le panneau de configuration</p>
-        </div>
-      )
-    }
-
-    switch (activeTab) {
-      case 'menu':
-        return (
-          <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{
-              height: 74,
-              borderRadius: 12,
-              backgroundImage: `linear-gradient(135deg, rgba(0,0,0,0.12), ${accent}44), url(${PORTAL_VISUALS.menu})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              marginBottom: 4,
-              border: `1px solid ${phone.faint}`,
-            }} />
-            <p style={{ fontSize: 11, fontWeight: 700, color: phone.text, margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Notre Carte</p>
-            {['Entrées', 'Plats', 'Desserts', 'Boissons'].map((cat, i) => (
-              <div key={cat} style={{
-                background: phone.surface, borderRadius: 10, padding: '10px 12px',
-                border: `1px solid ${phone.faint}`, display: 'flex', alignItems: 'center', gap: 10,
-              }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: 8, background: `${accent}18`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0,
-                }}>
-                  {['\u{1F957}', '\u{1F355}', '\u{1F370}', '\u{1F377}'][i]}
-                </div>
-                <div>
-                  <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: phone.text }}>{cat}</p>
-                  <p style={{ margin: 0, fontSize: 9, color: phone.muted }}>{[4, 6, 3, 8][i]} articles</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )
-      case 'order':
-        return (
-          <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#1e293b', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Commander</p>
-            <div style={{ background: '#f8fafc', borderRadius: 10, padding: 12, border: '1px solid #f1f5f9' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#1e293b' }}>Margherita</p>
-                  <p style={{ margin: 0, fontSize: 9, color: '#94a3b8' }}>Tomate, mozzarella, basilic</p>
-                </div>
-                <span style={{ fontSize: 11, fontWeight: 700, color: accent }}>12,50€</span>
-              </div>
-            </div>
-            <div style={{ background: accent, borderRadius: 10, padding: '8px 0', textAlign: 'center', marginTop: 4 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>Voir le panier (2)</span>
-            </div>
-          </div>
-        )
-      case 'games':
-        return (
-          <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{
-              height: 78,
-              borderRadius: 12,
-              backgroundImage: `linear-gradient(135deg, rgba(0,0,0,0.18), ${accent}55), url(${PORTAL_VISUALS.games})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              border: `1px solid ${phone.faint}`,
-              display: 'flex',
-              alignItems: 'flex-end',
-              padding: 10,
-              color: '#fff',
-              fontSize: 12,
-              fontWeight: 800,
-            }}>
-              Zone jeux premium
-            </div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: phone.text, margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Jeux</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-              {(activeGames.length > 0 ? activeGames.slice(0, 6) : GAMES.slice(0, 6)).map((g) => (
-                <div key={g.id} style={{
-                  background: phone.surface, borderRadius: 8, padding: '8px 4px', textAlign: 'center',
-                  border: `1px solid ${phone.faint}`,
-                }}>
-                  <div style={{ fontSize: 18 }}>{g.emoji}</div>
-                  <p style={{ margin: '2px 0 0', fontSize: 8, color: phone.muted, fontWeight: 500 }}>{g.name}</p>
-                </div>
-              ))}
-            </div>
-            {activeGames.length > 6 && (
-              <p style={{ fontSize: 9, color: '#94a3b8', margin: 0, textAlign: 'center' }}>+{activeGames.length - 6} autres jeux</p>
-            )}
-          </div>
-        )
-      case 'chat':
-        return (
-          <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#1e293b', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Chat</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-              <div style={{ alignSelf: 'flex-start', background: '#f1f5f9', borderRadius: '10px 10px 10px 2px', padding: '6px 10px', maxWidth: '80%' }}>
-                <p style={{ margin: 0, fontSize: 10, color: '#475569' }}>Bonjour ! Comment puis-je vous aider ?</p>
-              </div>
-              <div style={{ alignSelf: 'flex-end', background: accent, borderRadius: '10px 10px 2px 10px', padding: '6px 10px', maxWidth: '80%' }}>
-                <p style={{ margin: 0, fontSize: 10, color: '#fff' }}>L'addition svp !</p>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-              <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 8, padding: '6px 8px', fontSize: 9, color: '#94a3b8' }}>Votre message...</div>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{'\u{1F4E8}'}</div>
-            </div>
-          </div>
-        )
-      case 'reviews':
-        return (
-          <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#1e293b', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Votre avis</p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 4, padding: '8px 0' }}>
-              {[1, 2, 3, 4, 5].map((s) => (
-                <span key={s} style={{ fontSize: 22, cursor: 'pointer', filter: s <= 4 ? 'none' : 'grayscale(1) opacity(0.3)' }}>{'⭐'}</span>
-              ))}
-            </div>
-            <div style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 10px', border: '1px solid #f1f5f9', minHeight: 40 }}>
-              <p style={{ margin: 0, fontSize: 9, color: '#94a3b8' }}>Racontez-nous votre expérience...</p>
-            </div>
-            <div style={{ background: accent, borderRadius: 8, padding: '6px 0', textAlign: 'center' }}>
-              <span style={{ fontSize: 10, fontWeight: 600, color: '#fff' }}>Envoyer mon avis</span>
-            </div>
-          </div>
-        )
-      case 'annonces':
-        return (
-          <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#1e293b', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Annonces</p>
-            <div style={{ background: `${accent}12`, borderRadius: 10, padding: 10, border: `1px solid ${accent}30` }}>
-              <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: '#1e293b' }}>{'\u{1F389}'} Happy Hour</p>
-              <p style={{ margin: '2px 0 0', fontSize: 9, color: '#64748b' }}>-50% sur les cocktails de 17h à 19h !</p>
-            </div>
-            <div style={{ background: '#f8fafc', borderRadius: 10, padding: 10, border: '1px solid #f1f5f9' }}>
-              <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: '#1e293b' }}>{'\u{1F3B5}'} Soirée live</p>
-              <p style={{ margin: '2px 0 0', fontSize: 9, color: '#64748b' }}>Concert acoustique vendredi 20h</p>
-            </div>
-          </div>
-        )
-      default:
-        return null
-    }
-  }
+  const phoneBg = dark ? '#060513' : '#f8fafc'
+  const previewUrl = getPortalPreviewUrl(settings)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-      <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.6, color: '#64748b', margin: 0 }}>
-        Aperçu en direct
-      </p>
-      {/* Phone frame */}
-      <div style={{
-        width: 280, height: 560, borderRadius: 36, background: '#111827', padding: 8,
-        boxShadow: dark ? '0 24px 70px rgba(15,23,42,0.28), 0 0 0 1px rgba(255,255,255,0.08)' : '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)',
-        position: 'relative', overflow: 'hidden',
+    <div style={{ width: '100%', maxWidth: 430, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <p style={{
+        fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 2.4,
+        color: '#64748b', margin: '0 0 14px',
       }}>
-        {/* Notch */}
+        Apercu en direct
+      </p>
+      <div style={{
+        width: 310,
+        height: 640,
+        borderRadius: 34,
+        background: '#111827',
+        padding: 10,
+        boxShadow: `0 24px 70px ${accent}26, 0 18px 36px rgba(15,23,42,0.22)`,
+        position: 'relative',
+      }}>
         <div style={{
-          position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)',
-          width: 80, height: 22, background: '#111827', borderRadius: '0 0 14px 14px', zIndex: 10,
+          position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)',
+          width: 86, height: 24, borderRadius: '0 0 14px 14px', background: '#111827', zIndex: 2,
         }} />
-        {/* Screen */}
-        <div style={{
-          width: '100%', height: '100%', borderRadius: 28, background: phone.bg, overflow: 'hidden',
-          display: 'flex', flexDirection: 'column', color: phone.text,
-        }}>
-          {/* Status bar */}
-          <div style={{ height: 36, background: accent, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 6 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', letterSpacing: 0.3 }}>{restaurantName}</span>
-          </div>
-
-          {/* Welcome message */}
-          {settings.welcomeMessage && (
-            <div style={{ padding: '8px 12px', background: `${accent}12`, borderBottom: `1px solid ${phone.faint}` }}>
-              <p style={{ margin: 0, fontSize: 9, color: phone.muted, lineHeight: 1.4 }}>{settings.welcomeMessage}</p>
-            </div>
-          )}
-
-          {/* Table badge */}
-          <div style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: `1px solid ${phone.faint}` }}>
-            <div style={{
-              background: `${accent}15`, borderRadius: 6, padding: '2px 8px',
-              fontSize: 9, fontWeight: 700, color: accent,
-            }}>
-              Table {settings.tableNumber || '1'}
-            </div>
-          </div>
-
-          {/* Content area */}
-          <div style={{ flex: 1, overflow: 'hidden', background: phone.bg }}>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.2 }}
-                style={{ height: '100%' }}
-              >
-                {renderContent()}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-
-          {/* Bottom nav */}
-          {enabledTabs.length > 0 && (
-            <div style={{
-              display: 'flex', borderTop: `1px solid ${phone.faint}`, background: phone.nav,
-              padding: '6px 4px 10px',
-            }}>
-              {enabledTabs.map((tab) => {
-                const isActive = activeTab === tab.previewTab
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.previewTab!)}
-                    style={{
-                      flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                      background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0',
-                    }}
-                  >
-                    <span style={{ fontSize: 14 }}>{tab.emoji}</span>
-                    <span style={{
-                      fontSize: 7, fontWeight: isActive ? 700 : 500,
-                      color: isActive ? accent : phone.muted,
-                    }}>
-                      {tab.label.split(' ').slice(-1)[0]}
-                    </span>
-                    {isActive && (
-                      <motion.div layoutId="phone-tab-indicator" style={{
-                        width: 16, height: 2, borderRadius: 1, background: accent, marginTop: 1,
-                      }} />
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
+        <iframe
+          title="Apercu portail client Creorga"
+          src={previewUrl}
+          style={{
+            width: '100%',
+            height: '100%',
+            border: 0,
+            borderRadius: 26,
+            background: phoneBg,
+            overflow: 'hidden',
+          }}
+          allow="clipboard-write; fullscreen"
+        />
       </div>
-      <p style={{ fontSize: 10, color: '#94a3b8', margin: 0, textAlign: 'center', maxWidth: 240 }}>
-        Les modifications sont reflétées en temps réel
+      <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+        <a
+          href={previewUrl}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            borderRadius: 999,
+            background: accent,
+            color: '#fff',
+            padding: '9px 14px',
+            textDecoration: 'none',
+            fontSize: 12,
+            fontWeight: 800,
+          }}
+        >
+          Tester dans un onglet
+        </a>
+        <span style={{
+          borderRadius: 999,
+          border: '1px solid #dbe4f0',
+          color: '#64748b',
+          padding: '9px 14px',
+          fontSize: 12,
+          fontWeight: 700,
+          background: '#fff',
+        }}>
+          Table {settings.tableNumber || '1'}
+        </span>
+      </div>
+      <p style={{ margin: '10px 0 0', fontSize: 11, color: '#94a3b8', textAlign: 'center', lineHeight: 1.5 }}>
+        Les changements sont sauvegardes et visibles dans ce localhost comme sur un vrai telephone client.
       </p>
     </div>
   )
@@ -488,7 +290,7 @@ export default function ClientsConfig() {
     persist({ ...settings, games: g })
   }
 
-  const activeGamesCount = Object.values(settings.games).filter(Boolean).length
+  const activeGamesCount = GAMES.filter((game) => settings.games[game.id]).length
   const restaurantName = company?.name || 'Mon Restaurant'
 
   return (
@@ -736,7 +538,7 @@ export default function ClientsConfig() {
             display: 'flex', justifyContent: 'center', paddingTop: 8,
           }}
         >
-          <PhonePreview settings={settings} restaurantName={restaurantName} />
+          <PhonePreview settings={settings} />
         </motion.div>
       </div>
 

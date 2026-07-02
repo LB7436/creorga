@@ -9,12 +9,15 @@ const router = Router()
 
 router.get('/customers', async (req: any, res: Response) => {
   try {
-    const { search, page = '1', limit = '20' } = req.query
+    const { search, page = '1', limit = '20', includeManual } = req.query
     const companyId: string = req.companyId
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string)
     const take = parseInt(limit as string)
 
     const where: any = { companyId }
+    if (includeManual !== 'true') {
+      where.isGuest = true
+    }
     if (search) {
       where.OR = [
         { firstName: { contains: search as string, mode: 'insensitive' } },
@@ -64,7 +67,7 @@ router.post('/customers', async (req: any, res: Response) => {
   try {
     const { firstName, lastName, email, phone, notes, isGuest } = req.body
     const customer = await prisma.customer.create({
-      data: { companyId: req.companyId, firstName, lastName, email, phone, notes, isGuest: isGuest || false },
+      data: { companyId: req.companyId, firstName, lastName, email, phone, notes, isGuest: isGuest ?? true },
     })
     res.status(201).json(customer)
   } catch (error) {
