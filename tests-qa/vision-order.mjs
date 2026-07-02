@@ -1,0 +1,23 @@
+import { chromium } from '@playwright/test'
+const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+page.on('dialog', (d) => d.dismiss().catch(() => {}))
+await page.goto('http://localhost:5174/login', { waitUntil: 'domcontentloaded' })
+await page.evaluate(() => { localStorage.setItem('creorga-onboarded', '1'); localStorage.setItem('creorga.onboardingDone', String(Date.now())) })
+await page.locator('input[type="email"]').fill('admin@creorga.local')
+await page.locator('input[placeholder="••••••••"]').fill('Admin1234!')
+await page.locator('button[type="submit"]').click()
+await page.waitForURL('**/welcome')
+await page.goto('http://localhost:5174/pos/floor', { waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(1500)
+// clic sur la table T1
+const before = await page.evaluate(() => document.body.innerHTML.length)
+await page.getByText('T1', { exact: false }).first().click()
+await page.waitForTimeout(1200)
+const after = await page.evaluate(() => document.body.innerHTML.length)
+console.log('Clic T1 → delta DOM:', after - before, '| URL:', page.url())
+await page.screenshot({ path: 'tests-qa/vision/order-01-table-click.png' })
+// cherche un bouton "Commander"/"Ajouter"/"Menu"
+const txt = await page.evaluate(() => document.body.innerText.replace(/\s+/g, ' ').slice(0, 400))
+console.log('Contenu après clic table:', txt)
+await browser.close()

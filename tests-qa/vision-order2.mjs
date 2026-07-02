@@ -1,0 +1,25 @@
+import { chromium } from '@playwright/test'
+const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+page.on('dialog', (d) => d.dismiss().catch(() => {}))
+await page.goto('http://localhost:5174/login', { waitUntil: 'domcontentloaded' })
+await page.evaluate(() => { localStorage.setItem('creorga-onboarded', '1'); localStorage.setItem('creorga.onboardingDone', String(Date.now())) })
+await page.locator('input[type="email"]').fill('admin@creorga.local')
+await page.locator('input[placeholder="••••••••"]').fill('Admin1234!')
+await page.locator('button[type="submit"]').click()
+await page.waitForURL('**/welcome')
+await page.goto('http://localhost:5174/pos/floor', { waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(1500)
+await page.getByText('T1', { exact: false }).first().click()
+await page.waitForTimeout(1000)
+// + Chaise
+await page.getByText('+ Chaise', { exact: false }).first().click().catch((e) => console.log('+Chaise:', e.message.slice(0,50)))
+await page.waitForTimeout(1000)
+await page.screenshot({ path: 'tests-qa/vision/order-02-chaise.png' })
+const txt = await page.evaluate(() => { const p = document.querySelector('[class*="drawer"],[class*="Drawer"],[class*="panel"]'); return document.body.innerText.replace(/\s+/g,' ') })
+console.log('Après +Chaise:', /chaise 1|Ajouter|Menu|article|Commander/i.test(txt) ? 'options commande présentes' : 'pas encore')
+// cherche bouton pour ajouter un article
+const addBtn = await page.getByText(/Ajouter un article|Ajouter|Menu|Carte/i).count()
+console.log('Boutons ajout article détectés:', addBtn)
+if (addBtn) { await page.getByText(/Ajouter un article|Ajouter|Menu|Carte/i).first().click().catch(()=>{}); await page.waitForTimeout(1000); await page.screenshot({ path: 'tests-qa/vision/order-03-menu.png' }) }
+await browser.close()

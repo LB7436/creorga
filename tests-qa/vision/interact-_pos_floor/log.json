@@ -1,0 +1,98 @@
+[
+  {
+    "text": "🔍\nRechercher dans Creorga... (Cmd+K)\n⌘K",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "🍽\nService",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "🏢\nAdmin",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "🌐\nTout",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "👥 0",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "▦\nModules",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Robi",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "🇫🇷\nFR",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "🌙",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "🔔\n8",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "AC\nAdmin\n▼",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Modules",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Tableau de bord",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Plan de salle",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Commandes",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Cuisine KDS",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Caisse",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Configuration",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Mode kiosk",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Mauve (original)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Indigo actuel",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Ardoise pro",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Or premium",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Émeraude",
+    "reaction": "clic impossible (recouvert)"
+  }
+]
