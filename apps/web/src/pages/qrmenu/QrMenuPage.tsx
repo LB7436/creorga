@@ -119,6 +119,7 @@ const PATTERNS = [
 type PatternId = typeof PATTERNS[number]['id']
 
 const LANGUAGES = ['FR', 'DE', 'EN', 'PT']
+const QR_MENU_DOCUMENT_KEY = 'creorga-qr-menu-document'
 
 /* ───────────────────────── Main Component ──────────────────────── */
 export default function QrMenuPage() {
@@ -126,6 +127,12 @@ export default function QrMenuPage() {
   const [restaurantName, setRestaurantName] = useState('Café um Rond-Point')
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const pdfInputRef = useRef<HTMLInputElement>(null)
+  const [publishedMenuName, setPublishedMenuName] = useState<string | null>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(QR_MENU_DOCUMENT_KEY) || 'null')?.name ?? null
+    } catch { return null }
+  })
 
   // Menu source
   const [posSync, setPosSync] = useState(true)
@@ -159,6 +166,29 @@ export default function QrMenuPage() {
     if (!file) return
     const reader = new FileReader()
     reader.onload = ev => setLogoUrl(ev.target?.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  const publishMenuDocument = (payload?: { name: string; dataUrl?: string }) => {
+    const doc = {
+      name: payload?.name ?? `QR Menu ${restaurantName}.pdf`,
+      dataUrl: payload?.dataUrl,
+      restaurantName,
+      fullUrl,
+      updatedAt: new Date().toISOString(),
+      posSync,
+      allowOrdering,
+    }
+    localStorage.setItem(QR_MENU_DOCUMENT_KEY, JSON.stringify(doc))
+    window.dispatchEvent(new StorageEvent('storage', { key: QR_MENU_DOCUMENT_KEY }))
+    setPublishedMenuName(doc.name)
+  }
+
+  const handleMenuPdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => publishMenuDocument({ name: file.name, dataUrl: ev.target?.result as string })
     reader.readAsDataURL(file)
   }
 
@@ -268,7 +298,9 @@ export default function QrMenuPage() {
               color={accentColor}
             />
             <div style={{ height: 1, background: '#e2e8f0', margin: '14px 0' }} />
-            <button style={{
+            <button
+              onClick={() => pdfInputRef.current?.click()}
+              style={{
               ...inputStyle, display: 'flex', alignItems: 'center', gap: 10,
               cursor: 'pointer', justifyContent: 'center', fontWeight: 500,
               color: '#475569', background: '#f8fafc',
@@ -276,6 +308,37 @@ export default function QrMenuPage() {
               <FileText size={16} />
               Importer un PDF à la place
             </button>
+            <input
+              ref={pdfInputRef}
+              type="file"
+              accept="application/pdf"
+              onChange={handleMenuPdfUpload}
+              style={{ display: 'none' }}
+            />
+            <button
+              onClick={() => publishMenuDocument()}
+              style={{
+                ...inputStyle,
+                marginTop: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                cursor: 'pointer',
+                fontWeight: 700,
+                color: '#fff',
+                background: accentColor,
+                borderColor: accentColor,
+              }}
+            >
+              <Check size={16} />
+              Publier dans le portail client
+            </button>
+            {publishedMenuName && (
+              <p style={{ fontSize: 11, color: '#16a34a', margin: '8px 0 0 0', fontWeight: 700 }}>
+                Visible dans le menu client : {publishedMenuName}
+              </p>
+            )}
           </Card>
 
           {/* URL */}

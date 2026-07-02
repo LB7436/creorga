@@ -303,15 +303,15 @@ export default function ClientsPage() {
     marketingConsent: false,
   })
 
-  // Real API with mock fallback (keeps the rich UI alive if backend returns nothing yet)
+  // Real API only: the CRM must show customers created from the client portal or staff entry,
+  // not seeded/demo identities.
   const { data: apiCustomers } = useCustomers()
   const createCustomer = useCreateCustomer()
   const updateCustomer = useUpdateCustomer()
   const rechargeWallet = useRechargeWallet()
 
   const customers: Customer[] = useMemo(() => {
-    if (apiCustomers && apiCustomers.length > 0) {
-      // Merge API data with mock shape to avoid UI crashes on missing fields.
+    if (apiCustomers) {
       return apiCustomers.map((c, i) => {
         const mock = MOCK_CUSTOMERS[i % MOCK_CUSTOMERS.length]
         return {
@@ -331,7 +331,7 @@ export default function ClientsPage() {
         } as Customer
       })
     }
-    return MOCK_CUSTOMERS
+    return []
   }, [apiCustomers])
 
   function handleRechargeWallet(id: string, amount: number) {

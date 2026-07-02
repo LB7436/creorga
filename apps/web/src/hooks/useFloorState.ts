@@ -66,6 +66,36 @@ export interface FloorState {
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 const BASE = `${BACKEND}/api/floor-state`
 
+const DEFAULT_FLOOR_STATE: FloorState = {
+  tables: [
+    { id: 'T1', name: 'T1', seats: 2, section: 'Salle', shape: 'round', status: 'LIBRE', x: 120, y: 120, items: [] },
+    { id: 'T2', name: 'T2', seats: 4, section: 'Salle', shape: 'round', status: 'LIBRE', x: 300, y: 120, items: [] },
+    { id: 'T3', name: 'T3', seats: 4, section: 'Salle', shape: 'square', status: 'LIBRE', x: 500, y: 130, items: [] },
+    { id: 'T4', name: 'T4', seats: 2, section: 'Salle', shape: 'round', status: 'LIBRE', x: 160, y: 310, items: [] },
+    { id: 'T5', name: 'T5', seats: 6, section: 'Salle', shape: 'rect', status: 'LIBRE', x: 380, y: 310, items: [] },
+    { id: 'B1', name: 'Bar 1', seats: 1, section: 'Bar', shape: 'bar', status: 'LIBRE', x: 110, y: 520, items: [] },
+    { id: 'B2', name: 'Bar 2', seats: 1, section: 'Bar', shape: 'bar', status: 'LIBRE', x: 230, y: 520, items: [] },
+    { id: 'TE1', name: 'Terrasse 1', seats: 4, section: 'Terrasse', shape: 'round', status: 'LIBRE', x: 560, y: 500, items: [] },
+    { id: 'TE2', name: 'Terrasse 2', seats: 4, section: 'Terrasse', shape: 'round', status: 'LIBRE', x: 740, y: 500, items: [] },
+  ],
+  chairs: [],
+  photos: [],
+  zones: [
+    { id: 'Salle', name: 'Salle', color: '#2563eb' },
+    { id: 'Bar', name: 'Bar', color: '#9333ea' },
+    { id: 'Terrasse', name: 'Terrasse', color: '#16a34a' },
+  ],
+  updatedAt: Date.now(),
+}
+
+function cloneDefaultFloorState(): FloorState {
+  return JSON.parse(JSON.stringify({ ...DEFAULT_FLOOR_STATE, updatedAt: Date.now() }))
+}
+
+function isUsableFloorState(data: FloorState | null | undefined) {
+  return Boolean(data?.tables?.length && data?.zones?.length)
+}
+
 export function useFloorState(pollMs = 2000) {
   const [state, setState] = useState<FloorState | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -76,13 +106,17 @@ export function useFloorState(pollMs = 2000) {
       const r = await fetch(BASE)
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       const data = await r.json() as FloorState
+      const next = isUsableFloorState(data) ? data : cloneDefaultFloorState()
       // Only update if remote is newer (prevent clobbering optimistic edits)
-      if (data.updatedAt >= lastUpdate.current) {
-        setState(data)
-        lastUpdate.current = data.updatedAt
+      if (next.updatedAt >= lastUpdate.current) {
+        setState(next)
+        lastUpdate.current = next.updatedAt
       }
       setError(null)
-    } catch (e: any) { setError(e.message) }
+    } catch (e: any) {
+      setError(e.message)
+      setState((current) => current ?? cloneDefaultFloorState())
+    }
   }, [])
 
   useEffect(() => {

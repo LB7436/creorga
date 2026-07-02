@@ -120,12 +120,22 @@ function LangPicker({ lang, setLang }: { lang: string; setLang: (l: string) => v
 // ─── Main ────────────────────────────────────────────────
 
 type Tab = 'jeux' | 'menu' | 'chat' | 'avis'
+const QR_MENU_DOCUMENT_KEY = 'creorga-qr-menu-document'
+
+type QrMenuDocument = {
+  name: string
+  dataUrl?: string
+  restaurantName?: string
+  fullUrl?: string
+  updatedAt?: string
+}
 
 export default function GuestHome() {
   const company = useAuthStore((s) => s.company)
   const { config } = usePortalConfig(2500)
   const [searchParams] = useSearchParams()
   const tableId = searchParams.get('table')
+  const embed = searchParams.get('embed')
 
   const [tab, setTab] = useState<Tab>('jeux')
   const [lang, setLang] = useState('fr')
@@ -189,6 +199,14 @@ export default function GuestHome() {
   const accent = config?.accentColor || ACCENT
   const restaurantName = config?.restaurantName || company?.name || 'Creorga'
   const theme = guestTheme(config?.themeMode)
+
+  if (embed === 'games') {
+    return (
+      <div style={{ minHeight: '100vh', background: theme.bg, color: theme.text }}>
+        <GamesSection />
+      </div>
+    )
+  }
 
   const tabs: { id: Tab; icon: React.ReactNode; label: string; badge?: number; visible: boolean }[] = [
     { id: 'jeux', icon: <Gamepad2 className="h-5 w-5" />, label: 'Jeux', visible: toggles.games !== false },
@@ -343,6 +361,11 @@ interface MenuProduct {
   price: number
   description: string
   emoji: string
+  stockTracked?: boolean
+  stockQty?: number | null
+  stockUnit?: string | null
+  stockStatus?: 'UNTRACKED' | 'OUT' | 'LOW' | 'OK'
+  isAvailable?: boolean
 }
 
 interface MenuCategory {
@@ -408,6 +431,11 @@ function GuestMenu({
   const [cartOpen, setCartOpen] = useState(false)
   const [orderState, setOrderState] = useState<'idle' | 'sending' | 'success'>('idle')
   const [addedId, setAddedId] = useState<string | null>(null)
+  const [qrMenuDocument, setQrMenuDocument] = useState<QrMenuDocument | null>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(QR_MENU_DOCUMENT_KEY) || 'null')
+    } catch { return null }
+  })
 
   useEffect(() => {
     if (!companyId) {
@@ -442,6 +470,18 @@ function GuestMenu({
   }, [companyId])
 
   useEffect(() => {
+    const refreshQrMenu = () => {
+      try {
+        setQrMenuDocument(JSON.parse(localStorage.getItem(QR_MENU_DOCUMENT_KEY) || 'null'))
+      } catch {
+        setQrMenuDocument(null)
+      }
+    }
+    window.addEventListener('storage', refreshQrMenu)
+    return () => window.removeEventListener('storage', refreshQrMenu)
+  }, [])
+
+  useEffect(() => {
     if (companyId) return
     let cancelled = false
     fetch(`${BACKEND}/api/portal-config/menu`)
@@ -456,6 +496,7 @@ function GuestMenu({
           name: c.name,
           emoji: c.icon || '🍽️',
           products: (c.products ?? []).map((p: any) => ({
+            ...p,
             id: p.id,
             name: p.name,
             price: p.price,
@@ -609,6 +650,51 @@ function GuestMenu({
           </button>
         )}
       </div>
+      {qrMenuDocument && (
+        <div style={{
+          borderRadius: 14,
+          border: `1px solid ${BORDER}`,
+          background: 'linear-gradient(135deg, rgba(6,182,212,0.16), rgba(168,85,247,0.14))',
+          padding: 12,
+          marginBottom: 12,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+        }}>
+          <div style={{
+            width: 42,
+            height: 42,
+            borderRadius: 12,
+            background: 'rgba(255,255,255,0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 22,
+          }}>
+            📄
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 800, color: TEXT }}>QR Menu publie</p>
+            <p style={{ fontSize: 11, color: MUTED, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {qrMenuDocument.name}
+            </p>
+          </div>
+          {qrMenuDocument.dataUrl ? (
+            <a
+              href={qrMenuDocument.dataUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{ borderRadius: 10, padding: '8px 10px', background: ACCENT2, color: '#04111a', fontSize: 11, fontWeight: 900, textDecoration: 'none' }}
+            >
+              Ouvrir
+            </a>
+          ) : (
+            <span style={{ borderRadius: 10, padding: '8px 10px', background: SURFACE2, color: MUTED, fontSize: 11, fontWeight: 800 }}>
+              Sync POS
+            </span>
+          )}
+        </div>
+      )}
       {/* Category tabs */}
       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, marginBottom: 16 }}>
         {categories.map((cat) => (
@@ -634,6 +720,7 @@ function GuestMenu({
         {(active?.products ?? []).map((p, idx) => {
           const inCart = cart.find(i => i.id === p.id)
           const justAdded = addedId === p.id
+          const available = p.isAvailable !== false
           return (
             <motion.div
               key={p.id}
@@ -660,6 +747,16 @@ function GuestMenu({
                 <p style={{ fontSize: 11, color: MUTED, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                   {p.description}
                 </p>
+                {p.stockStatus === 'OUT' && (
+                  <p style={{ fontSize: 11, color: '#f97316', marginTop: 4, fontWeight: 800 }}>
+                    Stock epuise cote inventaire
+                  </p>
+                )}
+                {p.stockStatus === 'LOW' && (
+                  <p style={{ fontSize: 11, color: '#facc15', marginTop: 4, fontWeight: 800 }}>
+                    Stock bas: {p.stockQty} {p.stockUnit || ''}
+                  </p>
+                )}
                 <p style={{ fontSize: 15, fontWeight: 700, color: ACCENT, marginTop: 4 }}>
                   {p.price.toFixed(2)} €
                 </p>
@@ -697,14 +794,16 @@ function GuestMenu({
               ) : (
                 <motion.button
                   onClick={() => handleAdd(p)}
+                  disabled={!available}
                   whileTap={{ scale: 0.9 }}
                   animate={justAdded ? { scale: [1, 1.15, 1] } : {}}
                   style={{
                     flexShrink: 0, borderRadius: 10, padding: '8px 14px',
                     fontSize: 12, fontWeight: 700, border: 'none',
-                    background: justAdded ? '#22c55e' : `linear-gradient(135deg, ${ACCENT}, #7c3aed)`,
+                    background: !available ? '#475569' : justAdded ? '#22c55e' : `linear-gradient(135deg, ${ACCENT}, #7c3aed)`,
                     color: '#fff',
                     boxShadow: `0 2px 12px ${ACCENT}33`,
+                    cursor: available ? 'pointer' : 'not-allowed',
                   }}
                 >
                   {justAdded ? '✓' : 'Ajouter'}

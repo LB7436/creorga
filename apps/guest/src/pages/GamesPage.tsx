@@ -1,168 +1,131 @@
-import { useState } from 'react'
-import { AnimatePresence } from 'framer-motion'
+import { useMemo, useState } from 'react'
 import { usePortalConfig } from '../usePortalConfig'
-import GameLauncher from '../games/GameLauncher'
 
-/**
- * Games page on guest portal — Creorga dark theme.
- * Lists games enabled by admin, opens GameLauncher modal on tap.
- */
-
-const ALL_GAMES = [
-  // Casino premium
-  { id: 'slots',      name: 'Slots',       emoji: '🎰', desc: '3 reels, jackpot ×100',  playable: true  },
-  { id: 'blackjack',  name: 'Blackjack',   emoji: '🂡', desc: '21 ou rien',             playable: true  },
-  { id: 'roulette',   name: 'Roulette',    emoji: '🎡', desc: 'Européenne 0-36',        playable: true  },
-  { id: 'poker',      name: 'Poker',       emoji: '♠', desc: '5-card draw',             playable: true  },
-  // Cartes
-  { id: 'sueca',      name: 'Sueca',       emoji: '🇵🇹', desc: 'Skoopa portugaise',     playable: true  },
-  // Arcade
-  { id: 'tetris',     name: 'Tetris',      emoji: '🟦', desc: 'Lignes complètes',       playable: true  },
-  { id: 'demineur',   name: 'Démineur',    emoji: '💣', desc: 'Bombes et logique',      playable: true  },
-  { id: 'snake',      name: 'Snake',       emoji: '🐍', desc: 'Le serpent culte',       playable: true  },
-  { id: '2048',       name: '2048',        emoji: '🔢', desc: 'Glissez et fusionnez',   playable: true  },
-  { id: 'pong',       name: 'Pong',        emoji: '🏓', desc: 'Paddle vs CPU',          playable: true  },
-  // Réflexion
-  { id: 'morpion',    name: 'Morpion',     emoji: '⭕', desc: 'Tic-tac-toe vs CPU',     playable: true  },
-  { id: 'puissance4', name: 'Puissance 4', emoji: '🔵', desc: 'Aligner 4 jetons',       playable: true  },
-  { id: 'memory',     name: 'Memory',      emoji: '🧠', desc: 'Paires de cartes',       playable: true  },
-  { id: 'quiz',       name: 'Quiz',        emoji: '❓', desc: 'Culture générale',       playable: true  },
-  { id: 'darts',      name: 'Fléchettes',  emoji: '🎯', desc: 'Visez le centre',        playable: true  },
-  // Coming soon
-  { id: 'echecs',     name: 'Échecs',      emoji: '♟', desc: 'Bientôt',                 playable: false },
-  { id: 'solitaire',  name: 'Solitaire',   emoji: '🃏', desc: 'Bientôt',                playable: false },
-  { id: 'bingo',      name: 'Bingo',       emoji: '🎱', desc: 'Bientôt',                playable: false },
-  { id: 'simon',      name: 'Simon',       emoji: '🔴', desc: 'Bientôt',                playable: false },
-  { id: 'pendu',      name: 'Le Pendu',    emoji: '🪢', desc: 'Bientôt',                playable: false },
-  { id: 'sudoku',     name: 'Sudoku',      emoji: '🔢', desc: 'Bientôt',                playable: false },
-]
-
-const GAME_IMAGES = [
-  'https://images.unsplash.com/photo-1606167668584-78701c57f13d?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1611996575749-79a3a250f948?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1553481187-be93c21490a9?auto=format&fit=crop&w=900&q=80',
-]
-
-function visualFor(id: string) {
-  const seed = id.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)
-  return GAME_IMAGES[seed % GAME_IMAGES.length]
+function buildGamesUrl(tableNumber?: string) {
+  const configured = (import.meta as any).env?.VITE_WEB_CLIENT_URL
+  const base = configured || (() => {
+    const url = new URL(window.location.href)
+    url.port = '5174'
+    return url.origin
+  })()
+  const url = new URL('/c', base)
+  url.searchParams.set('table', tableNumber || '1')
+  url.searchParams.set('embed', 'games')
+  return url.toString()
 }
 
 export default function GamesPage() {
   const { config } = usePortalConfig(2500)
-  const enabled = config?.games || {}
-  const [activeGame, setActiveGame] = useState<string | null>(null)
-
-  // Default: if no per-game config received yet, show all
-  const visibleGames = (Object.keys(enabled).length === 0
-    ? ALL_GAMES
-    : ALL_GAMES.filter((g) => enabled[g.id] !== false))
-    // Dedupe by ID (in case the list above has accidental doubles)
-    .filter((g, i, arr) => arr.findIndex(x => x.id === g.id) === i)
-
-  const accent = config?.accentColor || '#a78bfa'
-  const light = config?.themeMode === 'light'
-  const theme = {
-    bg: light ? '#f8fafc' : 'linear-gradient(180deg, #0a0a14 0%, #1a0a2e 100%)',
-    text: light ? '#0f172a' : '#f1f5f9',
-    muted: light ? '#64748b' : '#94a3b8',
-    surface: light ? 'rgba(255,255,255,0.92)' : 'rgba(16,16,32,0.88)',
-    border: light ? '#dbe4f0' : 'rgba(255,255,255,0.1)',
-  }
+  const [loaded, setLoaded] = useState(false)
+  const accent = config?.accentColor || '#a855f7'
+  const gamesUrl = useMemo(() => buildGamesUrl(config?.tableNumber), [config?.tableNumber])
 
   return (
-    <div style={{
-      padding: 16,
-      background: theme.bg,
-      color: theme.text,
-      minHeight: '100%',
-    }}>
-      <header style={{ marginBottom: 16, paddingTop: 20 }}>
-        <h1 style={{
-          margin: 0, fontSize: 22, fontWeight: 800,
-          background: `linear-gradient(135deg, ${accent}, #ec4899)`,
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
-        }}>
-          🎮 Jeux à votre table
-        </h1>
-        <p style={{ margin: '4px 0 0', color: theme.muted, fontSize: 13 }}>
-          {visibleGames.length} jeu(x) — gratuits, sans inscription
-        </p>
-      </header>
+    <div style={pageStyle}>
+      <div style={topStyle}>
+        <div>
+          <p style={eyebrowStyle}>Creorga 4.0.0</p>
+          <h1 style={titleStyle}>Bibliotheque jeux</h1>
+        </div>
+        <a href={gamesUrl} target="_blank" rel="noreferrer" style={{ ...openStyle, background: accent }}>
+          Ouvrir
+        </a>
+      </div>
 
-      {visibleGames.length === 0 ? (
-        <div style={{
-          padding: 40, textAlign: 'center',
-          background: theme.surface,
-          border: `1px solid ${theme.border}`,
-          borderRadius: 14, color: theme.muted,
-        }}>
-          <div style={{ fontSize: 40 }}>🚧</div>
-          <div style={{ marginTop: 8, fontWeight: 600 }}>
-            Aucun jeu activé
+      <div style={frameWrapStyle}>
+        {!loaded && (
+          <div style={loadingStyle}>
+            <span style={{ ...pulseStyle, background: accent }} />
+            <strong>Chargement des jeux...</strong>
           </div>
-        </div>
-      ) : (
-        <div style={{
-          display: 'grid', gap: 10,
-          gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-        }}>
-          {visibleGames.map((g) => (
-            <button
-              key={g.id}
-              onClick={() => setActiveGame(g.id)}
-              style={{
-                padding: 16, borderRadius: 14, cursor: 'pointer', textAlign: 'center',
-                border: g.playable ? `1px solid ${accent}55` : `1px solid ${theme.border}`,
-                backgroundImage: g.playable
-                  ? `linear-gradient(180deg, ${light ? 'rgba(255,255,255,0.7)' : 'rgba(10,10,20,0.42)'}, ${theme.surface}), url(${visualFor(g.id)})`
-                  : 'none',
-                backgroundColor: theme.surface,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                color: theme.text,
-                transition: 'all .15s', position: 'relative',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)'
-                e.currentTarget.style.boxShadow = `0 8px 24px ${accent}40`
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
-            >
-              {g.playable && (
-                <span style={{
-                  position: 'absolute', top: 6, right: 6,
-                  padding: '2px 6px', borderRadius: 999,
-                  background: '#10b981', color: '#fff',
-                  fontSize: 8, fontWeight: 800, letterSpacing: 0.5,
-                }}>JOUABLE</span>
-              )}
-              <div style={{ fontSize: 36 }}>{g.emoji}</div>
-              <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, color: theme.text }}>
-                {g.name}
-              </div>
-              <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>
-                {g.desc}
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-
-      <AnimatePresence>
-        {activeGame && (
-          <GameLauncher
-            gameId={activeGame}
-            onClose={() => setActiveGame(null)}
-            accent={accent}
-          />
         )}
-      </AnimatePresence>
+        <iframe
+          title="Bibliotheque jeux Creorga"
+          src={gamesUrl}
+          onLoad={() => setLoaded(true)}
+          style={frameStyle}
+          allow="clipboard-write; fullscreen"
+        />
+      </div>
     </div>
   )
+}
+
+const pageStyle: React.CSSProperties = {
+  minHeight: '100%',
+  padding: 12,
+  background: 'linear-gradient(180deg, #05050f 0%, #111127 100%)',
+  color: '#f8fafc',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+}
+
+const topStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 10,
+}
+
+const eyebrowStyle: React.CSSProperties = {
+  margin: 0,
+  color: '#94a3b8',
+  fontSize: 10,
+  fontWeight: 900,
+  textTransform: 'uppercase',
+}
+
+const titleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 19,
+  fontWeight: 950,
+}
+
+const openStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: 12,
+  color: '#fff',
+  padding: '10px 12px',
+  textDecoration: 'none',
+  fontSize: 12,
+  fontWeight: 950,
+  boxShadow: '0 10px 24px rgba(168,85,247,0.25)',
+}
+
+const frameWrapStyle: React.CSSProperties = {
+  position: 'relative',
+  flex: 1,
+  minHeight: 620,
+  borderRadius: 18,
+  overflow: 'hidden',
+  border: '1px solid rgba(168,85,247,0.22)',
+  background: '#05050f',
+}
+
+const loadingStyle: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  display: 'grid',
+  placeItems: 'center',
+  gap: 10,
+  color: '#f8fafc',
+  zIndex: 1,
+}
+
+const pulseStyle: React.CSSProperties = {
+  width: 34,
+  height: 34,
+  borderRadius: '50%',
+  boxShadow: '0 0 28px rgba(168,85,247,0.45)',
+}
+
+const frameStyle: React.CSSProperties = {
+  position: 'relative',
+  zIndex: 2,
+  width: '100%',
+  height: '100%',
+  minHeight: 620,
+  border: 0,
+  background: '#05050f',
 }

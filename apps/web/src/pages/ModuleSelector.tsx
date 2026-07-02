@@ -264,6 +264,7 @@ function ModuleCard({ mod, onClick, pinned, onTogglePin }: ModuleCardProps) {
 export default function ModuleSelector() {
   const navigate = useNavigate()
   const { user, company } = useAuthStore()
+  const role = useAuthStore((s) => s.role)
   const logout = useAuthStore((s) => s.logout)
   const setActiveModule = useModuleStore((s) => s.setActiveModule)
   const usageStats = useModuleUXStore((s) => s.usageStats)
@@ -287,6 +288,7 @@ export default function ModuleSelector() {
   const comingSoonMode = useEnvMode((s) => s.comingSoonMode)
   const serviceIds = useMemo(() => new Set<ModuleId>(['pos', 'hr', 'sales', 'haccp', 'qrmenu']), [])
   const adminIds = useMemo(() => new Set<ModuleId>(['owner', 'sites', 'rgpd', 'backup', 'api', 'maintenance']), [])
+  const employeeHiddenIds = useMemo(() => new Set<ModuleId>(['rgpd', 'backup', 'sites', 'api', 'maintenance', 'owner']), [])
 
   // Apply display-mode filter from SettingsModules:
   //   - "hidden"     → exclude completely
@@ -296,6 +298,7 @@ export default function ModuleSelector() {
     return MODULES.filter((m) => {
       const cfg = moduleConfig[m.id]
       if (cfg?.displayMode === 'hidden') return false
+      if (role === 'employee' && employeeHiddenIds.has(m.id)) return false
       if (viewMode === 'service' && !serviceIds.has(m.id)) return false
       if (viewMode === 'admin' && !adminIds.has(m.id)) return false
       const matchCategory = category === 'all' || m.category === category
@@ -317,7 +320,7 @@ export default function ModuleSelector() {
       if ((statsB?.count ?? 0) !== (statsA?.count ?? 0)) return (statsB?.count ?? 0) - (statsA?.count ?? 0)
       return (statsB?.lastOpened ?? 0) - (statsA?.lastOpened ?? 0)
     })
-  }, [category, search, moduleConfig, viewMode, serviceIds, adminIds, pinnedModules, usageStats])
+  }, [category, search, moduleConfig, role, employeeHiddenIds, viewMode, serviceIds, adminIds, pinnedModules, usageStats])
 
   const handleModule = (mod: ModuleDef) => {
     const cfg = moduleConfig[mod.id]
@@ -346,6 +349,11 @@ export default function ModuleSelector() {
       }}
     >
       <FloatingOrbs />
+      {role === 'employee' && (
+        <div style={{ position: 'relative', zIndex: 12, margin: '16px auto 0', maxWidth: 960, padding: '10px 14px', borderRadius: 14, border: '1px solid rgba(96,165,250,0.24)', background: 'rgba(59,130,246,0.12)', color: '#bfdbfe', fontSize: 13, fontWeight: 800 }}>
+          👁 Vue collaborateur: modules sensibles masques, acces operationnel conserve.
+        </div>
+      )}
 
       {/* ── header ── */}
       <motion.div

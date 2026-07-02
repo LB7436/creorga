@@ -77,6 +77,67 @@ select {
   position: relative;
 }
 
+.guest-stage-unified {
+  padding: 18px;
+}
+
+.guest-device-unified {
+  width: min(100%, 480px);
+}
+
+.guest-shell-unified {
+  background: #080816;
+  overflow: hidden;
+}
+
+.guest-unified-topbar {
+  height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.09);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(8,8,22,0.92);
+  color: #f8fafc;
+  flex-shrink: 0;
+}
+
+.guest-unified-topbar strong,
+.guest-unified-topbar span {
+  display: block;
+}
+
+.guest-unified-topbar strong {
+  font-size: 13px;
+  line-height: 1.1;
+}
+
+.guest-unified-topbar span {
+  margin-top: 3px;
+  color: #a5b4fc;
+  font-size: 11px;
+}
+
+.guest-unified-topbar a {
+  color: #fff;
+  background: var(--guest-accent, #a855f7);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--guest-accent, #a855f7) 35%, transparent);
+}
+
+.guest-unified-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: #070713;
+}
+
 .guest-scroll {
   flex: 1;
   overflow: auto;

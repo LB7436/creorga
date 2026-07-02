@@ -1,4 +1,6 @@
 import { Router } from 'express'
+import fs from 'fs'
+import path from 'path'
 import prisma from '../lib/prisma'
 
 /**
@@ -32,6 +34,48 @@ const DEFAULT_CONFIG: PortalConfig = {
 
 let current: PortalConfig = { ...DEFAULT_CONFIG }
 const clientEvents: Array<Record<string, unknown>> = []
+const STOCK_FILE = path.resolve(process.cwd(), 'data', 'inventory-stock.json')
+
+function loadStockEntries(): Array<{ name: string; quantity?: number; unit?: string; lowStockThreshold?: number }> {
+  try {
+    if (!fs.existsSync(STOCK_FILE)) return []
+    const parsed = JSON.parse(fs.readFileSync(STOCK_FILE, 'utf8'))
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function stockForProduct(productName: string, stock: ReturnType<typeof loadStockEntries>) {
+  const normalized = productName.toLowerCase()
+  return stock.find((entry) => {
+    const name = String(entry.name || '').toLowerCase()
+    return name && (normalized.includes(name) || name.includes(normalized))
+  })
+}
+
+function fallbackMenu() {
+  const categories = [
+    {
+      id: 'boissons',
+      name: 'Boissons',
+      icon: '🍹',
+      products: [
+        { id: 'fallback-water', name: 'Eau minerale', price: 2.5, description: 'Plate ou gazeuse, 50cl', isActive: true, stockStatus: 'UNTRACKED', isAvailable: true },
+        { id: 'fallback-cola', name: 'Coca-Cola', price: 3, description: 'Classique, 33cl', isActive: true, stockStatus: 'UNTRACKED', isAvailable: true },
+      ],
+    },
+    {
+      id: 'cuisine',
+      name: 'Cuisine',
+      icon: '🍔',
+      products: [
+        { id: 'fallback-croque', name: 'Croque monsieur', price: 7.5, description: 'Jambon, fromage, salade', isActive: true, stockStatus: 'UNTRACKED', isAvailable: true },
+      ],
+    },
+  ]
+  return { companyId: null, restaurantName: current.restaurantName, categories, products: categories.flatMap((category) => category.products), source: 'fallback' }
+}
 
 const router = Router()
 
@@ -58,14 +102,33 @@ router.get('/menu', async (_req, res) => {
         },
       },
     })
+    const stock = loadStockEntries()
+    const categoriesWithStock = categories.map((category) => ({
+      ...category,
+      products: category.products.map((product) => {
+        const entry = stockForProduct(product.name, stock)
+        const qty = Number(entry?.quantity ?? NaN)
+        const tracked = Number.isFinite(qty)
+        const isAvailable = !tracked || qty > 0
+        const low = tracked && qty > 0 && qty <= Number(entry?.lowStockThreshold ?? 0)
+        return {
+          ...product,
+          stockTracked: tracked,
+          stockQty: tracked ? qty : null,
+          stockUnit: entry?.unit ?? null,
+          stockStatus: !tracked ? 'UNTRACKED' : qty <= 0 ? 'OUT' : low ? 'LOW' : 'OK',
+          isAvailable,
+        }
+      }),
+    }))
     res.json({
       companyId: company.id,
       restaurantName: company.name,
-      categories,
-      products: categories.flatMap((category) => category.products),
+      categories: categoriesWithStock,
+      products: categoriesWithStock.flatMap((category) => category.products),
     })
   } catch {
-    res.status(500).json({ message: 'Menu indisponible' })
+    res.json(fallbackMenu())
   }
 })
 

@@ -24,15 +24,15 @@ export function useCustomers(search?: string) {
     queryKey: ['customers', search ?? 'all'],
     queryFn: () =>
       api
-        .get('/customers', { params: search ? { search } : undefined })
-        .then((r) => r.data),
+        .get('/crm/customers', { params: search ? { search } : undefined })
+        .then((r) => Array.isArray(r.data) ? r.data : r.data.customers),
   })
 }
 
 export function useCustomer(id?: string) {
   return useQuery<Customer>({
     queryKey: ['customers', 'detail', id],
-    queryFn: () => api.get(`/customers/${id}`).then((r) => r.data),
+    queryFn: () => api.get(`/crm/customers/${id}`).then((r) => r.data),
     enabled: Boolean(id),
   })
 }
@@ -41,7 +41,7 @@ export function useCreateCustomer() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: Partial<Customer>) =>
-      api.post('/customers', data).then((r) => r.data),
+      api.post('/crm/customers', data).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['customers'] })
       toastSuccess('Client créé avec succès')
@@ -54,7 +54,7 @@ export function useUpdateCustomer() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Customer> }) =>
-      api.patch(`/customers/${id}`, data).then((r) => r.data),
+      api.put(`/crm/customers/${id}`, data).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['customers'] })
       toastSuccess('Client mis à jour')
@@ -67,7 +67,7 @@ export function useDeleteCustomer() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) =>
-      api.delete(`/customers/${id}`).then((r) => r.data),
+      api.delete(`/crm/customers/${id}`).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['customers'] })
       toastSuccess('Client supprimé')
@@ -81,7 +81,7 @@ export function useAddLoyaltyPoints() {
   return useMutation({
     mutationFn: ({ id, points }: { id: string; points: number }) =>
       api
-        .post(`/customers/${id}/loyalty`, { points })
+        .post(`/crm/customers/${id}/loyalty`, { points })
         .then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['customers'] })
@@ -96,7 +96,7 @@ export function useRechargeWallet() {
   return useMutation({
     mutationFn: ({ id, amount }: { id: string; amount: number }) =>
       api
-        .post(`/customers/${id}/wallet/recharge`, { amount })
+        .post(`/crm/customers/${id}/wallet`, { amount })
         .then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['customers'] })

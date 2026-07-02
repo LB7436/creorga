@@ -7,7 +7,7 @@ import {
 import {
   Users, Star, TrendingUp, Gift, QrCode, Upload, Cake, UserPlus, Calculator,
   Plus, X, Edit3, Trash2, CheckCircle2, Coffee, Tag, Sparkles, Crown, Award,
-  Clock, Coins, Mail, ChevronRight, Save, Medal,
+  Clock, Coins, Mail, ChevronRight, Save, Medal, MessageSquare, Send,
 } from 'lucide-react'
 
 /* ═══════════════════════════════════════════════════════════════ */
@@ -361,6 +361,95 @@ function ImportModal({ onClose, onToast }: { onClose: () => void; onToast: (m: s
 /*  Main Page                                                        */
 /* ═══════════════════════════════════════════════════════════════ */
 
+function SmsCampaignPanel({ members, onSend }: { members: Member[]; onSend: (message: string) => void }) {
+  const [audience, setAudience] = useState<'inactive' | 'no_purchase' | 'event' | 'vip'>('inactive')
+  const templates: Record<typeof audience, { label: string; count: number; text: string }> = {
+    inactive: {
+      label: 'Inactifs 30 jours',
+      count: Math.max(0, members.length - 1),
+      text: "Bonjour, cela fait longtemps que vous n'etes plus venu. On vous invite a un cafe gratuit cette semaine.",
+    },
+    no_purchase: {
+      label: "Plus d'achat 45 jours",
+      count: Math.max(0, members.length - 2),
+      text: "Votre table vous attend: -10% sur votre prochaine commande avec votre carte fidelite Creorga.",
+    },
+    event: {
+      label: 'Soiree speciale',
+      count: members.length,
+      text: "Soiree speciale ce vendredi: musique, cocktails et points fidelite doubles. Repondez OUI pour reserver.",
+    },
+    vip: {
+      label: 'VIP',
+      count: members.filter((m) => ['gold', 'platinum'].includes(m.tier)).length,
+      text: "Invitation VIP: degustation reservee aux meilleurs clients. Votre premiere boisson est offerte.",
+    },
+  }
+  const [message, setMessage] = useState(templates.inactive.text)
+
+  const selectAudience = (next: typeof audience) => {
+    setAudience(next)
+    setMessage(templates[next].text)
+  }
+
+  return (
+    <motion.div variants={item} style={{ ...cardStyle, marginBottom: 20, borderColor: '#bae6fd', background: 'linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 14 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#0369a1', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.6 }}>
+            <MessageSquare size={15} /> Relances SMS clients
+          </div>
+          <h2 style={{ margin: '6px 0 4px', color: '#0f172a', fontSize: 20, fontWeight: 850 }}>Campagnes SMS rapides</h2>
+          <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
+            Segments prets pour relancer les absents, inviter a une soiree ou envoyer une offre batch.
+          </p>
+        </div>
+        <div style={{ borderRadius: 14, padding: '10px 14px', background: '#e0f2fe', color: '#0369a1', fontWeight: 900, textAlign: 'center', minWidth: 90 }}>
+          {templates[audience].count}
+          <div style={{ fontSize: 10, fontWeight: 700 }}>destinataires</div>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
+        {(Object.keys(templates) as Array<typeof audience>).map((key) => (
+          <button
+            key={key}
+            onClick={() => selectAudience(key)}
+            style={{
+              border: `1px solid ${audience === key ? '#0284c7' : '#dbeafe'}`,
+              background: audience === key ? '#0284c7' : '#fff',
+              color: audience === key ? '#fff' : '#0f172a',
+              borderRadius: 12,
+              padding: '10px 8px',
+              fontSize: 12,
+              fontWeight: 800,
+              cursor: 'pointer',
+            }}
+          >
+            {templates[key].label}
+          </button>
+        ))}
+      </div>
+      <textarea
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        rows={3}
+        style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.45 }}
+      />
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 12 }}>
+        <p style={{ margin: 0, color: '#64748b', fontSize: 11 }}>
+          Envoi soumis au consentement marketing et journalise dans la fiche client.
+        </p>
+        <button
+          onClick={() => onSend(`SMS prepare pour ${templates[audience].count} client(s)`)}
+          style={{ ...smallBtnStyle, background: '#0284c7', color: '#fff', border: 'none' }}
+        >
+          <Send size={13} /> Preparer l'envoi
+        </button>
+      </div>
+    </motion.div>
+  )
+}
+
 export default function FidelitePage() {
   const [tiers, setTiers] = useState<Tier[]>(INITIAL_TIERS)
   const [rewards, setRewards] = useState<Reward[]>(INITIAL_REWARDS)
@@ -459,6 +548,8 @@ export default function FidelitePage() {
             </button>
           </div>
         </motion.div>
+
+        <SmsCampaignPanel members={members} onSend={showToast} />
 
         {/* Analytics stats */}
         <motion.div variants={item} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 20 }}>
