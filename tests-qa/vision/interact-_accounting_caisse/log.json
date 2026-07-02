@@ -1,0 +1,26 @@
+[
+  {
+    "text": "Mode kiosk",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Fermer la caisse",
+    "reaction": "navigue → /accounting/cloture"
+  },
+  {
+    "text": "+ Entrée d'argent",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "− Sortie d'argent",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Fermer la caisse →",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Voir Z-Report →",
+    "reaction": "change le contenu"
+  }
+]

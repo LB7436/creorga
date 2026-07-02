@@ -1,0 +1,38 @@
+[
+  {
+    "text": "Mode kiosk",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Valider la journée",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "📷\nAjouter une photo",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "⚙️ Configurer les alertes",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "♿",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "🏠",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Centre d'aide Creorga",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Ouvrir Robi (Ctrl+Shift+A)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Actions rapides",
+    "reaction": "change le contenu"
+  }
+]

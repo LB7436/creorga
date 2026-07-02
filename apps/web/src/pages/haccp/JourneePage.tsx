@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -441,6 +442,7 @@ export default function JourneePage() {
     ouverture: true, midi: true, fermeture: false,
   })
   const [alerts] = useState<Alert[]>(initialAlerts)
+  const navigate = useNavigate()
   const [validated, setValidated] = useState(false)
   const [mockPhotos, setMockPhotos] = useState<Array<{ label: string; time: string; color: string }>>(
     [{ label: 'Nettoyage plan de travail', time: '06:22', color: '#dbeafe' }]
@@ -857,12 +859,14 @@ export default function JourneePage() {
                 ))}
               </div>
               <div style={{ padding: '0 20px 16px' }}>
-                <button style={{
-                  width: '100%', padding: '8px 0', borderRadius: 8,
-                  border: '1px solid #e2e8f0', background: '#f8fafc',
-                  color: '#64748b', fontSize: 12, fontWeight: 600,
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}>
+                <button
+                  onClick={() => navigate('/haccp/temperatures')}
+                  style={{
+                    width: '100%', padding: '8px 0', borderRadius: 8,
+                    border: '1px solid #e2e8f0', background: '#f8fafc',
+                    color: '#64748b', fontSize: 12, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
                   {'⚙️'} Configurer les alertes
                 </button>
               </div>

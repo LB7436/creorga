@@ -1,0 +1,98 @@
+[
+  {
+    "text": "Mode kiosk",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "👁 Voir en tant que…",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Aujourd'hui",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Auto-planifier (IA)",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Modèles de shifts",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Échanges (1)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Importer planning OCR",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "1 jour",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "3 jours",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Semaine",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Mois",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "6 semaines",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Nouvel onglet",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Toutes",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Salle",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Bar",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Terrasse",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Partager",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Payroll",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Publier planning",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Shifts",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Congés",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Maladies",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Réservations",
+    "reaction": "clic impossible (recouvert)"
+  }
+]
