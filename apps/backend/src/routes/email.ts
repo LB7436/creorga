@@ -31,6 +31,12 @@ router.post('/welcome', async (req: Request, res: Response) => {
 router.post('/password-reset', async (req: Request, res: Response) => {
   const { to, link } = req.body
   try {
+    // Anti-phishing : seuls les liens pointant vers notre frontend sont acceptés.
+    const frontend = (process.env.FRONTEND_URL || 'http://localhost:5174').replace(/\/$/, '')
+    if (typeof link !== 'string' || !link.startsWith(frontend + '/')) {
+      res.status(400).json({ error: 'Lien de réinitialisation invalide' })
+      return
+    }
     const result = await sendEmail({ to, subject: 'Réinitialisation mot de passe', html: emailTemplates.passwordReset(link) })
     res.json({ ok: true, result })
   } catch (err: any) { res.status(500).json({ error: err?.message }) }

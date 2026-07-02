@@ -67,27 +67,18 @@ import assistantRoutes from './routes/assistant'
 import assistantAdvancedRoutes from './routes/assistant-advanced'
 import ownerRoutes from './routes/owner'
 import { auditLog } from './middleware/audit-log'
+import { assertProductionSecrets, buildCorsOrigin, authLimiter, aiLimiter, publicLimiter } from './lib/security'
+
+// Refuse de démarrer en production avec des secrets de dev ou absents.
+assertProductionSecrets()
 
 const app = express()
 const httpServer = createServer(app)
 
-// Accept any localhost origin in dev so all 5 front apps (5174-5178) + POS (5175)
-// can talk to the backend without CORS issues.
-const ALLOWED_ORIGINS = [
-  'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175',
-  'http://localhost:5176', 'http://localhost:5177', 'http://localhost:5178',
-  process.env.FRONTEND_URL || 'http://localhost:5174',
-]
-
+// CORS strict : liste blanche via ALLOWED_ORIGINS / FRONTEND_URL ;
+// localhost accepté uniquement hors production.
 const corsOptions = {
-  origin: (origin: string | undefined, cb: (err: Error | null, ok?: boolean) => void) => {
-    // Allow no-origin requests (curl, server-side) and any localhost in dev.
-    if (!origin) return cb(null, true)
-    if (ALLOWED_ORIGINS.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin)) {
-      return cb(null, true)
-    }
-    cb(null, true) // permissive in dev
-  },
+  origin: buildCorsOrigin(),
   credentials: true,
 }
 
@@ -120,13 +111,15 @@ app.get('/api/health', (_req, res) => {
 })
 
 // Routes
-app.use('/api/auth', authRoutes)
-app.use('/api/tables', tablesRoutes)
-app.use('/api/categories', categoriesRoutes)
-app.use('/api/products', productsRoutes)
+app.use('/api/auth', authLimiter, authRoutes)
+app.use('/api/tables', authenticate, tablesRoutes)
+app.use('/api/categories', authenticate, categoriesRoutes)
+app.use('/api/products', authenticate, productsRoutes)
+// TODO(sécurité): le POS appelle /api/orders /api/payments /api/floor-state
+// /api/module-config sans token — à migrer vers un token device POS, puis protéger.
 app.use('/api/orders', ordersRoutes)
-app.use('/api/stats', statsRoutes)
-app.use('/api/companies', companiesRoutes)
+app.use('/api/stats', authenticate, statsRoutes)
+app.use('/api/companies', authenticate, companiesRoutes)
 app.use('/api/modules', authenticate, requireCompany, modulesRoutes)
 app.use('/api/crm', authenticate, requireCompany, crmRoutes)
 app.use('/api/invoices', authenticate, requireCompany, invoicesRoutes)
@@ -138,22 +131,22 @@ app.use('/api/marketing', authenticate, requireCompany, marketingRoutes)
 app.use('/api/accounting', authenticate, requireCompany, accountingRoutes)
 app.use('/api/reputation', authenticate, requireCompany, reputationRoutes)
 app.use('/api/events', authenticate, requireCompany, eventsRoutes)
-app.use('/api/stripe', stripeRoutes)
-app.use('/api/email', emailRoutes)
-app.use('/api/payments', paymentsRoutes)
-app.use('/api/portal-config', portalConfigRoutes)
-app.use('/api/floor-state', floorStateRoutes)
-app.use('/api/module-config', moduleConfigRoutes)
+app.use('/api/stripe', stripeRoutes) // webhooks signés côté Stripe
+app.use('/api/email', authenticate, emailRoutes)
+app.use('/api/payments', paymentsRoutes) // POS sans token — cf. TODO ci-dessus
+app.use('/api/portal-config', publicLimiter, portalConfigRoutes) // portail client public (QR)
+app.use('/api/floor-state', floorStateRoutes) // POS sans token — cf. TODO ci-dessus
+app.use('/api/module-config', moduleConfigRoutes) // POS sans token — cf. TODO ci-dessus
 // Mounted on /api/inventory-ocr to avoid clash with the auth-protected /api/inventory
-app.use('/api/inventory-ocr', inventoryAIRoutes)
-app.use('/api/ads', adsRoutes)
-app.use('/api/ai', aiActionsRoutes)
-app.use('/api/agent', agentRoutes)
+app.use('/api/inventory-ocr', authenticate, inventoryAIRoutes)
+app.use('/api/ads', authenticate, adsRoutes)
+app.use('/api/ai', authenticate, aiLimiter, aiActionsRoutes)
+app.use('/api/agent', authenticate, aiLimiter, agentRoutes)
 app.use('/api/help/feedback', helpFeedbackRoutes)
-app.use('/api/owner', ownerRoutes)
+app.use('/api/owner', authenticate, ownerRoutes)
 // v3.9 — assistantRoutes MUST be before agentRoutes to take precedence on /intent
-app.use('/api/agent', assistantRoutes)
-app.use('/api/agent', assistantAdvancedRoutes)
+app.use('/api/agent', authenticate, aiLimiter, assistantRoutes)
+app.use('/api/agent', authenticate, aiLimiter, assistantAdvancedRoutes)
 
 // Error handler
 app.use(errorHandler)

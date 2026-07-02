@@ -7,6 +7,7 @@ import prisma from '../lib/prisma'
 import { validate } from '../middleware/validate'
 import { authenticate, type AuthRequest } from '../middleware/auth'
 import logger from '../lib/logger'
+import { fallbackAdminAllowed } from '../lib/security'
 
 const router = Router()
 
@@ -201,8 +202,8 @@ router.post('/login', validate(loginSchema), async (req, res) => {
     logger.warn(`DB indisponible, bascule fallback admin: ${error?.message || error}`)
   }
 
-  // 2) Fallback admin (works even with no DB)
-  if (email === FALLBACK_ADMIN.email && password === FALLBACK_ADMIN.password) {
+  // 2) Fallback admin (dev uniquement — désactivé en production, cf. lib/security)
+  if (fallbackAdminAllowed() && email === FALLBACK_ADMIN.email && password === FALLBACK_ADMIN.password) {
     const r = buildFallbackResponse()
     res.cookie('refreshToken', r.refreshToken, {
       httpOnly: true,
