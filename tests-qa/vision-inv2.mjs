@@ -1,0 +1,21 @@
+import { chromium } from '@playwright/test'
+const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+page.on('dialog', (d) => { console.log('DIALOG natif:', d.message().slice(0,60)); d.dismiss().catch(()=>{}) })
+await page.goto('http://localhost:5174/login', { waitUntil: 'domcontentloaded' })
+await page.evaluate(() => { localStorage.setItem('creorga-onboarded', '1'); localStorage.setItem('creorga.onboardingDone', String(Date.now())) })
+await page.locator('input[type="email"]').fill('admin@creorga.local')
+await page.locator('input[placeholder="••••••••"]').fill('Admin1234!')
+await page.locator('button[type="submit"]').click()
+await page.waitForURL('**/welcome')
+for (const label of ['Scanner','Mouvements','Prix en masse']) {
+  await page.goto('http://localhost:5174/inventory/stock', { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(1400)
+  const b = await page.evaluate(() => document.body.innerHTML.length)
+  await page.getByText(label, { exact: false }).first().click({ timeout: 3000 }).catch(()=>console.log(label,'clic échec'))
+  await page.waitForTimeout(1000)
+  const a = await page.evaluate(() => document.body.innerHTML.length)
+  console.log(`${label}: ΔDOM=${a-b}, URL=${page.url().replace('http://localhost:5174','')}`)
+  await page.screenshot({ path: `tests-qa/vision/invstock-${label.replace(/ /g,'_')}.png` })
+}
+await browser.close()

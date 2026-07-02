@@ -1,0 +1,78 @@
+[
+  {
+    "text": "Mode kiosk",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Templates",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Comparer",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Nouveau devis",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Tous (7)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Brouillon (1)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Envoyé (2)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Accepté (2)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Refusé (1)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Expiré (1)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Facture",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Dupliquer",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Historique",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Signer",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "♿",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "🏠",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Centre d'aide Creorga",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Ouvrir Robi (Ctrl+Shift+A)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Actions rapides",
+    "reaction": "change le contenu"
+  }
+]

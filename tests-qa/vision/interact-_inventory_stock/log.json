@@ -1,0 +1,62 @@
+[
+  {
+    "text": "Mode kiosk",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "📸 OCR Reçu IA",
+    "reaction": "navigue → /inventory/ocr"
+  },
+  {
+    "text": "Scanner",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Mouvements",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Pertes",
+    "reaction": "appel réseau"
+  },
+  {
+    "text": "Prix en masse",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Toutes",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Boissons",
+    "reaction": "AUCUNE RÉACTION"
+  },
+  {
+    "text": "Produits laitiers",
+    "reaction": "appel réseau"
+  },
+  {
+    "text": "Épicerie",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Légumes",
+    "reaction": "ouvre panneau/modale"
+  },
+  {
+    "text": "Viande",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Tous",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Réserve",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Bar",
+    "reaction": "change le contenu"
+  }
+]
