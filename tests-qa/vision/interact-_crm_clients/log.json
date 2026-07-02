@@ -1,0 +1,58 @@
+[
+  {
+    "text": "Mode kiosk",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Export CSV",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Nouveau client",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Tous",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Actifs0",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Inactifs (30j+)0",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "VIP0",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Nouveaux0",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Risque élevé0",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "♿",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "🏠",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Centre d'aide Creorga",
+    "reaction": "change le contenu"
+  },
+  {
+    "text": "Ouvrir Robi (Ctrl+Shift+A)",
+    "reaction": "clic impossible (recouvert)"
+  },
+  {
+    "text": "Actions rapides",
+    "reaction": "change le contenu"
+  }
+]

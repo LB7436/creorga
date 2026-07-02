@@ -107,9 +107,9 @@ type SortKey = 'balance' | 'name' | 'activity';
 type FilterKey = 'all' | 'with' | 'low' | 'none' | 'vip' | 'expiring';
 
 const statsData = [
-  { label: 'Total en circulation', value: '3 240 \€', delta: '+8,4%', icon: 'TOT', color: '#6366f1', bg: '#eef2ff' },
-  { label: 'Rechargements ce mois', value: '890 \€', delta: '+12,1%', icon: 'REC', color: '#10b981', bg: '#ecfdf5' },
-  { label: 'Solde moyen', value: '73 \€', delta: '+3,2%', icon: 'AVG', color: '#f59e0b', bg: '#fffbeb' },
+  { label: 'Total en circulation', value: '3 240 €', delta: '+8,4%', icon: 'TOT', color: '#6366f1', bg: '#eef2ff' },
+  { label: 'Rechargements ce mois', value: '890 €', delta: '+12,1%', icon: 'REC', color: '#10b981', bg: '#ecfdf5' },
+  { label: 'Solde moyen', value: '73 €', delta: '+3,2%', icon: 'AVG', color: '#f59e0b', bg: '#fffbeb' },
   { label: 'Clients actifs', value: '48', delta: '+5', icon: 'CLI', color: '#ec4899', bg: '#fdf2f8' },
 ];
 
@@ -226,7 +226,7 @@ export default function PortefeuillePage() {
               <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>Vélocité de circulation</h3>
               <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>Recharges vs dépenses (7 derniers jours)</p>
             </div>
-            <div style={{ fontSize: 13, color: '#6366f1', fontWeight: 700 }}>{totalVelocity.toFixed(0)} \€ cumulé</div>
+            <div style={{ fontSize: 13, color: '#6366f1', fontWeight: 700 }}>{totalVelocity.toFixed(0)} € cumulé</div>
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={velocityData}>
@@ -250,7 +250,7 @@ export default function PortefeuillePage() {
                 <div key={s.name}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
                     <span style={{ color: '#1e293b', fontWeight: 600 }}>{i + 1}. {s.name}</span>
-                    <span style={{ color: '#6366f1', fontWeight: 700 }}>{s.depense.toFixed(0)} \€</span>
+                    <span style={{ color: '#6366f1', fontWeight: 700 }}>{s.depense.toFixed(0)} €</span>
                   </div>
                   <div style={{ height: 6, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
                     <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, delay: i * 0.1 }}
@@ -273,7 +273,7 @@ export default function PortefeuillePage() {
           <div>
             <div style={{ fontSize: 14, fontWeight: 800, color: '#7c2d12' }}>Promos top-up actives</div>
             <div style={{ fontSize: 12, color: '#92400e', marginTop: 2 }}>
-              {TOPUP_PROMOS.slice(1).map(p => `+${p.bonus}% dès ${p.min} \€`).join(' \· ')}
+              {TOPUP_PROMOS.slice(1).map(p => `+${p.bonus}% dès ${p.min} €`).join(' \· ')}
             </div>
           </div>
         </div>
@@ -325,7 +325,7 @@ export default function PortefeuillePage() {
           <div style={{ fontSize: 13, color: '#7f1d1d' }}>
             <strong>{disputes} transaction(s) contestée(s)</strong> en attente de révision
           </div>
-          <button onClick={() => showToast('Voir les litiges \— bientôt disponible')}
+          <button onClick={() => showToast('Voir les litiges — bientôt disponible')}
             style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             Réviser
           </button>
@@ -355,8 +355,8 @@ export default function PortefeuillePage() {
               </div>
             </div>
             <span style={{ fontSize: 13, color: '#475569' }}>{c.phone}</span>
-            <span style={{ fontSize: 15, fontWeight: 700, color: c.balance === 0 ? '#94a3b8' : c.balance < 10 ? '#f59e0b' : '#10b981' }}>{c.balance.toFixed(2)} \€</span>
-            <span style={{ fontSize: 13, color: '#475569' }}>{c.totalTopUp.toFixed(0)} \€</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: c.balance === 0 ? '#94a3b8' : c.balance < 10 ? '#f59e0b' : '#10b981' }}>{c.balance.toFixed(2)} €</span>
+            <span style={{ fontSize: 13, color: '#475569' }}>{c.totalTopUp.toFixed(0)} €</span>
             <span style={{ fontSize: 13, color: '#475569' }}>{c.lastActivity}</span>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {c.isVIP && renderBadge('VIP', '#d97706')}
@@ -413,10 +413,10 @@ export default function PortefeuillePage() {
                     {/* Balance card */}
                     <div style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', borderRadius: 16, padding: 20, color: '#fff' }}>
                       <div style={{ fontSize: 12, opacity: 0.85, textTransform: 'uppercase', letterSpacing: 0.5 }}>Solde actuel</div>
-                      <div style={{ fontSize: 34, fontWeight: 800, marginTop: 4 }}>{selected.balance.toFixed(2)} \€</div>
+                      <div style={{ fontSize: 34, fontWeight: 800, marginTop: 4 }}>{selected.balance.toFixed(2)} €</div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, fontSize: 12, opacity: 0.9 }}>
-                        <span>Total rechargé : {selected.totalTopUp.toFixed(0)} \€</span>
-                        <span>Dépensé : {(selected.totalTopUp - selected.balance).toFixed(0)} \€</span>
+                        <span>Total rechargé : {selected.totalTopUp.toFixed(0)} €</span>
+                        <span>Dépensé : {(selected.totalTopUp - selected.balance).toFixed(0)} €</span>
                       </div>
                       {selected.expiresAt && (
                         <div style={{ marginTop: 10, padding: '6px 10px', background: 'rgba(255,255,255,0.2)', borderRadius: 8, fontSize: 11 }}>
@@ -430,7 +430,7 @@ export default function PortefeuillePage() {
                       <div style={{ marginTop: 16, padding: 14, background: '#fdf2f8', border: '1px solid #fbcfe8', borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                           <div style={{ fontSize: 12, color: '#9d174d', fontWeight: 700 }}>CARTE CADEAU DISPONIBLE</div>
-                          <div style={{ fontSize: 18, fontWeight: 800, color: '#be185d' }}>{selected.giftCard.toFixed(2)} \€</div>
+                          <div style={{ fontSize: 18, fontWeight: 800, color: '#be185d' }}>{selected.giftCard.toFixed(2)} €</div>
                         </div>
                         <button onClick={() => showToast('Carte cadeau convertie en solde portefeuille')}
                           style={{ padding: '8px 14px', background: '#be185d', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
@@ -446,9 +446,9 @@ export default function PortefeuillePage() {
                         {[10, 20, 50, 100].map((v) => {
                           const promo = TOPUP_PROMOS.filter(p => v >= p.min).slice(-1)[0];
                           return (
-                            <button key={v} onClick={() => showToast(`+${v}\€ rechargé${promo.bonus ? ` (+${promo.bonus}% bonus)` : ''}`)}
+                            <button key={v} onClick={() => showToast(`+${v}€ rechargé${promo.bonus ? ` (+${promo.bonus}% bonus)` : ''}`)}
                               style={{ padding: '12px 0', background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', position: 'relative' }}>
-                              +{v}\€
+                              +{v}€
                               {promo.bonus > 0 && (
                                 <div style={{ fontSize: 9, color: '#b45309', fontWeight: 700, marginTop: 2 }}>+{promo.bonus}%</div>
                               )}
@@ -459,7 +459,7 @@ export default function PortefeuillePage() {
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                         <input value={customAmount} onChange={(e) => setCustomAmount(e.target.value)} type="number" placeholder="Montant perso."
                           style={{ flex: 1, padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, color: '#1e293b', outline: 'none' }} />
-                        <button onClick={() => { showToast(`+${customAmount}\€ rechargé`); setCustomAmount(''); }}
+                        <button onClick={() => { showToast(`+${customAmount}€ rechargé`); setCustomAmount(''); }}
                           style={{ padding: '10px 18px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                           Recharger
                         </button>
@@ -471,7 +471,7 @@ export default function PortefeuillePage() {
                       <div style={{ display: 'flex', gap: 8 }}>
                         <input value={deductAmount} onChange={(e) => setDeductAmount(e.target.value)} type="number" placeholder="Déduire"
                           style={{ flex: 1, padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13, color: '#1e293b', outline: 'none' }} />
-                        <button onClick={() => { showToast(`-${deductAmount}\€ déduit`); setDeductAmount(''); }}
+                        <button onClick={() => { showToast(`-${deductAmount}€ déduit`); setDeductAmount(''); }}
                           style={{ padding: '10px 14px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                           \−
                         </button>
@@ -515,11 +515,11 @@ export default function PortefeuillePage() {
                           <div style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, fontWeight: 700, background: t.type === 'TOPUP' ? '#dcfce7' : '#fee2e2', color: t.type === 'TOPUP' ? '#166534' : '#991b1b' }}>{t.type}</div>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{t.description}</div>
-                            <div style={{ fontSize: 11, color: '#94a3b8' }}>{t.date} \· Solde : {t.balanceAfter.toFixed(2)}\€</div>
+                            <div style={{ fontSize: 11, color: '#94a3b8' }}>{t.date} \· Solde : {t.balanceAfter.toFixed(2)}€</div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <div style={{ fontSize: 14, fontWeight: 700, color: t.type === 'TOPUP' ? '#059669' : '#dc2626' }}>
-                              {t.type === 'TOPUP' ? '+' : '-'}{t.amount.toFixed(2)}\€
+                              {t.type === 'TOPUP' ? '+' : '-'}{t.amount.toFixed(2)}€
                             </div>
                             {t.disputed ? (
                               <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 5, background: '#dc2626', color: '#fff', fontWeight: 700 }}>LITIGE</span>
@@ -618,7 +618,7 @@ export default function PortefeuillePage() {
                 <input value={bulkAmount} onChange={(e) => setBulkAmount(e.target.value)} type="number" placeholder="Montant par client"
                   style={{ flex: 1, padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, color: '#1e293b', outline: 'none' }} />
                 <div style={{ padding: '10px 16px', background: '#f1f5f9', borderRadius: 10, fontSize: 14, fontWeight: 600, color: '#1e293b' }}>
-                  Total : {(Number(bulkAmount || 0) * bulkSelected.length).toFixed(2)} \€
+                  Total : {(Number(bulkAmount || 0) * bulkSelected.length).toFixed(2)} €
                 </div>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 12 }}>
@@ -627,7 +627,7 @@ export default function PortefeuillePage() {
                     <input type="checkbox" checked={bulkSelected.includes(c.id)} onChange={() => toggleBulk(c.id)} style={{ width: 16, height: 16 }} />
                     <div style={{ width: 30, height: 30, borderRadius: '50%', background: c.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{c.initials}</div>
                     <span style={{ flex: 1, fontSize: 14, color: '#1e293b' }}>{c.name}</span>
-                    <span style={{ fontSize: 13, color: '#64748b' }}>{c.balance.toFixed(2)} \€</span>
+                    <span style={{ fontSize: 13, color: '#64748b' }}>{c.balance.toFixed(2)} €</span>
                   </label>
                 ))}
               </div>
@@ -655,12 +655,12 @@ export default function PortefeuillePage() {
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               style={{ background: '#fff', borderRadius: 20, padding: 28, width: 520, maxHeight: '80vh', overflow: 'auto' }}>
-              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#1e293b' }}>Import CSV \— Recharge en masse</h3>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#1e293b' }}>Import CSV — Recharge en masse</h3>
               <p style={{ margin: '6px 0 16px', color: '#64748b', fontSize: 13 }}>Format : <code>INITIALES;MONTANT</code> (une ligne par client)</p>
               <textarea value={csvText} onChange={(e) => setCsvText(e.target.value)}
                 style={{ width: '100%', minHeight: 180, padding: 12, border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 13, fontFamily: 'monospace', color: '#1e293b', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
               <div style={{ marginTop: 14, padding: 12, background: '#f8fafc', borderRadius: 10, fontSize: 12, color: '#475569' }}>
-                {csvText.split('\n').filter(Boolean).length} ligne(s) détectée(s) \· Total : {csvText.split('\n').reduce((s, l) => s + (Number(l.split(';')[1]) || 0), 0).toFixed(2)} \€
+                {csvText.split('\n').filter(Boolean).length} ligne(s) détectée(s) \· Total : {csvText.split('\n').reduce((s, l) => s + (Number(l.split(';')[1]) || 0), 0).toFixed(2)} €
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
                 <button onClick={() => setCsvOpen(false)}
@@ -690,7 +690,7 @@ export default function PortefeuillePage() {
               <p style={{ margin: '6px 0 18px', color: '#64748b', fontSize: 13 }}>Transférer un montant du wallet d'un client vers un autre</p>
               <label style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>De</label>
               <select style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, marginTop: 4, marginBottom: 12, color: '#1e293b', background: '#fff' }}>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.balance.toFixed(2)} \€)</option>)}
+                {customers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.balance.toFixed(2)} €)</option>)}
               </select>
               <label style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>Vers</label>
               <select value={transferTo} onChange={e => setTransferTo(e.target.value)}
@@ -703,14 +703,14 @@ export default function PortefeuillePage() {
                 style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, marginTop: 4, marginBottom: 12, color: '#1e293b', outline: 'none', boxSizing: 'border-box' }} />
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 10, background: '#f8fafc', borderRadius: 10, cursor: 'pointer' }}>
                 <input type="checkbox" checked={transferFee} onChange={e => setTransferFee(e.target.checked)} />
-                <span style={{ fontSize: 13, color: '#475569' }}>Appliquer frais de transfert (0,50 \€)</span>
+                <span style={{ fontSize: 13, color: '#475569' }}>Appliquer frais de transfert (0,50 €)</span>
               </label>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
                 <button onClick={() => setTransferOpen(false)}
                   style={{ padding: '10px 18px', background: '#fff', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                   Annuler
                 </button>
-                <button onClick={() => { showToast(`Transfert de ${transferAmount}\€ effectué`); setTransferOpen(false); setTransferAmount(''); setTransferTo(''); }}
+                <button onClick={() => { showToast(`Transfert de ${transferAmount}€ effectué`); setTransferOpen(false); setTransferAmount(''); setTransferTo(''); }}
                   style={{ padding: '10px 18px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                   Transférer
                 </button>
@@ -741,7 +741,7 @@ export default function PortefeuillePage() {
                   )}
                 </svg>
               </div>
-              <div style={{ marginTop: 14, fontSize: 20, fontWeight: 800, color: '#6366f1' }}>{selected.balance.toFixed(2)} \€</div>
+              <div style={{ marginTop: 14, fontSize: 20, fontWeight: 800, color: '#6366f1' }}>{selected.balance.toFixed(2)} €</div>
               <div style={{ fontSize: 12, color: '#64748b' }}>disponible</div>
               <button onClick={() => setQrOpen(false)}
                 style={{ marginTop: 18, width: '100%', padding: '10px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>

@@ -25,7 +25,7 @@ import AIActionMenu from '@/components/AIActionMenu'
 /* ── helpers ───────────────────────────────────────────────── */
 const fmt = (v: number) =>
   new Intl.NumberFormat('fr-LU', { style: 'currency', currency: 'EUR' }).format(v)
-const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString('fr-LU') : '\—'
+const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString('fr-LU') : '—'
 
 /* ── types ─────────────────────────────────────────────────── */
 interface Order {
@@ -105,7 +105,7 @@ const MOCK_CUSTOMERS: Customer[] = [
     nps: 9, churnRisk: 'LOW', clv: 4680, instagram: '@marcschmit',
     linkedMembers: ['2'],
     complaints: [], timeline: [
-      { id: 't1', date: '2026-04-14T19:30:00', type: 'VISIT', label: 'Visite', detail: 'Table 12, 3 personnes, 34.50 \€' },
+      { id: 't1', date: '2026-04-14T19:30:00', type: 'VISIT', label: 'Visite', detail: 'Table 12, 3 personnes, 34.50 €' },
       { id: 't2', date: '2026-04-10T10:00:00', type: 'EMAIL', label: 'Email ouvert', detail: 'Newsletter Avril' },
       { id: 't3', date: '2026-04-05T20:00:00', type: 'EVENT', label: 'Événement', detail: 'Soirée dégustation vin' },
       { id: 't4', date: '2026-03-28T13:00:00', type: 'VISIT', label: 'Visite', detail: 'Déjeuner, 2 personnes' },
@@ -477,6 +477,11 @@ export default function ClientsPage() {
   const totalCLV = customers.reduce((s, c) => s + c.clv, 0)
   const npsClients = customers.filter(c => c.nps)
   const avgNPS = npsClients.length ? npsClients.reduce((s, c) => s + (c.nps || 0), 0) / npsClients.length : 0
+  // Clients actifs = visite dans les 30 derniers jours (cohérent avec le filtre "Actifs")
+  const activeCount = (() => {
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30)
+    return customers.filter(c => c.lastVisit && new Date(c.lastVisit) >= cutoff).length
+  })()
   const churnHigh = customers.filter(c => c.churnRisk === 'HIGH').length
 
   return (
@@ -517,7 +522,7 @@ export default function ClientsPage() {
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 20 }}>
         {[
-          { label: 'Clients actifs', value: String(totalClients), icon: Users, color: '#7C3AED', bg: '#F3E8FF' },
+          { label: 'Clients actifs', value: `${activeCount} / ${totalClients}`, icon: Users, color: '#7C3AED', bg: '#F3E8FF' },
           { label: 'CLV totale', value: fmt(totalCLV), icon: CreditCard, color: '#2563EB', bg: '#DBEAFE' },
           { label: 'NPS moyen', value: avgNPS.toFixed(1), icon: Smile, color: '#059669', bg: '#D1FAE5' },
           { label: 'Risque de perte', value: `${churnHigh}`, icon: TrendingDown, color: '#DC2626', bg: '#FEE2E2' },
@@ -661,7 +666,7 @@ export default function ClientsPage() {
                             background: c.nps >= 9 ? '#D1FAE5' : c.nps >= 7 ? '#FEF3C7' : '#FEE2E2',
                             color: c.nps >= 9 ? '#065F46' : c.nps >= 7 ? '#92400E' : '#991B1B',
                           }}>{c.nps}/10</span>
-                        ) : <span style={{ color: '#cbd5e1' }}>\—</span>}
+                        ) : <span style={{ color: '#cbd5e1' }}>—</span>}
                       </td>
                       <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                         <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: churnCfg.bg, color: churnCfg.color }}>
@@ -870,7 +875,7 @@ export default function ClientsPage() {
                         { label: 'Total dépensé', value: fmt(selected.totalSpent), icon: CreditCard, color: '#7C3AED' },
                         { label: 'Visites', value: String(selected.visitCount), icon: BarChart3, color: '#2563EB' },
                         { label: 'Panier moyen', value: fmt(selected.avgBasket), icon: ShoppingBag, color: '#D97706' },
-                        { label: 'Dernière visite', value: selected.lastVisit ? fmtDate(selected.lastVisit) : '\—', icon: Clock, color: '#059669' },
+                        { label: 'Dernière visite', value: selected.lastVisit ? fmtDate(selected.lastVisit) : '—', icon: Clock, color: '#059669' },
                       ].map(stat => (
                         <div key={stat.label} style={{ background: '#f8fafc', borderRadius: 12, padding: 12, border: '1px solid #f1f5f9' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -1033,7 +1038,7 @@ export default function ClientsPage() {
                     {/* Allergens */}
                     <div style={{ background: '#fef2f2', borderRadius: 14, padding: 16, border: '1px solid #fecaca' }}>
                       <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#991b1b', letterSpacing: '0.06em', margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <AlertTriangle size={11} /> Allergènes \— importants pour la cuisine
+                        <AlertTriangle size={11} /> Allergènes — importants pour la cuisine
                       </p>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {ALLERGEN_OPTIONS.map(a => {

@@ -1,0 +1,18 @@
+import { chromium } from '@playwright/test'
+const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+const calls = []
+page.on('response', (r) => { if (r.url().includes('/crm/customers')) calls.push(`${r.status()} ${r.url().replace('http://localhost:3002','')}`) })
+page.on('console', (m) => { if (m.type()==='error') console.log('CONSOLE ERR:', m.text().slice(0,120)) })
+await page.goto('http://localhost:5174/login', { waitUntil: 'domcontentloaded' })
+await page.evaluate(() => { localStorage.setItem('creorga-onboarded', '1'); localStorage.setItem('creorga.onboardingDone', String(Date.now())) })
+await page.locator('input[type="email"]').fill('admin@creorga.local')
+await page.locator('input[placeholder="••••••••"]').fill('Admin1234!')
+await page.locator('button[type="submit"]').click()
+await page.waitForURL('**/welcome')
+await page.goto('http://localhost:5174/crm/clients', { waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(2500)
+console.log('Appels /crm/customers:', calls.join(' | ') || 'AUCUN')
+const cnt = await page.evaluate(() => document.body.innerText.match(/(\d+) clients/)?.[1])
+console.log('Compteur affiché:', cnt)
+await browser.close()

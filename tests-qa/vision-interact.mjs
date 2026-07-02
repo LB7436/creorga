@@ -11,7 +11,7 @@ const CAP = Number(process.env.CAP || 24)
 const slug = MODULE.replace(/[^a-z0-9]/gi, '_')
 const dir = `tests-qa/vision/interact-${slug}`
 fs.mkdirSync(dir, { recursive: true })
-const SKIP = /déconnexion|logout|supprimer|delete|réinitialiser|reset|vider|payer|encaisser|clôturer|valider le paiement/i
+const SKIP = /déconnexion|logout|supprimer|delete|réinitialiser|reset|vider|payer|encaisser|clôturer|valider le paiement|Rechercher dans Creorga|Cmd\+K|⌘K/i
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true })
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
@@ -29,7 +29,11 @@ await page.screenshot({ path: `${dir}/00-initial.png` })
 const controls = await page.evaluate(() => {
   const els = [...document.querySelectorAll('button, [role="button"], a[href]')]
   els.forEach((el, i) => el.setAttribute('data-qi', String(i)))
-  return els.filter((el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return r.width > 4 && r.height > 4 && s.visibility !== 'hidden' })
+  return els.filter((el) => {
+    const r = el.getBoundingClientRect(); const s = getComputedStyle(el)
+    // Zone de contenu du module uniquement : hors topbar (haut) et sidebar (gauche)
+    return r.width > 4 && r.height > 4 && s.visibility !== 'hidden' && r.top > 58 && r.left > 212
+  })
     .map((el) => ({ i: Number(el.getAttribute('data-qi')), text: (el.innerText || el.getAttribute('aria-label') || el.title || '').trim().slice(0, 40) }))
 })
 const seen = new Set()
@@ -42,6 +46,9 @@ for (const c of toTest) {
     const before = await page.evaluate(() => ({ url: location.href, dom: document.body.innerHTML.length, modals: document.querySelectorAll('[role="dialog"],[class*="modal"],[class*="Modal"],[class*="drawer"],[class*="Drawer"]').length }))
     let net = 0; const onR = (r) => { if (r.url().includes('/api/')) net++ }
     page.on('request', onR)
+    // ferme toute palette/overlay résiduel avant de cliquer le contrôle suivant
+    await page.keyboard.press('Escape').catch(() => {})
+    await page.waitForTimeout(120)
     const el = page.locator(`[data-qi="${c.i}"]`)
     if (!(await el.count())) { page.off('request', onR); continue }
     await el.first().click({ timeout: 2500 })

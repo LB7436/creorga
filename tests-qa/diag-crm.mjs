@@ -1,0 +1,18 @@
+import { chromium } from '@playwright/test'
+const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+const urls = []
+page.on('request', (r) => { if (r.url().includes('/api/')) urls.push(r.method()+' '+r.url().replace('http://localhost:5174','').replace('http://localhost:3002','[3002]')) })
+await page.goto('http://localhost:5174/login', { waitUntil: 'domcontentloaded' })
+await page.evaluate(() => { localStorage.setItem('creorga-onboarded', '1'); localStorage.setItem('creorga.onboardingDone', String(Date.now())) })
+await page.locator('input[type="email"]').fill('admin@creorga.local')
+await page.locator('input[placeholder="••••••••"]').fill('Admin1234!')
+await page.locator('button[type="submit"]').click()
+await page.waitForURL('**/welcome')
+await page.goto('http://localhost:5174/crm/clients', { waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(2500)
+const store = await page.evaluate(() => { try { return JSON.parse(localStorage.getItem('creorga-auth')||'{}')?.state?.accessToken ? 'token présent' : 'PAS DE TOKEN' } catch(e){return 'err'} })
+console.log('Store auth:', store)
+console.log('Appels API (10 premiers):')
+console.log(urls.filter(u=>u.includes("crm")||u.includes("customers")||u.includes("agent")).map(u=>'  '+u).join('\n'))
+await browser.close()

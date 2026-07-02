@@ -328,8 +328,8 @@ function InvoicePreview({
             {client.email && <div style={{ fontSize: 10, color: '#64748b' }}>{client.email}</div>}
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10, color: '#64748b' }}>Date: <strong>{date || '\—'}</strong></div>
-            <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>Échéance: <strong>{echeance || '\—'}</strong></div>
+            <div style={{ fontSize: 10, color: '#64748b' }}>Date: <strong>{date || '—'}</strong></div>
+            <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>Échéance: <strong>{echeance || '—'}</strong></div>
           </div>
         </div>
 
@@ -355,9 +355,9 @@ function InvoicePreview({
               <tr key={a.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#ffffff' : '#fafbfc' }}>
                 <td style={{ padding: '8px 6px', fontSize: 11 }}>{a.description || 'Article'}</td>
                 <td style={{ padding: '8px 6px', fontSize: 11, textAlign: 'right' }}>{a.quantite}</td>
-                <td style={{ padding: '8px 6px', fontSize: 11, textAlign: 'right' }}>{fmt(a.prixHT)} \€</td>
+                <td style={{ padding: '8px 6px', fontSize: 11, textAlign: 'right' }}>{fmt(a.prixHT)} €</td>
                 <td style={{ padding: '8px 6px', fontSize: 11, textAlign: 'right' }}>{a.tauxTVA}%</td>
-                <td style={{ padding: '8px 6px', fontSize: 11, textAlign: 'right', fontWeight: 600 }}>{fmt(a.quantite * a.prixHT)} \€</td>
+                <td style={{ padding: '8px 6px', fontSize: 11, textAlign: 'right', fontWeight: 600 }}>{fmt(a.quantite * a.prixHT)} €</td>
               </tr>
             ))}
           </tbody>
@@ -376,12 +376,12 @@ function InvoicePreview({
           <div style={{ width: 220 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11, color: '#64748b' }}>
               <span>Sous-total HT</span>
-              <span style={{ fontWeight: 600 }}>{fmt(sousTotal)} \€</span>
+              <span style={{ fontWeight: 600 }}>{fmt(sousTotal)} €</span>
             </div>
             {Object.entries(tvaParTaux).map(([taux, montant]) => (
               <div key={taux} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 10, color: '#94a3b8' }}>
                 <span>TVA {taux}%</span>
-                <span>{fmt(montant)} \€</span>
+                <span>{fmt(montant)} €</span>
               </div>
             ))}
             <div style={{
@@ -391,7 +391,7 @@ function InvoicePreview({
               marginTop: 6,
             }}>
               <span>Total TTC</span>
-              <span>{fmt(totalTTC)} \€</span>
+              <span>{fmt(totalTTC)} €</span>
             </div>
           </div>
         </div>
@@ -591,7 +591,7 @@ function InvoiceModal({ onClose }: { onClose: () => void }) {
                 <div><label style={labelStyle}>Nom</label><input style={inputStyle} value={entreprise.nom} onChange={e => setEntreprise({ ...entreprise, nom: e.target.value })} /></div>
                 <div><label style={labelStyle}>Téléphone</label><input style={inputStyle} value={entreprise.tel} onChange={e => setEntreprise({ ...entreprise, tel: e.target.value })} /></div>
                 <div><label style={labelStyle}>Adresse</label><input style={inputStyle} value={entreprise.adresse} onChange={e => setEntreprise({ ...entreprise, adresse: e.target.value })} /></div>
-                <div><label style={labelStyle}>N\° TVA</label><input style={inputStyle} value={entreprise.tva} onChange={e => setEntreprise({ ...entreprise, tva: e.target.value })} /></div>
+                <div><label style={labelStyle}>N° TVA</label><input style={inputStyle} value={entreprise.tva} onChange={e => setEntreprise({ ...entreprise, tva: e.target.value })} /></div>
                 <div><label style={labelStyle}>IBAN</label><input style={inputStyle} value={entreprise.iban} onChange={e => setEntreprise({ ...entreprise, iban: e.target.value })} /></div>
                 <div><label style={labelStyle}>BIC</label><input style={inputStyle} value={entreprise.bic} onChange={e => setEntreprise({ ...entreprise, bic: e.target.value })} /></div>
               </div>
@@ -661,13 +661,13 @@ function InvoiceModal({ onClose }: { onClose: () => void }) {
               </div>
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
-                  <span>Sous-total HT</span><span style={{ fontWeight: 600 }}>{fmt(sousTotal)} \€</span>
+                  <span>Sous-total HT</span><span style={{ fontWeight: 600 }}>{fmt(sousTotal)} €</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
-                  <span>TVA</span><span style={{ fontWeight: 600 }}>{fmt(totalTVA)} \€</span>
+                  <span>TVA</span><span style={{ fontWeight: 600 }}>{fmt(totalTVA)} €</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800, color: '#1e293b', paddingTop: 8, borderTop: '2px solid #1e293b' }}>
-                  <span>Total TTC</span><span>{fmt(totalTTC)} \€</span>
+                  <span>Total TTC</span><span>{fmt(totalTTC)} €</span>
                 </div>
               </div>
             </div>
@@ -796,7 +796,7 @@ export default function FacturesPage() {
     { label: 'Brouillons', value: String(aEnvoyer), icon: Send, color: '#475569' },
     { label: 'En attente', value: String(enAttente), icon: Clock, color: '#3b82f6' },
     { label: 'Payées', value: String(payees), icon: CheckCircle2, color: '#10b981' },
-    { label: 'CA encaissé', value: `${fmt(totalCA)} \€`, icon: CreditCard, color: '#4338ca' },
+    { label: 'CA encaissé', value: `${fmt(totalCA)} €`, icon: CreditCard, color: '#4338ca' },
   ]
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -920,10 +920,10 @@ export default function FacturesPage() {
               </div>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: '#7f1d1d' }}>
-                  {overdues.length} facture(s) en retard \— {fmt(overdues.reduce((s, f) => s + f.montant, 0))} \€
+                  {overdues.length} facture(s) en retard — {fmt(overdues.reduce((s, f) => s + f.montant, 0))} €
                 </div>
                 <div style={{ fontSize: 12, color: '#991b1b', marginTop: 2 }}>
-                  Intérêts légaux cumulés (taux LU {(LUX_LATE_RATE * 100).toFixed(1)}%) : {fmt(totalLateFees)} \€
+                  Intérêts légaux cumulés (taux LU {(LUX_LATE_RATE * 100).toFixed(1)}%) : {fmt(totalLateFees)} €
                 </div>
               </div>
             </div>
@@ -1057,15 +1057,15 @@ export default function FacturesPage() {
                       </div>
                       {facture.lateFees && (
                         <div style={{ fontSize: 10, color: '#dc2626', marginTop: 2, fontWeight: 600 }}>
-                          + {fmt(facture.lateFees)} \€ intérêts
+                          + {fmt(facture.lateFees)} € intérêts
                         </div>
                       )}
                     </td>
                     <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
-                      {fmt(facture.montant)} \€
+                      {fmt(facture.montant)} €
                       {facture.statut === 'PARTIAL' && (
                         <div style={{ fontSize: 10, color: '#f59e0b', marginTop: 2, fontWeight: 600 }}>
-                          Payé : {fmt(facture.montantPaye)} \€
+                          Payé : {fmt(facture.montantPaye)} €
                         </div>
                       )}
                     </td>
@@ -1119,15 +1119,15 @@ export default function FacturesPage() {
             <div style={{ background: '#f8fafc', borderRadius: 12, padding: 16, marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
                 <span style={{ color: '#64748b' }}>Montant total</span>
-                <strong>{fmt(actionInvoice.montant)} \€</strong>
+                <strong>{fmt(actionInvoice.montant)} €</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
                 <span style={{ color: '#64748b' }}>Déjà payé</span>
-                <strong style={{ color: '#10b981' }}>{fmt(actionInvoice.montantPaye)} \€</strong>
+                <strong style={{ color: '#10b981' }}>{fmt(actionInvoice.montantPaye)} €</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, paddingTop: 8, borderTop: '1px solid #e2e8f0' }}>
                 <span style={{ fontWeight: 700 }}>Nouvelle facture</span>
-                <strong style={{ color: '#dc2626' }}>{fmt(actionInvoice.montant - actionInvoice.montantPaye)} \€</strong>
+                <strong style={{ color: '#dc2626' }}>{fmt(actionInvoice.montant - actionInvoice.montantPaye)} €</strong>
               </div>
             </div>
             <button onClick={() => { showToast('Facture complémentaire créée'); setActionModal(null) }}
@@ -1222,7 +1222,7 @@ export default function FacturesPage() {
             <label style={labelStyle}>Intérêts légaux à appliquer</label>
             <div style={{ background: '#fef3c7', borderRadius: 10, padding: 12, fontSize: 13, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
               <Percent size={14} style={{ color: '#b45309' }} />
-              <span>Taux légal Luxembourg {(LUX_LATE_RATE * 100).toFixed(1)}% : <strong>{fmt(actionInvoice.montant * LUX_LATE_RATE / 12)} \€ / mois</strong></span>
+              <span>Taux légal Luxembourg {(LUX_LATE_RATE * 100).toFixed(1)}% : <strong>{fmt(actionInvoice.montant * LUX_LATE_RATE / 12)} € / mois</strong></span>
             </div>
             <button onClick={() => { showToast('Relance créée et liée'); setActionModal(null) }}
               style={{ ...smallBtnStyle, width: '100%', padding: '12px 16px', background: '#b45309', color: '#fff', border: 'none', justifyContent: 'center' }}>

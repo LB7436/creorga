@@ -2,7 +2,9 @@ import fs from 'fs'
 import path from 'path'
 // Remplace \é \è … (backslash + lettre accentuée) par la lettre seule.
 // Sûr : ces séquences ne sont PAS des échappements JS valides ni des tokens regex.
-const ACCENTS = 'éèêëàâäçùûüîïôöÿœæÉÈÊËÀÂÄÇÙÛÜÎÏÔÖŸŒÆ'
+// Lettres accentuées + symboles sûrs (€ £ ° ² ³ …) — jamais des échappements
+// JS valides ni des tokens regex. On exclut volontairement \$ (regex).
+const ACCENTS = 'éèêëàâäçùûüîïôöÿœæÉÈÊËÀÂÄÇÙÛÜÎÏÔÖŸŒÆ€£°²³µ«»…—–'
 const RE = new RegExp('\\\\([' + ACCENTS + '])', 'g')
 const roots = ['apps/web/src', 'apps/pos/src', 'apps/guest/src', 'apps/marketing/src', 'apps/superadmin/src']
 let files = 0, hits = 0
