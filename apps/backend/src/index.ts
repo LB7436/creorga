@@ -76,6 +76,7 @@ import assistantAdvancedRoutes from './routes/assistant-advanced'
 import ownerRoutes from './routes/owner'
 import backupRoutes from './routes/backup'
 import gameScoresRoutes from './routes/gameScores'
+import guestRoutes from './routes/guest'
 import { auditLog } from './middleware/audit-log'
 import { assertProductionSecrets, buildCorsOrigin, authLimiter, aiLimiter, publicLimiter } from './lib/security'
 import { deviceOrUserAuth } from './middleware/deviceAuth'
@@ -156,6 +157,7 @@ app.use('/api/email', authenticate, emailRoutes)
 app.use('/api/payments', deviceOrUserAuth, paymentsRoutes)
 app.use('/api/portal-config', publicLimiter, portalConfigRoutes) // portail client public (QR)
 app.use('/api/game-scores', publicLimiter, gameScoresRoutes) // scores jeux guest (public)
+app.use('/api/guest', publicLimiter, guestRoutes) // suivi commande, appel serveur, paiement (public)
 app.use('/api/floor-state', deviceOrUserAuth, floorStateRoutes)
 app.use('/api/module-config', deviceOrUserAuth, moduleConfigRoutes)
 // Mounted on /api/inventory-ocr to avoid clash with the auth-protected /api/inventory

@@ -20,6 +20,10 @@ import {
   recordGuestEvent,
   type GuestClientProfile,
 } from './guestClient'
+import { useGuestLang } from './i18n'
+import OrderTracking from './OrderTracking'
+import GuestCallButtons from './GuestCallButtons'
+import GuestLoyaltyCard from './GuestLoyaltyCard'
 
 // ─── Types ─────────────────────────────────────────────
 
@@ -138,7 +142,7 @@ export default function GuestHome() {
   const embed = searchParams.get('embed')
 
   const [tab, setTab] = useState<Tab>('jeux')
-  const [lang, setLang] = useState('fr')
+  const { lang, setLang, t } = useGuestLang()
   const [announcements] = useState<Announcement[]>([])
   const [guestClient, setGuestClient] = useState<GuestClientProfile | null>(() => loadGuestClient())
   const [registrationOpen, setRegistrationOpen] = useState(false)
@@ -209,10 +213,10 @@ export default function GuestHome() {
   }
 
   const tabs: { id: Tab; icon: React.ReactNode; label: string; badge?: number; visible: boolean }[] = [
-    { id: 'jeux', icon: <Gamepad2 className="h-5 w-5" />, label: 'Jeux', visible: toggles.games !== false },
-    { id: 'menu', icon: <UtensilsCrossed className="h-5 w-5" />, label: 'Menu', badge: cartCount || undefined, visible: toggles.menu !== false },
-    { id: 'chat', icon: <MessagesSquare className="h-5 w-5" />, label: 'Chat', visible: toggles.chat !== false },
-    { id: 'avis', icon: <MessageSquare className="h-5 w-5" />, label: 'Avis', visible: toggles.reviews !== false },
+    { id: 'jeux', icon: <Gamepad2 className="h-5 w-5" />, label: t('tab_games'), visible: toggles.games !== false },
+    { id: 'menu', icon: <UtensilsCrossed className="h-5 w-5" />, label: t('tab_menu'), badge: cartCount || undefined, visible: toggles.menu !== false },
+    { id: 'chat', icon: <MessagesSquare className="h-5 w-5" />, label: t('tab_chat'), visible: toggles.chat !== false },
+    { id: 'avis', icon: <MessageSquare className="h-5 w-5" />, label: t('tab_reviews'), visible: toggles.reviews !== false },
   ]
   const visibleTabs = tabs.filter((item) => item.visible)
 
@@ -250,6 +254,7 @@ export default function GuestHome() {
       {/* Main */}
       <main className="flex-1 overflow-y-auto px-4 py-4 pb-24">
         <AnnouncementsBanner items={announcements} />
+        {guestClient?.phone && <GuestLoyaltyCard phone={guestClient.phone} />}
 
         {/* JEUX */}
         {tab === 'jeux' && toggles.games !== false && (
@@ -269,6 +274,7 @@ export default function GuestHome() {
               guestClient={guestClient}
               requireGuestClient={requireGuestClient}
               tableNumber={tableId}
+              t={t}
             />
           </motion.div>
         )}
@@ -412,7 +418,7 @@ const TVA_RATE = 0.17 // Luxembourg standard TVA
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
 function GuestMenu({
-  cart, addToCart, updateQty, clearCart, cartCount, cartTotal, guestClient, requireGuestClient, tableNumber,
+  cart, addToCart, updateQty, clearCart, cartCount, cartTotal, guestClient, requireGuestClient, tableNumber, t,
 }: {
   cart: CartItem[]
   addToCart: (p: { id: string; name: string; price: number; emoji: string }) => void
@@ -423,6 +429,7 @@ function GuestMenu({
   guestClient: GuestClientProfile | null
   requireGuestClient: (reason: string) => boolean
   tableNumber: string | null
+  t: (key: string) => string
 }) {
   const companyId = useAuthStore((s) => s.companyId)
   const [categories, setCategories] = useState<MenuCategory[]>([])
@@ -524,20 +531,32 @@ function GuestMenu({
     setTimeout(() => setAddedId(null), 600)
   }
 
+  const [lastOrderId, setLastOrderId] = useState<string | null>(null)
+
   const handleSendOrder = () => {
     if (!requireGuestClient('Inscrivez-vous pour envoyer une commande: le serveur verra votre nom, mobile, table et historique client.')) return
     setOrderState('sending')
-    setTimeout(() => {
-      recordGuestEvent('order', guestClient ?? loadGuestClient(), {
-        items: cart.map((item) => ({ id: item.id, name: item.name, qty: item.qty, price: item.price })),
-        subtotal,
-        tva,
-        total,
-        tableNumber,
+    const orderItems = cart.map((item) => ({ productId: item.id, name: item.name, qty: item.qty, price: item.price }))
+
+    fetch(`${(import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'}/api/guest/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tableId: tableNumber || 'sans-table', items: orderItems }),
+    })
+      .then((r) => r.json())
+      .then((data) => { if (data?.id) setLastOrderId(data.id) })
+      .catch(() => { /* le suivi live sera juste indisponible, la commande reste envoyée au staff via l'événement local */ })
+      .finally(() => {
+        recordGuestEvent('order', guestClient ?? loadGuestClient(), {
+          items: orderItems,
+          subtotal,
+          tva,
+          total,
+          tableNumber,
+        })
+        setOrderState('success')
+        clearCart()
       })
-      setOrderState('success')
-      clearCart()
-    }, 1500)
   }
 
   const subtotal = cartTotal
@@ -583,10 +602,10 @@ function GuestMenu({
         style={{ textAlign: 'center' }}
       >
         <h3 style={{ fontSize: 20, fontWeight: 700, color: TEXT, marginBottom: 6 }}>
-          Commande envoyée !
+          {t('order_success_title')}
         </h3>
         <p style={{ fontSize: 14, color: MUTED, lineHeight: 1.5 }}>
-          Votre serveur est prévenu.{'\n'}Merci pour votre patience !
+          {t('order_success_subtitle')}
         </p>
       </motion.div>
       {/* Floating dots animation */}
@@ -617,6 +636,13 @@ function GuestMenu({
       >
         Nouvelle commande
       </motion.button>
+
+      {tableNumber && (
+        <div style={{ width: '100%', maxWidth: 340 }}>
+          {lastOrderId && <OrderTracking orderId={lastOrderId} tableId={tableNumber} />}
+          <GuestCallButtons tableId={tableNumber} billTotal={total} />
+        </div>
+      )}
     </motion.div>
   )
 
@@ -995,10 +1021,10 @@ function GuestMenu({
                           borderTopColor: '#fff', borderRadius: '50%',
                           animation: 'spin 0.6s linear infinite',
                         }} />
-                        Envoi en cours...
+                        {t('sending_order')}
                       </>
                     ) : (
-                      <>Envoyer la commande</>
+                      <>{t('send_order')}</>
                     )}
                   </motion.button>
                 </div>

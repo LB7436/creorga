@@ -47,6 +47,7 @@ import MobileBriefing from '@/pages/mobile/MobileBriefing'
 import MobileMagicCam from '@/pages/mobile/MobileMagicCam'
 import UnifiedFloorPlan from '@/pages/pos/UnifiedFloorPlan'
 import GuestHome from '@/pages/guest/GuestHome'
+import GuestPaidPage from '@/pages/guest/GuestPaidPage'
 import AdminLayout from '@/pages/admin/AdminLayout'
 import AdminCompany from '@/pages/admin/AdminCompany'
 import AdminUsers from '@/pages/admin/AdminUsers'
@@ -178,7 +179,7 @@ function App() {
   const demoExit = useDemoMode((s) => s.exitDemoMode)
   const demoExpiresAt = useDemoMode((s) => s.expiresAt)
   const [demoRemaining, setDemoRemaining] = useState<number>(0)
-  const isGuestPortal = location.pathname === '/c'
+  const isGuestPortal = location.pathname === '/c' || location.pathname === '/c/paid'
   const isClientFacing = isGuestPortal || location.pathname === '/login'
 
   useEffect(() => {
@@ -222,6 +223,7 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/demo" element={<DemoLanding />} />
       <Route path="/c" element={<GuestHome />} />
+      <Route path="/c/paid" element={<GuestPaidPage />} />
 
       {/* TV Display — fullscreen, no AppShell */}
       <Route path="/ads/tv" element={<TVDisplayPage />} />
