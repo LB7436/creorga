@@ -8,6 +8,7 @@ import {
 import { usePortalConfig } from '@/hooks/usePortalConfig'
 import { useAssistant } from '@/stores/assistantStore'
 import GuestRegistrationModal from './GuestRegistrationModal'
+import GamesLeaderboard from './games/GamesLeaderboard'
 import {
   guestDisplayName,
   loadGuestClient,
@@ -19,6 +20,7 @@ import {
   CATEGORY_META,
   GAME_ID_ALIASES,
   GUEST_GAMES,
+  PLAYERS_LABEL,
   difficultyLabel,
   type GameCategory,
   type GameDifficulty,
@@ -171,10 +173,10 @@ const GAME_COMPONENTS: Record<string, GameComponent> = {
   wordscramble: lazy(() => import('./games/WordScrambleGame')) as GameComponent,
   scoopa: lazy(() => import('./games/ScopaGame')) as GameComponent,
   mensch: MenschGameComponent,
-  basket3d: lazy(() => import('./games/CreorgaOriginals').then((m) => ({ default: m.BasketGame }))) as GameComponent,
+  basket3d: lazy(() => import('./games/BasketballGame')) as GameComponent,
   mahjong3d: lazy(() => import('./games/CreorgaOriginals').then((m) => ({ default: m.MahjongGame }))) as GameComponent,
   erreur11: lazy(() => import('./games/CreorgaOriginals').then((m) => ({ default: m.SpotErrorGame }))) as GameComponent,
-  billard: lazy(() => import('./games/CreorgaOriginals').then((m) => ({ default: m.BilliardsGame }))) as GameComponent,
+  billard: lazy(() => import('./games/BilliardsGame')) as GameComponent,
   run21: lazy(() => import('./games/CreorgaOriginals').then((m) => ({ default: m.Run21Game }))) as GameComponent,
   tritowers: lazy(() => import('./games/CreorgaOriginals').then((m) => ({ default: m.TriTowersGame }))) as GameComponent,
   rami: lazy(() => import('./games/CreorgaOriginals').then((m) => ({ default: m.RamiGame }))) as GameComponent,
@@ -672,6 +674,9 @@ function GameCard({
             <div className="flex items-center gap-1">
               {game.new && <span style={badge('#22c55e')}>NEW</span>}
               {game.hot && !game.new && <span style={badge('#f59e0b')}>HOT</span>}
+              {!disabled && (
+                <span style={badge('#6366f1')}>{PLAYERS_LABEL[game.players ?? (game.categories.includes('multi') ? 'duo' : 'solo')]}</span>
+              )}
               {disabled ? (
                 <Lock size={13} style={{ color: ui.muted }} />
               ) : (
@@ -1340,6 +1345,8 @@ export default function GamesSection() {
           ))}
         </div>
       </div>
+
+      <GamesLeaderboard />
 
       <div className="grid grid-cols-4 gap-2">
         {statLine(progress, visibleGames).map((s) => (

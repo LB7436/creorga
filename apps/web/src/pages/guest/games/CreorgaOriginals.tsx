@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   ActionButton,
   CardBack,
@@ -8,6 +8,8 @@ import {
   ghostButtonStyle,
 } from './arcade3d'
 import { ACCENT, ACCENT2, BORDER, MUTED, SURFACE2, TEXT } from './theme'
+import GameOverModal from './GameOverModal'
+import { useGameScore } from './useGameScore'
 
 type GameProps = { onBack?: () => void }
 type CardSuit = 'S' | 'H' | 'D' | 'C'
@@ -270,65 +272,127 @@ function createMahjongTiles() {
 
 export function MahjongGame({ onBack }: GameProps) {
   const [tiles, setTiles] = useState(createMahjongTiles)
+  const [revealed, setRevealed] = useState<string[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [moves, setMoves] = useState(0)
-  const [message, setMessage] = useState('Trouvez les paires. Toutes les tuiles sont ouvertes pour une partie rapide.')
+  const [seconds, setSeconds] = useState(0)
+  const [locked, setLocked] = useState(false)
+  const [message, setMessage] = useState('Retournez deux tuiles pour trouver une paire.')
+  const [gameOver, setGameOver] = useState(false)
+  const timerRef = useRef<number>()
+
+  const { best, submit } = useGameScore('mahjong3d')
+  const [isNewRecord, setIsNewRecord] = useState(false)
 
   const matchedCount = tiles.filter((tile) => tile.matched).length
+  const score = Math.max(0, 1000 - moves * 10 - seconds * 2)
+
+  useEffect(() => {
+    if (gameOver) return
+    timerRef.current = window.setInterval(() => setSeconds((s) => s + 1), 1000)
+    return () => window.clearInterval(timerRef.current)
+  }, [gameOver])
+
+  useEffect(() => {
+    if (matchedCount === tiles.length && tiles.length > 0 && !gameOver) {
+      setGameOver(true)
+      const record = submit(score)
+      setIsNewRecord(record)
+    }
+  }, [matchedCount, tiles.length, gameOver, score, submit])
+
   const clickTile = (id: string) => {
+    if (locked) return
     const tile = tiles.find((item) => item.id === id)
-    if (!tile || tile.matched) return
+    if (!tile || tile.matched || revealed.includes(id)) return
+
     if (!selected) {
       setSelected(id)
+      setRevealed((list) => [...list, id])
       return
     }
     if (selected === id) return
+
     const first = tiles.find((item) => item.id === selected)
+    setRevealed((list) => [...list, id])
     setMoves((value) => value + 1)
+
     if (first?.face === tile.face) {
       setTiles((list) => list.map((item) => item.face === tile.face ? { ...item, matched: true } : item))
       setSelected(null)
       setMessage('Paire valide.')
     } else {
-      setSelected(null)
+      setLocked(true)
       setMessage('Pas la bonne paire, memorisez la position.')
+      window.setTimeout(() => {
+        setRevealed((list) => list.filter((r) => r !== id && r !== selected))
+        setSelected(null)
+        setLocked(false)
+      }, 900)
     }
   }
 
+  const restart = () => {
+    setTiles(createMahjongTiles())
+    setRevealed([])
+    setSelected(null)
+    setMoves(0)
+    setSeconds(0)
+    setGameOver(false)
+    setIsNewRecord(false)
+    setMessage('Plateau melange.')
+  }
+
   return (
+    <>
     <Game3DShell
       title="Mahjong Bamboo 3D"
-      subtitle="Paires tactiles, tuiles premium et ambiance zen"
+      subtitle="Memory chronometre, tuiles face cachee"
       onBack={onBack}
       side={gameSide({
         stats: [
           { label: 'Paires', value: `${matchedCount / 2}/12`, color: '#22c55e' },
           { label: 'Coups', value: moves, color: ACCENT2 },
+          { label: 'Temps', value: `${seconds}s`, color: '#f59e0b' },
         ],
         message,
-        children: <button onClick={() => { setTiles(createMahjongTiles()); setSelected(null); setMoves(0); setMessage('Plateau melange.') }} style={ghostButtonStyle}>Melanger</button>,
+        children: <button onClick={restart} style={ghostButtonStyle}>Melanger</button>,
       })}
     >
       <Stage tone="bamboo">
         <div style={mahjongGridStyle}>
-          {tiles.map((tile, index) => (
-            <button
-              key={tile.id}
-              onClick={() => clickTile(tile.id)}
-              style={{
-                ...mahjongTileStyle,
-                transform: `translateZ(${(index % 3) * 2}px) rotateX(10deg)`,
-                opacity: tile.matched ? 0.22 : 1,
-                borderColor: selected === tile.id ? ACCENT2 : 'rgba(255,255,255,0.18)',
-              }}
-            >
-              <span style={mahjongGlyphStyle}>{tileFace(tile.face)}</span>
-              <span style={{ fontSize: 10, color: '#064e3b', fontWeight: 900 }}>{tile.face}</span>
-            </button>
-          ))}
+          {tiles.map((tile, index) => {
+            const faceUp = tile.matched || revealed.includes(tile.id)
+            return (
+              <button
+                key={tile.id}
+                onClick={() => clickTile(tile.id)}
+                style={{
+                  ...mahjongTileStyle,
+                  transform: `translateZ(${(index % 3) * 2}px) rotateX(10deg)`,
+                  opacity: tile.matched ? 0.22 : 1,
+                  borderColor: selected === tile.id ? ACCENT2 : 'rgba(255,255,255,0.18)',
+                  background: faceUp ? undefined : '#0f766e',
+                }}
+              >
+                {faceUp ? (
+                  <>
+                    <span style={mahjongGlyphStyle}>{tileFace(tile.face)}</span>
+                    <span style={{ fontSize: 10, color: '#064e3b', fontWeight: 900 }}>{tile.face}</span>
+                  </>
+                ) : (
+                  <span style={{ fontSize: 20, color: 'rgba(255,255,255,0.4)' }}>?</span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </Stage>
     </Game3DShell>
+    {gameOver && (
+      <GameOverModal score={score} best={best} isNewRecord={isNewRecord} onReplay={restart} onBack={onBack} />
+    )}
+    </>
   )
 }
 
@@ -680,18 +744,94 @@ function isRamiMeld(cards: Card[]) {
   return sameSuit && run
 }
 
+/** Cherche une combinaison valide (meld) dans une main — brute force sur triples/quadruples. */
+function findMeld(hand: Card[]): Card[] | null {
+  const n = hand.length
+  for (let size = 3; size <= 4; size++) {
+    const combo: number[] = []
+    const backtrack = (start: number): Card[] | null => {
+      if (combo.length === size) {
+        const cards = combo.map((i) => hand[i])
+        return isRamiMeld(cards) ? cards : null
+      }
+      for (let i = start; i < n; i++) {
+        combo.push(i)
+        const found = backtrack(i + 1)
+        combo.pop()
+        if (found) return found
+      }
+      return null
+    }
+    const result = backtrack(0)
+    if (result) return result
+  }
+  return null
+}
+
 export function RamiGame({ onBack }: GameProps) {
-  const initial = useMemo(() => drawCards(makeDeck('rami'), 14), [])
-  const [deck, setDeck] = useState(initial.deck)
-  const [hand, setHand] = useState(sortHand(initial.hand))
+  const initial = useMemo(() => {
+    const deck = makeDeck('rami')
+    const player = deck.slice(0, 14)
+    const cpu = deck.slice(14, 28)
+    const stock = deck.slice(28)
+    return { player, cpu, stock }
+  }, [])
+  const [deck, setDeck] = useState(initial.stock)
+  const [hand, setHand] = useState(sortHand(initial.player))
+  const [cpuHand, setCpuHand] = useState(initial.cpu)
+  const [cpuDiscard, setCpuDiscard] = useState<Card | null>(null)
   const [selected, setSelected] = useState<string[]>([])
   const [score, setScore] = useState(0)
+  const [cpuScore, setCpuScore] = useState(0)
   const [mode, setMode] = useState<'normal' | 'sortie40'>('sortie40')
   const [opened, setOpened] = useState(false)
   const [message, setMessage] = useState('Selectionnez une combinaison: brelan/carre ou suite.')
+  const [gameOver, setGameOver] = useState(false)
+  const [winner, setWinner] = useState<'player' | 'cpu' | null>(null)
+  const cpuTurnTimeout = useRef<number>()
+
+  const { best, submit } = useGameScore('rami')
+  const [isNewRecord, setIsNewRecord] = useState(false)
+
   const selectedCards = hand.filter((card) => selected.includes(card.id))
   const value = selectedCards.reduce((sum, card) => sum + cardPoints(card), 0)
   const valid = isRamiMeld(selectedCards) && (opened || mode === 'normal' || value >= 40)
+
+  const finalScore = score + (winner === 'player' ? 50 : 0) - hand.reduce((s, c) => s + cardPoints(c), 0)
+
+  const endGame = (who: 'player' | 'cpu') => {
+    if (gameOver) return
+    setGameOver(true)
+    setWinner(who)
+    const s = score + (who === 'player' ? 50 : 0) - hand.reduce((sum, c) => sum + cardPoints(c), 0)
+    const record = submit(Math.max(0, s))
+    setIsNewRecord(record)
+  }
+
+  const cpuTurn = () => {
+    if (gameOver) return
+    let nextHand = [...cpuHand]
+    let nextDeck = deck
+    if (nextDeck.length > 0) {
+      nextHand = [...nextHand, nextDeck[0]]
+      nextDeck = nextDeck.slice(1)
+      setDeck(nextDeck)
+    }
+    const meld = findMeld(nextHand)
+    if (meld) {
+      const meldValue = meld.reduce((s, c) => s + cardPoints(c), 0)
+      nextHand = nextHand.filter((c) => !meld.includes(c))
+      setCpuScore((s) => s + meldValue)
+      setMessage(`Le CPU pose une combinaison (${meldValue} pts).`)
+    } else {
+      const discardIdx = nextHand.reduce((maxI, c, i, arr) => cardPoints(c) > cardPoints(arr[maxI]) ? i : maxI, 0)
+      setCpuDiscard(nextHand[discardIdx])
+      nextHand = nextHand.filter((_, i) => i !== discardIdx)
+      setMessage('Le CPU pioche et defausse.')
+    }
+    setCpuHand(nextHand)
+    if (nextHand.length === 0) endGame('cpu')
+  }
 
   const toggle = (id: string) => setSelected((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id])
   const meld = () => {
@@ -704,24 +844,46 @@ export function RamiGame({ onBack }: GameProps) {
     setOpened(true)
     setSelected([])
     setMessage(`Combinaison posee: ${value} pts.`)
+    if (hand.length - selected.length === 0) { endGame('player'); return }
+    cpuTurnTimeout.current = window.setTimeout(cpuTurn, 800)
   }
   const draw = () => {
     if (!deck.length) return
     setHand((cards) => sortHand([...cards, deck[0]]))
     setDeck((cards) => cards.slice(1))
     setMessage('Carte piochee.')
+    cpuTurnTimeout.current = window.setTimeout(cpuTurn, 800)
+  }
+
+  useEffect(() => () => window.clearTimeout(cpuTurnTimeout.current), [])
+
+  const restart = () => {
+    const d = makeDeck('rami')
+    setHand(sortHand(d.slice(0, 14)))
+    setCpuHand(d.slice(14, 28))
+    setDeck(d.slice(28))
+    setCpuDiscard(null)
+    setSelected([])
+    setScore(0)
+    setCpuScore(0)
+    setOpened(false)
+    setGameOver(false)
+    setWinner(null)
+    setIsNewRecord(false)
+    setMessage('Nouvelle partie contre le CPU.')
   }
 
   return (
+    <>
     <Game3DShell
       title="Rami Salon 3D"
-      subtitle="Mode normal ou sortie 40"
+      subtitle="Vs CPU — mode normal ou sortie 40"
       onBack={onBack}
       side={gameSide({
         stats: [
           { label: 'Score', value: score, color: '#f59e0b' },
           { label: 'Main', value: hand.length, color: ACCENT2 },
-          { label: 'Pioche', value: deck.length, color: '#22c55e' },
+          { label: 'CPU', value: `${cpuHand.length} cartes`, color: '#ef4444' },
           { label: 'Pose', value: value, color: ACCENT },
         ],
         message,
@@ -733,6 +895,9 @@ export function RamiGame({ onBack }: GameProps) {
             </div>
             <ActionButton onClick={meld} disabled={!selected.length}>Poser</ActionButton>
             <button onClick={draw} style={ghostButtonStyle}>Piocher</button>
+            {cpuDiscard && (
+              <div style={{ fontSize: 11, color: MUTED }}>Defausse CPU : {cpuDiscard.rank}{cpuDiscard.suit}</div>
+            )}
           </>
         ),
       })}
@@ -750,6 +915,16 @@ export function RamiGame({ onBack }: GameProps) {
         </div>
       </Stage>
     </Game3DShell>
+    {gameOver && (
+      <GameOverModal
+        score={Math.max(0, finalScore)}
+        best={best}
+        isNewRecord={isNewRecord}
+        onReplay={restart}
+        onBack={onBack}
+      />
+    )}
+    </>
   )
 }
 
@@ -772,17 +947,84 @@ function isRummiMeld(tiles: Tile[]) {
   return sameColor && values.every((value, index) => index === 0 || value === values[index - 1] + 1)
 }
 
+/** Cherche un groupe/suite valide (3-4 tuiles) dans un chevalet — brute force. */
+function findRummiMeld(rack: Tile[]): Tile[] | null {
+  const n = rack.length
+  for (let size = 3; size <= 4; size++) {
+    const combo: number[] = []
+    const backtrack = (start: number): Tile[] | null => {
+      if (combo.length === size) {
+        const tiles = combo.map((i) => rack[i])
+        return isRummiMeld(tiles) ? tiles : null
+      }
+      for (let i = start; i < n; i++) {
+        combo.push(i)
+        const found = backtrack(i + 1)
+        combo.pop()
+        if (found) return found
+      }
+      return null
+    }
+    const result = backtrack(0)
+    if (result) return result
+  }
+  return null
+}
+
+const sortTiles = (tiles: Tile[]) => [...tiles].sort((a, b) => a.color.localeCompare(b.color) || a.number - b.number)
+
 export function RummikubGame({ onBack }: GameProps) {
   const initial = useMemo(() => makeRummiTiles(), [])
-  const [pool, setPool] = useState(initial.slice(14))
-  const [rack, setRack] = useState(initial.slice(0, 14).sort((a, b) => a.color.localeCompare(b.color) || a.number - b.number))
+  const [pool, setPool] = useState(initial.slice(28))
+  const [rack, setRack] = useState(sortTiles(initial.slice(0, 14)))
+  const [cpuRack, setCpuRack] = useState(initial.slice(14, 28))
   const [selected, setSelected] = useState<string[]>([])
   const [melds, setMelds] = useState<Tile[][]>([])
+  const [cpuMelds, setCpuMelds] = useState<Tile[][]>([])
   const [opened, setOpened] = useState(false)
   const [message, setMessage] = useState('Creez une serie ou un groupe de 3 tuiles minimum.')
+  const [gameOver, setGameOver] = useState(false)
+  const [winner, setWinner] = useState<'player' | 'cpu' | null>(null)
+  const cpuTurnTimeout = useRef<number>()
+
+  const { best, submit } = useGameScore('rummikub')
+  const [isNewRecord, setIsNewRecord] = useState(false)
+
   const selectedTiles = rack.filter((tile) => selected.includes(tile.id))
   const selectedValue = selectedTiles.reduce((sum, tile) => sum + tile.number, 0)
   const valid = isRummiMeld(selectedTiles) && (opened || selectedValue >= 30)
+
+  const endGame = (who: 'player' | 'cpu') => {
+    if (gameOver) return
+    setGameOver(true)
+    setWinner(who)
+    const s = melds.reduce((sum, m) => sum + m.reduce((a, t) => a + t.number, 0), 0)
+      + (who === 'player' ? 50 : 0)
+      - rack.reduce((sum, t) => sum + t.number, 0)
+    const record = submit(Math.max(0, s))
+    setIsNewRecord(record)
+  }
+
+  const cpuTurn = () => {
+    if (gameOver) return
+    let nextRack = [...cpuRack]
+    let nextPool = pool
+    if (nextPool.length > 0) {
+      nextRack = [...nextRack, nextPool[0]]
+      nextPool = nextPool.slice(1)
+      setPool(nextPool)
+    }
+    const meld = findRummiMeld(nextRack)
+    if (meld) {
+      nextRack = nextRack.filter((t) => !meld.includes(t))
+      setCpuMelds((items) => [...items, meld])
+      setMessage('Le CPU pose une combinaison.')
+    } else {
+      setMessage('Le CPU pioche une tuile.')
+    }
+    setCpuRack(nextRack)
+    if (nextRack.length === 0) endGame('cpu')
+  }
 
   const place = () => {
     if (!valid) {
@@ -794,24 +1036,45 @@ export function RummikubGame({ onBack }: GameProps) {
     setSelected([])
     setOpened(true)
     setMessage('Combinaison posee sur la table.')
+    if (rack.length - selected.length === 0) { endGame('player'); return }
+    cpuTurnTimeout.current = window.setTimeout(cpuTurn, 800)
   }
   const draw = () => {
     if (!pool.length) return
-    setRack((items) => [...items, pool[0]].sort((a, b) => a.color.localeCompare(b.color) || a.number - b.number))
+    setRack((items) => sortTiles([...items, pool[0]]))
     setPool((items) => items.slice(1))
     setMessage('Tuile piochee.')
+    cpuTurnTimeout.current = window.setTimeout(cpuTurn, 800)
+  }
+
+  useEffect(() => () => window.clearTimeout(cpuTurnTimeout.current), [])
+
+  const restart = () => {
+    const fresh = makeRummiTiles()
+    setRack(sortTiles(fresh.slice(0, 14)))
+    setCpuRack(fresh.slice(14, 28))
+    setPool(fresh.slice(28))
+    setSelected([])
+    setMelds([])
+    setCpuMelds([])
+    setOpened(false)
+    setGameOver(false)
+    setWinner(null)
+    setIsNewRecord(false)
+    setMessage('Nouvelle partie contre le CPU.')
   }
 
   return (
+    <>
     <Game3DShell
       title="Rummi Kub 3D"
-      subtitle="Tuiles brillantes, groupes et suites"
+      subtitle="Vs CPU — groupes et suites"
       onBack={onBack}
       side={gameSide({
         stats: [
           { label: 'Table', value: melds.length, color: '#22c55e' },
           { label: 'Chevalet', value: rack.length, color: ACCENT2 },
-          { label: 'Sac', value: pool.length, color: '#f59e0b' },
+          { label: 'CPU', value: `${cpuRack.length} tuiles`, color: '#ef4444' },
           { label: 'Pose', value: opened ? selectedValue : `${selectedValue}/30`, color: ACCENT },
         ],
         message,
@@ -845,6 +1108,16 @@ export function RummikubGame({ onBack }: GameProps) {
         </div>
       </Stage>
     </Game3DShell>
+    {gameOver && (
+      <GameOverModal
+        score={Math.max(0, melds.reduce((sum, m) => sum + m.reduce((a, t) => a + t.number, 0), 0) + (winner === 'player' ? 50 : 0) - rack.reduce((sum, t) => sum + t.number, 0))}
+        best={best}
+        isNewRecord={isNewRecord}
+        onReplay={restart}
+        onBack={onBack}
+      />
+    )}
+    </>
   )
 }
 
