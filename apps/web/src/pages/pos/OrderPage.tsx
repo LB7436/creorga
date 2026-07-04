@@ -1,10 +1,13 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft, Plus, Minus, Trash2, Search, Send, CreditCard,
-  Users, UserPlus, StickyNote, X, Check, Receipt as ReceiptIcon, Heart, AlertOctagon,
+  Users, UserPlus, StickyNote, X, Check, Receipt as ReceiptIcon, Heart, AlertOctagon, RotateCcw,
 } from 'lucide-react'
 import { SplitBillModal, TipSelector, AllergiesPanel } from '@/components/pos/PosEnhancements'
+import QuickEntryBar from '@/components/pos/QuickEntryBar'
+import FavoritesGrid, { recordSale } from '@/components/pos/FavoritesGrid'
+import { queuedFetch } from '@/lib/offlineQueue'
 
 /* ------------------------------------------------------------------ */
 /*  TYPES                                                              */
@@ -105,6 +108,9 @@ export default function OrderPage() {
   const [editingNote, setEditingNote] = useState<string | null>(null)
   const [coverCount] = useState(3)
   const tableName = 'Table T4'
+  const tableId = 'T4'
+  const [sending, setSending] = useState(false)
+  const lastAddedRef = useRef<string | null>(null)
   // v3.18.6 — POS Enhancements state
   const [showSplit, setShowSplit] = useState(false)
   const [tipAmount, setTipAmount] = useState(0)
@@ -127,13 +133,19 @@ export default function OrderPage() {
   const total = subtotal + tva
 
   /* ---- cart ops ---- */
-  const addToCart = (p: Product) => {
+  const addToCart = (p: Product, qty = 1) => {
     setCart((prev) => {
       const found = prev.find((c) => c.product.id === p.id)
-      if (found) return prev.map((c) => (c.product.id === p.id ? { ...c, qty: c.qty + 1 } : c))
-      return [...prev, { product: p, qty: 1 }]
+      if (found) return prev.map((c) => (c.product.id === p.id ? { ...c, qty: c.qty + qty } : c))
+      return [...prev, { product: p, qty }]
     })
+    recordSale(p.id, qty)
+    lastAddedRef.current = p.id
   }
+  const addById = useCallback((productId: string, qty = 1) => {
+    const p = products.find((prod) => prod.id === productId)
+    if (p) addToCart(p, qty)
+  }, [])
   const changeQty = (id: string, delta: number) => {
     setCart((prev) =>
       prev
@@ -146,6 +158,84 @@ export default function OrderPage() {
 
   /* ---- client filter ---- */
   const filteredClients = mockClients.filter((c) => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
+
+  /* ---- v4.8 — répéter la dernière commande ---- */
+  const [hasLastOrder, setHasLastOrder] = useState(false)
+  useEffect(() => {
+    try { setHasLastOrder(!!localStorage.getItem(`creorga.pos.lastOrder.${tableId}`)) } catch { /* */ }
+  }, [])
+
+  const repeatLastOrder = () => {
+    try {
+      const raw = localStorage.getItem(`creorga.pos.lastOrder.${tableId}`)
+      if (!raw) return
+      const items: { productId: string; qty: number }[] = JSON.parse(raw)
+      items.forEach((i) => addById(i.productId, i.qty))
+    } catch { /* */ }
+  }
+
+  /* ---- v4.8 — envoi cuisine (offline-safe) ---- */
+  const sendToKitchen = async () => {
+    if (cart.length === 0 || sending) return
+    setSending(true)
+    try {
+      const items = cart.map((c) => ({ productId: c.product.id, quantity: c.qty, notes: c.note || null }))
+      const result = await queuedFetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tableId, items, notes: null }),
+      })
+      try {
+        localStorage.setItem(
+          `creorga.pos.lastOrder.${tableId}`,
+          JSON.stringify(cart.map((c) => ({ productId: c.product.id, qty: c.qty }))),
+        )
+        setHasLastOrder(true)
+      } catch { /* */ }
+      if (result.queued) {
+        alert('📴 Hors-ligne : la commande a été mise en attente, elle partira dès le retour du réseau.')
+      }
+    } finally {
+      setSending(false)
+    }
+  }
+
+  /* ---- v4.8 — raccourcis clavier POS ---- */
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      const isTyping = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')
+
+      if (e.key === 'F1') {
+        e.preventDefault()
+        sendToKitchen()
+        return
+      }
+      if (e.key === 'F2') {
+        e.preventDefault()
+        setCart([])
+        setClient(null)
+        return
+      }
+      if (isTyping) return
+      if (e.key === 'Escape') {
+        setEditingNote(null)
+        setShowClientModal(false)
+        return
+      }
+      if (e.key === '+' && lastAddedRef.current) {
+        e.preventDefault()
+        changeQty(lastAddedRef.current, 1)
+        return
+      }
+      if (e.key === '-' && lastAddedRef.current) {
+        e.preventDefault()
+        changeQty(lastAddedRef.current, -1)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [sending])
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#f8fafc' }}>
@@ -362,12 +452,23 @@ export default function OrderPage() {
             padding: 16, borderTop: '1px solid #e2e8f0', background: '#fff',
             display: 'flex', flexDirection: 'column', gap: 8,
           }}>
-            <button style={{ ...btnPrimary, width: '100%', justifyContent: 'center', padding: '11px 14px' }}>
-              <Send size={15} /> Envoyer en cuisine{allergies.length > 0 ? ` ⚠️ (${allergies.length} allergies)` : ''}
+            {hasLastOrder && (
+              <button onClick={repeatLastOrder} style={{ ...btnSecondary, width: '100%', justifyContent: 'center' }}>
+                <RotateCcw size={13} /> Répéter la dernière commande
+              </button>
+            )}
+            <button onClick={sendToKitchen} disabled={sending || cart.length === 0} style={{
+              ...btnPrimary, width: '100%', justifyContent: 'center', padding: '11px 14px',
+              opacity: sending || cart.length === 0 ? 0.6 : 1, cursor: sending || cart.length === 0 ? 'default' : 'pointer',
+            }}>
+              <Send size={15} /> {sending ? 'Envoi…' : 'Envoyer en cuisine'}{allergies.length > 0 ? ` ⚠️ (${allergies.length} allergies)` : ''}
             </button>
             <button style={{ ...btnAccent, width: '100%', justifyContent: 'center', padding: '11px 14px' }}>
               <CreditCard size={15} /> Aller au paiement
             </button>
+            <div style={{ fontSize: 10, color: '#94a3b8', textAlign: 'center', marginTop: 2 }}>
+              F1 Encaisser · F2 Nouvelle table · +/− Quantité · Esc Annuler
+            </div>
           </div>
 
           {/* Split bill modal */}
@@ -390,6 +491,15 @@ export default function OrderPage() {
 
         {/* =========== RIGHT: CATALOG =========== */}
         <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, background: '#f8fafc' }}>
+          {/* v4.8 — saisie clavier express */}
+          <QuickEntryBar products={products} onAdd={(id, qty) => addById(id, qty)} />
+
+          {/* v4.8 — favoris (12 plus vendus) */}
+          <FavoritesGrid
+            products={products.map((p) => ({ id: p.id, name: p.name, emoji: p.emoji, price: p.price }))}
+            onAdd={(id) => addById(id, 1)}
+          />
+
           {/* search */}
           <div style={{ padding: '14px 20px 0 20px' }}>
             <div style={{ position: 'relative' }}>

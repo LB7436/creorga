@@ -35,6 +35,48 @@ import ViewModeToggle from '@/components/ViewModeToggle'
 import ModuleTabs from '@/components/ModuleTabs'
 import { lockPos } from '@/components/PosLockScreen'
 import { Lock } from 'lucide-react'
+import { useOfflineStatus, startOfflineSync } from '@/lib/offlineQueue'
+
+function OfflineQueueBadge() {
+  const { online, pendingCount } = useOfflineStatus()
+  const [justCleared, setJustCleared] = useState(false)
+  const prevPending = useRef(0)
+
+  useEffect(() => { startOfflineSync() }, [])
+
+  useEffect(() => {
+    if (prevPending.current > 0 && pendingCount === 0 && online) {
+      setJustCleared(true)
+      const id = window.setTimeout(() => setJustCleared(false), 2000)
+      return () => window.clearTimeout(id)
+    }
+    prevPending.current = pendingCount
+  }, [pendingCount, online])
+
+  if (online && pendingCount === 0 && !justCleared) return null
+
+  const label = !online
+    ? `🔴 Hors-ligne${pendingCount > 0 ? ` — ${pendingCount} en attente` : ''}`
+    : pendingCount > 0
+      ? `🔄 Sync… ${pendingCount} en attente`
+      : `✓ Synchronisé`
+
+  return (
+    <div
+      title={!online ? 'Connexion perdue — les commandes sont mises en attente' : `${pendingCount} commande(s) en cours de synchronisation`}
+      style={{
+        height: 36, padding: '0 12px', borderRadius: 999,
+        border: !online ? '1px solid rgba(239,68,68,0.35)' : '1px solid rgba(34,197,94,0.35)',
+        background: !online ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
+        color: !online ? '#fca5a5' : '#86efac',
+        fontSize: 12, fontWeight: 800,
+        display: 'inline-flex', alignItems: 'center', gap: 4,
+      }}
+    >
+      {label}
+    </div>
+  )
+}
 
 function LiveCustomerCount() {
   const navigate = useNavigate()
@@ -295,6 +337,8 @@ export default function AppShell() {
           <ViewModeToggle />
 
           <LiveCustomerCount />
+
+          <OfflineQueueBadge />
 
           {activeModule === 'pos' && (
             <button
