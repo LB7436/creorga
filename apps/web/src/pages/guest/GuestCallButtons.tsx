@@ -53,7 +53,7 @@ export default function GuestCallButtons({ tableId, billTotal }: { tableId: stri
   }
 
   const btnStyle: React.CSSProperties = {
-    flex: 1, padding: '12px 10px', borderRadius: 12, border: '1px solid rgba(168,85,247,0.25)',
+    flex: 1, minHeight: 44, padding: '12px 10px', borderRadius: 12, border: '1px solid rgba(168,85,247,0.25)',
     background: 'rgba(255,255,255,0.03)', color: '#f8fafc', fontWeight: 700, fontSize: 12,
     cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
   }

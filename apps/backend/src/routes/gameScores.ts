@@ -1,13 +1,13 @@
 import { Router } from 'express'
-import path from 'path'
 import { safeReadJson, safeWriteJson } from '../lib/safe-json'
+import { dataPath } from '../middleware/audit-log'
 
 /**
  * v4.9 — Scores des jeux guest, persistés + broadcast live pour le leaderboard salle.
+ * v5.1 — chemin résolu via dataPath(req) pour préparer le multi-tenant.
  */
 
-const DATA_DIR = path.resolve(process.cwd(), 'data')
-const SCORES_FILE = path.join(DATA_DIR, 'game-scores.json')
+const SCORES_FILENAME = 'game-scores.json'
 const MAX_ENTRIES = 500
 
 interface ScoreEntry {
@@ -36,9 +36,10 @@ router.post('/', (req, res) => {
     score,
   }
 
-  const entries = safeReadJson<ScoreEntry[]>(SCORES_FILE, [])
+  const scoresFile = dataPath(SCORES_FILENAME, req)
+  const entries = safeReadJson<ScoreEntry[]>(scoresFile, [])
   const next = [entry, ...entries].slice(0, MAX_ENTRIES)
-  safeWriteJson(SCORES_FILE, next)
+  safeWriteJson(scoresFile, next)
 
   try {
     const broadcast = (globalThis as any).liveBroadcast
@@ -50,14 +51,14 @@ router.post('/', (req, res) => {
 
 router.get('/all/top', (req, res) => {
   const limit = Math.min(50, Number(req.query.limit) || 10)
-  const entries = safeReadJson<ScoreEntry[]>(SCORES_FILE, [])
+  const entries = safeReadJson<ScoreEntry[]>(dataPath(SCORES_FILENAME, req), [])
   const top = [...entries].sort((a, b) => b.score - a.score).slice(0, limit)
   res.json({ top })
 })
 
 router.get('/:gameId/top', (req, res) => {
   const limit = Math.min(50, Number(req.query.limit) || 10)
-  const entries = safeReadJson<ScoreEntry[]>(SCORES_FILE, [])
+  const entries = safeReadJson<ScoreEntry[]>(dataPath(SCORES_FILENAME, req), [])
   const top = entries
     .filter((e) => e.gameId === req.params.gameId)
     .sort((a, b) => b.score - a.score)

@@ -101,6 +101,21 @@ let state: FloorState = JSON.parse(JSON.stringify(DEFAULT_STATE))
 
 const router = Router()
 
+// v5.1 — Broadcast léger après toute mutation, pour que LiveCustomerCount
+// (topbar) se mette à jour en temps réel au lieu de poller en continu.
+const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+router.use((req, res, next) => {
+  if (MUTATING.has(req.method)) {
+    res.on('finish', () => {
+      try {
+        const broadcast = (globalThis as any).liveBroadcast
+        if (typeof broadcast === 'function') broadcast('floor', 'floor-updated', { updatedAt: state.updatedAt })
+      } catch { /* broadcast indisponible */ }
+    })
+  }
+  next()
+})
+
 // Full state read (public)
 router.get('/', (_req, res) => res.json(state))
 

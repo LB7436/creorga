@@ -36,6 +36,7 @@ import ModuleTabs from '@/components/ModuleTabs'
 import { lockPos } from '@/components/PosLockScreen'
 import { Lock } from 'lucide-react'
 import { useOfflineStatus, startOfflineSync } from '@/lib/offlineQueue'
+import { io } from 'socket.io-client'
 
 function OfflineQueueBadge() {
   const { online, pendingCount } = useOfflineStatus()
@@ -101,8 +102,18 @@ function LiveCustomerCount() {
       }
     }
     load()
-    const id = window.setInterval(load, 10_000)
-    return () => { alive = false; window.clearInterval(id) }
+
+    // v5.1 — socket /live channel 'floor' pour une mise à jour temps réel ;
+    // le poll passe en simple filet de sécurité à 60s.
+    let socket: any
+    try {
+      socket = io('/live', { transports: ['websocket', 'polling'] })
+      socket.on('connect', () => socket.emit('subscribe', ['floor']))
+      socket.on('floor-updated', load)
+    } catch { /* socket indisponible — le poll suffira */ }
+
+    const id = window.setInterval(load, 60_000)
+    return () => { alive = false; window.clearInterval(id); socket?.disconnect() }
   }, [])
 
   return (

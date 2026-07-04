@@ -14,7 +14,7 @@ const FILENAME_RE = /^creorga-full-[\d-]+\.zip$/
 
 const router = Router()
 
-function validFilename(filename: string): boolean {
+export function validFilename(filename: string): boolean {
   return FILENAME_RE.test(filename)
 }
 

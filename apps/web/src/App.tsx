@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import InstallPrompt from '@/components/InstallPrompt'
 import HelpChatbot from '@/components/HelpChatbot'
@@ -14,162 +14,175 @@ import RequireAuth from '@/components/auth/RequireAuth'
 import { useAuthStore } from '@/stores/authStore'
 import AppShell from '@/components/layout/AppShell'
 import Login from '@/pages/Login'
-import DemoLanding from '@/pages/DemoLanding'
-import Welcome from '@/pages/Welcome'
+const DemoLanding = lazy(() => import('@/pages/DemoLanding'))
+const Welcome = lazy(() => import('@/pages/Welcome'))
 import { useDemoMode } from '@/lib/demoMode'
 import ModuleSelector from '@/pages/ModuleSelector'
 import NotFound from '@/pages/NotFound'
-import Dashboard from '@/pages/Dashboard'
-import Kitchen from '@/pages/pos/Kitchen'
+const Dashboard = lazy(() => import('@/pages/Dashboard'))
+const Kitchen = lazy(() => import('@/pages/pos/Kitchen'))
 import BackToStart from '@/components/BackToStart'
-import RoomDesignerPage from '@/pages/pos/RoomDesignerPage'
-import SettingsModules from '@/pages/settings/SettingsModules'
-import SettingsEnvMode from '@/pages/settings/SettingsEnvMode'
-import AIModulePage from '@/pages/ai/AIModulePage'
+const RoomDesignerPage = lazy(() => import('@/pages/pos/RoomDesignerPage'))
+const SettingsModules = lazy(() => import('@/pages/settings/SettingsModules'))
+const SettingsEnvMode = lazy(() => import('@/pages/settings/SettingsEnvMode'))
+const AIModulePage = lazy(() => import('@/pages/ai/AIModulePage'))
 import EnvModeBanner from '@/components/EnvModeBanner'
-import SettingsTheme from '@/pages/settings/SettingsTheme'
-import SettingsLanguage from '@/pages/settings/SettingsLanguage'
-import AdsAdminPage from '@/pages/ads/AdsAdminPage'
-import TVDisplayPage from '@/pages/ads/TVDisplayPage'
-import MusicPage from '@/pages/music/MusicPage'
-import SetupWizard from '@/pages/onboarding/SetupWizard'
-import FloorVisionWizard from '@/pages/setup/FloorVisionWizard'
-import AssistantPick from '@/pages/setup/AssistantPick'
-import MobileLayout from '@/pages/mobile/MobileLayout'
-import MobileLive from '@/pages/mobile/MobileLive'
-import MobileRobi from '@/pages/mobile/MobileRobi'
-import MobileAlerts from '@/pages/mobile/MobileAlerts'
-import MobileWorld from '@/pages/mobile/MobileWorld'
-import MobileSettings from '@/pages/mobile/MobileSettings'
-import MobileCamera from '@/pages/mobile/MobileCamera'
-import MobileDemoLogin from '@/pages/mobile/MobileDemoLogin'
-import MobileBriefing from '@/pages/mobile/MobileBriefing'
-import MobileMagicCam from '@/pages/mobile/MobileMagicCam'
-import UnifiedFloorPlan from '@/pages/pos/UnifiedFloorPlan'
-import GuestHome from '@/pages/guest/GuestHome'
-import GuestPaidPage from '@/pages/guest/GuestPaidPage'
-import AdminLayout from '@/pages/admin/AdminLayout'
-import AdminCompany from '@/pages/admin/AdminCompany'
-import AdminUsers from '@/pages/admin/AdminUsers'
-import AdminCatalog from '@/pages/admin/AdminCatalog'
-import AdminModules from '@/pages/admin/AdminModules'
-import ClientsConfig from '@/pages/clients/ClientsConfig'
+const SettingsTheme = lazy(() => import('@/pages/settings/SettingsTheme'))
+const SettingsLanguage = lazy(() => import('@/pages/settings/SettingsLanguage'))
+const AdsAdminPage = lazy(() => import('@/pages/ads/AdsAdminPage'))
+const TVDisplayPage = lazy(() => import('@/pages/ads/TVDisplayPage'))
+const MusicPage = lazy(() => import('@/pages/music/MusicPage'))
+const SetupWizard = lazy(() => import('@/pages/onboarding/SetupWizard'))
+const FloorVisionWizard = lazy(() => import('@/pages/setup/FloorVisionWizard'))
+const AssistantPick = lazy(() => import('@/pages/setup/AssistantPick'))
+const MobileLayout = lazy(() => import('@/pages/mobile/MobileLayout'))
+const MobileLive = lazy(() => import('@/pages/mobile/MobileLive'))
+const MobileRobi = lazy(() => import('@/pages/mobile/MobileRobi'))
+const MobileAlerts = lazy(() => import('@/pages/mobile/MobileAlerts'))
+const MobileWorld = lazy(() => import('@/pages/mobile/MobileWorld'))
+const MobileSettings = lazy(() => import('@/pages/mobile/MobileSettings'))
+const MobileCamera = lazy(() => import('@/pages/mobile/MobileCamera'))
+const MobileDemoLogin = lazy(() => import('@/pages/mobile/MobileDemoLogin'))
+const MobileBriefing = lazy(() => import('@/pages/mobile/MobileBriefing'))
+const MobileMagicCam = lazy(() => import('@/pages/mobile/MobileMagicCam'))
+const UnifiedFloorPlan = lazy(() => import('@/pages/pos/UnifiedFloorPlan'))
+const GuestHome = lazy(() => import('@/pages/guest/GuestHome'))
+const GuestPaidPage = lazy(() => import('@/pages/guest/GuestPaidPage'))
+const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout'))
+const AdminCompany = lazy(() => import('@/pages/admin/AdminCompany'))
+const AdminUsers = lazy(() => import('@/pages/admin/AdminUsers'))
+const AdminCatalog = lazy(() => import('@/pages/admin/AdminCatalog'))
+const AdminModules = lazy(() => import('@/pages/admin/AdminModules'))
+const ClientsConfig = lazy(() => import('@/pages/clients/ClientsConfig'))
 
 // Module Layouts
-import PosLayout from '@/pages/pos/PosLayout'
-import CrmLayout from '@/pages/crm/CrmLayout'
-import InvoicesLayout from '@/pages/invoices/InvoicesLayout'
-import InventoryLayout from '@/pages/inventory/InventoryLayout'
-import HrLayout from '@/pages/hr/HrLayout'
-import HaccpLayout from '@/pages/haccp/HaccpLayout'
-import AccountingLayout from '@/pages/accounting/AccountingLayout'
+const PosLayout = lazy(() => import('@/pages/pos/PosLayout'))
+const CrmLayout = lazy(() => import('@/pages/crm/CrmLayout'))
+const InvoicesLayout = lazy(() => import('@/pages/invoices/InvoicesLayout'))
+const InventoryLayout = lazy(() => import('@/pages/inventory/InventoryLayout'))
+const HrLayout = lazy(() => import('@/pages/hr/HrLayout'))
+const HaccpLayout = lazy(() => import('@/pages/haccp/HaccpLayout'))
+const AccountingLayout = lazy(() => import('@/pages/accounting/AccountingLayout'))
 // v4.1 — Layouts retirés (folded) : ReputationLayout (→ CrmLayout), AgendaLayout (obsolète)
 // v4.1 — Nouveaux Layouts (3 fusions) :
-import SalesLayout from '@/pages/sales/SalesLayout'
-import AdsLayout from '@/pages/ads/AdsLayout'
-import OwnerLayout from '@/pages/owner/OwnerLayout'
+const SalesLayout = lazy(() => import('@/pages/sales/SalesLayout'))
+const AdsLayout = lazy(() => import('@/pages/ads/AdsLayout'))
+const OwnerLayout = lazy(() => import('@/pages/owner/OwnerLayout'))
 // (note : ReputationLayout, AgendaLayout, LicencesPage, AgendaPage imports retirés v4.1)
 
 // QR Menu Page
-import QrMenuPage from '@/pages/qrmenu/QrMenuPage'
+const QrMenuPage = lazy(() => import('@/pages/qrmenu/QrMenuPage'))
 
 // Formation Page
-import FormationPage from '@/pages/formation/FormationPage'
+const FormationPage = lazy(() => import('@/pages/formation/FormationPage'))
 
 // Admin module pages
-import MaintenancePage from '@/pages/maintenance/MaintenancePage'
+const MaintenancePage = lazy(() => import('@/pages/maintenance/MaintenancePage'))
 // v4.1 — LicencesPage retiré (URL /licences redirige /rgpd, page jamais affichée)
-import RgpdPage from '@/pages/rgpd/RgpdPage'
+const RgpdPage = lazy(() => import('@/pages/rgpd/RgpdPage'))
 
 // POS Pages
-import FloorPlan from '@/pages/pos/FloorPlan'
-import OrderPage from '@/pages/pos/OrderPage'
-import Checkout from '@/pages/pos/Checkout'
-import DashboardPage from '@/pages/pos/DashboardPage'
+const FloorPlan = lazy(() => import('@/pages/pos/FloorPlan'))
+const OrderPage = lazy(() => import('@/pages/pos/OrderPage'))
+const Checkout = lazy(() => import('@/pages/pos/Checkout'))
+const DashboardPage = lazy(() => import('@/pages/pos/DashboardPage'))
 
 // CRM Pages
-import ClientsPage from '@/pages/crm/ClientsPage'
-import FidelitePage from '@/pages/crm/FidelitePage'
-import PortefeuillePage from '@/pages/crm/PortefeuillePage'
-import CartesPage from '@/pages/crm/CartesPage'
+const ClientsPage = lazy(() => import('@/pages/crm/ClientsPage'))
+const FidelitePage = lazy(() => import('@/pages/crm/FidelitePage'))
+const PortefeuillePage = lazy(() => import('@/pages/crm/PortefeuillePage'))
+const CartesPage = lazy(() => import('@/pages/crm/CartesPage'))
 
 // Invoices Pages
-import DevisPageInv from '@/pages/invoices/DevisPage'
-import FacturesPage from '@/pages/invoices/FacturesPage'
-import AvoirsPage from '@/pages/invoices/AvoirsPage'
-import RelancesPage from '@/pages/invoices/RelancesPage'
+const DevisPageInv = lazy(() => import('@/pages/invoices/DevisPage'))
+const FacturesPage = lazy(() => import('@/pages/invoices/FacturesPage'))
+const AvoirsPage = lazy(() => import('@/pages/invoices/AvoirsPage'))
+const RelancesPage = lazy(() => import('@/pages/invoices/RelancesPage'))
 
 // Reservations Pages (now under Agenda)
-import CalendrierPage from '@/pages/reservations/CalendrierPage'
-import ReservListePage from '@/pages/reservations/ListePage'
-import ReservConfigPage from '@/pages/reservations/ConfigPage'
+const CalendrierPage = lazy(() => import('@/pages/reservations/CalendrierPage'))
+const ReservListePage = lazy(() => import('@/pages/reservations/ListePage'))
+const ReservConfigPage = lazy(() => import('@/pages/reservations/ConfigPage'))
 
 // Inventory Pages
-import StockPage from '@/pages/inventory/StockPage'
-import ReceiptOCR from '@/pages/inventory/ReceiptOCR'
-import RecettesPage from '@/pages/inventory/RecettesPage'
-import FournisseursPage from '@/pages/inventory/FournisseursPage'
-import CommandesPage from '@/pages/inventory/CommandesPage'
+const StockPage = lazy(() => import('@/pages/inventory/StockPage'))
+const ReceiptOCR = lazy(() => import('@/pages/inventory/ReceiptOCR'))
+const RecettesPage = lazy(() => import('@/pages/inventory/RecettesPage'))
+const FournisseursPage = lazy(() => import('@/pages/inventory/FournisseursPage'))
+const CommandesPage = lazy(() => import('@/pages/inventory/CommandesPage'))
 
 // HR Pages
-import PlanningPage from '@/pages/hr/PlanningPage'
-import PointagesPage from '@/pages/hr/PointagesPage'
-import CongesPage from '@/pages/hr/CongesPage'
-import EquipePage from '@/pages/hr/EquipePage'
-import HrParamsPage from '@/pages/hr/ParamsPage'
+const PlanningPage = lazy(() => import('@/pages/hr/PlanningPage'))
+const PointagesPage = lazy(() => import('@/pages/hr/PointagesPage'))
+const CongesPage = lazy(() => import('@/pages/hr/CongesPage'))
+const EquipePage = lazy(() => import('@/pages/hr/EquipePage'))
+const HrParamsPage = lazy(() => import('@/pages/hr/ParamsPage'))
 
 // HACCP Pages
-import JourneePage from '@/pages/haccp/JourneePage'
-import TemperaturesPage from '@/pages/haccp/TemperaturesPage'
-import TachesPage from '@/pages/haccp/TachesPage'
-import HaccpHistoriquePage from '@/pages/haccp/HistoriquePage'
+const JourneePage = lazy(() => import('@/pages/haccp/JourneePage'))
+const TemperaturesPage = lazy(() => import('@/pages/haccp/TemperaturesPage'))
+const TachesPage = lazy(() => import('@/pages/haccp/TachesPage'))
+const HaccpHistoriquePage = lazy(() => import('@/pages/haccp/HistoriquePage'))
 
 // Accounting Pages
-import CaissePage from '@/pages/accounting/CaissePage'
-import CloturePage from '@/pages/accounting/CloturePage'
-import DepensesPage from '@/pages/accounting/DepensesPage'
-import TvaPage from '@/pages/accounting/TvaPage'
-import RapportsPage from '@/pages/accounting/RapportsPage'
+const CaissePage = lazy(() => import('@/pages/accounting/CaissePage'))
+const CloturePage = lazy(() => import('@/pages/accounting/CloturePage'))
+const DepensesPage = lazy(() => import('@/pages/accounting/DepensesPage'))
+const TvaPage = lazy(() => import('@/pages/accounting/TvaPage'))
+const RapportsPage = lazy(() => import('@/pages/accounting/RapportsPage'))
 
 // Marketing Pages
-import CampagnesPage from '@/pages/marketing/CampagnesPage'
-import CodesPage from '@/pages/marketing/CodesPage'
-import AudiencesPage from '@/pages/marketing/AudiencesPage'
+const CampagnesPage = lazy(() => import('@/pages/marketing/CampagnesPage'))
+const CodesPage = lazy(() => import('@/pages/marketing/CodesPage'))
+const AudiencesPage = lazy(() => import('@/pages/marketing/AudiencesPage'))
 
 // Reputation Pages
-import AvisPage from '@/pages/reputation/AvisPage'
-import ReponsesPage from '@/pages/reputation/ReponsesPage'
-import ReputStatsPage from '@/pages/reputation/StatsPage'
+const AvisPage = lazy(() => import('@/pages/reputation/AvisPage'))
+const ReponsesPage = lazy(() => import('@/pages/reputation/ReponsesPage'))
+const ReputStatsPage = lazy(() => import('@/pages/reputation/StatsPage'))
 
 // Events Pages — v4.1 AgendaPage retiré (module agenda obsolète)
-import EventsDevisPage from '@/pages/events/DevisPage'
-import ClientsB2BPage from '@/pages/events/ClientsB2BPage'
+const EventsDevisPage = lazy(() => import('@/pages/events/DevisPage'))
+const ClientsB2BPage = lazy(() => import('@/pages/events/ClientsB2BPage'))
 
 // Sites & API Pages
-import SitesPage from '@/pages/sites/SitesPage'
-import ApiPage from '@/pages/api/ApiPage'
-import MarketplacePage from '@/pages/api/MarketplacePage'
+const SitesPage = lazy(() => import('@/pages/sites/SitesPage'))
+const ApiPage = lazy(() => import('@/pages/api/ApiPage'))
+const MarketplacePage = lazy(() => import('@/pages/api/MarketplacePage'))
 
 // New modules
-import AiAssistantPage from '@/pages/ai/AiAssistantPage'
-import BackupPage from '@/pages/backup/BackupPage'
-import OwnerReportPage from '@/pages/owner/OwnerReportPage'
-import ActiviteAuditPage from '@/pages/owner/ActiviteAuditPage'
-import MacrosPage from '@/pages/owner/MacrosPage'
-import DeliveryPage from '@/pages/delivery/DeliveryPage'
-import ClickCollectPage from '@/pages/clickcollect/ClickCollectPage'
-import CateringPage from '@/pages/catering/CateringPage'
-import CentralKitchenPage from '@/pages/centralkitchen/CentralKitchenPage'
-import BillingPage from '@/pages/billing/BillingPage'
-import AutoOrderPage from '@/pages/autoorder/AutoOrderPage'
-import SustainabilityPage from '@/pages/sustainability/SustainabilityPage'
-import CommunityPage from '@/pages/community/CommunityPage'
-import StatusPage from '@/pages/status/StatusPage'
-import ChangelogPage from '@/pages/changelog/ChangelogPage'
-import ReferralPage from '@/pages/referral/ReferralPage'
+const AiAssistantPage = lazy(() => import('@/pages/ai/AiAssistantPage'))
+const BackupPage = lazy(() => import('@/pages/backup/BackupPage'))
+const OwnerReportPage = lazy(() => import('@/pages/owner/OwnerReportPage'))
+const ActiviteAuditPage = lazy(() => import('@/pages/owner/ActiviteAuditPage'))
+const MacrosPage = lazy(() => import('@/pages/owner/MacrosPage'))
+const DeliveryPage = lazy(() => import('@/pages/delivery/DeliveryPage'))
+const ClickCollectPage = lazy(() => import('@/pages/clickcollect/ClickCollectPage'))
+const CateringPage = lazy(() => import('@/pages/catering/CateringPage'))
+const CentralKitchenPage = lazy(() => import('@/pages/centralkitchen/CentralKitchenPage'))
+const BillingPage = lazy(() => import('@/pages/billing/BillingPage'))
+const AutoOrderPage = lazy(() => import('@/pages/autoorder/AutoOrderPage'))
+const SustainabilityPage = lazy(() => import('@/pages/sustainability/SustainabilityPage'))
+const CommunityPage = lazy(() => import('@/pages/community/CommunityPage'))
+const StatusPage = lazy(() => import('@/pages/status/StatusPage'))
+const ChangelogPage = lazy(() => import('@/pages/changelog/ChangelogPage'))
+const ReferralPage = lazy(() => import('@/pages/referral/ReferralPage'))
 import OnboardingTour from '@/components/OnboardingTour'
 import PosLockScreen from '@/components/PosLockScreen'
 import { registerPush } from '@/lib/pushNotifications'
+
+function RouteLoadingFallback() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      <div style={{
+        width: 36, height: 36, borderRadius: '50%',
+        border: '3px solid rgba(139,92,246,0.2)', borderTopColor: '#8b5cf6',
+        animation: 'creorga-route-spin 0.8s linear infinite',
+      }} />
+      <style>{'@keyframes creorga-route-spin { to { transform: rotate(360deg) } }'}</style>
+    </div>
+  )
+}
 
 function App() {
   const location = useLocation()
@@ -218,6 +231,7 @@ function App() {
 
   return (
     <>
+    <Suspense fallback={<RouteLoadingFallback />}>
     <Routes>
       {/* Public */}
       <Route path="/login" element={<Login />} />
@@ -459,6 +473,7 @@ function App() {
 
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </Suspense>
 
     {/* Bannière MODE DÉMO */}
     {demoActive && !isClientFacing && location.pathname !== '/demo' && (

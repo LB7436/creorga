@@ -248,6 +248,7 @@ export const ghostButtonStyle: CSSProperties = {
   color: MUTED,
   borderRadius: 8,
   padding: '8px 10px',
+  minHeight: 44,
   cursor: 'pointer',
   fontWeight: 700,
 }
@@ -256,6 +257,7 @@ const buttonStyle: CSSProperties = {
   border: 'none',
   borderRadius: 8,
   padding: '10px 12px',
+  minHeight: 44,
   fontWeight: 900,
   fontSize: 12,
   transition: 'transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease',
