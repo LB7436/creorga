@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { Database, Download, Upload, Trash2, RefreshCw, Plus, FileArchive, AlertTriangle } from 'lucide-react'
+import { Database, Download, Upload, Trash2, RefreshCw, Plus, FileArchive, AlertTriangle, ShieldCheck } from 'lucide-react'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -11,12 +11,22 @@ interface BackupFile {
   items: number
 }
 
+interface FullBackupFile {
+  filename: string
+  size: number
+  createdAt: number
+}
+
 export default function BackupPage() {
   const [backups, setBackups] = useState<BackupFile[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [stockSize, setStockSize] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
+
+  const [fullBackups, setFullBackups] = useState<FullBackupFile[]>([])
+  const [fullLoading, setFullLoading] = useState(true)
+  const [fullBusy, setFullBusy] = useState<string | null>(null)
 
   const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
 
@@ -34,7 +44,56 @@ export default function BackupPage() {
     setLoading(false)
   }, [])
 
+  const fetchFullBackups = useCallback(async () => {
+    try {
+      const r = await fetch(`${BACKEND}/api/backup/full`)
+      const data = await r.json()
+      setFullBackups(data.backups || [])
+    } catch { /* offline */ }
+    setFullLoading(false)
+  }, [])
+
   useEffect(() => { fetchBackups() }, [fetchBackups])
+  useEffect(() => { fetchFullBackups() }, [fetchFullBackups])
+
+  const createFullBackup = async () => {
+    setFullBusy('create')
+    try {
+      const r = await fetch(`${BACKEND}/api/backup/full`, { method: 'POST' })
+      if (r.ok) {
+        const data = await r.json()
+        flash(`✓ Sauvegarde complète créée : ${data.filename}`)
+        fetchFullBackups()
+      } else flash('❌ Erreur sauvegarde complète')
+    } finally { setFullBusy(null) }
+  }
+
+  const restoreFull = async (filename: string) => {
+    if (!confirm(`Restaurer TOUT le programme depuis "${filename}" ? Toutes les données actuelles (clients, factures, RH, stock, HACCP…) seront remplacées.`)) return
+    setFullBusy(filename)
+    try {
+      const r = await fetch(`${BACKEND}/api/backup/full/${filename}/restore`, { method: 'POST' })
+      if (r.ok) {
+        flash('✓ Restauration complète réussie')
+        fetchFullBackups()
+        fetchBackups()
+      } else flash('❌ Erreur restauration complète')
+    } finally { setFullBusy(null) }
+  }
+
+  const removeFull = async (filename: string) => {
+    if (!confirm(`Supprimer la sauvegarde complète "${filename}" ?`)) return
+    setFullBusy(filename)
+    try {
+      await fetch(`${BACKEND}/api/backup/full/${filename}`, { method: 'DELETE' })
+      flash('✓ Sauvegarde supprimée')
+      fetchFullBackups()
+    } finally { setFullBusy(null) }
+  }
+
+  const downloadFull = (filename: string) => {
+    window.open(`${BACKEND}/api/backup/full/${filename}/download`, '_blank')
+  }
 
   const createBackup = async () => {
     setBusy('create')
@@ -77,6 +136,12 @@ export default function BackupPage() {
 
   const fmt = (n: number) => n < 1024 ? `${n}B` : n < 1048576 ? `${(n / 1024).toFixed(1)}KB` : `${(n / 1048576).toFixed(2)}MB`
   const fmtDate = (t: number) => new Date(t).toLocaleString('fr-FR')
+  const timeAgo = (t: number) => {
+    const h = Math.floor((Date.now() - t) / 3600000)
+    if (h < 1) return 'moins d\'1h'
+    if (h < 24) return `${h}h`
+    return `${Math.floor(h / 24)}j`
+  }
 
   return (
     <div style={{ padding: 24, maxWidth: 960, margin: '0 auto' }}>
@@ -88,6 +153,96 @@ export default function BackupPage() {
           Stockées sur disque dans <code style={{ fontSize: 12, padding: '2px 6px', background: '#f1f5f9', borderRadius: 4 }}>apps/backend/data/backups/</code>
         </p>
       </header>
+
+      <section style={{ marginBottom: 32 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <ShieldCheck size={20} color="#10b981" />
+          <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: '#0f172a' }}>Sauvegarde complète du programme</h2>
+          {fullBackups[0] && (
+            <span style={{
+              marginLeft: 8, padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+              background: 'rgba(16,185,129,0.12)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)',
+            }}>
+              ✓ Dernière sauvegarde il y a {timeAgo(fullBackups[0].createdAt)}
+            </span>
+          )}
+        </div>
+        <p style={{ color: '#64748b', margin: '0 0 12px', fontSize: 13 }}>
+          Sauvegarde intégrale de <code style={{ fontSize: 12, padding: '2px 6px', background: '#f1f5f9', borderRadius: 4 }}>data/</code> (clients, factures, RH, stock, HACCP, compta…). Automatique toutes les 6h — vous pouvez aussi la déclencher manuellement.
+        </p>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+          <button onClick={createFullBackup} disabled={fullBusy === 'create'} style={btnPrimary}>
+            {fullBusy === 'create' ? <><RefreshCw size={14} className="spin" /> Sauvegarde…</> : <><Plus size={14} /> 💾 Sauvegarder maintenant</>}
+          </button>
+          <button onClick={fetchFullBackups} style={btnSecondary}>
+            <RefreshCw size={14} /> Actualiser
+          </button>
+        </div>
+
+        {fullLoading ? (
+          <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8' }}>Chargement…</div>
+        ) : fullBackups.length === 0 ? (
+          <div style={{
+            padding: 32, textAlign: 'center', background: '#f8fafc',
+            border: '1px dashed #cbd5e1', borderRadius: 14,
+          }}>
+            <FileArchive size={36} color="#94a3b8" style={{ margin: '0 auto 10px', display: 'block' }} />
+            <div style={{ fontWeight: 700, color: '#1e293b' }}>Aucune sauvegarde complète pour le moment</div>
+            <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
+              La première sauvegarde automatique arrive dans la minute suivant le démarrage du serveur.
+            </div>
+          </div>
+        ) : (
+          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                  <Th>Fichier</Th><Th>Taille</Th><Th>Date</Th><Th>Actions</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {fullBackups.map((b) => (
+                  <motion.tr
+                    key={b.filename}
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    style={{ borderBottom: '1px solid #f1f5f9' }}
+                  >
+                    <td style={td}><code style={{ fontSize: 11, color: '#475569' }}>{b.filename}</code></td>
+                    <td style={td}>{fmt(b.size)}</td>
+                    <td style={{ ...td, color: '#64748b' }}>{fmtDate(b.createdAt)}</td>
+                    <td style={td}>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button onClick={() => downloadFull(b.filename)} title="Télécharger" style={iconBtn('#6366f1')}>
+                          <Download size={13} />
+                        </button>
+                        <button onClick={() => restoreFull(b.filename)} disabled={fullBusy === b.filename} title="Restaurer" style={iconBtn('#10b981')}>
+                          <Upload size={13} />
+                        </button>
+                        <button onClick={() => removeFull(b.filename)} disabled={fullBusy === b.filename} title="Supprimer" style={iconBtn('#ef4444')}>
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div style={{
+          marginTop: 12, padding: 12, background: '#fef3c7', border: '1px solid #f59e0b',
+          borderRadius: 10, fontSize: 12, color: '#92400e', display: 'flex', alignItems: 'flex-start', gap: 8,
+        }}>
+          <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>
+            <strong>Important</strong> : la restauration complète <em>remplace tout</em> data/. Un instantané de l'état actuel est conservé automatiquement avant chaque restauration.
+          </span>
+        </div>
+      </section>
+
+      <h2 style={{ fontSize: 16, fontWeight: 800, margin: '0 0 10px', color: '#475569' }}>Sauvegarde du stock (détaillée)</h2>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
         <Stat label="Stock actuel" value={`${stockSize} articles`} icon={<Database size={20} />} color="#6366f1" />

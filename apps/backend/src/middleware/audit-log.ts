@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import type { NextFunction, Request, Response } from 'express'
+import { safeWriteJson, safeReadJson } from '../lib/safe-json'
 
 const DATA_DIR = path.resolve(process.cwd(), 'data')
 const AUDIT_FILE = path.join(DATA_DIR, 'audit-log.json')
@@ -12,18 +13,13 @@ function ensureDataDir() {
 
 function readAuditLog(): any[] {
   ensureDataDir()
-  if (!fs.existsSync(AUDIT_FILE)) return []
-  try {
-    const parsed = JSON.parse(fs.readFileSync(AUDIT_FILE, 'utf8'))
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
+  const parsed = safeReadJson<any[]>(AUDIT_FILE, [])
+  return Array.isArray(parsed) ? parsed : []
 }
 
 function writeAuditLog(entries: any[]) {
   ensureDataDir()
-  fs.writeFileSync(AUDIT_FILE, JSON.stringify(entries.slice(0, 1000), null, 2), 'utf8')
+  safeWriteJson(AUDIT_FILE, entries.slice(0, 1000))
 }
 
 function summarizeBody(body: unknown) {

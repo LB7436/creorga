@@ -13,9 +13,17 @@ if (!fs.existsSync(envPath) && fs.existsSync(envExamplePath)) {
   // eslint-disable-next-line no-console
   console.log('[bootstrap] .env créé automatiquement depuis .env.example')
 }
-// Provide safe runtime defaults so the server boots even if .env is broken.
-process.env.JWT_SECRET ||= 'dev-jwt-secret-creorga-change-in-production'
-process.env.JWT_REFRESH_SECRET ||= 'dev-refresh-secret-creorga-change-in-production'
+// Provide safe runtime defaults so the server boots even if .env is broken —
+// mais jamais en production, où un secret par défaut permettrait de forger des tokens.
+if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    // eslint-disable-next-line no-console
+    console.error('[FATAL] JWT_SECRET / JWT_REFRESH_SECRET manquant(s) en production — arrêt.')
+    process.exit(1)
+  }
+  process.env.JWT_SECRET ||= 'dev-jwt-secret-creorga-change-in-production'
+  process.env.JWT_REFRESH_SECRET ||= 'dev-refresh-secret-creorga-change-in-production'
+}
 process.env.JWT_EXPIRES_IN ||= '15m'
 process.env.JWT_REFRESH_EXPIRES_IN ||= '30'
 process.env.PORT ||= '3002'
@@ -66,6 +74,7 @@ import helpFeedbackRoutes from './routes/help-feedback'
 import assistantRoutes from './routes/assistant'
 import assistantAdvancedRoutes from './routes/assistant-advanced'
 import ownerRoutes from './routes/owner'
+import backupRoutes from './routes/backup'
 import { auditLog } from './middleware/audit-log'
 import { assertProductionSecrets, buildCorsOrigin, authLimiter, aiLimiter, publicLimiter } from './lib/security'
 import { deviceOrUserAuth } from './middleware/deviceAuth'
@@ -106,7 +115,12 @@ liveNs.on('connection', (socket) => {
 app.use(helmet())
 app.use(cors(corsOptions))
 // v3.16 — bump JSON body limit pour OCR vision (images base64 ~ 1-5 MB)
-app.use(express.json({ limit: '20mb' }))
+// v4.7 — Body limit ciblé : 20mb réservé aux routes qui reçoivent des images
+// base64 (OCR/vision), 1mb pour tout le reste. body-parser marque req._body
+// après un premier parse et skip un second passage, donc l'ordre ici fait foi.
+const LARGE_BODY_PATHS = ['/api/agent', '/api/floor-state', '/api/inventory-ocr']
+app.use(LARGE_BODY_PATHS, express.json({ limit: '20mb' }))
+app.use(express.json({ limit: '1mb' }))
 app.use(cookieParser())
 app.use(auditLog)
 
@@ -149,6 +163,7 @@ app.use('/api/ai', authenticate, aiLimiter, aiActionsRoutes)
 app.use('/api/agent', authenticate, aiLimiter, agentRoutes)
 app.use('/api/help/feedback', helpFeedbackRoutes)
 app.use('/api/owner', authenticate, ownerRoutes)
+app.use('/api/backup', authenticate, backupRoutes)
 // v3.9 — assistantRoutes MUST be before agentRoutes to take precedence on /intent
 app.use('/api/agent', authenticate, aiLimiter, assistantRoutes)
 app.use('/api/agent', authenticate, aiLimiter, assistantAdvancedRoutes)
@@ -198,4 +213,10 @@ httpServer.listen(PORT, () => {
     startDuplicateDetector()
     logger.info('[duplicate-detector] worker démarré — scan customers.json (24h)')
   }).catch((e) => logger.warn('[duplicate-detector] non démarré:', e?.message))
+
+  // v4.7 — Sauvegarde ZIP complète de data/ (60s après boot, puis toutes les 6h)
+  import('./jobs/backup-worker').then(({ startBackupWorker }) => {
+    startBackupWorker()
+    logger.info('[backup] worker démarré — snapshot complet data/ (6h)')
+  }).catch((e) => logger.warn('[backup] non démarré:', e?.message))
 })

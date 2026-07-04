@@ -33,6 +33,8 @@ import HelpWidget from '@/components/HelpWidget'
 import OfflineIndicator from '@/components/OfflineIndicator'
 import ViewModeToggle from '@/components/ViewModeToggle'
 import ModuleTabs from '@/components/ModuleTabs'
+import { lockPos } from '@/components/PosLockScreen'
+import { Lock } from 'lucide-react'
 
 function LiveCustomerCount() {
   const navigate = useNavigate()
@@ -293,6 +295,21 @@ export default function AppShell() {
           <ViewModeToggle />
 
           <LiveCustomerCount />
+
+          {activeModule === 'pos' && (
+            <button
+              onClick={lockPos}
+              title="Verrouiller le POS"
+              style={{
+                height: 36, padding: '0 10px', borderRadius: 999,
+                border: '1px solid rgba(148,163,184,0.25)', background: 'transparent',
+                color: colors.textMuted, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700,
+              }}
+            >
+              <Lock size={13} /> Verrouiller
+            </button>
+          )}
 
           {/* modules button */}
           <button

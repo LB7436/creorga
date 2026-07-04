@@ -132,9 +132,27 @@ const CONSENTS = {
   total: 248,
 }
 
+const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
+
 function RgpdPage() {
   const [tab, setTab] = useState<'registre' | 'requests' | 'breach' | 'consent' | 'cctv' | 'audits' | 'training' | 'policies'>('registre')
   const [newRequestOpen, setNewRequestOpen] = useState(false)
+  const [purging, setPurging] = useState(false)
+
+  const purgeInactive = async () => {
+    if (!confirm('Purger définitivement tous les clients inactifs depuis plus de 3 ans ? Action irréversible.')) return
+    setPurging(true)
+    try {
+      const r = await fetch(`${BACKEND}/api/owner/purge-inactive-customers`, { method: 'POST' })
+      const data = await r.json()
+      if (r.ok) toast.success(`${data.purged} client(s) inactif(s) purgé(s)`)
+      else toast.error('Erreur lors de la purge')
+    } catch {
+      toast.error('Backend injoignable')
+    } finally {
+      setPurging(false)
+    }
+  }
 
   const stats = useMemo(() => ({
     registers: TREATMENTS.length,
@@ -201,6 +219,26 @@ function RgpdPage() {
           <div style={{ fontWeight: 600 }}>CNPD Luxembourg</div>
           <div style={{ color: C.muted, fontSize: 11 }}>cnpd.public.lu</div>
         </div>
+      </motion.div>
+
+      {/* Purge automatique */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: 18, marginBottom: 22, display: 'flex', alignItems: 'center', gap: 18 }}>
+        <div style={{ width: 54, height: 54, borderRadius: 12, background: C.redSoft, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <AlertTriangle size={28} color={C.red} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>Purge automatique — clients inactifs</div>
+          <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
+            Supprime définitivement les clients sans activité depuis plus de 3 ans (obligation de minimisation RGPD).
+          </div>
+        </div>
+        <button onClick={purgeInactive} disabled={purging} style={{
+          display: 'flex', alignItems: 'center', gap: 8, background: C.red, color: '#fff',
+          border: 'none', padding: '10px 18px', borderRadius: 10, fontWeight: 600,
+          cursor: purging ? 'default' : 'pointer', opacity: purging ? 0.6 : 1,
+        }}>
+          {purging ? 'Purge en cours…' : <><AlertTriangle size={14} /> Purger les inactifs {'>'} 3 ans</>}
+        </button>
       </motion.div>
 
       {/* Tabs */}

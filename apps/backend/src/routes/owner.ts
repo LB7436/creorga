@@ -2,10 +2,12 @@ import { Router } from 'express'
 import fs from 'fs'
 import path from 'path'
 import { readAuditEntries } from '../middleware/audit-log'
+import { safeReadJson, safeWriteJson } from '../lib/safe-json'
 
 const router = Router()
 const DATA_DIR = path.resolve(process.cwd(), 'data')
 const MACROS_FILE = path.join(DATA_DIR, 'owner-macros.json')
+const CUSTOMERS_FILE = path.join(DATA_DIR, 'customers.json')
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
@@ -66,6 +68,24 @@ router.delete('/macros/:id', (req, res) => {
   const macros = readJson(MACROS_FILE, [])
   writeJson(MACROS_FILE, macros.filter((macro: any) => macro.id !== req.params.id))
   res.json({ ok: true })
+})
+
+// ─── POST /api/owner/purge-inactive-customers — v4.7 purge RGPD ───────
+// crm.ts est en zone interdite (refactor Codex en cours) : cet endpoint
+// purge directement data/customers.json (fallback historique) au lieu
+// de passer par Prisma via crm.ts.
+router.post('/purge-inactive-customers', (_req, res) => {
+  const threeYearsAgo = new Date()
+  threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3)
+
+  const all = safeReadJson<any[]>(CUSTOMERS_FILE, [])
+  const kept = all.filter((c) => {
+    const last = new Date(c.lastVisit || c.updatedAt || c.createdAt || 0)
+    return last >= threeYearsAgo
+  })
+  const purged = all.length - kept.length
+  safeWriteJson(CUSTOMERS_FILE, kept)
+  res.json({ ok: true, purged })
 })
 
 export default router

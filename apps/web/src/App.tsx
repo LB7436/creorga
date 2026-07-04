@@ -167,6 +167,7 @@ import StatusPage from '@/pages/status/StatusPage'
 import ChangelogPage from '@/pages/changelog/ChangelogPage'
 import ReferralPage from '@/pages/referral/ReferralPage'
 import OnboardingTour from '@/components/OnboardingTour'
+import PosLockScreen from '@/components/PosLockScreen'
 import { registerPush } from '@/lib/pushNotifications'
 
 function App() {
@@ -544,6 +545,7 @@ function App() {
     {!isClientFacing && <HelpChatbot />}
     {!isClientFacing && <UniversalSearch />}
     {!isClientFacing && <OnboardingTour />}
+    {!isClientFacing && <PosLockScreen active={location.pathname.startsWith('/pos')} />}
     {!isClientFacing && <DailyBriefingPill />}
     {!isClientFacing && <AssistantLauncher />}
     {!isClientFacing && <QuickActionsFAB />}
