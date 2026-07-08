@@ -80,22 +80,6 @@ export default function PosLockScreen({ active }: { active: boolean }) {
     }
   }, [])
 
-  if (!active || hasPin === null) return null
-  if (!locked && hasPin) return null
-
-  const digit = (d: string) => {
-    if (!hasPin) {
-      if (setupEntry.length < 4) setSetupEntry((v) => v + d)
-      return
-    }
-    if (entry.length < 4) setEntry((v) => v + d)
-  }
-
-  const backspace = () => {
-    if (!hasPin) setSetupEntry((v) => v.slice(0, -1))
-    else setEntry((v) => v.slice(0, -1))
-  }
-
   useEffect(() => {
     if (!hasPin && setupEntry.length === 4) {
       sha256(setupEntry).then((hash) => {
@@ -126,6 +110,22 @@ export default function PosLockScreen({ active }: { active: boolean }) {
       })()
     }
   }, [entry, hasPin])
+
+  if (!active || hasPin === null) return null
+  if (!locked && hasPin) return null
+
+  const digit = (d: string) => {
+    if (!hasPin) {
+      if (setupEntry.length < 4) setSetupEntry((v) => v + d)
+      return
+    }
+    if (entry.length < 4) setEntry((v) => v + d)
+  }
+
+  const backspace = () => {
+    if (!hasPin) setSetupEntry((v) => v.slice(0, -1))
+    else setEntry((v) => v.slice(0, -1))
+  }
 
   const currentEntry = hasPin ? entry : setupEntry
   const title = hasPin ? 'POS verrouillé' : 'Définir un PIN (4 chiffres)'

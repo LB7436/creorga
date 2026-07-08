@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Play, Plus, Trash2 } from 'lucide-react'
+import api from '@/lib/api'
 
 type Macro = { id: string; name: string; icon: string; intents: string[] }
 
@@ -10,28 +11,24 @@ export default function MacrosPage() {
   const [intents, setIntents] = useState('pos.close-all-tables\nacc.cloture-caisse\ndaily-briefing.evening')
   const [status, setStatus] = useState('')
 
-  const load = () => { fetch('/api/owner/macros').then((r) => r.json()).then(setMacros).catch(() => setMacros([])) }
+  const load = () => { api.get('/owner/macros').then((r) => setMacros(Array.isArray(r.data) ? r.data : [])).catch(() => setMacros([])) }
   useEffect(() => { load() }, [])
 
   const save = async () => {
     const body = { name, icon, intents: intents.split('\n').map((line) => line.trim()).filter(Boolean) }
-    await fetch('/api/owner/macros', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    await api.post('/owner/macros', body)
     setStatus('Macro enregistree')
     load()
   }
 
   const execute = async (macro: Macro) => {
     setStatus(`Execution: ${macro.name}`)
-    await fetch('/api/assistant/workflow', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: macro.intents.join(' et ') }),
-    }).catch(() => undefined)
+    await api.post('/assistant/workflow', { text: macro.intents.join(' et ') }).catch(() => undefined)
     setStatus(`Workflow lance: ${macro.name}`)
   }
 
   const remove = async (id: string) => {
-    await fetch(`/api/owner/macros/${id}`, { method: 'DELETE' })
+    await api.delete(`/owner/macros/${id}`)
     load()
   }
 
