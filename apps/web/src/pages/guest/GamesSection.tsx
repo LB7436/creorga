@@ -36,6 +36,7 @@ import {
   toggleGameFavorite,
   type GameProgress,
 } from './games/progress'
+import { GameShellProvider, readTableId, type GameShellValue } from './games/lib/GameShell'
 
 type DifficultyFilter = 'all' | GameDifficulty
 type GameModule = { default: ComponentType<{ onBack?: () => void }> }
@@ -1032,6 +1033,8 @@ function ActiveGameView({
   onFavorite,
   ui,
   playMode,
+  difficulty,
+  profile,
 }: {
   game: GuestGameDef
   progress: GameProgress
@@ -1040,9 +1043,15 @@ function ActiveGameView({
   onFavorite: () => void
   ui: GameTheme
   playMode: PlayMode
+  difficulty: GameDifficulty
+  profile: GuestClientProfile | null
 }) {
   const Game = GAME_COMPONENTS[game.id]
   const favorite = progress.favorites.includes(game.id)
+  const shell = useMemo<GameShellValue>(
+    () => ({ onBack, difficulty, playMode, profile, tableId: readTableId() }),
+    [onBack, difficulty, playMode, profile],
+  )
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: ui.bg, color: ui.text, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1066,7 +1075,11 @@ function ActiveGameView({
             <div className="text-xs" style={{ color: ui.muted }}>Optimisé pour mobile, sans charger tout le catalogue.</div>
           </div>
         }>
-          {Game ? <Game /> : (
+          {Game ? (
+            <GameShellProvider value={shell}>
+              <Game onBack={onBack} />
+            </GameShellProvider>
+          ) : (
             <div className="h-full flex items-center justify-center" style={{ color: ui.muted }}>Ce jeu arrive bientôt.</div>
           )}
         </Suspense>
@@ -1217,6 +1230,8 @@ export default function GamesSection() {
         onFavorite={() => toggleFavorite(active.id)}
         ui={ui}
         playMode={playMode}
+        difficulty={launchDifficulty}
+        profile={guestClient}
       />
     )
   }

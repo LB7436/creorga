@@ -775,15 +775,20 @@ function syncThree(runtime: ThreeRuntime, gs: GameState, now: number) {
       runtime.towerMeshes.set(tower.id, group)
     }
     group.position.set(tower.x, 0, tower.z)
-    group.rotation.y = THREE.MathUtils.lerp(group.rotation.y, tower.yaw, 0.18)
+    // Lerp sur le plus court chemin angulaire (sinon la tourelle fait un tour complet en croisant ±π)
+    const yawDelta = ((tower.yaw - group.rotation.y + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI
+    group.rotation.y += yawDelta * 0.18
     group.scale.setScalar(1 + (tower.level - 1) * 0.08)
+    // Opacité pleine par défaut ; on n'estompe que les tours non sélectionnées quand une sélection existe
+    const anySelected = gs.selectedTowerId !== null
     const selected = gs.selectedTowerId === tower.id
+    const targetOpacity = anySelected && !selected ? 0.6 : 1
     group.children.forEach((child) => {
       const mesh = child as THREE.Mesh
       const material = mesh.material as THREE.Material | undefined
       if (material && 'opacity' in material) {
-        material.transparent = true
-        material.opacity = selected ? 1 : 0.92
+        material.transparent = targetOpacity < 1
+        material.opacity = targetOpacity
       }
     })
   }
@@ -953,8 +958,6 @@ function createRuntime(container: HTMLDivElement) {
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
-  renderer.shadowMap.enabled = true
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.domElement.style.display = 'block'
   renderer.domElement.style.width = '100%'
@@ -966,14 +969,6 @@ function createRuntime(container: HTMLDivElement) {
   scene.add(ambient)
   const sun = new THREE.DirectionalLight('#ffffff', 1.9)
   sun.position.set(4, 9, 5)
-  sun.castShadow = true
-  sun.shadow.mapSize.set(1024, 1024)
-  sun.shadow.camera.near = 1
-  sun.shadow.camera.far = 22
-  sun.shadow.camera.left = -9
-  sun.shadow.camera.right = 9
-  sun.shadow.camera.top = 9
-  sun.shadow.camera.bottom = -9
   scene.add(sun)
 
   const groundMat = new THREE.MeshStandardMaterial({
@@ -1249,10 +1244,10 @@ export default function TowerDefenseGame({ onBack }: { onBack?: () => void }) {
 
   const availableWaves = useMemo(() => `${Math.min(hud.wave + 1, TOTAL_WAVES)}/${TOTAL_WAVES}`, [hud.wave])
   const difficultyCopy = hud.difficulty === 'easy'
-    ? 'Plus de vies et economie souple'
+    ? 'Plus de vies et économie souple'
     : hud.difficulty === 'hard'
       ? 'Peu de vies, ennemis renforces'
-      : 'Equilibre service tablette'
+      : 'Équilibre service tablette'
 
   return (
     <div style={styles.root}>
@@ -1270,8 +1265,8 @@ export default function TowerDefenseGame({ onBack }: { onBack?: () => void }) {
             <div style={styles.logoMark}>
               <Shield size={28} />
             </div>
-            <h1 style={styles.title}>Defense 3D</h1>
-            <p style={styles.subtitle}>Protegez la ligne, gardez la table en jeu.</p>
+            <h1 style={styles.title}>Défense 3D</h1>
+            <p style={styles.subtitle}>Protégez la ligne, gardez la table en jeu.</p>
             <div style={styles.difficultyRow}>
               {(['easy', 'normal', 'hard'] as Difficulty[]).map((difficulty) => (
                 <button
@@ -1291,7 +1286,7 @@ export default function TowerDefenseGame({ onBack }: { onBack?: () => void }) {
             <p style={styles.menuNote}>{difficultyCopy}</p>
             <button onClick={() => startGame(hud.difficulty)} style={styles.primaryButton}>
               <Play size={18} />
-              Demarrer
+              Démarrer
             </button>
             {onBack && (
               <button onClick={onBack} style={styles.ghostButton}>
@@ -1384,8 +1379,8 @@ export default function TowerDefenseGame({ onBack }: { onBack?: () => void }) {
                 </button>
               </div>
               <div style={styles.statGrid}>
-                <MiniStat label="Degats" value={Math.round(selectedStats.damage)} />
-                <MiniStat label="Portee" value={selectedStats.range.toFixed(1)} />
+                <MiniStat label="Dégâts" value={Math.round(selectedStats.damage)} />
+                <MiniStat label="Portée" value={selectedStats.range.toFixed(1)} />
                 <MiniStat label="Cadence" value={`${selectedStats.fireRate.toFixed(1)}s`} />
                 <MiniStat label="Zone" value={selectedStats.splash ? selectedStats.splash.toFixed(1) : '-'} />
               </div>
@@ -1398,7 +1393,7 @@ export default function TowerDefenseGame({ onBack }: { onBack?: () => void }) {
                   color: selectedUpgradeCost !== null && hud.gold >= selectedUpgradeCost ? TEXT : MUTED,
                 }}
               >
-                {selectedUpgradeCost === null ? 'Niveau max' : `Ameliorer ${selectedUpgradeCost}`}
+                {selectedUpgradeCost === null ? 'Niveau max' : `Améliorer ${selectedUpgradeCost}`}
               </button>
               <button onClick={sellSelected} style={{ ...styles.panelButton, color: '#ff8b8b', borderColor: 'rgba(239,68,68,0.32)' }}>
                 Vendre {selectedSell}
@@ -1410,7 +1405,7 @@ export default function TowerDefenseGame({ onBack }: { onBack?: () => void }) {
             <div style={styles.resultOverlay}>
               <div style={styles.resultPanel}>
                 <h2 style={{ ...styles.resultTitle, color: hud.phase === 'victory' ? '#facc15' : '#ef4444' }}>
-                  {hud.phase === 'victory' ? 'Victoire' : 'Defense rompue'}
+                  {hud.phase === 'victory' ? 'Victoire' : 'Défense rompue'}
                 </h2>
                 <p style={styles.resultScore}>{hud.score.toLocaleString('fr-FR')}</p>
                 <p style={styles.resultText}>
