@@ -541,7 +541,7 @@ function computeCaptured(board: Board): { w: Piece[]; b: Piece[] } {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function ChessGame({ onBack }: { onBack: () => void }) {
+export default function ChessGame({ onBack }: { onBack?: () => void }) {
   const [board, setBoard] = useState<Board>(initBoard())
   const [castling, setCastling] = useState<CastlingRights>(initCastling())
   const [selected, setSelected] = useState<[number, number] | null>(null)

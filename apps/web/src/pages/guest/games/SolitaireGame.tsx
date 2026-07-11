@@ -323,7 +323,7 @@ function Confetti() {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function SolitaireGame({ onBack }: { onBack: () => void }) {
+export default function SolitaireGame({ onBack }: { onBack?: () => void }) {
   const [state, setState] = useState<GameState>(() => newGame())
   const [history, setHistory] = useState<History>([])
   const [drag, setDrag] = useState<DragState | null>(null)

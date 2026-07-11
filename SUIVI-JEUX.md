@@ -17,7 +17,7 @@
 - [x] `games/lib/juice.ts` : sons WebAudio synthétisés (sfx.*), haptique (buzz.*), particules poolées,
       screen-shake, hit-stop, easings, damp, setupCanvas DPR, useGameLoop (pause auto visibilitychange)
 - [x] Câblage : ActiveGameView passe onBack + difficulté + profil + table à tous les jeux
-- [ ] A2 suite : brancher sfx/buzz dans GameOverModal (feedback victoire/défaite global)
+- [x] A2 suite : GameOverModal branché sur sfx/buzz (fait avec l'étape 2)
 
 ## Étape 2 — MAXI BURGER (Phase C2) ✅ (2026-07-11)
 - [x] MaxiBurgerGame.tsx (balancier, découpe, PARFAIT/combos, défi de table à graine quotidienne)
@@ -31,9 +31,14 @@
 - [x] B4 : dégâts flottants, flash hits, sons/vibrations, shake, vignette fuite, score serveur
 - [x] Test Playwright (tests-qa/smoke-td.mjs) : 7/7 verts
 
-## Étape 4 — Phase A3→A7 ⬜
-Scores serveur généralisés · i18n jeux · découpage CreorgaOriginals en 6 fichiers + makeLazyGame ·
-primitives UI · progression/XP.
+## Étape 4 — Phase A3→A7 🔶 partiel (2026-07-11)
+- [x] `makeLazyGame` : les 39 entrées de GAME_COMPONENTS ont `.preload` -> préchargement au clic actif partout (avant : 1 seul jeu)
+- [x] Backend gameScores.ts durci : zod (plages/longueurs/gameId), sanitization anti-balises, rate-limit 30/min (vérifié : 400/429 live)
+- [x] onBack aligné optionnel (Blackjack, Solitaire, Chess)
+- [ ] Scores serveur généralisés aux 38 jeux (migration clés localStorage -> useShellScore)
+- [ ] i18n jeux (namespace games.*, EN/DE/PT)
+- [ ] Découpage CreorgaOriginals en 6 fichiers
+- [ ] Primitives UI partagées · progression/XP profil
 
 ## Étape 5 — SERVICE !, GLOUTON, L'ADDITION (C4, C3, C5) ⬜
 

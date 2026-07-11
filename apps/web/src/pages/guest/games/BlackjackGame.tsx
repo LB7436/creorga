@@ -419,7 +419,7 @@ function ActionButton({ onClick, color, label, icon }: ActionButtonProps) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 interface BlackjackGameProps {
-  onBack: () => void;
+  onBack?: () => void;
 }
 
 export default function BlackjackGame({ onBack }: BlackjackGameProps) {
