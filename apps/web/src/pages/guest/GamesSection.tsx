@@ -152,6 +152,7 @@ const GAME_COMPONENTS: Record<string, GameComponent> = {
   higherlower: lazy(() => import('./games/HigherLowerGame')) as GameComponent,
   chess: lazy(() => import('./games/ChessGame')) as GameComponent,
   towerdefense: lazy(() => import('./games/TowerDefenseGame')) as GameComponent,
+  maxiburger: lazy(() => import('./games/MaxiBurgerGame')) as GameComponent,
   ttt: lazy(() => import('./games/TicTacToeGame')) as GameComponent,
   connect4: lazy(() => import('./games/ConnectFourGame')) as GameComponent,
   mastermind: lazy(() => import('./games/MastermindGame')) as GameComponent,

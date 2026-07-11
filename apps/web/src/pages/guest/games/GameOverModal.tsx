@@ -1,8 +1,11 @@
+import { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ACCENT, ACCENT2, TEXT, MUTED, BORDER, SURFACE } from './theme'
+import { sfx, buzz } from './lib/juice'
 
 /**
  * v4.9 — Écran fin de partie partagé par tous les jeux.
+ * v6.0 — feedback sonore + haptique à l'affichage.
  */
 
 export default function GameOverModal({
@@ -18,6 +21,16 @@ export default function GameOverModal({
   onReplay: () => void
   onBack?: () => void
 }) {
+  useEffect(() => {
+    if (isNewRecord) {
+      sfx.win()
+      buzz.win()
+    } else {
+      sfx.good()
+      buzz.tap()
+    }
+  }, [isNewRecord])
+
   return (
     <AnimatePresence>
       <motion.div
