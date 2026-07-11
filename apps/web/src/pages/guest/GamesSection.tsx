@@ -179,13 +179,13 @@ const GAME_COMPONENTS: Record<string, GameComponent> = {
   scoopa: makeLazyGame(() => import('./games/ScopaGame')),
   mensch: makeLazyGame(() => import('./games/MenschGame')),
   basket3d: makeLazyGame(() => import('./games/BasketballGame')),
-  mahjong3d: makeLazyGame(() => import('./games/CreorgaOriginals').then((m) => ({ default: m.MahjongGame }))),
-  erreur11: makeLazyGame(() => import('./games/CreorgaOriginals').then((m) => ({ default: m.SpotErrorGame }))),
+  mahjong3d: makeLazyGame(() => import('./games/MahjongGame')),
+  erreur11: makeLazyGame(() => import('./games/SpotErrorGame')),
   billard: makeLazyGame(() => import('./games/BilliardsGame')),
-  run21: makeLazyGame(() => import('./games/CreorgaOriginals').then((m) => ({ default: m.Run21Game }))),
-  tritowers: makeLazyGame(() => import('./games/CreorgaOriginals').then((m) => ({ default: m.TriTowersGame }))),
-  rami: makeLazyGame(() => import('./games/CreorgaOriginals').then((m) => ({ default: m.RamiGame }))),
-  rummikub: makeLazyGame(() => import('./games/CreorgaOriginals').then((m) => ({ default: m.RummikubGame }))),
+  run21: makeLazyGame(() => import('./games/Run21Game')),
+  tritowers: makeLazyGame(() => import('./games/TriTowersGame')),
+  rami: makeLazyGame(() => import('./games/RamiGame')),
+  rummikub: makeLazyGame(() => import('./games/RummikubGame')),
 }
 
 function gameEnabled(configured: Record<string, boolean>, gameId: string) {
