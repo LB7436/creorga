@@ -19,11 +19,17 @@
 - [x] Câblage : ActiveGameView passe onBack + difficulté + profil + table à tous les jeux
 - [ ] A2 suite : brancher sfx/buzz dans GameOverModal (feedback victoire/défaite global)
 
-## Étape 2 — MAXI BURGER (Phase C2) ⬜
-Spec : PLAN-ACTION-JEUX.md §C2. Utiliser GameShell + juice. Entrée catalogue `maxiburger`.
+## Étape 2 — MAXI BURGER (Phase C2) ✅ (2026-07-11)
+- [x] MaxiBurgerGame.tsx (balancier, découpe, PARFAIT/combos, défi de table à graine quotidienne)
+- [x] Catalogue + lazy map + test Playwright complet (tests-qa/smoke-maxiburger.mjs)
+- [x] GameOverModal branché sur sfx/buzz (reliquat étape 1)
 
-## Étape 3 — Refonte Tower Defense (Phase B) ⬜
-B1 bugs (temps simulé unifié EN PREMIER, reliquat cooldown), B2 mobile (caméra portrait, 2 taps), B3 game design, B4 juice.
+## Étape 3 — Refonte Tower Defense (Phase B) ✅ (2026-07-11)
+- [x] B1 : temps simulé unifié (fix bug 2x/pause), reliquat cooldown
+- [x] B2 : caméra portrait, placement 2 taps tactile, cibles 44px, barre scrollable, reset confirmé
+- [x] B3 : 15 vagues, boss Overlord (aura soin + spawn à la mort), preview vague, countdown 18s + bonus anticipé, intérêts 12%, anti-air, priorités de ciblage, 8 branches niv.4, étoiles + méta-boutique, records/difficulté
+- [x] B4 : dégâts flottants, flash hits, sons/vibrations, shake, vignette fuite, score serveur
+- [x] Test Playwright (tests-qa/smoke-td.mjs) : 7/7 verts
 
 ## Étape 4 — Phase A3→A7 ⬜
 Scores serveur généralisés · i18n jeux · découpage CreorgaOriginals en 6 fichiers + makeLazyGame ·
