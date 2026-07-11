@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ACCENT, ACCENT2, TEXT, MUTED, BORDER, SURFACE } from './theme'
 import { sfx, buzz } from './lib/juice'
+import { useGuestLang } from '../i18n'
 
 /**
  * v4.9 — Écran fin de partie partagé par tous les jeux.
@@ -21,6 +22,7 @@ export default function GameOverModal({
   onReplay: () => void
   onBack?: () => void
 }) {
+  const { t } = useGuestLang()
   useEffect(() => {
     if (isNewRecord) {
       sfx.win()
@@ -75,11 +77,11 @@ export default function GameOverModal({
 
           <div style={{ fontSize: 48, marginBottom: 8 }}>{isNewRecord ? '🏆' : '🎮'}</div>
           <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 900 }}>
-            {isNewRecord ? 'Nouveau record !' : 'Partie terminée'}
+            {isNewRecord ? t('gameover_record') : t('gameover_over')}
           </h2>
           <div style={{ fontSize: 34, fontWeight: 900, color: ACCENT, margin: '10px 0' }}>{score}</div>
           <div style={{ fontSize: 12, color: MUTED, marginBottom: 20 }}>
-            Meilleur score : <strong style={{ color: TEXT }}>{best}</strong>
+            {t('gameover_best')} : <strong style={{ color: TEXT }}>{best}</strong>
           </div>
 
           <div style={{ display: 'flex', gap: 10 }}>
@@ -89,7 +91,7 @@ export default function GameOverModal({
                 border: `1px solid ${BORDER}`, background: 'transparent', color: MUTED,
                 fontWeight: 700, fontSize: 13, cursor: 'pointer',
               }}>
-                Retour
+                {t('gameover_back')}
               </button>
             )}
             <button onClick={onReplay} style={{
@@ -97,7 +99,7 @@ export default function GameOverModal({
               background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT2})`, color: '#fff',
               fontWeight: 800, fontSize: 13, cursor: 'pointer',
             }}>
-              Rejouer
+              {t('gameover_replay')}
             </button>
           </div>
         </motion.div>

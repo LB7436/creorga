@@ -38,7 +38,8 @@
 - [x] `useGameScore` auto-remplit nom+table (profil guest + ?table=) -> tout jeu sur ce hook envoie un score identifié (vérifié : leaderboard maxiburger montre « Testeur »/table 7)
 - [x] Découpage CreorgaOriginals -> originalsShared + 6 fichiers-jeux (7 chunks distincts, vérifié Playwright)
 - [ ] Migration des ~30 jeux à clés localStorage ad-hoc vers useGameScore (pour couverture leaderboard totale)
-- [ ] i18n jeux (namespace games.*, EN/DE/PT)
+- [x] i18n : GameOverModal (écran de fin de CHAQUE jeu) traduit FR/EN/DE/PT (vérifié Playwright lang=en)
+- [ ] i18n : hub GamesSection + catalog (gros rewiring, GamesSection n'a aucun accès langue actuellement)
 - [ ] Primitives UI partagées · progression/XP profil
 
 **Reste étape 4** : migration scores des jeux legacy + i18n + primitives/XP (gros volume, à faire en Opus high sur une session dédiée).
