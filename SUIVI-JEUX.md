@@ -35,10 +35,13 @@
 - [x] `makeLazyGame` : les 39 entrées de GAME_COMPONENTS ont `.preload` -> préchargement au clic actif partout (avant : 1 seul jeu)
 - [x] Backend gameScores.ts durci : zod (plages/longueurs/gameId), sanitization anti-balises, rate-limit 30/min (vérifié : 400/429 live)
 - [x] onBack aligné optionnel (Blackjack, Solitaire, Chess)
-- [ ] Scores serveur généralisés aux 38 jeux (migration clés localStorage -> useShellScore)
+- [x] `useGameScore` auto-remplit nom+table (profil guest + ?table=) -> tout jeu sur ce hook envoie un score identifié (vérifié : leaderboard maxiburger montre « Testeur »/table 7)
+- [x] Découpage CreorgaOriginals -> originalsShared + 6 fichiers-jeux (7 chunks distincts, vérifié Playwright)
+- [ ] Migration des ~30 jeux à clés localStorage ad-hoc vers useGameScore (pour couverture leaderboard totale)
 - [ ] i18n jeux (namespace games.*, EN/DE/PT)
-- [ ] Découpage CreorgaOriginals en 6 fichiers
 - [ ] Primitives UI partagées · progression/XP profil
+
+**Reste étape 4** : migration scores des jeux legacy + i18n + primitives/XP (gros volume, à faire en Opus high sur une session dédiée).
 
 ## Étape 5 — SERVICE !, GLOUTON, L'ADDITION (C4, C3, C5) ⬜
 
