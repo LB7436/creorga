@@ -1395,8 +1395,20 @@ export default function GamesSection() {
           ))}
         </motion.div>
         {filtered.length === 0 && (
-          <div className="text-center py-10" style={{ color: ui.muted }}>
-            <p className="text-sm">Aucun jeu trouvé</p>
+          <div className="text-center py-10 flex flex-col items-center gap-3" style={{ color: ui.muted }}>
+            <Search size={28} style={{ opacity: 0.5 }} />
+            <p className="text-sm">
+              {search.trim()
+                ? `Aucun jeu ne correspond à « ${search.trim()} ».`
+                : 'Aucun jeu ne correspond à ces filtres.'}
+            </p>
+            <button
+              onClick={() => { setSearch(''); setActiveCategory('all'); setDifficulty('all') }}
+              className="text-xs font-semibold px-4 py-2 rounded-full"
+              style={{ border: '1px solid rgba(255,255,255,0.15)', color: ui.text }}
+            >
+              Réinitialiser les filtres
+            </button>
           </div>
         )}
       </div>
