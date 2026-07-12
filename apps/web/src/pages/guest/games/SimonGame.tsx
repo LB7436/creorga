@@ -1,44 +1,76 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { SURFACE2, BORDER, TEXT, MUTED } from './theme'
 import { useGameScore } from './useGameScore'
 
 // ─── Audio ────────────────────────────────────────────────────────────────────
-function playTone(freq: number, duration = 0.6) {
+// Un seul AudioContext partagé, réutilisé pour chaque note. Créer un contexte par
+// note laissait la séquence MUETTE sur iOS (le contexte naît 'suspended' hors
+// geste utilisateur) et ouvrait des dizaines de contextes en mode Speed. On le
+// (ré)active au clic « Démarrer » via resumeAudio(), dans le geste utilisateur.
+let audioCtx: AudioContext | null = null
+
+function getAudioCtx(): AudioContext | null {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+    if (!audioCtx) {
+      const Ctor = window.AudioContext || (window as any).webkitAudioContext
+      if (!Ctor) return null
+      audioCtx = new Ctor()
+    }
+    return audioCtx
+  } catch {
+    return null
+  }
+}
+
+function resumeAudio() {
+  try {
+    const ctx = getAudioCtx()
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {})
+  } catch {
+    // Audio not available
+  }
+}
+
+function playTone(freq: number, duration = 0.6) {
+  const ctx = getAudioCtx()
+  if (!ctx) return
+  try {
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {})
+    const now = ctx.currentTime
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.connect(gain)
     gain.connect(ctx.destination)
     osc.type = 'sine'
-    osc.frequency.setValueAtTime(freq, ctx.currentTime)
-    gain.gain.setValueAtTime(0.45, ctx.currentTime)
-    gain.gain.linearRampToValueAtTime(0.45, ctx.currentTime + duration - 0.1)
-    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + duration)
-    osc.start(ctx.currentTime)
-    osc.stop(ctx.currentTime + duration)
-    osc.onended = () => ctx.close()
+    osc.frequency.setValueAtTime(freq, now)
+    gain.gain.setValueAtTime(0.45, now)
+    gain.gain.linearRampToValueAtTime(0.45, now + duration - 0.1)
+    gain.gain.linearRampToValueAtTime(0, now + duration)
+    osc.start(now)
+    osc.stop(now + duration)
   } catch {
     // Audio not available
   }
 }
 
 function playError() {
+  const ctx = getAudioCtx()
+  if (!ctx) return
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {})
+    const now = ctx.currentTime
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.connect(gain)
     gain.connect(ctx.destination)
     osc.type = 'sawtooth'
-    osc.frequency.setValueAtTime(180, ctx.currentTime)
-    osc.frequency.linearRampToValueAtTime(80, ctx.currentTime + 0.4)
-    gain.gain.setValueAtTime(0.3, ctx.currentTime)
-    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4)
-    osc.start(ctx.currentTime)
-    osc.stop(ctx.currentTime + 0.4)
-    osc.onended = () => ctx.close()
+    osc.frequency.setValueAtTime(180, now)
+    osc.frequency.linearRampToValueAtTime(80, now + 0.4)
+    gain.gain.setValueAtTime(0.3, now)
+    gain.gain.linearRampToValueAtTime(0, now + 0.4)
+    osc.start(now)
+    osc.stop(now + 0.4)
   } catch {
     // Audio not available
   }
@@ -75,31 +107,68 @@ export default function SimonGame({ onBack }: { onBack?: () => void }) {
   const [speed, setSpeed] = useState<SpeedMode>('classic')
   const [errorFlash, setErrorFlash] = useState(false)
   const busy = useRef(false)
+  // Jeton de partie : incrémenté à chaque nouvelle partie et au démontage. Toute
+  // continuation asynchrone capture sa valeur et s'auto-annule si elle change
+  // (retour au menu en pleine séquence, double-run StrictMode, etc.).
+  const gameIdRef = useRef(0)
+  // Timers en attente, nettoyés au démontage pour éviter tout setState fantôme
+  // et toute séquence qui continuerait à jouer après le retour au menu.
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const { best, submit } = useGameScore('simon', { legacyKey: 'simon_best' })
 
+  const schedule = useCallback((fn: () => void, ms: number) => {
+    const t = setTimeout(() => {
+      timersRef.current = timersRef.current.filter(x => x !== t)
+      fn()
+    }, ms)
+    timersRef.current = [...timersRef.current, t]
+    return t
+  }, [])
+
+  const wait = useCallback((ms: number) =>
+    new Promise<void>(resolve => { schedule(() => resolve(), ms) }), [schedule])
+
+  const clearTimers = useCallback(() => {
+    for (const t of timersRef.current) clearTimeout(t)
+    timersRef.current = []
+  }, [])
+
+  // Annule les séquences fantômes au démontage (ex. retour au menu en pleine lecture).
+  useEffect(() => () => {
+    gameIdRef.current += 1
+    clearTimers()
+  }, [clearTimers])
+
   const flashButton = useCallback((id: number, ms: number): Promise<void> =>
-    new Promise(res => {
+    new Promise<void>(resolve => {
       setLit(id)
       playTone(BUTTONS[id].freq, ms / 1000)
-      setTimeout(() => {
+      schedule(() => {
         setLit(null)
-        setTimeout(res, ms * 0.2)
+        schedule(() => resolve(), ms * 0.2)
       }, ms)
-    }), [])
+    }), [schedule])
 
   const playSequence = useCallback(async (s: number[], ms: number) => {
+    const myId = gameIdRef.current
     busy.current = true
     setPhase('showing')
-    await new Promise(r => setTimeout(r, 400))
+    await wait(400)
+    if (gameIdRef.current !== myId) return
     for (const id of s) {
       await flashButton(id, ms)
-      await new Promise(r => setTimeout(r, ms * 0.15))
+      if (gameIdRef.current !== myId) return
+      await wait(ms * 0.15)
+      if (gameIdRef.current !== myId) return
     }
     busy.current = false
     setPhase('input')
-  }, [flashButton])
+  }, [flashButton, wait])
 
   const startGame = useCallback(() => {
+    gameIdRef.current += 1
+    clearTimers()
+    resumeAudio()
     const first = Math.floor(Math.random() * 4)
     const newSeq = [first]
     setSeq(newSeq)
@@ -107,21 +176,21 @@ export default function SimonGame({ onBack }: { onBack?: () => void }) {
     setCurScore(0)
     setErrorFlash(false)
     playSequence(newSeq, SPEED_MS[speed])
-  }, [speed, playSequence])
+  }, [speed, playSequence, clearTimers])
 
   const handlePress = useCallback(async (id: number) => {
     if (phase !== 'input' || busy.current) return
     busy.current = true
     setLit(id)
     playTone(BUTTONS[id].freq, 0.25)
-    setTimeout(() => setLit(null), 250)
+    schedule(() => setLit(null), 250)
 
     const idx = inputIdx
     if (id !== seq[idx]) {
       // Wrong!
       playError()
       setErrorFlash(true)
-      setTimeout(() => setErrorFlash(false), 600)
+      schedule(() => setErrorFlash(false), 600)
       const score = seq.length - 1
       setCurScore(score)
       submit(score)
@@ -134,18 +203,24 @@ export default function SimonGame({ onBack }: { onBack?: () => void }) {
     setInputIdx(nextIdx)
 
     if (nextIdx === seq.length) {
-      // Completed sequence
+      // Completed sequence — enchaîne sur la séquence suivante.
       const newScore = seq.length
       setCurScore(newScore)
       const next = [...seq, Math.floor(Math.random() * 4)]
       setSeq(next)
       setInputIdx(0)
-      await new Promise(r => setTimeout(r, 600))
+      // Passe en 'showing' immédiatement : sinon l'indicateur affiche
+      // « TOI 0/N » (nouvelle longueur) pendant l'attente, invitant à un tap
+      // fantôme alors que le joueur ne doit pas encore jouer.
+      setPhase('showing')
+      const myId = gameIdRef.current
+      await wait(600)
+      if (gameIdRef.current !== myId) return
       await playSequence(next, SPEED_MS[speed])
     } else {
       busy.current = false
     }
-  }, [phase, inputIdx, seq, speed, submit, playSequence])
+  }, [phase, inputIdx, seq, speed, submit, playSequence, schedule, wait])
 
   const discSize = 260
 
