@@ -66,7 +66,8 @@
 - [x] Puissance 4 : plateau responsive (overflow 320px, colonnes coupées) — commit 518e03c
 - [x] Mémoire des nombres : bouton « J'ai mémorisé » (fin des 48s d'attente passive) — commit 2b176f0
 - [x] Démineur : pose de drapeau au tactile (mode drapeau + appui long 350ms + vibration) — bloquant mobile levé — commit c9398bf
-- [ ] Reste REVUE-JEUX-DETAIL.md : setInterval→useGameLoop (Snake/2048/Simon/Memory/Reaction/Motus), cibles 44px (Échecs/Taquin/Solitaire), touch Solitaire (drag), Motus (liste de mots corrompue ~250 entrées), IA (reversi coins, P4 profondeur), règles (solitaire re-pioche, yahtzee bonus 63, scopa primiera) + polish accents
+- [x] Solitaire : glisser-déposer tactile (pointer events + touch-action) — commit 60d3e56
+- [ ] Reste REVUE-JEUX-DETAIL.md : setInterval→useGameLoop (Snake/2048/Simon/Memory/Reaction/Motus), cibles 44px (Échecs/Taquin), Motus (liste de mots corrompue ~250 entrées), IA (reversi coins, P4 profondeur), règles (solitaire re-pioche, scopa primiera) + polish accents. (Note : Yahtzee bonus 63 déjà correct ; Scopa images présentes)
 
 ---
 ### Notes techniques pour la reprise
