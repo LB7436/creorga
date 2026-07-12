@@ -16,10 +16,18 @@ interface Particle { x: number; y: number; vx: number; vy: number; color: string
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function randPos(occupied: Pos[]): Pos {
-  let p: Pos
-  do { p = { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) } }
-  while (occupied.some(o => o.x === p.x && o.y === p.y))
-  return p
+  // Bounded random attempts, then a linear scan, so a (nearly) full grid can
+  // never spin the do-while forever (perfect play fills all COLS*ROWS cells).
+  for (let attempt = 0; attempt < 256; attempt++) {
+    const p = { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) }
+    if (!occupied.some(o => o.x === p.x && o.y === p.y)) return p
+  }
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      if (!occupied.some(o => o.x === x && o.y === y)) return { x, y }
+    }
+  }
+  return { x: 0, y: 0 }
 }
 
 function lerpColor(t: number): string {
@@ -57,7 +65,7 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
   // game state refs (mutated each tick without re-render)
   const snakeRef = useRef<Pos[]>([{ x: 12, y: 9 }, { x: 11, y: 9 }, { x: 10, y: 9 }])
   const dirRef = useRef<Dir>('right')
-  const nextDirRef = useRef<Dir>('right')
+  const dirQueueRef = useRef<Dir[]>([])
   const foodsRef = useRef<Food[]>([])
   const particlesRef = useRef<Particle[]>([])
   const scoreRef = useRef(0)
@@ -70,6 +78,7 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
   const speedRef = useRef(130)
   const tickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rafRef = useRef<number | null>(null)
+  const flashTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // React state for HUD re-renders
   const [score, setScore] = useState(0)
@@ -281,7 +290,13 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
   const tick = useCallback(() => {
     if (!runningRef.current || gameOverRef.current || pausedRef.current) return
 
-    dirRef.current = nextDirRef.current
+    // Consume at most one queued turn per tick so a rapid double-input can't
+    // reverse the snake into its own neck within a single step.
+    const [queuedDir, ...restDirs] = dirQueueRef.current
+    if (queuedDir) {
+      dirRef.current = queuedDir
+      dirQueueRef.current = restDirs
+    }
 
     const head = snakeRef.current[0]
     const d = dirRef.current
@@ -373,12 +388,18 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
     submit(scoreRef.current)
     setGameOver(true)
 
-    // flash animation: 3 flashes = 18 frames (each ~100ms)
+    // flash animation: 3 flashes = 18 frames (each ~100ms). Kept in a ref so it
+    // can be cleared if the component unmounts mid-flash — otherwise it keeps
+    // mutating flashCountRef after teardown.
+    if (flashTimerRef.current) clearInterval(flashTimerRef.current)
     let frame = 0
-    const flashInterval = setInterval(() => {
+    flashTimerRef.current = setInterval(() => {
       flashCountRef.current = frame
       frame++
-      if (frame > 18) clearInterval(flashInterval)
+      if (frame > 18) {
+        if (flashTimerRef.current) clearInterval(flashTimerRef.current)
+        flashTimerRef.current = null
+      }
     }, 100)
   }, [])
 
@@ -388,7 +409,7 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
     const initSnake = [{ x: 12, y: 9 }, { x: 11, y: 9 }, { x: 10, y: 9 }]
     snakeRef.current = initSnake
     dirRef.current = 'right'
-    nextDirRef.current = 'right'
+    dirQueueRef.current = []
     scoreRef.current = 0
     foodsEatenRef.current = 0
     speedRef.current = BASE_SPEEDS[difficultyRef.current]
@@ -434,7 +455,14 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
   // ── Direction input ──────────────────────────────────────────────────────────
   const changeDir = useCallback((d: Dir) => {
     const opp: Record<Dir, Dir> = { up: 'down', down: 'up', left: 'right', right: 'left' }
-    if (d !== opp[dirRef.current]) nextDirRef.current = d
+    // Validate against the last *queued* turn (or the live direction when the
+    // queue is empty), not just dirRef, so buffering two fast turns can neither
+    // drop a legal input nor let the head double back. Cap the queue at two.
+    const queue = dirQueueRef.current
+    const lastDir = queue.length > 0 ? queue[queue.length - 1] : dirRef.current
+    if (d !== lastDir && d !== opp[lastDir] && queue.length < 2) {
+      dirQueueRef.current = [...queue, d]
+    }
     if (!runningRef.current && !gameOverRef.current) startGame()
   }, [startGame])
 
@@ -452,6 +480,20 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [changeDir, togglePause])
+
+  // ── Auto-pause when tab hidden ────────────────────────────────────────────────
+  useEffect(() => {
+    const onVisibility = () => {
+      // Background timers are throttled, so the snake would otherwise keep
+      // advancing (and die) while the guest reads a message. Pause instead;
+      // the player resumes manually from the overlay when they return.
+      if (document.hidden && runningRef.current && !pausedRef.current && !gameOverRef.current) {
+        togglePause()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [togglePause])
 
   // ── Touch swipe ───────────────────────────────────────────────────────────────
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -483,6 +525,9 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
       cellSizeRef.current = cs
       canvas.width = cs * COLS
       canvas.height = cs * ROWS
+      // Particle positions are in old-cell pixel space; drop them so they don't
+      // flash at wrong coordinates after the grid is re-scaled.
+      particlesRef.current = []
     }
     resize()
     window.addEventListener('resize', resize)
@@ -496,6 +541,7 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       if (tickTimerRef.current) clearTimeout(tickTimerRef.current)
+      if (flashTimerRef.current) clearInterval(flashTimerRef.current)
     }
   }, [draw])
 
@@ -555,7 +601,7 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
                 ...btnBase,
                 padding: '4px 8px',
                 minWidth: 0,
-                minHeight: 32,
+                minHeight: 44,
                 background: difficulty === d ? '#22c55e' : '#1c1c2e',
                 color: difficulty === d ? '#07070d' : '#aaa',
               }}
@@ -570,7 +616,7 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
           style={{
             ...btnBase,
             padding: '4px 10px',
-            minHeight: 32,
+            minHeight: 44,
             background: walls ? '#ef4444' : '#1c1c2e',
             color: walls ? '#fff' : '#aaa',
             fontSize: 12,
@@ -598,7 +644,7 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
           ref={canvasRef}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
-          style={{ display: 'block', borderRadius: 12, border: '1px solid #1c1c2e' }}
+          style={{ display: 'block', borderRadius: 12, border: '1px solid #1c1c2e', touchAction: 'none' }}
         />
 
         {/* Start overlay */}
