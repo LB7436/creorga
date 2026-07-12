@@ -25,6 +25,8 @@ type ScorePopup = {
 type GameState = {
   tiles: Tile[]
   score: number
+  won: boolean
+  continueAfterWin: boolean
 }
 
 type GridSize = 4 | 5
@@ -227,6 +229,25 @@ export default function Game2048({ onBack }: { onBack?: () => void }) {
   const scoreRef = useRef(score)
   scoreRef.current = score
   const submittedRef = useRef(false)
+  const timeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
+
+  // Programme un timer suivi, auto-retiré à l'échéance et nettoyé au démontage
+  // (évite les setState après unmount / timers zombies au remontage rapide).
+  const schedule = useCallback((fn: () => void, ms: number) => {
+    const id = setTimeout(() => {
+      timeoutsRef.current.delete(id)
+      fn()
+    }, ms)
+    timeoutsRef.current.add(id)
+  }, [])
+
+  useEffect(() => {
+    const timeouts = timeoutsRef.current
+    return () => {
+      timeouts.forEach(clearTimeout)
+      timeouts.clear()
+    }
+  }, [])
 
   // Soumet le score une seule fois par partie, au moment du game over
   useEffect(() => {
@@ -247,50 +268,55 @@ export default function Game2048({ onBack }: { onBack?: () => void }) {
       }))
       setPopups(prev => [...prev, ...newPopups])
       const ids = new Set(newPopups.map(p => p.id))
-      setTimeout(() => setPopups(prev => prev.filter(p => !ids.has(p.id))), 700)
+      schedule(() => setPopups(prev => prev.filter(p => !ids.has(p.id))), 700)
     },
-    [],
+    [schedule],
   )
 
   const applyMove = useCallback(
     (dir: 'up' | 'down' | 'left' | 'right') => {
       if (over || animating) return
 
-      setTiles(currentTiles => {
-        const cleared = currentTiles.map(t => ({ ...t, isNew: false, merged: false }))
-        const result = moveBoard(cleared, dir, gridSize)
+      // Tout le calcul est réalisé HORS d'un updater setState : on lit les tuiles
+      // capturées dans la closure, avec `animating` comme verrou. Sous React 18
+      // StrictMode les updaters sont invoqués 2× ; garder ici Math.random
+      // (addRandomTile), setScore, popups et timers évite le score compté double,
+      // les popups dupliqués et la tuile aléatoire fantôme.
+      const cleared = tiles.map(t => ({ ...t, isNew: false, merged: false }))
+      const result = moveBoard(cleared, dir, gridSize)
 
-        if (!tilesChanged(cleared, result.tiles)) return currentTiles
+      if (!tilesChanged(cleared, result.tiles)) return
 
-        // Save for undo — capture current score synchronously via ref
-        const currentScore = scoreRef.current
-        setPrevState({ tiles: currentTiles, score: currentScore })
-        setCanUndo(true)
+      // Sauvegarde pour l'undo — état complet AVANT le coup (score lu via ref)
+      setPrevState({ tiles, score: scoreRef.current, won, continueAfterWin })
+      setCanUndo(true)
 
-        if (result.scoreGained > 0) {
-          setScore(s => s + result.scoreGained)
-        }
+      if (result.scoreGained > 0) setScore(s => s + result.scoreGained)
 
-        addPopup(result.mergePositions)
+      addPopup(result.mergePositions)
 
-        const withNew = addRandomTile(result.tiles, gridSize)
+      const withNew = addRandomTile(result.tiles, gridSize)
 
-        if (!continueAfterWin && withNew.some(t => t.value === 2048)) setWon(true)
-        if (isGameOver(withNew, gridSize)) setOver(true)
+      if (!continueAfterWin && withNew.some(t => t.value === 2048)) setWon(true)
+      if (isGameOver(withNew, gridSize)) setOver(true)
 
-        setAnimating(true)
-        setTimeout(() => setAnimating(false), 130)
-
-        return withNew
-      })
+      setTiles(withNew)
+      setAnimating(true)
+      schedule(() => setAnimating(false), 130)
     },
-    [over, animating, gridSize, continueAfterWin, addPopup],
+    [over, animating, tiles, gridSize, continueAfterWin, won, addPopup, schedule],
   )
 
   const handleUndo = useCallback(() => {
     if (!canUndo || !prevState) return
-    setTiles(prevState.tiles)
+    // Nettoie les flags isNew/merged à la restauration : sinon les tuiles
+    // reviennent comme nouveaux nœuds et rejouent tileAppear/tileMerge.
+    setTiles(prevState.tiles.map(t => ({ ...t, isNew: false, merged: false })))
     setScore(prevState.score)
+    // Restaure aussi l'état de victoire : annuler le coup qui a créé la tuile
+    // 2048 doit retirer la bannière de victoire (won/continueAfterWin périmés).
+    setWon(prevState.won)
+    setContinueAfterWin(prevState.continueAfterWin)
     setOver(false)
     setCanUndo(false)
     setPrevState(null)
@@ -449,7 +475,16 @@ export default function Game2048({ onBack }: { onBack?: () => void }) {
               Continuer
             </button>
             <button
-              onClick={() => reset()}
+              onClick={() => {
+                // Atteindre 2048 EST une fin de partie : on soumet le score
+                // (une seule fois, garde submittedRef) avant de réinitialiser
+                // via ce chemin, sinon la victoire n'est jamais enregistrée.
+                if (!submittedRef.current) {
+                  submittedRef.current = true
+                  submit(scoreRef.current)
+                }
+                reset()
+              }}
               className="px-3 py-1.5 rounded-lg text-xs font-bold"
               style={{ background: SURFACE2, color: TEXT, border: `1px solid ${BORDER}` }}
             >
