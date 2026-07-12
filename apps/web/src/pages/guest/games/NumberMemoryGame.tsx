@@ -238,6 +238,15 @@ export default function NumberMemoryGame({ onBack }: { onBack?: () => void }) {
     }, totalMs)
   }, [])
 
+  // « J'ai mémorisé » : passe en saisie immédiatement (évite jusqu'à 48s
+  // d'attente passive au niveau 12 en Facile).
+  const revealDone = useCallback(() => {
+    clearInterval(showIntervalRef.current)
+    clearTimeout(hideTimerRef.current)
+    setProgress(0)
+    setPhase('input')
+  }, [])
+
   const handlePress = (d: string) => {
     if (input.length < 25) setInput(p => p + d)
   }
@@ -440,6 +449,13 @@ export default function NumberMemoryGame({ onBack }: { onBack?: () => void }) {
           <div style={{ fontSize: 11, color: MUTED }}>
             Mémorisez puis retapez ce nombre
           </div>
+
+          <button onClick={revealDone} style={{
+            padding: '9px 18px', borderRadius: 10, border: 'none',
+            background: ACCENT, color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+          }}>
+            J'ai mémorisé ✓
+          </button>
         </div>
       )}
 
