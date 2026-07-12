@@ -57,7 +57,11 @@
 - [x] Motus : liste de mots nettoyée (720 vrais mots FR 5 lettres, fin des mots-poubelle type « ABCDE ») — commit a6e2fa1
 - [x] Reversi : gel de partie (soft-lock du passage de tour) + double-comptage StrictMode — commit c4e56fd
 - [x] Basket : visée latérale (vx dx/40→dx/8) + validation du panier (traversée du plan de l'anneau) — commit e645e79
-- [ ] Rami, Rummikub, Bingo (tirage/fin), Billard (visée/physique)
+- [x] Bingo : effets hors updater setCalled (StrictMode), Fisher-Yates, timers nettoyés, confetti mémoïsé, numéro visible sous marquage, saveStats try/catch — commit 6896cdc
+- [x] Rummikub : duplication de tuiles + score de victoire faux + timeouts (refs synchrones) — commit 2c6a051
+- [x] Rami : duplication de cartes + score de victoire faux + timeouts (refs synchrones) — commit 29ecdc7
+- [x] Billard : déjà réécrit (v4.9, vraie physique 2D canvas, collisions/fautes/score) — bug « factice » de la revue obsolète, aucun changement nécessaire
+- [ ] Reste : polish (setInterval→useGameLoop, cibles 44px, états vides, accents) + complétude Rami/Rummikub (jokers, défausse ramassable, manipulation de table — enhancements, pas des bugs)
 - [ ] Run21 / TriTours : terminer règles → available:true OU retirer ; Erreur 11 : refondre OU available:false
 - Note : Basket `basket3d` + Billard `billard` — ids de score déjà corrigés en 4a (commit d9e35d4) ; reste fixes gameplay REVUE
 
