@@ -9,11 +9,13 @@ export default function RummikubGame({ onBack }: GameProps) {
   const [rack, setRack] = useState(sortTiles(initial.slice(0, 14)))
   const [cpuRack, setCpuRack] = useState(initial.slice(14, 28))
   const [selected, setSelected] = useState<string[]>([])
-  const [melds, setMelds] = useState<Tile[][]>([])
-  const [cpuMelds, setCpuMelds] = useState<Tile[][]>([])
+  const [melds, setMelds] = useState<Tile[][]>([]) // table PARTAGÉE (joueur + CPU)
   const [opened, setOpened] = useState(false)
+  // Table partagée : les combinaisons n'ont pas de propriétaire, donc le score du
+  // joueur = cumul des points qu'il a réussi à MELDER depuis son chevalet.
+  const [playerScore, setPlayerScore] = useState(0)
   const [dirty, setDirty] = useState(false) // manipulation en cours, non validée
-  const [message, setMessage] = useState('Sélectionnez des tuiles (chevalet OU table), puis « Nouvelle combi. » ou « + ici » sur une combinaison. Validez le tour quand la table est correcte.')
+  const [message, setMessage] = useState('Table PARTAGÉE : réarrangez toute combinaison (la vôtre ou celle du CPU). Sélectionnez des tuiles, « Nouvelle combi. » ou « + ici », puis « Valider le tour ».')
   const [gameOver, setGameOver] = useState(false)
   const [winner, setWinner] = useState<'player' | 'cpu' | null>(null)
   const cpuTurnTimeout = useRef<number>()
@@ -35,7 +37,7 @@ export default function RummikubGame({ onBack }: GameProps) {
   const rackRef = useRef(rack); rackRef.current = rack
   const cpuRackRef = useRef(cpuRack); cpuRackRef.current = cpuRack
   const meldsRef = useRef(melds); meldsRef.current = melds
-  const cpuMeldsRef = useRef(cpuMelds); cpuMeldsRef.current = cpuMelds
+  const playerScoreRef = useRef(playerScore); playerScoreRef.current = playerScore
   const gameOverRef = useRef(gameOver); gameOverRef.current = gameOver
   const openedRef = useRef(opened); openedRef.current = opened
   // Snapshot du début de tour (table + chevalet) pour « Annuler ». Sa présence =
@@ -58,16 +60,14 @@ export default function RummikubGame({ onBack }: GameProps) {
     }
   }
 
-  const endGame = (who: 'player' | 'cpu', finalMelds: Tile[][], finalRack: Tile[]) => {
+  const endGame = (who: 'player' | 'cpu', finalScore: number, finalRack: Tile[]) => {
     if (gameOverRef.current) return
     gameOverRef.current = true
     setGameOver(true)
     setWinner(who)
-    // Score joueur = valeur de SES melds (+50 s'il gagne) − valeur de son rack restant,
-    // calculé sur les valeurs POST-coup passées en paramètre.
-    const s = finalMelds.reduce((sum, m) => sum + m.reduce((a, t) => a + t.number, 0), 0)
-      + (who === 'player' ? 50 : 0)
-      - finalRack.reduce((sum, t) => sum + t.number, 0)
+    // Table partagée : score = points meldés depuis le chevalet (+50 si victoire)
+    // − valeur des tuiles encore en main. Valeurs POST-coup passées en paramètre.
+    const s = finalScore + (who === 'player' ? 50 : 0) - finalRack.reduce((sum, t) => sum + t.number, 0)
     setIsNewRecord(submit(Math.max(0, s)))
   }
 
@@ -81,25 +81,25 @@ export default function RummikubGame({ onBack }: GameProps) {
       poolRef.current = nextPool
       setPool(nextPool)
     }
-    let nextCpuMelds = [...cpuMeldsRef.current]
+    let nextMelds = [...meldsRef.current]
     const meld = findRummiMeld(nextRack)
     if (meld) {
       nextRack = nextRack.filter((t) => !meld.includes(t))
-      nextCpuMelds = [...nextCpuMelds, meld]
-      setMessage('Le CPU pose une combinaison.')
+      nextMelds = [...nextMelds, sortTiles(meld)]
+      setMessage('Le CPU pose une combinaison sur la table.')
     } else {
       setMessage('Le CPU pioche une tuile.')
     }
-    // IA « exploite la table » : le CPU prolonge ses propres combinaisons avec ses
-    // tuiles restantes (suite/groupe), tant qu'il en trouve — se débarrasse plus vite.
+    // IA « exploite la table PARTAGÉE » : le CPU prolonge N'IMPORTE QUELLE combinaison
+    // de la table (la sienne ou celle du joueur) avec ses tuiles, tant qu'il en trouve.
     let extended = true
     while (extended) {
       extended = false
-      for (let i = 0; i < nextCpuMelds.length && !extended; i++) {
+      for (let i = 0; i < nextMelds.length && !extended; i++) {
         for (const t of nextRack) {
-          const combined = sortTiles([...nextCpuMelds[i], t])
+          const combined = sortTiles([...nextMelds[i], t])
           if (isRummiMeld(combined)) {
-            nextCpuMelds = nextCpuMelds.map((m, j) => (j === i ? combined : m))
+            nextMelds = nextMelds.map((m, j) => (j === i ? combined : m))
             nextRack = nextRack.filter((x) => x.id !== t.id)
             extended = true
             break
@@ -107,11 +107,11 @@ export default function RummikubGame({ onBack }: GameProps) {
         }
       }
     }
-    cpuMeldsRef.current = nextCpuMelds
-    setCpuMelds(nextCpuMelds)
+    meldsRef.current = nextMelds
+    setMelds(nextMelds)
     cpuRackRef.current = nextRack
     setCpuRack(nextRack)
-    if (nextRack.length === 0) endGame('cpu', meldsRef.current, rackRef.current)
+    if (nextRack.length === 0) endGame('cpu', playerScoreRef.current, rackRef.current)
   }
 
   const scheduleCpu = () => {
@@ -187,20 +187,24 @@ export default function RummikubGame({ onBack }: GameProps) {
       setMessage('Jouez au moins une tuile de votre chevalet (ou « Annuler » puis piochez).')
       return
     }
+    const gained = playedFromRack.reduce((s, t) => s + t.number, 0)
     if (!opened) {
-      const poseValue = playedFromRack.reduce((s, t) => s + t.number, 0)
-      if (poseValue < 30) {
-        setMessage(`Première pose : ${poseValue}/30 pts depuis le chevalet.`)
+      if (gained < 30) {
+        setMessage(`Première pose : ${gained}/30 pts depuis le chevalet.`)
         return
       }
       setOpened(true)
       openedRef.current = true
     }
+    // Cumule les points meldés depuis le chevalet ce tour (score = productivité).
+    const nextScore = playerScoreRef.current + gained
+    playerScoreRef.current = nextScore
+    setPlayerScore(nextScore)
     snapshotRef.current = null
     setDirty(false)
     setSelected([])
     setMessage('Tour validé !')
-    if (rack.length === 0) { endGame('player', melds, rack); return }
+    if (rack.length === 0) { endGame('player', nextScore, rack); return }
     scheduleCpu()
   }
 
@@ -227,12 +231,12 @@ export default function RummikubGame({ onBack }: GameProps) {
     const fresh = makeRummiTiles()
     commitLocal([], sortTiles(fresh.slice(0, 14)))
     setCpuRack(fresh.slice(14, 28))
-    cpuMeldsRef.current = []
     setPool(fresh.slice(28))
     setSelected([])
-    setCpuMelds([])
     setOpened(false)
     openedRef.current = false
+    setPlayerScore(0)
+    playerScoreRef.current = 0
     snapshotRef.current = null
     setDirty(false)
     setGameOver(false)
@@ -245,11 +249,11 @@ export default function RummikubGame({ onBack }: GameProps) {
     <>
     <Game3DShell
       title="Rummi Kub 3D"
-      subtitle="Vs CPU — manipulation libre de la table"
+      subtitle="Vs CPU — table PARTAGÉE, manipulation libre"
       onBack={onBack}
       side={gameSide({
         stats: [
-          { label: 'Table', value: melds.length, color: '#22c55e' },
+          { label: 'Score', value: playerScore, color: '#f59e0b' },
           { label: 'Chevalet', value: rack.length, color: ACCENT2 },
           { label: 'CPU', value: `${cpuRack.length} tuiles`, color: '#ef4444' },
           { label: 'Pose', value: opened ? selectedValue : `${selectedValue}/30`, color: ACCENT },
@@ -318,7 +322,7 @@ export default function RummikubGame({ onBack }: GameProps) {
     </Game3DShell>
     {gameOver && (
       <GameOverModal
-        score={Math.max(0, melds.reduce((sum, m) => sum + m.reduce((a, t) => a + t.number, 0), 0) + (winner === 'player' ? 50 : 0) - rack.reduce((sum, t) => sum + t.number, 0))}
+        score={Math.max(0, playerScore + (winner === 'player' ? 50 : 0) - rack.reduce((sum, t) => sum + t.number, 0))}
         best={best}
         isNewRecord={isNewRecord}
         onReplay={restart}
