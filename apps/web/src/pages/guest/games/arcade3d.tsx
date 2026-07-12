@@ -134,7 +134,7 @@ export function MiniCard({
   onClick?: () => void
   small?: boolean
 }) {
-  const red = suit === '♦' || suit === '♥' || suit === 'D' || suit === 'C'
+  const red = suit === '♦' || suit === '♥' || suit === 'D' || suit === 'H'
   return (
     <button
       onClick={onClick}

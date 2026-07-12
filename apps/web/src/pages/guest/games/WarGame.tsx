@@ -132,8 +132,11 @@ type GamePhase = 'playing' | 'war' | 'animating' | 'victory'
 type BattleResult = 'player' | 'cpu' | 'war' | null
 
 export default function WarGame({ onBack }: { onBack?: () => void }) {
-  const [pDeck, setPDeck] = useState<Card[]>(() => freshDeal()[0])
-  const [cDeck, setCDeck] = useState<Card[]>(() => freshDeal()[1])
+  // Un SEUL mélange partagé : sinon joueur et CPU reçoivent deux paquets
+  // différents (cartes dupliquées / manquantes dès la première partie).
+  const [initialDeal] = useState(freshDeal)
+  const [pDeck, setPDeck] = useState<Card[]>(() => initialDeal[0])
+  const [cDeck, setCDeck] = useState<Card[]>(() => initialDeal[1])
   const [pCard, setPCard] = useState<Card | null>(null)
   const [cCard, setCCard] = useState<Card | null>(null)
   const [phase, setPhase] = useState<GamePhase>('playing')

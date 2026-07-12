@@ -138,7 +138,7 @@ const QUESTIONS: Question[] = [
   { q: "Combien de continents y a-t-il ?", a: "7", o: ["5", "6", "7", "8"], cat: 'general' },
   { q: "Quel est le métal le plus précieux ?", a: "Or", o: ["Argent", "Platine", "Or", "Titane"], cat: 'general' },
   { q: "Combien de lettres dans l'alphabet français ?", a: "26", o: ["24", "25", "26", "27"], cat: 'general' },
-  { q: "Quelle est la boisson nationale du Japon ?", a: "Saké", o: ["Thé vert", "Sake", "Matcha", "Whisky"], cat: 'general' },
+  { q: "Quelle est la boisson nationale du Japon ?", a: "Saké", o: ["Thé vert", "Saké", "Matcha", "Whisky"], cat: 'general' },
   { q: "Quel animal est le symbole de la France ?", a: "Coq Gaulois", o: ["Lion", "Aigle", "Coq Gaulois", "Fleur de Lys"], cat: 'general' },
   { q: "Combien de faces a un cube ?", a: "6", o: ["4", "5", "6", "8"], cat: 'general' },
   { q: "Qui a peint la Nuit étoilée ?", a: "Van Gogh", o: ["Monet", "Picasso", "Van Gogh", "Dalí"], cat: 'general' },
