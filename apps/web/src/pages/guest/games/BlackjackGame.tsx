@@ -463,6 +463,17 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
     }
   }, [phase, bankroll]);
 
+  // Tous les timers de la main sont traqués pour être annulés au démontage
+  // (retour / recharge pendant que le croupier joue) — sinon settle() se
+  // déclenche sur une table déjà réinitialisée (solde incohérent).
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const later = (fn: () => void, ms: number) => {
+    const id = setTimeout(fn, ms);
+    timersRef.current.push(id);
+    return id;
+  };
+  useEffect(() => () => { timersRef.current.forEach(clearTimeout); timersRef.current = []; }, []);
+
   const drawCard = (hidden = false): Card => {
     if (shoeRef.current.length < 10) {
       shoeRef.current = freshShoe();
@@ -491,7 +502,7 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
     if (bet + value > bankroll) return;
     setBet(b => b + value);
     setChipAnimating(value);
-    setTimeout(() => setChipAnimating(null), 350);
+    later(() => setChipAnimating(null), 350);
   }
 
   function clearBet() {
@@ -520,9 +531,9 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
     setPhase('playing');
 
     // Check immediate player blackjack
-    setTimeout(() => {
+    later(() => {
       if (handScore([c3, c4]) === 21) {
-        revealAndSettle([c1, c2], [c3, c4], []);
+        revealAndSettle([c1, c2], [c3, c4], [], bet);
       }
     }, 800);
   }
@@ -537,14 +548,14 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
         if (splitHand.length > 0) {
           setActiveSplit('split');
         } else {
-          revealAndSettle(dealerHand, newHand, splitHand);
+          revealAndSettle(dealerHand, newHand, splitHand, bet);
         }
       }
     } else {
       const newSplit = [...splitHand, card];
       setSplitHand(newSplit);
       if (isBust(newSplit)) {
-        revealAndSettle(dealerHand, playerHand, newSplit);
+        revealAndSettle(dealerHand, playerHand, newSplit, bet);
       }
     }
   }
@@ -554,7 +565,7 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
     if (activeSplit === 'main' && splitHand.length > 0) {
       setActiveSplit('split');
     } else {
-      revealAndSettle(dealerHand, playerHand, splitHand);
+      revealAndSettle(dealerHand, playerHand, splitHand, bet);
     }
   }
 
@@ -566,7 +577,9 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
     const card = drawCard();
     const newHand = [...playerHand, card];
     setPlayerHand(newHand);
-    revealAndSettle(dealerHand, newHand, splitHand);
+    // La mise doublée est passée EXPLICITEMENT : setBet(b=>b+extra) ci-dessus
+    // n'est pas visible dans la closure de settle (sinon double payé à mise simple).
+    revealAndSettle(dealerHand, newHand, splitHand, bet + extra);
   }
 
   // ── Split ─────────────────────────────────────────────────────────────────
@@ -582,33 +595,33 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
   }
 
   // ── Reveal & Settle ───────────────────────────────────────────────────────
-  function revealAndSettle(dHand: Card[], pHand: Card[], sHand: Card[]) {
+  function revealAndSettle(dHand: Card[], pHand: Card[], sHand: Card[], betAmount: number) {
     setPhase('dealer');
     setIsFlippingDealer(true);
     const revealed = dHand.map(c => ({ ...c, hidden: false }));
     setDealerHand(revealed);
-    setTimeout(() => {
+    later(() => {
       setIsFlippingDealer(false);
-      dealerPlay(revealed, pHand, sHand);
+      dealerPlay(revealed, pHand, sHand, betAmount);
     }, 400);
   }
 
-  function dealerPlay(dHand: Card[], pHand: Card[], sHand: Card[]) {
+  function dealerPlay(dHand: Card[], pHand: Card[], sHand: Card[], betAmount: number) {
     let current = [...dHand];
     const draw = () => {
       if (handScore(current) < 17) {
         const card = drawCard();
         current = [...current, card];
         setDealerHand([...current]);
-        setTimeout(draw, 600);
+        later(draw, 600);
       } else {
-        settle(current, pHand, sHand);
+        settle(current, pHand, sHand, betAmount);
       }
     };
     draw();
   }
 
-  function settle(dHand: Card[], pHand: Card[], sHand: Card[]) {
+  function settle(dHand: Card[], pHand: Card[], sHand: Card[], betAmount: number) {
     const dScore = handScore(dHand);
     const pScore = handScore(pHand);
     const dBust  = isBust(dHand);
@@ -620,11 +633,11 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
     let res: Result = null;
 
     if      (pBust)        { res = 'lose';      payout = 0; }
-    else if (pBJ && !dBJ)  { res = 'blackjack'; payout = bet + bet * 1.5; }
+    else if (pBJ && !dBJ)  { res = 'blackjack'; payout = betAmount + betAmount * 1.5; }
     else if (dBJ && !pBJ)  { res = 'lose';      payout = 0; }
-    else if (dBust)        { res = 'win';        payout = bet * 2; }
-    else if (pScore > dScore) { res = 'win';     payout = bet * 2; }
-    else if (pScore === dScore) { res = 'push';  payout = bet; }
+    else if (dBust)        { res = 'win';        payout = betAmount * 2; }
+    else if (pScore > dScore) { res = 'win';     payout = betAmount * 2; }
+    else if (pScore === dScore) { res = 'push';  payout = betAmount; }
     else                   { res = 'lose';       payout = 0; }
 
     let totalPayout = payout;
@@ -634,9 +647,9 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
       const sScore = handScore(sHand);
       const sBust  = isBust(sHand);
       if      (sBust)            { sRes = 'lose'; }
-      else if (dBust)            { sRes = 'win';  totalPayout += bet * 2; }
-      else if (sScore > dScore)  { sRes = 'win';  totalPayout += bet * 2; }
-      else if (sScore === dScore){ sRes = 'push'; totalPayout += bet; }
+      else if (dBust)            { sRes = 'win';  totalPayout += betAmount * 2; }
+      else if (sScore > dScore)  { sRes = 'win';  totalPayout += betAmount * 2; }
+      else if (sScore === dScore){ sRes = 'push'; totalPayout += betAmount; }
       else                       { sRes = 'lose'; }
       setSplitResult(sRes);
     }
@@ -644,7 +657,7 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
     setBankroll(b => b + totalPayout);
     setResult(res);
     setPhase('result');
-    setMessage(res ? RESULT_MESSAGES[res](bet) : '');
+    setMessage(res ? RESULT_MESSAGES[res](betAmount) : '');
   }
 
   // ── Next Round ────────────────────────────────────────────────────────────
