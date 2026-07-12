@@ -40,8 +40,10 @@ export default function TriTowersGame({ onBack }: GameProps) {
     setScore(nextScore)
 
     if (nextOpen.length === 0) {
+      const winScore = nextScore + 200 // bonus de nettoyage complet
+      setScore(winScore) // le score affiche doit inclure le bonus (sinon record > score au modal)
       setMessage('Tours nettoyees ! Bonus +200.')
-      finish(nextScore + 200) // victoire : bonus de nettoyage complet
+      finish(winScore) // victoire
       return
     }
     setMessage(`Combo x${nextCombo} !`)
