@@ -8,7 +8,13 @@ function range(a: number, b: number) {
   return Array.from({ length: b - a + 1 }, (_, i) => a + i)
 }
 function shuffle<T>(a: T[]) {
-  return [...a].sort(() => Math.random() - 0.5)
+  // Fisher-Yates : sort(() => Math.random()-0.5) est notoirement biaisé.
+  const arr = [...a]
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+  }
+  return arr
 }
 
 function makeCard(): number[][] {
@@ -93,7 +99,9 @@ function saveStats(won: boolean): BingoStats {
     games: s.games + 1,
     bingos: won ? s.bingos + 1 : s.bingos,
   }
-  localStorage.setItem('bingo_stats', JSON.stringify(next))
+  // try/catch : en navigation privée iOS (quota 0), setItem throw et crashait le
+  // rendu au moment du bingo.
+  try { localStorage.setItem('bingo_stats', JSON.stringify(next)) } catch { /* ignore */ }
   return next
 }
 
@@ -133,55 +141,77 @@ export default function BingoGame({ onBack }: { onBack?: () => void }) {
   const [newlyMarked, setNewlyMarked] = useState<string | null>(null)
   const autoRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const statsSavedRef = useRef(false)
+  const ballTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const markTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const calledRef = useRef(called)
+  calledRef.current = called
+  // Positions du confetti figées une fois : sinon Math.random() dans le JSX les
+  // recalcule à chaque re-render post-victoire (les confettis « sautent »).
+  const confettiRef = useRef(
+    Array.from({ length: 18 }, (_, i) => ({
+      left: Math.random() * 100,
+      dur: 0.8 + Math.random() * 0.8,
+      color: ['#22c55e', '#a855f7', '#f59e0b', '#ef4444', '#3b82f6'][i % 5],
+      delay: i * 0.06,
+    })),
+  )
+  useEffect(() => () => {
+    if (ballTimerRef.current) clearTimeout(ballTimerRef.current)
+    if (markTimerRef.current) clearTimeout(markTimerRef.current)
+  }, [])
 
-  // Auto mode
+  // callNumber via ref : l'intervalle auto ne dépend plus de `called` (sinon
+  // détruit/recréé à chaque numéro -> cadence réelle imprévisible).
+  const callNumberRef = useRef<() => void>(() => {})
+
+  // Auto mode : un seul intervalle par session auto.
   useEffect(() => {
-    if (speed === 'auto' && !winType) {
-      autoRef.current = setInterval(() => {
-        callNumber()
-      }, 2000)
-    } else {
-      if (autoRef.current) clearInterval(autoRef.current)
-    }
+    if (speed !== 'auto' || winType) return
+    autoRef.current = setInterval(() => callNumberRef.current(), 2000)
     return () => { if (autoRef.current) clearInterval(autoRef.current) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [speed, winType, called])
+  }, [speed, winType])
 
   const callNumber = useCallback(() => {
-    setCalled(prev => {
-      const remaining = range(1, 75).filter(n => !prev.has(n))
-      if (!remaining.length) return prev
-      const n = remaining[Math.floor(Math.random() * remaining.length)]
-      const next = new Set(prev)
-      next.add(n)
-      setLastCall(n)
-      setHistory(h => [n, ...h].slice(0, 10))
-      setBallAnim(true)
-      setTimeout(() => setBallAnim(false), 500)
+    // Tout HORS de l'updater setCalled : sinon StrictMode le ré-exécute avec un
+    // second Math.random() -> le numéro poussé dans l'historique diffère de celui
+    // ajouté à 'called' (grille et historique désynchronisés).
+    const prev = calledRef.current
+    const remaining = range(1, 75).filter(n => !prev.has(n))
+    if (!remaining.length) return
+    const n = remaining[Math.floor(Math.random() * remaining.length)]
+    const next = new Set(prev)
+    next.add(n)
+    calledRef.current = next
+    setCalled(next)
+    setLastCall(n)
+    setHistory(h => [n, ...h].slice(0, 10))
+    setBallAnim(true)
+    if (ballTimerRef.current) clearTimeout(ballTimerRef.current)
+    ballTimerRef.current = setTimeout(() => setBallAnim(false), 500)
 
-      // Find newly marked cell
-      for (let r = 0; r < 5; r++) {
-        for (let c = 0; c < 5; c++) {
-          if (card[r][c] === n) {
-            setNewlyMarked(`${r},${c}`)
-            setTimeout(() => setNewlyMarked(null), 800)
-          }
+    // Case fraîchement marquée
+    outer: for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        if (card[r][c] === n) {
+          setNewlyMarked(`${r},${c}`)
+          if (markTimerRef.current) clearTimeout(markTimerRef.current)
+          markTimerRef.current = setTimeout(() => setNewlyMarked(null), 800)
+          break outer
         }
       }
+    }
 
-      const w = checkWin(card, next)
-      if (w && !statsSavedRef.current) {
-        statsSavedRef.current = true
-        setWinType(w)
-        const s = saveStats(true)
-        setStats(s)
-        // Fin de partie (bingo obtenu) : conversion lower→higher-is-better,
-        // statsSavedRef (réarmé par newGame) garantit une seule soumission par partie.
-        submit(Math.max(0, SCORE_BASE - next.size))
-      }
-      return next
-    })
+    // Fin de partie (bingo) : statsSavedRef (réarmé par newGame) => une seule
+    // soumission par partie ; conversion lower→higher-is-better.
+    const w = checkWin(card, next)
+    if (w && !statsSavedRef.current) {
+      statsSavedRef.current = true
+      setWinType(w)
+      setStats(saveStats(true))
+      submit(Math.max(0, SCORE_BASE - next.size))
+    }
   }, [card, submit])
+  callNumberRef.current = callNumber
 
   const newGame = useCallback(() => {
     if (autoRef.current) clearInterval(autoRef.current)
@@ -253,15 +283,15 @@ export default function BingoGame({ onBack }: { onBack?: () => void }) {
             border: '2px solid rgba(34,197,94,0.5)',
           }}
         >
-          {/* Confetti dots */}
-          {Array.from({ length: 18 }).map((_, i) => (
+          {/* Confetti dots — positions mémoïsées (confettiRef) */}
+          {confettiRef.current.map((cf, i) => (
             <div key={i} className="absolute rounded-full pointer-events-none"
               style={{
                 width: 6, height: 6,
-                left: `${Math.random() * 100}%`,
+                left: `${cf.left}%`,
                 top: 0,
-                background: ['#22c55e','#a855f7','#f59e0b','#ef4444','#3b82f6'][i % 5],
-                animation: `confettiFall ${0.8 + Math.random() * 0.8}s ease-out ${i * 0.06}s both`,
+                background: cf.color,
+                animation: `confettiFall ${cf.dur}s ease-out ${cf.delay}s both`,
               }}
             />
           ))}
@@ -351,10 +381,18 @@ export default function BingoGame({ onBack }: { onBack?: () => void }) {
                 >
                   {free ? (
                     <span style={{ fontSize: 18 }}>★</span>
-                  ) : marked ? (
-                    <span style={{ fontSize: 16 }}>✓</span>
                   ) : (
-                    <span style={{ fontSize: 12 }}>{n}</span>
+                    <>
+                      {marked && (
+                        <span style={{
+                          position: 'absolute', width: 30, height: 30, borderRadius: '50%',
+                          background: 'rgba(168,85,247,0.30)', border: '2px solid #a855f7',
+                          pointerEvents: 'none',
+                        }} />
+                      )}
+                      {/* Le numéro reste TOUJOURS visible sous le marquage (UX bingo). */}
+                      <span style={{ fontSize: 12, position: 'relative', fontWeight: 800, color: marked ? '#fff' : TEXT }}>{n}</span>
+                    </>
                   )}
                 </div>
               )
