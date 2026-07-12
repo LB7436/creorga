@@ -26,21 +26,34 @@ function isSolvable(tiles: number[], n: Size): boolean {
 
 function createShuffled(n: Size): number[] {
   const goal = buildGoal(n)
-  let tiles = [...goal]
-  // Fisher-Yates, then fix parity
-  for (let i = tiles.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[tiles[i], tiles[j]] = [tiles[j], tiles[i]]
+  // Fisher-Yates non biaisé + correction de parité (garantit la solvabilité), puis rejet de
+  // l'état déjà résolu. Boucle bornée : ne ré-itère que sur le cas improbable d'un tirage résolu.
+  for (;;) {
+    const tiles = [...goal]
+    for (let i = tiles.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[tiles[i], tiles[j]] = [tiles[j], tiles[i]]
+    }
+    // Non solvable : échanger deux tuiles non vides inverse la parité des inversions → solvable.
+    if (!isSolvable(tiles, n)) {
+      const a = tiles.findIndex(v => v !== 0)
+      const b = tiles.findIndex((v, i) => v !== 0 && i > a)
+      ;[tiles[a], tiles[b]] = [tiles[b], tiles[a]]
+    }
+    if (!tiles.every((v, i) => v === goal[i])) return tiles
   }
-  // If not solvable, swap first two non-zero tiles
-  if (!isSolvable(tiles, n)) {
-    const a = tiles.findIndex(v => v !== 0)
-    const b = tiles.findIndex((v, i) => v !== 0 && i > a)
-    ;[tiles[a], tiles[b]] = [tiles[b], tiles[a]]
-  }
-  // Ensure puzzle isn't already solved
-  if (tiles.every((v, i) => v === goal[i])) return createShuffled(n)
-  return tiles
+}
+
+// Coup pur : renvoie un NOUVEAU tableau si la tuile en `idx` est adjacente au trou (coup légal),
+// sinon null. Aucun effet de bord — appelable hors des updaters setState.
+function applyMove(tiles: number[], n: Size, idx: number): number[] | null {
+  const blank = tiles.indexOf(0)
+  const r1 = Math.floor(idx / n), c1 = idx % n
+  const r2 = Math.floor(blank / n), c2 = blank % n
+  if (Math.abs(r1 - r2) + Math.abs(c1 - c2) !== 1) return null
+  const next = tiles.slice()
+  ;[next[idx], next[blank]] = [next[blank], next[idx]]
+  return next
 }
 
 function formatTime(s: number): string {
@@ -127,24 +140,13 @@ function Confetti({ active }: { active: boolean }) {
 // ─── Tile component ───────────────────────────────────────────────────────────
 interface TileProps {
   value: number
-  index: number
   n: Size
   isCorrect: boolean
   onClick: () => void
   tileSize: number
 }
 
-function Tile({ value, index, n, isCorrect, onClick, tileSize }: TileProps) {
-  const goal = buildGoal(n)
-  const goalPos = goal.indexOf(value)
-  const goalRow = Math.floor(goalPos / n)
-  const goalCol = goalPos % n
-  const curRow = Math.floor(index / n)
-  const curCol = index % n
-  const dx = (goalCol - curCol) * (tileSize + 6)
-  const dy = (goalRow - curRow) * (tileSize + 6)
-  void dx; void dy
-
+function Tile({ value, n, isCorrect, onClick, tileSize }: TileProps) {
   if (value === 0) {
     return (
       <div
@@ -199,6 +201,10 @@ export default function SlidingPuzzleGame({ onBack }: { onBack?: () => void }) {
   const [best, setBest] = useState<BestScore | null>(() => loadBest(4))
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const submittedRef = useRef(false)
+  // Miroir de `tiles` : permet aux handlers de lire l'état courant sans closure périmée et sans
+  // effet de bord dans un updater setState (double exécution en React 18 StrictMode).
+  const tilesRef = useRef(tiles)
+  useEffect(() => { tilesRef.current = tiles }, [tiles])
 
   const goal = buildGoal(size)
 
@@ -222,23 +228,20 @@ export default function SlidingPuzzleGame({ onBack }: { onBack?: () => void }) {
     submittedRef.current = false
   }, [])
 
+  // Valide un coup : met à jour le miroir puis chaque état UNE seule fois, hors de tout updater.
+  // Plus de setMoves/setRunning enfermés dans setTiles → pas de double-comptage en StrictMode.
+  const registerMove = useCallback((next: number[]) => {
+    tilesRef.current = next
+    setTiles(next)
+    setMoves(m => m + 1)
+    setRunning(true)
+  }, [])
+
   const moveTile = useCallback((idx: number) => {
     if (won) return
-    setTiles(prev => {
-      const blank = prev.indexOf(0)
-      const r1 = Math.floor(idx / size), c1 = idx % size
-      const r2 = Math.floor(blank / size), c2 = blank % size
-      if (Math.abs(r1 - r2) + Math.abs(c1 - c2) !== 1) return prev
-      const next = [...prev]
-      ;[next[idx], next[blank]] = [next[blank], next[idx]]
-      return next
-    })
-    setMoves(m => {
-      const nm = m + 1
-      if (!running) setRunning(true)
-      return nm
-    })
-  }, [won, running, size])
+    const next = applyMove(tilesRef.current, size, idx)
+    if (next) registerMove(next)
+  }, [won, size, registerMove])
 
   // Check win after tiles change
   useEffect(() => {
@@ -262,31 +265,27 @@ export default function SlidingPuzzleGame({ onBack }: { onBack?: () => void }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tiles])
 
-  // Keyboard support
+  // Keyboard support — coup calculé hors updater ; preventDefault synchrone si le coup est valide.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (won) return
-      setTiles(prev => {
-        const blank = prev.indexOf(0)
-        const r = Math.floor(blank / size)
-        const c = blank % size
-        let target = -1
-        if (e.key === 'ArrowUp'    && r < size - 1) target = blank + size
-        if (e.key === 'ArrowDown'  && r > 0)        target = blank - size
-        if (e.key === 'ArrowLeft'  && c < size - 1) target = blank + 1
-        if (e.key === 'ArrowRight' && c > 0)        target = blank - 1
-        if (target === -1) return prev
-        e.preventDefault()
-        const next = [...prev]
-        ;[next[blank], next[target]] = [next[target], next[blank]]
-        setMoves(m => m + 1)
-        if (!running) setRunning(true)
-        return next
-      })
+      const cur = tilesRef.current
+      const blank = cur.indexOf(0)
+      const r = Math.floor(blank / size)
+      const c = blank % size
+      let target = -1
+      if (e.key === 'ArrowUp'    && r < size - 1) target = blank + size
+      if (e.key === 'ArrowDown'  && r > 0)        target = blank - size
+      if (e.key === 'ArrowLeft'  && c < size - 1) target = blank + 1
+      if (e.key === 'ArrowRight' && c > 0)        target = blank - 1
+      if (target === -1) return
+      e.preventDefault()
+      const next = applyMove(cur, size, target)
+      if (next) registerMove(next)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [size, won, running])
+  }, [size, won, registerMove])
 
   // Touch swipe support
   const touchStart = useRef<{ x: number; y: number } | null>(null)
@@ -294,29 +293,25 @@ export default function SlidingPuzzleGame({ onBack }: { onBack?: () => void }) {
     touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
   }
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStart.current) return
+    if (won || !touchStart.current) return
     const dx = e.changedTouches[0].clientX - touchStart.current.x
     const dy = e.changedTouches[0].clientY - touchStart.current.y
     touchStart.current = null
     if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return
-    setTiles(prev => {
-      const blank = prev.indexOf(0)
-      const r = Math.floor(blank / size), c = blank % size
-      let target = -1
-      if (Math.abs(dx) > Math.abs(dy)) {
-        if (dx > 0 && c > 0)        target = blank - 1
-        if (dx < 0 && c < size - 1) target = blank + 1
-      } else {
-        if (dy > 0 && r > 0)        target = blank - size
-        if (dy < 0 && r < size - 1) target = blank + size
-      }
-      if (target === -1) return prev
-      const next = [...prev]
-      ;[next[blank], next[target]] = [next[target], next[blank]]
-      setMoves(m => m + 1)
-      if (!running) setRunning(true)
-      return next
-    })
+    const cur = tilesRef.current
+    const blank = cur.indexOf(0)
+    const r = Math.floor(blank / size), c = blank % size
+    let target = -1
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0 && c > 0)        target = blank - 1
+      if (dx < 0 && c < size - 1) target = blank + 1
+    } else {
+      if (dy > 0 && r > 0)        target = blank - size
+      if (dy < 0 && r < size - 1) target = blank + size
+    }
+    if (target === -1) return
+    const next = applyMove(cur, size, target)
+    if (next) registerMove(next)
   }
 
   const tileSize = size === 3 ? 80 : size === 4 ? 68 : 56
@@ -338,7 +333,12 @@ export default function SlidingPuzzleGame({ onBack }: { onBack?: () => void }) {
         <div className="flex items-center gap-2">
           <button
             onClick={onBack}
-            style={{ color: MUTED, background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 8 }}
+            aria-label="Retour"
+            style={{
+              color: MUTED, background: 'none', border: 'none', cursor: 'pointer',
+              borderRadius: 8, minWidth: 44, minHeight: 44,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}
           >
             <ChevronLeft size={18} />
           </button>
@@ -461,7 +461,6 @@ export default function SlidingPuzzleGame({ onBack }: { onBack?: () => void }) {
           <Tile
             key={`${size}-${i}`}
             value={v}
-            index={i}
             n={size}
             isCorrect={v !== 0 && v === goal[i]}
             onClick={() => moveTile(i)}
