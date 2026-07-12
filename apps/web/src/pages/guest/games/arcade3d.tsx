@@ -126,6 +126,7 @@ export function MiniCard({
   muted,
   onClick,
   small,
+  joker,
 }: {
   rank: string
   suit: string
@@ -133,6 +134,7 @@ export function MiniCard({
   muted?: boolean
   onClick?: () => void
   small?: boolean
+  joker?: boolean
 }) {
   const red = suit === '♦' || suit === '♥' || suit === 'D' || suit === 'H'
   const cardStyle: CSSProperties = {
@@ -144,7 +146,12 @@ export function MiniCard({
     borderColor: selected ? ACCENT2 : 'rgba(255,255,255,0.18)',
     cursor: onClick ? 'pointer' : 'default',
   }
-  const face = (
+  const face = joker ? (
+    <>
+      <span style={{ color: '#a855f7', fontSize: small ? 22 : 30, fontWeight: 950 }}>★</span>
+      <span style={{ color: '#a855f7', fontSize: small ? 9 : 11, fontWeight: 800, letterSpacing: 1 }}>JOKER</span>
+    </>
+  ) : (
     <>
       <span style={{ color: red ? '#ef4444' : '#111827', fontSize: small ? 16 : 20, fontWeight: 950 }}>{rank}</span>
       <span style={{ color: red ? '#ef4444' : '#111827', fontSize: small ? 22 : 28, lineHeight: 1 }}>{suitGlyph(suit)}</span>

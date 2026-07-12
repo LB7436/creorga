@@ -68,7 +68,12 @@ export default function RamiGame({ onBack }: GameProps) {
       setCpuScore((s) => s + meldValue)
       setMessage(`Le CPU pose une combinaison (${meldValue} pts).`)
     } else {
-      const discardIdx = nextHand.reduce((maxI, c, i, arr) => cardPoints(c) > cardPoints(arr[maxI]) ? i : maxI, 0)
+      // Jamais defausser un joker (trop precieux) : garder la plus haute carte NON-joker.
+      const discardIdx = nextHand.reduce((maxI, c, i, arr) => {
+        if (c.joker) return maxI
+        if (arr[maxI].joker || cardPoints(c) > cardPoints(arr[maxI])) return i
+        return maxI
+      }, 0)
       setCpuDiscard(nextHand[discardIdx])
       nextHand = nextHand.filter((_, i) => i !== discardIdx)
       setMessage('Le CPU pioche et defausse.')
@@ -163,11 +168,11 @@ export default function RamiGame({ onBack }: GameProps) {
       <Stage tone="salon">
         <div style={ramiTableStyle}>
           <div style={meldPreviewStyle}>
-            {selectedCards.length ? selectedCards.map((card) => <MiniCard key={card.id} rank={card.rank} suit={card.suit} selected small />) : <span>Selectionnez 3 cartes ou plus</span>}
+            {selectedCards.length ? selectedCards.map((card) => <MiniCard key={card.id} rank={card.rank} suit={card.suit} joker={card.joker} selected small />) : <span>Selectionnez 3 cartes ou plus</span>}
           </div>
           <div style={ramiHandStyle}>
             {hand.map((card) => (
-              <MiniCard key={card.id} rank={card.rank} suit={card.suit} selected={selected.includes(card.id)} onClick={() => toggle(card.id)} />
+              <MiniCard key={card.id} rank={card.rank} suit={card.suit} joker={card.joker} selected={selected.includes(card.id)} onClick={() => toggle(card.id)} />
             ))}
           </div>
         </div>

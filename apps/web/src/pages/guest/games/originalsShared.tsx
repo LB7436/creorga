@@ -13,8 +13,8 @@ import { useGameScore } from './useGameScore'
 
 export type GameProps = { onBack?: () => void }
 export type CardSuit = 'S' | 'H' | 'D' | 'C'
-export type Card = { id: string; rank: string; suit: CardSuit; value: number }
-export type Tile = { id: string; color: string; number: number }
+export type Card = { id: string; rank: string; suit: CardSuit; value: number; joker?: boolean }
+export type Tile = { id: string; color: string; number: number; joker?: boolean }
 
 export const cardSuits: CardSuit[] = ['S', 'H', 'D', 'C']
 export const cardRanks = [
@@ -43,12 +43,15 @@ export function shuffle<T>(items: T[]) {
 }
 
 export function makeDeck(prefix = 'deck') {
-  return shuffle(cardSuits.flatMap((suit) => cardRanks.map((card) => ({
+  const cards: Card[] = cardSuits.flatMap((suit) => cardRanks.map((card) => ({
     id: `${prefix}-${card.rank}-${suit}`,
     suit,
     rank: card.rank,
     value: card.value,
-  }))))
+  })))
+  // 2 jokers (value 10 : sert uniquement au score/tri ; la validation joker-aware l'ignore via le flag)
+  const jokers: Card[] = [0, 1].map((i) => ({ id: `${prefix}-joker-${i}`, suit: 'S' as CardSuit, rank: '★', value: 10, joker: true }))
+  return shuffle([...cards, ...jokers])
 }
 
 export function cardPoints(card: Card) {
@@ -256,15 +259,39 @@ export function sortHand(hand: Card[]) {
   return [...hand].sort((a, b) => suitOrder[a.suit] - suitOrder[b.suit] || a.value - b.value)
 }
 
+// Une suite avec jokers est valide si les nombres réels (distincts) tiennent dans une
+// fenêtre de `total` entiers consécutifs de [minV,maxV], les jokers comblant les trous.
+function runWithJokersOK(nums: number[], jokers: number, minV = 1, maxV = 13): boolean {
+  if (new Set(nums).size !== nums.length) return false
+  const total = nums.length + jokers
+  if (total < 3 || total > maxV - minV + 1) return false
+  if (nums.length === 0) return true
+  const lo = Math.min(...nums), hi = Math.max(...nums)
+  const startMin = Math.max(minV, hi - total + 1)
+  const startMax = Math.min(lo, maxV - total + 1)
+  return startMin <= startMax
+}
+
 export function isRamiMeld(cards: Card[]) {
   if (cards.length < 3) return false
-  const sameRank = cards.every((card) => card.value === cards[0].value)
-  const differentSuits = new Set(cards.map((card) => card.suit)).size === cards.length
-  if (sameRank && differentSuits) return true
-  const sameSuit = cards.every((card) => card.suit === cards[0].suit)
-  const values = cards.map((card) => card.value).sort((a, b) => a - b)
-  const run = values.every((value, index) => index === 0 || value === values[index - 1] + 1)
-  return sameSuit && run
+  const reals = cards.filter((c) => !c.joker)
+  const jokers = cards.length - reals.length
+  if (jokers === 0) {
+    const sameRank = cards.every((card) => card.value === cards[0].value)
+    const differentSuits = new Set(cards.map((card) => card.suit)).size === cards.length
+    if (sameRank && differentSuits) return true
+    const sameSuit = cards.every((card) => card.suit === cards[0].suit)
+    const values = cards.map((card) => card.value).sort((a, b) => a - b)
+    const run = values.every((value, index) => index === 0 || value === values[index - 1] + 1)
+    return sameSuit && run
+  }
+  // Groupe (même valeur, couleurs distinctes, max 4) OU suite (même couleur, trous comblés par jokers).
+  const groupOK = (reals.length === 0 || reals.every((c) => c.value === reals[0].value))
+    && new Set(reals.map((c) => c.suit)).size === reals.length
+    && cards.length <= 4
+  if (groupOK) return true
+  const sameSuit = reals.length === 0 || reals.every((c) => c.suit === reals[0].suit)
+  return sameSuit && runWithJokersOK(reals.map((c) => c.value), jokers)
 }
 
 /** Cherche une combinaison valide (meld) dans une main — brute force sur triples/quadruples. */
@@ -294,21 +321,34 @@ export function findMeld(hand: Card[]): Card[] | null {
 
 export function makeRummiTiles() {
   const colors = ['#ef4444', '#2563eb', '#f59e0b', '#111827']
-  return shuffle([0, 1].flatMap((set) => colors.flatMap((color) => Array.from({ length: 13 }, (_, index) => ({
+  const tiles: Tile[] = [0, 1].flatMap((set) => colors.flatMap((color) => Array.from({ length: 13 }, (_, index) => ({
     id: `tile-${set}-${color}-${index + 1}`,
     color,
     number: index + 1,
-  })))))
+  }))))
+  // 2 jokers (number 10 : score/tri uniquement ; ignoré par la validation joker-aware)
+  const jokers: Tile[] = [0, 1].map((i) => ({ id: `tile-joker-${i}`, color: 'joker', number: 10, joker: true }))
+  return shuffle([...tiles, ...jokers])
 }
 
 export function isRummiMeld(tiles: Tile[]) {
   if (tiles.length < 3) return false
-  const sameNumber = tiles.every((tile) => tile.number === tiles[0].number)
-  const uniqueColors = new Set(tiles.map((tile) => tile.color)).size === tiles.length
-  if (sameNumber && uniqueColors) return true
-  const sameColor = tiles.every((tile) => tile.color === tiles[0].color)
-  const values = tiles.map((tile) => tile.number).sort((a, b) => a - b)
-  return sameColor && values.every((value, index) => index === 0 || value === values[index - 1] + 1)
+  const reals = tiles.filter((t) => !t.joker)
+  const jokers = tiles.length - reals.length
+  if (jokers === 0) {
+    const sameNumber = tiles.every((tile) => tile.number === tiles[0].number)
+    const uniqueColors = new Set(tiles.map((tile) => tile.color)).size === tiles.length
+    if (sameNumber && uniqueColors) return true
+    const sameColor = tiles.every((tile) => tile.color === tiles[0].color)
+    const values = tiles.map((tile) => tile.number).sort((a, b) => a - b)
+    return sameColor && values.every((value, index) => index === 0 || value === values[index - 1] + 1)
+  }
+  const groupOK = (reals.length === 0 || reals.every((t) => t.number === reals[0].number))
+    && new Set(reals.map((t) => t.color)).size === reals.length
+    && tiles.length <= 4
+  if (groupOK) return true
+  const sameColor = reals.length === 0 || reals.every((t) => t.color === reals[0].color)
+  return sameColor && runWithJokersOK(reals.map((t) => t.number), jokers)
 }
 
 /** Cherche un groupe/suite valide (3-4 tuiles) dans un chevalet — brute force. */
@@ -352,7 +392,9 @@ export function RummiTile({ tile, selected, onClick, small }: { tile: Tile; sele
         cursor: onClick ? 'pointer' : 'default',
       }}
     >
-      <span style={{ color: tile.color }}>{tile.number}</span>
+      {tile.joker
+        ? <span style={{ color: ACCENT, fontSize: small ? 16 : 20, fontWeight: 900 }}>★</span>
+        : <span style={{ color: tile.color }}>{tile.number}</span>}
     </button>
   )
 }
