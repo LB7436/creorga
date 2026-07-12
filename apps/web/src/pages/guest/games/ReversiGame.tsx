@@ -197,6 +197,13 @@ export default function ReversiGame({ onBack }: { onBack?: () => void }) {
   const [showStats, setShowStats] = useState(false)
   const cpuThinking = useRef(false)
   const scoreSubmittedRef = useRef(false)
+  const flipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Relance le tour CPU quand le joueur doit passer (turn reste 2, donc un simple
+  // setTurn(2) ne re-render pas -> partie gelée). L'incrément re-déclenche l'effet.
+  const [cpuNudge, setCpuNudge] = useState(0)
+  const boardRef = useRef(board)
+  boardRef.current = board
+  useEffect(() => () => { if (flipTimerRef.current) clearTimeout(flipTimerRef.current) }, [])
 
   const validMoves = gameOver || turn !== 1 ? [] : getValidMoves(board, 1)
   const [black, white] = countPieces(board)
@@ -209,58 +216,57 @@ export default function ReversiGame({ onBack }: { onBack?: () => void }) {
     cpuThinking.current = true
     const delay = difficulty === 'expert' ? 700 : 400
     const timer = setTimeout(() => {
-      setBoard(prev => {
-        let move: [number, number] | null = null
-        if (difficulty === 'facile') move = cpuRandom(prev)
-        else if (difficulty === 'moyen') move = cpuGreedy(prev)
-        else move = cpuMinimax(prev)
+      cpuThinking.current = false
+      // Plateau courant lu via ref : plus AUCUN effet de bord dans un updater
+      // setBoard (sinon StrictMode double-exécute -> stats et journal comptés 2x).
+      const cur = boardRef.current
+      let move: [number, number] | null = null
+      if (difficulty === 'facile') move = cpuRandom(cur)
+      else if (difficulty === 'moyen') move = cpuGreedy(cur)
+      else move = cpuMinimax(cur)
 
-        if (!move) {
-          // CPU must pass
-          const playerMoves = getValidMoves(prev, 1)
-          if (!playerMoves.length) {
-            endGame(prev)
-          } else {
-            setMessage('CPU passe son tour !')
-            setTurn(1)
-          }
-          cpuThinking.current = false
-          return prev
-        }
+      if (!move) {
+        // CPU must pass
+        const playerMoves = getValidMoves(cur, 1)
+        if (!playerMoves.length) endGame(cur)
+        else { setMessage('CPU passe son tour !'); setTurn(1) }
+        return
+      }
 
-        const [r, c] = move
-        const flips = getFlips(prev, r, c, 2)
-        setLastPlaced([r, c])
-        setFlipping(flips)
-        setTimeout(() => setFlipping([]), 600)
+      const [r, c] = move
+      const flips = getFlips(cur, r, c, 2)
+      setLastPlaced([r, c])
+      setFlipping(flips)
+      if (flipTimerRef.current) clearTimeout(flipTimerRef.current)
+      flipTimerRef.current = setTimeout(() => setFlipping([]), 600)
 
-        const next = applyMove(prev, r, c, 2)
-        setMoveLog(log => [{
-          player: 2 as const,
-          row: r,
-          col: c,
-          flipped: flips.length,
-        }, ...log].slice(0, 5))
+      const next = applyMove(cur, r, c, 2)
+      boardRef.current = next
+      setBoard(next)
+      setMoveLog(log => [{
+        player: 2 as const,
+        row: r,
+        col: c,
+        flipped: flips.length,
+      }, ...log].slice(0, 5))
 
-        const playerMoves = getValidMoves(next, 1)
-        if (!playerMoves.length) {
-          const cpuMoves2 = getValidMoves(next, 2)
-          if (!cpuMoves2.length) {
-            endGame(next)
-          } else {
-            setMessage('Vous passez votre tour !')
-            setTurn(2)
-          }
+      const playerMoves = getValidMoves(next, 1)
+      if (!playerMoves.length) {
+        const cpuMoves2 = getValidMoves(next, 2)
+        if (!cpuMoves2.length) {
+          endGame(next)
         } else {
-          setMessage('')
-          setTurn(1)
+          // Le joueur doit passer et le CPU rejoue : turn reste 2, on relance l'effet.
+          setMessage('Vous passez votre tour !')
+          setCpuNudge(n => n + 1)
         }
-        cpuThinking.current = false
-        return next
-      })
+      } else {
+        setMessage('')
+        setTurn(1)
+      }
     }, delay)
     return () => clearTimeout(timer)
-  }, [turn, gameOver, difficulty, screen])
+  }, [turn, cpuNudge, gameOver, difficulty, screen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const endGame = useCallback((b: Board) => {
     const [bl, wh] = countPieces(b)
