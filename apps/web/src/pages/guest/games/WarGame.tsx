@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronLeft, RotateCcw, Swords } from 'lucide-react'
 import { ACCENT, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 const SUITS = ['♠', '♥', '♦', '♣'] as const
@@ -145,7 +146,29 @@ export default function WarGame({ onBack }: { onBack?: () => void }) {
   const [animKey, setAnimKey] = useState(0)
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
 
+  const { submit } = useGameScore('bataille')
+  const [sessionWins, setSessionWins] = useState(0)
+  const winSubmittedRef = useRef(false)
+
   useEffect(() => () => clearTimeout(timerRef.current), [])
+
+  // Duel sans score naturel : score = victoires cumulées de la session, soumis après
+  // chaque victoire du joueur. winSubmittedRef garantit une seule soumission par partie ;
+  // réarmé par newGame (decks redistribués, plus de vainqueur).
+  useEffect(() => {
+    const gameWinner = pDeck.length === 0 ? 'cpu' : cDeck.length === 0 ? 'player' : null
+    if (phase !== 'victory' && gameWinner === null) {
+      winSubmittedRef.current = false
+      return
+    }
+    if (!gameWinner || winSubmittedRef.current) return
+    winSubmittedRef.current = true
+    if (gameWinner === 'player') {
+      const wins = sessionWins + 1
+      setSessionWins(wins)
+      submit(wins)
+    }
+  }, [phase, pDeck, cDeck, sessionWins, submit])
 
   const newGame = () => {
     clearTimeout(timerRef.current)

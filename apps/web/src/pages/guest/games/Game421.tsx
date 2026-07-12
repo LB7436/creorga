@@ -1,6 +1,7 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { ChevronLeft, RotateCcw, Users } from 'lucide-react'
 import { ACCENT, ACCENT2, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type PlayerType = 'human' | 'cpu'
@@ -185,6 +186,26 @@ export default function Game421({ onBack }: { onBack?: () => void }) {
   const [gameOver, setGameOver] = useState(false)
   const [winner, setWinner] = useState<Player | null>(null)
   const cpuRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const { submit } = useGameScore('421')
+  const [sessionWins, setSessionWins] = useState(0)
+  const winSubmittedRef = useRef(false)
+
+  // Pas de score naturel (duel à jetons) : score = victoires cumulées de la session.
+  // winSubmittedRef garantit une seule soumission par partie ; réarmé quand gameOver retombe (rejouer).
+  useEffect(() => {
+    if (!gameOver) {
+      winSubmittedRef.current = false
+      return
+    }
+    if (!winner || winSubmittedRef.current) return
+    winSubmittedRef.current = true
+    if (winner.type === 'human') {
+      const wins = sessionWins + 1
+      setSessionWins(wins)
+      submit(wins)
+    }
+  }, [gameOver, winner, sessionWins, submit])
 
   const isHumanTurn = currentPlayer === 0 && phase === 'rolling'
 

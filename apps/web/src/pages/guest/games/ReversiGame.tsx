@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronLeft, RotateCcw, Trophy, BookOpen } from 'lucide-react'
 import { ACCENT, ACCENT2, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Types & Constants ────────────────────────────────────────────────────────
 type Cell = 0 | 1 | 2        // 0=empty, 1=black(player), 2=white(cpu)
@@ -182,6 +183,7 @@ function setLS(key: string, val: unknown) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ReversiGame({ onBack }: { onBack?: () => void }) {
+  const { submit } = useGameScore('reversi')
   const [screen, setScreen] = useState<Screen>('menu')
   const [difficulty, setDifficulty] = useState<Difficulty>('moyen')
   const [board, setBoard] = useState<Board>(initBoard)
@@ -194,6 +196,7 @@ export default function ReversiGame({ onBack }: { onBack?: () => void }) {
   const [stats, setStats] = useState<StatsMap>(() => getLS('reversi_stats', DEFAULT_STATS))
   const [showStats, setShowStats] = useState(false)
   const cpuThinking = useRef(false)
+  const scoreSubmittedRef = useRef(false)
 
   const validMoves = gameOver || turn !== 1 ? [] : getValidMoves(board, 1)
   const [black, white] = countPieces(board)
@@ -268,6 +271,12 @@ export default function ReversiGame({ onBack }: { onBack?: () => void }) {
     else { msg = `Égalité ! (${bl}–${wh})` }
     setMessage(msg)
     setGameOver(true)
+    // score = nombre de pions du joueur en fin de partie (0-64) ;
+    // flag ref car endGame peut être ré-invoqué (updater setBoard re-exécuté en StrictMode)
+    if (!scoreSubmittedRef.current) {
+      scoreSubmittedRef.current = true
+      submit(bl)
+    }
     setStats(prev => {
       const next = {
         ...prev,
@@ -279,7 +288,7 @@ export default function ReversiGame({ onBack }: { onBack?: () => void }) {
       setLS('reversi_stats', next)
       return next
     })
-  }, [difficulty])
+  }, [difficulty, submit])
 
   const handleCellClick = (r: number, c: number) => {
     if (turn !== 1 || gameOver || screen !== 'game') return
@@ -318,6 +327,7 @@ export default function ReversiGame({ onBack }: { onBack?: () => void }) {
 
   const startNewGame = () => {
     cpuThinking.current = false
+    scoreSubmittedRef.current = false
     setBoard(initBoard())
     setTurn(1)
     setGameOver(false)

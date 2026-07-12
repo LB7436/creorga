@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { ACCENT, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Word bank ─────────────────────────────────────────────────────────────────
 
@@ -166,6 +167,19 @@ function saveStats(s: Stats) {
   try { localStorage.setItem('hangman_stats', JSON.stringify(s)) } catch { /* ignore */ }
 }
 
+// Migration one-time du record : hangman_stats est un JSON complexe (stats), donc pas de
+// legacyKey possible — on copie bestStreak vers la clé simple lue par useGameScore('hangman').
+;(() => {
+  try {
+    const raw = localStorage.getItem('hangman_stats')
+    if (!raw) return
+    const legacy = Number((JSON.parse(raw) as Stats).bestStreak) || 0
+    const key = 'creorga.game.best.hangman'
+    const current = Number(localStorage.getItem(key) || 0)
+    if (legacy > current) localStorage.setItem(key, String(legacy))
+  } catch { /* ignore */ }
+})()
+
 // ─── Gallows SVG ──────────────────────────────────────────────────────────────
 
 function Gallows({ wrong, maxLives }: { wrong: number; maxLives: number }) {
@@ -229,6 +243,7 @@ function Gallows({ wrong, maxLives }: { wrong: number; maxLives: number }) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Hangman({ onBack }: { onBack?: () => void }) {
+  const { best, submit } = useGameScore('hangman')
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
   const [entry, setEntry] = useState<WordEntry | null>(null)
   const [guessed, setGuessed] = useState<Set<string>>(new Set())
@@ -253,6 +268,7 @@ export default function Hangman({ onBack }: { onBack?: () => void }) {
     setHintUsed(false)
     setRevealIdx(0)
     setCelebrating(false)
+    statsUpdated.current = false
   }
 
   function restart() {
@@ -289,6 +305,7 @@ export default function Hangman({ onBack }: { onBack?: () => void }) {
   useEffect(() => {
     if (!over || statsUpdated.current) return
     statsUpdated.current = true
+    submit(won ? stats.streak + 1 : 0)
     setStats(prev => {
       const next: Stats = {
         played: prev.played + 1,
@@ -347,7 +364,7 @@ export default function Hangman({ onBack }: { onBack?: () => void }) {
             { label: 'Parties', val: stats.played },
             { label: 'Victoires', val: stats.wins },
             { label: 'Série', val: stats.streak },
-            { label: 'Record', val: stats.bestStreak },
+            { label: 'Record', val: best },
           ].map(({ label, val }) => (
             <div key={label} style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ fontSize: 18, fontWeight: 800, color: ACCENT }}>{val}</div>

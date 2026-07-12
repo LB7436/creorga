@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ACCENT, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Suit = '♠' | '♥' | '♦' | '♣'
@@ -333,6 +334,21 @@ export default function SolitaireGame({ onBack }: { onBack?: () => void }) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const stateRef = useRef(state)
   stateRef.current = state
+
+  const { submit } = useGameScore('solitaire')
+  const scoreSubmittedRef = useRef(false)
+
+  // Victoire = fin de partie : coups + temps (lower-is-better) convertis en score
+  // higher-is-better. Une seule soumission par partie — le flag se réarme dès que
+  // won repasse à false (nouvelle partie).
+  useEffect(() => {
+    if (state.won && !scoreSubmittedRef.current) {
+      scoreSubmittedRef.current = true
+      submit(Math.max(0, 10000 - state.moves * 10 - state.time * 5))
+    } else if (!state.won) {
+      scoreSubmittedRef.current = false
+    }
+  }, [state.won, state.moves, state.time])
 
   // Card sizing
   const [cardWidth, setCardWidth] = useState(72)

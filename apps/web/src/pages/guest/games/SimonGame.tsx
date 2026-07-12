@@ -1,6 +1,7 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Audio ────────────────────────────────────────────────────────────────────
 function playTone(freq: number, duration = 0.6) {
@@ -71,24 +72,10 @@ export default function SimonGame({ onBack }: { onBack?: () => void }) {
   const [lit, setLit] = useState<number | null>(null)
   const [phase, setPhase] = useState<Phase>('idle')
   const [curScore, setCurScore] = useState(0)
-  const [bestScore, setBestScore] = useState(0)
   const [speed, setSpeed] = useState<SpeedMode>('classic')
   const [errorFlash, setErrorFlash] = useState(false)
   const busy = useRef(false)
-
-  // Load best from localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem('simon_best')
-    if (stored) setBestScore(parseInt(stored, 10))
-  }, [])
-
-  const saveBest = useCallback((s: number) => {
-    setBestScore(prev => {
-      const next = Math.max(prev, s)
-      localStorage.setItem('simon_best', String(next))
-      return next
-    })
-  }, [])
+  const { best, submit } = useGameScore('simon', { legacyKey: 'simon_best' })
 
   const flashButton = useCallback((id: number, ms: number): Promise<void> =>
     new Promise(res => {
@@ -137,7 +124,7 @@ export default function SimonGame({ onBack }: { onBack?: () => void }) {
       setTimeout(() => setErrorFlash(false), 600)
       const score = seq.length - 1
       setCurScore(score)
-      saveBest(score)
+      submit(score)
       setPhase('over')
       busy.current = false
       return
@@ -158,7 +145,7 @@ export default function SimonGame({ onBack }: { onBack?: () => void }) {
     } else {
       busy.current = false
     }
-  }, [phase, inputIdx, seq, speed, saveBest, playSequence])
+  }, [phase, inputIdx, seq, speed, submit, playSequence])
 
   const discSize = 260
 
@@ -176,7 +163,7 @@ export default function SimonGame({ onBack }: { onBack?: () => void }) {
         </div>
         <div className="flex items-center gap-3 text-xs" style={{ color: MUTED }}>
           <span>Score <span style={{ color: TEXT, fontWeight: 700 }}>{curScore}</span></span>
-          <span>Record <span style={{ color: '#f59e0b', fontWeight: 700 }}>{bestScore}</span></span>
+          <span>Record <span style={{ color: '#f59e0b', fontWeight: 700 }}>{best}</span></span>
         </div>
       </div>
 

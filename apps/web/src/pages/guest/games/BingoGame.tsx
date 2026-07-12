@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function range(a: number, b: number) {
@@ -70,30 +71,57 @@ function colFor(n: number): number {
 }
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
-interface BingoStats { games: number; bingos: number; fastest: number }
+// Le record (ancien champ `fastest`) est géré par useGameScore ; ici ne restent
+// que les compteurs de parties/bingos, qui ne sont pas des records.
+interface BingoStats { games: number; bingos: number }
 
 function loadStats(): BingoStats {
   try {
     const s = localStorage.getItem('bingo_stats')
-    return s ? JSON.parse(s) : { games: 0, bingos: 0, fastest: 999 }
-  } catch { return { games: 0, bingos: 0, fastest: 999 } }
+    if (!s) return { games: 0, bingos: 0 }
+    const parsed = JSON.parse(s) as { games?: number; bingos?: number }
+    return {
+      games: typeof parsed?.games === 'number' ? parsed.games : 0,
+      bingos: typeof parsed?.bingos === 'number' ? parsed.bingos : 0,
+    }
+  } catch { return { games: 0, bingos: 0 } }
 }
 
-function saveStats(won: boolean, ballCount: number) {
+function saveStats(won: boolean): BingoStats {
   const s = loadStats()
   const next: BingoStats = {
     games: s.games + 1,
     bingos: won ? s.bingos + 1 : s.bingos,
-    fastest: won ? Math.min(s.fastest, ballCount) : s.fastest,
   }
   localStorage.setItem('bingo_stats', JSON.stringify(next))
   return next
 }
 
+// Score leaderboard higher-is-better : gagner en moins de boules = plus de points
+// (score = SCORE_BASE - nb de boules appelées ; affichage inverse : SCORE_BASE - best).
+const SCORE_BASE = 100
+
+// Migration one-time du record : bingo_stats est un JSON complexe et `fastest` est
+// lower-is-better (nb de boules), donc pas de legacyKey possible — on convertit et
+// copie vers la clé simple lue par useGameScore('bingo').
+;(() => {
+  try {
+    const raw = localStorage.getItem('bingo_stats')
+    if (!raw) return
+    const fastest = Number((JSON.parse(raw) as { fastest?: number }).fastest)
+    if (!Number.isFinite(fastest) || fastest <= 0 || fastest >= 999) return
+    const converted = Math.max(0, SCORE_BASE - Math.round(fastest))
+    const key = 'creorga.game.best.bingo'
+    const current = Number(localStorage.getItem(key) || 0)
+    if (converted > current) localStorage.setItem(key, String(converted))
+  } catch { /* ignore */ }
+})()
+
 // ─── Main component ───────────────────────────────────────────────────────────
 type SpeedMode = 'manual' | 'auto'
 
 export default function BingoGame({ onBack }: { onBack?: () => void }) {
+  const { best, submit } = useGameScore('bingo')
   const [card, setCard] = useState<number[][]>(makeCard)
   const [called, setCalled] = useState<Set<number>>(new Set())
   const [history, setHistory] = useState<number[]>([])
@@ -145,17 +173,20 @@ export default function BingoGame({ onBack }: { onBack?: () => void }) {
       if (w && !statsSavedRef.current) {
         statsSavedRef.current = true
         setWinType(w)
-        const s = saveStats(true, next.size)
+        const s = saveStats(true)
         setStats(s)
+        // Fin de partie (bingo obtenu) : conversion lower→higher-is-better,
+        // statsSavedRef (réarmé par newGame) garantit une seule soumission par partie.
+        submit(Math.max(0, SCORE_BASE - next.size))
       }
       return next
     })
-  }, [card])
+  }, [card, submit])
 
   const newGame = useCallback(() => {
     if (autoRef.current) clearInterval(autoRef.current)
     if (!statsSavedRef.current && called.size > 0) {
-      saveStats(false, called.size)
+      saveStats(false)
     }
     setCard(makeCard())
     setCalled(new Set())
@@ -209,7 +240,7 @@ export default function BingoGame({ onBack }: { onBack?: () => void }) {
         <div className="flex items-center gap-2 text-xs" style={{ color: MUTED }}>
           <span>{called.size} numéros</span>
           {stats.bingos > 0 && <span>· {stats.bingos} 🎯</span>}
-          {stats.fastest < 999 && <span>· Meilleur: {stats.fastest}</span>}
+          {best > 0 && <span>· Meilleur: {SCORE_BASE - best}</span>}
         </div>
       </div>
 
@@ -383,8 +414,8 @@ export default function BingoGame({ onBack }: { onBack?: () => void }) {
         <div className="flex justify-center gap-4 text-xs" style={{ color: MUTED }}>
           <span>Parties : <strong style={{ color: TEXT }}>{stats.games}</strong></span>
           <span>Bingos : <strong style={{ color: '#22c55e' }}>{stats.bingos}</strong></span>
-          {stats.fastest < 999 && (
-            <span>Record : <strong style={{ color: '#f59e0b' }}>{stats.fastest} 🎱</strong></span>
+          {best > 0 && (
+            <span>Record : <strong style={{ color: '#f59e0b' }}>{SCORE_BASE - best} 🎱</strong></span>
           )}
         </div>
       )}

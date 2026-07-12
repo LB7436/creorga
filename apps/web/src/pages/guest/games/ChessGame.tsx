@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { ACCENT, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -542,6 +543,8 @@ function computeCaptured(board: Board): { w: Piece[]; b: Piece[] } {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ChessGame({ onBack }: { onBack?: () => void }) {
+  const { submit } = useGameScore('chess')
+  const [wins, setWins] = useState(0)
   const [board, setBoard] = useState<Board>(initBoard())
   const [castling, setCastling] = useState<CastlingRights>(initCastling())
   const [selected, setSelected] = useState<[number, number] | null>(null)
@@ -554,6 +557,7 @@ export default function ChessGame({ onBack }: { onBack?: () => void }) {
   const [cellSize, setCellSize] = useState(64)
   const boardRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const winSubmittedRef = useRef(false)
 
   const captured = computeCaptured(board)
 
@@ -570,6 +574,18 @@ export default function ChessGame({ onBack }: { onBack?: () => void }) {
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
   }, [])
+
+  // Victoire du joueur = mat infligé au CPU : status 'checkmate' pendant que turn === 'b'.
+  // score = victoires cumulées de la session vs CPU. Flag ref obligatoire : le timer IA
+  // rebascule ensuite turn à 'w' (status inchangé) et l'effet se re-déclenche.
+  useEffect(() => {
+    if (status === 'checkmate' && turn === 'b' && !winSubmittedRef.current) {
+      winSubmittedRef.current = true
+      const total = wins + 1
+      setWins(total)
+      submit(total)
+    }
+  }, [status, turn, wins, submit])
 
   const checkGameStatus = useCallback((b: Board, c: Color, cast: CastlingRights, lm: Move | null) => {
     const moves = getLegalMoves(b, c, cast, lm)
@@ -656,6 +672,7 @@ export default function ChessGame({ onBack }: { onBack?: () => void }) {
   }, [history])
 
   const handleNewGame = useCallback(() => {
+    winSubmittedRef.current = false
     setBoard(initBoard())
     setCastling(initCastling())
     setSelected(null)

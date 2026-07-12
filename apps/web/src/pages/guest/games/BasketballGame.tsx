@@ -51,7 +51,7 @@ export default function BasketballGame({ onBack }: { onBack?: () => void }) {
   const [gameOver, setGameOver] = useState(false)
   const [aimLine, setAimLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
 
-  const { best, submit } = useGameScore('basketball')
+  const { best, submit } = useGameScore('basket3d', { legacyKey: 'creorga.game.best.basketball' })
   const [isNewRecord, setIsNewRecord] = useState(false)
 
   const resetBallPosition = () => {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import * as THREE from 'three'
 import { ACCENT, ACCENT2, BORDER, MUTED, TEXT } from './theme'
+import { useGameScore } from './useGameScore'
 
 type PlayMode = 'solo' | 'ensemble' | 'individuel' | 'tournoi'
 const PLAY_MODE_KEY = 'creorga-guest-play-mode-v1'
@@ -179,11 +180,14 @@ function gridToWorld(x: number, y: number) {
 
 export default function MenschGame() {
   const initial = initialMode()
+  const { submit } = useGameScore('mensch')
   const [setup, setSetup] = useState(true)
   const [mode, setMode] = useState<PlayMode>(initial)
   const [count, setCount] = useState(initial === 'solo' ? 2 : 4)
   const [state, setState] = useState(() => createState(initial === 'solo' ? 2 : 4))
   const [tournament, setTournament] = useState([0, 0, 0, 0])
+  const [sessionWins, setSessionWins] = useState(0)
+  const winCountedRef = useRef(false)
   const current = state.players[state.current]
   const movable = useMemo(() => current.pieces.map((piece) => canMove(state, piece, state.current)), [current.pieces, state])
   const botTurn = !setup && isBot(mode, state.current) && state.winner === null
@@ -305,6 +309,20 @@ export default function MenschGame() {
     }, state.rolled ? 720 : 680)
     return () => window.clearTimeout(timer)
   }, [botTurn, state.rolled, state.current, state.die])
+
+  // Duel/course sans points: le score leaderboard = victoires cumulees de la session.
+  // winCountedRef garantit un seul submit par manche (reset quand winner repasse a null).
+  useEffect(() => {
+    if (state.winner === null) {
+      winCountedRef.current = false
+      return
+    }
+    if (winCountedRef.current || isBot(mode, state.winner)) return
+    winCountedRef.current = true
+    const wins = sessionWins + 1
+    setSessionWins(wins)
+    submit(wins)
+  }, [state.winner, mode, sessionWins, submit])
 
   return (
     <div style={menschRootStyle}>

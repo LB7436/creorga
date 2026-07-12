@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronLeft, Zap, SkipForward, CheckCircle2, XCircle, Star } from 'lucide-react'
 import { ACCENT, ACCENT2, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Question Bank ────────────────────────────────────────────────────────────
 type CategoryKey = 'geo' | 'science' | 'culture' | 'histoire' | 'sports' | 'general'
@@ -167,6 +168,20 @@ function setLS(key: string, val: unknown) {
   try { localStorage.setItem(key, JSON.stringify(val)) } catch {}
 }
 
+/** Migration one-shot : l'ancien record était un objet JSON { catégorie: meilleur score } ;
+ *  on reporte son max vers le stockage du hook partagé (record global du jeu). */
+function migrateLegacyQuizBest() {
+  try {
+    const legacy = getLS<Record<string, number>>('quiz_leaderboard', {})
+    const scores = Object.values(legacy).filter(v => typeof v === 'number' && Number.isFinite(v))
+    if (scores.length === 0) return
+    const legacyMax = Math.max(...scores)
+    const key = 'creorga.game.best.quizgen'
+    const current = Number(localStorage.getItem(key) || 0)
+    if (legacyMax > current) localStorage.setItem(key, String(legacyMax))
+  } catch { /* */ }
+}
+
 type Screen = 'menu' | 'game' | 'end'
 type Lifeline = '50-50' | 'skip'
 
@@ -188,6 +203,11 @@ export default function QuizGame({ onBack }: { onBack?: () => void }) {
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | 'timeout' | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const leaderboard = getLS<Record<string, number>>('quiz_leaderboard', {})
+  // Migration one-shot de l'ancien record JSON (par catégorie) vers le hook partagé
+  useEffect(() => { migrateLegacyQuizBest() }, [])
+  const { submit: submitScore } = useGameScore('quizgen')
+  const scoreRef = useRef(0) // score réel de la partie (évite la closure périmée dans les setTimeout)
+  const submittedRef = useRef(false)
 
   const current = questions[idx]
 
@@ -241,6 +261,8 @@ export default function QuizGame({ onBack }: { onBack?: () => void }) {
     setShuffledOptions(selected.map(q => shuffle(q.o)))
     setIdx(0)
     setScore(0)
+    scoreRef.current = 0
+    submittedRef.current = false
     setStreak(0)
     setBestStreak(0)
     setLives(3)
@@ -262,6 +284,7 @@ export default function QuizGame({ onBack }: { onBack?: () => void }) {
       const streakMulti = streak >= 3 ? 2 : streak >= 1 ? 1.5 : 1
       const pts = Math.round((100 + speedBonus) * streakMulti)
       setScore(s => s + pts)
+      scoreRef.current += pts
       const ns = streak + 1
       setStreak(ns)
       setBestStreak(b => Math.max(b, ns))
@@ -301,12 +324,17 @@ export default function QuizGame({ onBack }: { onBack?: () => void }) {
 
   const endGame = () => {
     stopTimer()
-    // Save leaderboard
+    const finalScore = scoreRef.current
+    // Save leaderboard (badges par catégorie du menu)
     const catKey = selectedCat === 'mix' ? 'mix' : selectedCat
     const prev = leaderboard[catKey] ?? 0
-    if (score > prev) {
-      const newLB = { ...leaderboard, [catKey]: score }
+    if (finalScore > prev) {
+      const newLB = { ...leaderboard, [catKey]: finalScore }
       setLS('quiz_leaderboard', newLB)
+    }
+    if (!submittedRef.current) {
+      submittedRef.current = true
+      submitScore(finalScore)
     }
     setScreen('end')
   }

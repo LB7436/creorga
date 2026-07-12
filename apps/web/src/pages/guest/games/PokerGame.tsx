@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { ACCENT, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -326,6 +327,20 @@ export default function PokerGame({ onBack }: { onBack?: () => void }) {
   const [gs, setGs] = useState<GameState>(() => startNewHand())
   const [showRaise, setShowRaise] = useState(false)
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const { submit } = useGameScore('poker')
+  const scoreSubmittedRef = useRef(false)
+
+  // Fin de main (abattage) : on soumet le tapis du joueur, une seule fois par main —
+  // le flag se réarme quand la main suivante démarre (la phase quitte 'showdown')
+  useEffect(() => {
+    if (gs.phase === 'showdown' && !scoreSubmittedRef.current) {
+      scoreSubmittedRef.current = true
+      submit(Math.max(0, Math.min(1000000, Math.round(gs.players[0].chips))))
+    } else if (gs.phase !== 'showdown') {
+      scoreSubmittedRef.current = false
+    }
+  }, [gs.phase, gs.players])
 
   // Clear animation flag
   useEffect(() => {

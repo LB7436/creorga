@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -129,6 +130,32 @@ function saveStats(stats: Stats) {
   try { localStorage.setItem('minesweeper_stats', JSON.stringify(stats)) } catch { /* ignore */ }
 }
 
+// Score leaderboard higher-is-better : base par difficulté moins le temps de victoire (s),
+// pour qu'une victoire expert prime toujours sur intermédiaire, qui prime sur débutant.
+const SCORE_BASE: Record<Difficulty, number> = { beginner: 100000, intermediate: 300000, expert: 900000 }
+
+function winScore(difficulty: Difficulty, seconds: number): number {
+  return Math.max(0, Math.floor(SCORE_BASE[difficulty] - seconds))
+}
+
+// Migration one-time du record : minesweeper_stats est un JSON complexe (bestTimes lower-is-better
+// par difficulté), donc pas de legacyKey possible — on convertit le meilleur score équivalent vers
+// la clé simple lue par useGameScore('minesweeper').
+;(() => {
+  try {
+    const raw = localStorage.getItem('minesweeper_stats')
+    if (!raw) return
+    const legacy = (JSON.parse(raw) as Stats).bestTimes ?? {}
+    const migrated = (Object.keys(SCORE_BASE) as Difficulty[]).reduce((acc, d) => {
+      const t = legacy[d]
+      return typeof t === 'number' && Number.isFinite(t) ? Math.max(acc, winScore(d, t)) : acc
+    }, 0)
+    const key = 'creorga.game.best.minesweeper'
+    const current = Number(localStorage.getItem(key) || 0)
+    if (migrated > current) localStorage.setItem(key, String(migrated))
+  } catch { /* ignore */ }
+})()
+
 // ─── 7-Segment Display ────────────────────────────────────────────────────────
 
 function SevenSegDisplay({ value, digits = 3 }: { value: number; digits?: number }) {
@@ -221,6 +248,7 @@ function CellButton({ cell, gameState, onReveal, onFlag, onMouseDown, onMouseUp,
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function MinesweeperGame({ onBack }: { onBack?: () => void }) {
+  const { submit } = useGameScore('minesweeper')
   const [difficulty, setDifficulty] = useState<Difficulty>('beginner')
   const [grid, setGrid] = useState<Grid>(() => makeEmptyGrid(9, 9))
   const [gameState, setGameState] = useState<GameState>('idle')
@@ -232,6 +260,7 @@ export default function MinesweeperGame({ onBack }: { onBack?: () => void }) {
   const [winTime, setWinTime] = useState<number | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startTimeRef = useRef<number>(0)
+  const submittedRef = useRef(false)
 
   const cfg = CONFIGS[difficulty]
 
@@ -248,6 +277,15 @@ export default function MinesweeperGame({ onBack }: { onBack?: () => void }) {
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [gameState]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Soumission du score une seule fois par partie gagnée : la victoire est détectée dans un
+  // updater setGrid (potentiellement rejoué), on soumet donc sur la transition d'état.
+  useEffect(() => {
+    if (gameState === 'won' && winTime !== null && !submittedRef.current) {
+      submittedRef.current = true
+      submit(winScore(difficulty, winTime))
+    }
+  }, [gameState, winTime, difficulty]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const startNewGame = useCallback((diff?: Difficulty) => {
     const d = diff ?? difficulty
     if (diff) setDifficulty(d)
@@ -258,6 +296,7 @@ export default function MinesweeperGame({ onBack }: { onBack?: () => void }) {
     setTime(0)
     setSmiley('normal')
     setWinTime(null)
+    submittedRef.current = false
   }, [difficulty])
 
   // Auto-restart when difficulty changes

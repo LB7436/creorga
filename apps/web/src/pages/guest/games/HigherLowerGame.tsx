@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronLeft, TrendingUp, TrendingDown, Heart, Trophy, Zap } from 'lucide-react'
 import { ACCENT, ACCENT2, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Types & Helpers ──────────────────────────────────────────────────────────
 const SUITS = ['♠', '♥', '♦', '♣'] as const
@@ -20,15 +21,6 @@ function randCard(): Card {
     rank: RANKS[Math.floor(Math.random() * 13)],
     suit: SUITS[Math.floor(Math.random() * 4)],
   }
-}
-
-const STORAGE_KEY = 'hilo_best_streak'
-
-function loadBest(): number {
-  try { return parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10) || 0 } catch { return 0 }
-}
-function saveBest(n: number) {
-  try { localStorage.setItem(STORAGE_KEY, String(n)) } catch { /* noop */ }
 }
 
 // ─── Playing Card Component ───────────────────────────────────────────────────
@@ -142,10 +134,12 @@ export default function HigherLowerGame({ onBack }: { onBack?: () => void }) {
   const [lives, setLives] = useState(3)
   const [totalCorrect, setTotalCorrect] = useState(0)
   const [aceHigh, setAceHigh] = useState(true)
-  const [bestStreak, setBestStreak] = useState(loadBest)
+  const { best: bestStreak, submit: submitScore } = useGameScore('higherlower', { legacyKey: 'hilo_best_streak' })
+  const [runBest, setRunBest] = useState(0) // meilleure série de la partie en cours
   const [history, setHistory] = useState<boolean[]>([])
   const [animKey, setAnimKey] = useState(0)
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
+  const submittedRef = useRef(false)
 
   useEffect(() => () => clearTimeout(timerRef.current), [])
 
@@ -168,10 +162,7 @@ export default function HigherLowerGame({ onBack }: { onBack?: () => void }) {
         const newStreak = streak + 1
         setStreak(newStreak)
         setTotalCorrect(t => t + 1)
-        if (newStreak > bestStreak) {
-          setBestStreak(newStreak)
-          saveBest(newStreak)
-        }
+        setRunBest(r => Math.max(r, newStreak))
         setCurrentCard(next)
         setNextCard(null)
         setFeedbackCorrect(null)
@@ -180,6 +171,10 @@ export default function HigherLowerGame({ onBack }: { onBack?: () => void }) {
         const newLives = lives - 1
         setLives(newLives)
         if (newLives <= 0) {
+          if (!submittedRef.current) {
+            submittedRef.current = true
+            submitScore(runBest)
+          }
           setState('gameover')
         } else {
           setStreak(0)
@@ -201,6 +196,8 @@ export default function HigherLowerGame({ onBack }: { onBack?: () => void }) {
     setStreak(0)
     setLives(3)
     setTotalCorrect(0)
+    setRunBest(0)
+    submittedRef.current = false
     setHistory([])
     setAnimKey(k => k + 1)
   }
@@ -239,7 +236,7 @@ export default function HigherLowerGame({ onBack }: { onBack?: () => void }) {
       <div style={{ display: 'flex', gap: 8 }}>
         {[
           { icon: <Zap size={13} />, label: 'Série', value: streak, color: streak >= 5 ? '#f59e0b' : TEXT },
-          { icon: <Trophy size={13} />, label: 'Record', value: bestStreak, color: '#f59e0b' },
+          { icon: <Trophy size={13} />, label: 'Record', value: Math.max(bestStreak, runBest), color: '#f59e0b' },
           { icon: null, label: 'Correct', value: totalCorrect, color: '#22c55e' },
         ].map(s => (
           <div key={s.label} style={{

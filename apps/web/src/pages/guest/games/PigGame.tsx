@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronLeft, RotateCcw, Users } from 'lucide-react'
 import { ACCENT, ACCENT2, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const GOAL = 100
@@ -189,6 +190,7 @@ function makePlayers(numCPU: number): Player[] {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function PigGame({ onBack }: { onBack?: () => void }) {
+  const { submit } = useGameScore('pig')
   const [numCPU, setNumCPU] = useState(1)
   const [players, setPlayers] = useState<Player[]>(() => makePlayers(1))
   const [phase, setPhase] = useState<GamePhase>('setup')
@@ -203,9 +205,17 @@ export default function PigGame({ onBack }: { onBack?: () => void }) {
   const [winner, setWinner] = useState<Player | null>(null)
   const [rollHistory, setRollHistory] = useState<{ player: string; roll: number; action: string }[]>([])
   const cpuRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const submittedRef = useRef(false) // un seul submit par partie (startGame le réarme)
 
   const currentPlayer = players[currentIdx]
   const isHumanTurn = phase === 'playing' && currentPlayer?.type === 'human'
+
+  // Fin de partie : soumet le total du joueur humain une seule fois (ref stable face aux closures CPU).
+  const submitFinal = (humanTotal: number) => {
+    if (submittedRef.current) return
+    submittedRef.current = true
+    submit(humanTotal)
+  }
 
   const triggerFlash = (color: string) => {
     setFlashColor(color)
@@ -266,6 +276,7 @@ export default function PigGame({ onBack }: { onBack?: () => void }) {
             setPhase('over')
             setMsg(`${cpu.name} gagne avec ${cpu.total + newAcc} points !`)
             triggerFlash('rgba(239,68,68,0.2)')
+            submitFinal(currentPlayers.find(p => p.type === 'human')?.total ?? 0)
             return
           }
 
@@ -298,6 +309,7 @@ export default function PigGame({ onBack }: { onBack?: () => void }) {
 
   const startGame = (n: number) => {
     if (cpuRef.current) clearTimeout(cpuRef.current)
+    submittedRef.current = false
     const ps = makePlayers(n)
     setNumCPU(n)
     setPlayers(ps)
@@ -343,6 +355,7 @@ export default function PigGame({ onBack }: { onBack?: () => void }) {
           setPhase('over')
           setMsg(`Vous gagnez avec ${currentPlayer.total + ns} points !`)
           triggerFlash('rgba(34,197,94,0.3)')
+          submitFinal(currentPlayer.total + ns)
         }
       }
     }, 450)
@@ -360,6 +373,7 @@ export default function PigGame({ onBack }: { onBack?: () => void }) {
       setPhase('over')
       setMsg(`Vous gagnez avec ${newTotal} points !`)
       triggerFlash('rgba(34,197,94,0.3)')
+      submitFinal(newTotal)
       return
     }
 

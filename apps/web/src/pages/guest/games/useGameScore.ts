@@ -31,15 +31,23 @@ function autoIdentity(): { playerName?: string; tableId?: string } {
   return identity
 }
 
-export function useGameScore(gameId: string) {
+export function useGameScore(gameId: string, options?: { legacyKey?: string }) {
   const [best, setBest] = useState(0)
+  const legacyKey = options?.legacyKey
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(bestKey(gameId))
-      setBest(raw ? Number(raw) : 0)
+      let current = Number(localStorage.getItem(bestKey(gameId)) || 0)
+      if (legacyKey) {
+        const legacy = Number(localStorage.getItem(legacyKey) || 0)
+        if (Number.isFinite(legacy) && legacy > current) {
+          localStorage.setItem(bestKey(gameId), String(legacy))
+          current = legacy
+        }
+      }
+      setBest(Number.isFinite(current) ? current : 0)
     } catch { /* */ }
-  }, [gameId])
+  }, [gameId, legacyKey])
 
   const submit = (score: number, opts?: { playerName?: string; tableId?: string }): boolean => {
     let isNewRecord = false

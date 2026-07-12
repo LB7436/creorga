@@ -71,7 +71,7 @@ export default function BilliardsGame({ onBack }: { onBack?: () => void }) {
   const [aimLine, setAimLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
   const [, forceRerender] = useState(0)
 
-  const { best, submit } = useGameScore('billiards')
+  const { best, submit } = useGameScore('billard', { legacyKey: 'creorga.game.best.billiards' })
   const [isNewRecord, setIsNewRecord] = useState(false)
   const score = Math.max(10, 100 - shots * 5 - fouls * 10)
 

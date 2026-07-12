@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useGameScore } from './useGameScore';
 
 // ─── Theme ───────────────────────────────────────────────────────────────────
 const ACCENT = '#a855f7';
@@ -450,6 +451,18 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
   // Shoe lives entirely in a ref — no state needed, never drives rendering
   const shoeRef = useRef<Card[]>(freshShoe());
 
+  const { submit } = useGameScore('blackjack');
+  // Une seule soumission par main — le flag est réarmé à chaque distribution (deal)
+  const scoreSubmittedRef = useRef(false);
+
+  useEffect(() => {
+    if (phase === 'result' && !scoreSubmittedRef.current) {
+      scoreSubmittedRef.current = true;
+      // Score = gain net de la session à cette table (solde courant − solde de départ)
+      submit(Math.max(0, Math.min(1000000, Math.round(bankroll - (selectedTable?.bankroll ?? 0)))));
+    }
+  }, [phase, bankroll]);
+
   const drawCard = (hidden = false): Card => {
     if (shoeRef.current.length < 10) {
       shoeRef.current = freshShoe();
@@ -489,6 +502,7 @@ export default function BlackjackGame({ onBack }: BlackjackGameProps) {
   function deal() {
     const minBet = selectedTable?.minBet ?? 1;
     if (bet < minBet || bet > bankroll) return;
+    scoreSubmittedRef.current = false; // nouvelle main → réarme la soumission du score
     setBankroll(b => b - bet);
     setSplitHand([]);
     setActiveSplit('main');

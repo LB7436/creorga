@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronLeft, Trophy, RotateCcw, Zap } from 'lucide-react'
 import { ACCENT, ACCENT2, BG, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -144,20 +145,34 @@ function buildCards(diff: Difficulty, theme: ThemeId): CardState[] {
   }))
 }
 
-function lsKey(diff: DifficultyId, theme: ThemeId) {
-  return `mem_best_${diff}_${theme}`
+// Score higher-is-better : même formule que l'écran de victoire (WinScreen).
+function computeScore(moves: number, time: number, comboBest: number): number {
+  const baseScore = 1000 - moves * 10
+  const timeBonus = Math.max(0, 300 - time * 2)
+  const comboBonus = comboBest * 50
+  return Math.max(0, baseScore + timeBonus + comboBonus)
 }
 
-function getBest(diff: DifficultyId, theme: ThemeId): BestScore | null {
+// Migration one-time du record : les anciennes clés mem_best_<diff>_<theme> sont des JSON
+// { moves, time } lower-is-better, donc pas de legacyKey possible — on convertit le meilleur
+// score équivalent (combo inconnu → 0) vers la clé simple lue par useGameScore('memory').
+;(() => {
   try {
-    const raw = localStorage.getItem(lsKey(diff, theme))
-    return raw ? JSON.parse(raw) : null
-  } catch { return null }
-}
-
-function saveBest(diff: DifficultyId, theme: ThemeId, score: BestScore) {
-  try { localStorage.setItem(lsKey(diff, theme), JSON.stringify(score)) } catch { /* noop */ }
-}
+    let migrated = 0
+    for (const d of DIFFICULTIES) {
+      for (const t of Object.keys(THEMES) as ThemeId[]) {
+        const raw = localStorage.getItem(`mem_best_${d.id}_${t}`)
+        if (!raw) continue
+        const rec = JSON.parse(raw) as Partial<BestScore>
+        if (typeof rec.moves !== 'number' || typeof rec.time !== 'number') continue
+        migrated = Math.max(migrated, computeScore(rec.moves, rec.time, 0))
+      }
+    }
+    const key = 'creorga.game.best.memory'
+    const current = Number(localStorage.getItem(key) || 0)
+    if (migrated > current) localStorage.setItem(key, String(migrated))
+  } catch { /* ignore */ }
+})()
 
 // ── Confetti ───────────────────────────────────────────────────────────────────
 
@@ -297,10 +312,7 @@ interface WinScreenProps {
 }
 
 function WinScreen({ moves, time, comboBest, isRecord, diffLabel, onReplay, onBack }: WinScreenProps) {
-  const baseScore = 1000 - moves * 10
-  const timeBonus = Math.max(0, 300 - time * 2)
-  const comboBonus = comboBest * 50
-  const total = Math.max(0, baseScore + timeBonus + comboBonus)
+  const total = computeScore(moves, time, comboBest)
 
   return (
     <div style={{
@@ -371,6 +383,7 @@ function WinScreen({ moves, time, comboBest, isRecord, diffLabel, onReplay, onBa
 export default function MemoryGame({ onBack }: { onBack?: () => void }) {
   injectCSS('mem-styles', CSS)
 
+  const { best, submit } = useGameScore('memory')
   const [diffId, setDiffId]     = useState<DifficultyId>('easy')
   const [themeId, setThemeId]   = useState<ThemeId>('animals')
   const [cards, setCards]       = useState<CardState[]>([])
@@ -388,6 +401,7 @@ export default function MemoryGame({ onBack }: { onBack?: () => void }) {
 
   const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
   const lockRef   = useRef(false)
+  const submittedRef = useRef(false)
 
   const diff = DIFFICULTIES.find(d => d.id === diffId)!
 
@@ -407,6 +421,7 @@ export default function MemoryGame({ onBack }: { onBack?: () => void }) {
     setIsRecord(false)
     setLocked(false)
     lockRef.current = false
+    submittedRef.current = false
   }, [diffId, themeId])
 
   useEffect(() => { startGame() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -420,6 +435,13 @@ export default function MemoryGame({ onBack }: { onBack?: () => void }) {
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [running, won])
+
+  // ── Score : soumission une seule fois par partie gagnée ──
+  useEffect(() => {
+    if (!won || submittedRef.current) return
+    submittedRef.current = true
+    if (submit(computeScore(moves, elapsed, comboBest))) setIsRecord(true)
+  }, [won, moves, elapsed, comboBest, submit])
 
   // ── Flip ──
   const flip = useCallback((id: number) => {
@@ -462,18 +484,10 @@ export default function MemoryGame({ onBack }: { onBack?: () => void }) {
             const next = cs.map(c =>
               newFlipped.includes(c.id) ? { ...c, matched: true, flipped: true } : c
             )
-            // Check win
+            // Check win — le score est soumis par l'effet dédié quand won passe à true
             if (next.every(c => c.matched)) {
               setWon(true)
               setRunning(false)
-
-              // Check record
-              const best = getBest(diffId, themeId)
-              const currentMoves = moves + 1
-              if (!best || currentMoves < best.moves || (currentMoves === best.moves && elapsed < best.time)) {
-                saveBest(diffId, themeId, { moves: currentMoves, time: elapsed })
-                setIsRecord(true)
-              }
             }
             return next
           })
@@ -500,11 +514,10 @@ export default function MemoryGame({ onBack }: { onBack?: () => void }) {
     } else {
       setFlipped(newFlipped)
     }
-  }, [cards, flipped, running, won, combo, diffId, themeId, moves, elapsed])
+  }, [cards, flipped, running, won, combo])
 
   const matched = cards.filter(c => c.matched).length / 2
   const total   = diff.pairs
-  const best    = getBest(diffId, themeId)
 
   // ── Card sizing ──
   const containerWidth = 340
@@ -592,7 +605,7 @@ export default function MemoryGame({ onBack }: { onBack?: () => void }) {
         </div>
 
         {/* Best score */}
-        {best && (
+        {best > 0 && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px',
             borderRadius: 8, background: 'rgba(245,158,11,0.08)',
@@ -600,7 +613,7 @@ export default function MemoryGame({ onBack }: { onBack?: () => void }) {
           }}>
             <Trophy size={11} color="#f59e0b" />
             <span style={{ color: '#f59e0b', fontSize: 11, fontWeight: 700 }}>
-              Record : {best.moves} coups · {fmt(best.time)}
+              Record : {best} pts
             </span>
           </div>
         )}

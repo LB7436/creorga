@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronLeft, Clock, Trophy, Zap, RotateCcw } from 'lucide-react'
 import { ACCENT, ACCENT2, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Word Bank ──────────────────────────────────────────────────────────────
 type Category = 'Animaux' | 'Nourriture' | 'Sports' | 'Pays' | 'Couleurs' | 'Nature' | 'Métiers' | 'Objets'
@@ -190,6 +191,19 @@ function setLS(key: string, val: unknown) {
 
 interface Stats { solved: number; totalTime: number; bestStreak: number; bestScore: number }
 
+// Migration one-time du record : scramble_stats est un JSON complexe (stats), donc pas de
+// legacyKey possible — on copie bestScore vers la clé simple lue par useGameScore('wordscramble').
+;(() => {
+  try {
+    const raw = localStorage.getItem('scramble_stats')
+    if (!raw) return
+    const legacy = Number((JSON.parse(raw) as Stats).bestScore) || 0
+    const key = 'creorga.game.best.wordscramble'
+    const current = Number(localStorage.getItem(key) || 0)
+    if (legacy > current) localStorage.setItem(key, String(legacy))
+  } catch { /* ignore */ }
+})()
+
 // ─── Confetti ────────────────────────────────────────────────────────────────
 function ConfettiParticle({ x, color }: { x: number; color: string }) {
   return (
@@ -208,6 +222,7 @@ function ConfettiParticle({ x, color }: { x: number; color: string }) {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 export default function WordScrambleGame({ onBack }: { onBack?: () => void }) {
+  const { best, submit } = useGameScore('wordscramble')
   const [screen, setScreen] = useState<'menu' | 'game' | 'end'>('menu')
   const [selectedCategory, setSelectedCategory] = useState<Category | 'Tout'>('Tout')
   const [timeMode, setTimeMode] = useState(90)
@@ -227,8 +242,17 @@ export default function WordScrambleGame({ onBack }: { onBack?: () => void }) {
   const [totalTimeUsed, setTotalTimeUsed] = useState(0)
   const [stats] = useState<Stats>(() => getLS('scramble_stats', { solved: 0, totalTime: 0, bestStreak: 0, bestScore: 0 }))
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const scoreSubmittedRef = useRef(false)
 
   const currentWord = wordPool[wordIndex]
+
+  // Soumission unique du score final quand l'écran de fin s'affiche (endGame peut être
+  // rappelé depuis l'updater du timer : ici le score lu est toujours le score final affiché).
+  useEffect(() => {
+    if (screen !== 'end' || scoreSubmittedRef.current) return
+    scoreSubmittedRef.current = true
+    submit(score)
+  }, [screen, score])
 
   // ── Timer ──
   useEffect(() => {
@@ -263,6 +287,7 @@ export default function WordScrambleGame({ onBack }: { onBack?: () => void }) {
     setTimeLeft(timeMode)
     setFeedback(null)
     setScreen('game')
+    scoreSubmittedRef.current = false
     buildTiles(pool[0]?.w ?? 'CHAT')
   }
 
@@ -381,12 +406,12 @@ export default function WordScrambleGame({ onBack }: { onBack?: () => void }) {
       </div>
 
       {/* Best score banner */}
-      {stats.bestScore > 0 && (
+      {best > 0 && (
         <div className="rounded-2xl p-3 flex items-center gap-3" style={{ background: `${SURFACE}`, border: `1px solid ${BORDER}` }}>
           <Trophy size={20} style={{ color: '#f59e0b' }} />
           <div>
             <p className="text-xs" style={{ color: MUTED }}>Meilleur score</p>
-            <p className="font-black text-lg" style={{ color: '#f59e0b' }}>{stats.bestScore} pts</p>
+            <p className="font-black text-lg" style={{ color: '#f59e0b' }}>{best} pts</p>
           </div>
           <div className="ml-auto text-right">
             <p className="text-xs" style={{ color: MUTED }}>Mots résolus</p>
@@ -449,7 +474,6 @@ export default function WordScrambleGame({ onBack }: { onBack?: () => void }) {
 
   // ── END SCREEN ──
   if (screen === 'end') {
-    const bestScore = getLS<Stats>('scramble_stats', { solved: 0, totalTime: 0, bestStreak: 0, bestScore: 0 }).bestScore
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2">
@@ -464,7 +488,7 @@ export default function WordScrambleGame({ onBack }: { onBack?: () => void }) {
             {score}
           </p>
           <p className="text-sm" style={{ color: MUTED }}>points</p>
-          {score >= bestScore && score > 0 && (
+          {score >= best && score > 0 && (
             <div className="rounded-xl px-4 py-2 inline-block text-xs font-bold" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}>
               🏆 Nouveau record !
             </div>
@@ -653,7 +677,7 @@ export default function WordScrambleGame({ onBack }: { onBack?: () => void }) {
       <div className="flex justify-between text-[10px] px-1" style={{ color: MUTED }}>
         <span>✓ {wordsScored} mots</span>
         <span>⏱ moy. {wordsScored ? Math.round(totalTimeUsed / wordsScored) : 0}s</span>
-        <span style={{ color: '#f59e0b' }}>🏆 Record: {Math.max(score, stats.bestScore)} pts</span>
+        <span style={{ color: '#f59e0b' }}>🏆 Record: {Math.max(score, best)} pts</span>
       </div>
     </div>
   )

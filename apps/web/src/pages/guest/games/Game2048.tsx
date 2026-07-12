@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { TouchEvent } from 'react'
 import { ChevronLeft, ChevronUp, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react'
 import { ACCENT, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -212,9 +213,7 @@ export default function Game2048({ onBack }: { onBack?: () => void }) {
   const [gridSize, setGridSize] = useState<GridSize>(4)
   const [tiles, setTiles] = useState<Tile[]>(() => initTiles(4))
   const [score, setScore] = useState(0)
-  const [best, setBest] = useState<number>(() => {
-    try { return parseInt(localStorage.getItem('2048_best') ?? '0') || 0 } catch { return 0 }
-  })
+  const { best, submit } = useGameScore('2048', { legacyKey: '2048_best' })
   const [over, setOver] = useState(false)
   const [won, setWon] = useState(false)
   const [continueAfterWin, setContinueAfterWin] = useState(false)
@@ -227,11 +226,15 @@ export default function Game2048({ onBack }: { onBack?: () => void }) {
   const popupCounter = useRef(0)
   const scoreRef = useRef(score)
   scoreRef.current = score
+  const submittedRef = useRef(false)
 
-  // Persist best
+  // Soumet le score une seule fois par partie, au moment du game over
   useEffect(() => {
-    try { localStorage.setItem('2048_best', String(best)) } catch { /* ignore */ }
-  }, [best])
+    if (over && !submittedRef.current) {
+      submittedRef.current = true
+      submit(score)
+    }
+  }, [over, score])
 
   const addPopup = useCallback(
     (mergePositions: Array<{ row: number; col: number; value: number }>) => {
@@ -265,11 +268,7 @@ export default function Game2048({ onBack }: { onBack?: () => void }) {
         setCanUndo(true)
 
         if (result.scoreGained > 0) {
-          setScore(s => {
-            const ns = s + result.scoreGained
-            setBest(b => Math.max(b, ns))
-            return ns
-          })
+          setScore(s => s + result.scoreGained)
         }
 
         addPopup(result.mergePositions)
@@ -295,6 +294,8 @@ export default function Game2048({ onBack }: { onBack?: () => void }) {
     setOver(false)
     setCanUndo(false)
     setPrevState(null)
+    // l'undo annule le game over : la partie reprend, on ré-arme la soumission
+    submittedRef.current = false
   }, [canUndo, prevState])
 
   const reset = useCallback(
@@ -307,6 +308,7 @@ export default function Game2048({ onBack }: { onBack?: () => void }) {
       setCanUndo(false)
       setPrevState(null)
       setPopups([])
+      submittedRef.current = false
     },
     [gridSize],
   )
@@ -389,7 +391,7 @@ export default function Game2048({ onBack }: { onBack?: () => void }) {
             Score <span style={{ color: TEXT }}>{score}</span>
           </div>
           <div className="px-2.5 py-1 rounded-lg font-semibold" style={{ background: SURFACE2, color: MUTED }}>
-            Meilleur <span style={{ color: ACCENT }}>{best}</span>
+            Meilleur <span style={{ color: ACCENT }}>{Math.max(best, score)}</span>
           </div>
         </div>
       </div>

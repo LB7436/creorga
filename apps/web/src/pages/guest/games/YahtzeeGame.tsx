@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { ACCENT, ACCENT2, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Types & constants ────────────────────────────────────────────────────────
 type Category =
@@ -88,28 +89,41 @@ function DieFace({ value, held, rolling, onClick }: {
 }
 
 // ─── Stats helpers ────────────────────────────────────────────────────────────
-interface YahtzeeStats { games: number; best: number; total: number }
+interface YahtzeeStats { games: number; total: number }
 
 function loadStats(): YahtzeeStats {
   try {
     const s = localStorage.getItem('yahtzee_stats')
-    return s ? JSON.parse(s) : { games: 0, best: 0, total: 0 }
-  } catch { return { games: 0, best: 0, total: 0 } }
+    return s ? JSON.parse(s) : { games: 0, total: 0 }
+  } catch { return { games: 0, total: 0 } }
 }
 
 function saveStats(score: number) {
   const s = loadStats()
   const next: YahtzeeStats = {
     games: s.games + 1,
-    best: Math.max(s.best, score),
     total: s.total + score,
   }
   localStorage.setItem('yahtzee_stats', JSON.stringify(next))
   return next
 }
 
+// Migration one-time du record : yahtzee_stats est un JSON complexe (stats), donc pas de
+// legacyKey possible — on copie best vers la clé simple lue par useGameScore('yahtzee').
+;(() => {
+  try {
+    const raw = localStorage.getItem('yahtzee_stats')
+    if (!raw) return
+    const legacy = Number((JSON.parse(raw) as { best?: number }).best) || 0
+    const key = 'creorga.game.best.yahtzee'
+    const current = Number(localStorage.getItem(key) || 0)
+    if (legacy > current) localStorage.setItem(key, String(legacy))
+  } catch { /* ignore */ }
+})()
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function YahtzeeGame({ onBack }: { onBack?: () => void }) {
+  const { best, submit } = useGameScore('yahtzee')
   const [dice, setDice] = useState([1, 2, 3, 4, 5])
   const [held, setHeld] = useState([false, false, false, false, false])
   const [rolls, setRolls] = useState(0)
@@ -118,7 +132,6 @@ export default function YahtzeeGame({ onBack }: { onBack?: () => void }) {
   const [rolling, setRolling] = useState(false)
   const [, setNewlyLit] = useState<number[]>([])
   const [finalStats, setFinalStats] = useState<YahtzeeStats | null>(null)
-  const [stats] = useState<YahtzeeStats>(loadStats)
   const rollAnimRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const allCats: Category[] = [...UPPER_CATS, ...LOWER_CATS]
@@ -133,12 +146,15 @@ export default function YahtzeeGame({ onBack }: { onBack?: () => void }) {
   const baseTotal = allCats.reduce((acc, c) => acc + (scores[c] ?? 0), 0)
   const total = baseTotal + (hasUpperBonus ? UPPER_BONUS : 0) + yahtzeeBonus
 
-  // Save when done
+  // Save when done — le guard finalStats === null garantit un seul submit par partie
+  // (reset() le repasse à null pour la partie suivante).
   useEffect(() => {
     if (done && finalStats === null) {
       const s = saveStats(total)
       setFinalStats(s)
+      submit(total)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [done, total, finalStats])
 
   const doRoll = useCallback(() => {
@@ -209,7 +225,7 @@ export default function YahtzeeGame({ onBack }: { onBack?: () => void }) {
           <div className="grid grid-cols-3 gap-2 pt-2">
             {[
               { label: 'Parties', val: finalStats.games },
-              { label: 'Record', val: finalStats.best },
+              { label: 'Record', val: best },
               { label: 'Moy.', val: Math.round(finalStats.total / finalStats.games) },
             ].map(({ label, val }) => (
               <div key={label} className="rounded-xl p-2" style={{ background: SURFACE }}>
@@ -273,7 +289,7 @@ export default function YahtzeeGame({ onBack }: { onBack?: () => void }) {
           Tour <span style={{ color: TEXT, fontWeight: 700 }}>{Math.min(Object.keys(scores).length + 1, 13)}/13</span>
           {' · '}
           Total <span style={{ color: ACCENT, fontWeight: 700 }}>{total}</span>
-          {stats.best > 0 && <span> · Record <span style={{ color: '#f59e0b', fontWeight: 700 }}>{stats.best}</span></span>}
+          {best > 0 && <span> · Record <span style={{ color: '#f59e0b', fontWeight: 700 }}>{best}</span></span>}
         </div>
       </div>
 

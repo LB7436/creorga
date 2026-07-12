@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Word List (500+ French 5-letter words) ───────────────────────────────────
 
@@ -144,6 +145,19 @@ function saveStats(s: Stats) {
   try { localStorage.setItem('motus_stats_v2', JSON.stringify(s)) } catch { /* ignore */ }
 }
 
+// Migration one-time du record : motus_stats_v2 est un JSON complexe (stats), donc pas de
+// legacyKey possible — on copie maxStreak vers la clé simple lue par useGameScore('motus').
+;(() => {
+  try {
+    const raw = localStorage.getItem('motus_stats_v2')
+    if (!raw) return
+    const legacy = Number((JSON.parse(raw) as Stats).maxStreak) || 0
+    const key = 'creorga.game.best.motus'
+    const current = Number(localStorage.getItem(key) || 0)
+    if (legacy > current) localStorage.setItem(key, String(legacy))
+  } catch { /* ignore */ }
+})()
+
 function buildShareText(_word: string, rows: TileData[][], won: boolean): string {
   const map: Record<LetterState, string> = {
     correct: '🟥', present: '🟨', absent: '⬛', empty: '⬛', input: '⬛'
@@ -220,6 +234,7 @@ function Key({ label, state, onClick, wide }: {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function MotusGame({ onBack }: { onBack?: () => void }) {
+  const { best, submit } = useGameScore('motus')
   const [mode, setMode] = useState<GameMode>('daily')
   const [word, setWord] = useState<string>(() => getDailyWord())
   const [committed, setCommitted] = useState<TileData[][]>([])   // submitted rows
@@ -232,6 +247,7 @@ export default function MotusGame({ onBack }: { onBack?: () => void }) {
   const [shareMsg, setShareMsg] = useState('')
   const [invalidMsg, setInvalidMsg] = useState('')
   const shakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scoreSubmittedRef = useRef(false)
 
   // Keyboard input
   useEffect(() => {
@@ -303,6 +319,10 @@ export default function MotusGame({ onBack }: { onBack?: () => void }) {
       }
       saveStats(newStats)
       setStats(newStats)
+      if (!scoreSubmittedRef.current) {
+        scoreSubmittedRef.current = true
+        submit(newStreak)
+      }
       setTimeout(() => {
         setGameOver(won ? 'won' : 'lost')
         if (mode === 'daily') setShowStats(true)
@@ -320,6 +340,7 @@ export default function MotusGame({ onBack }: { onBack?: () => void }) {
     setFlippingRow(null)
     setShowStats(false)
     setShareMsg('')
+    scoreSubmittedRef.current = false
   }, [mode])
 
   // Build letter state map for keyboard
@@ -438,7 +459,7 @@ export default function MotusGame({ onBack }: { onBack?: () => void }) {
               <div><div style={{ fontSize: 22, fontWeight: 900, color: '#a855f7' }}>{stats.played}</div><div style={{ color: MUTED, fontSize: 10 }}>Joués</div></div>
               <div><div style={{ fontSize: 22, fontWeight: 900, color: '#22c55e' }}>{winRate}%</div><div style={{ color: MUTED, fontSize: 10 }}>Victoires</div></div>
               <div><div style={{ fontSize: 22, fontWeight: 900, color: '#06b6d4' }}>{stats.currentStreak}</div><div style={{ color: MUTED, fontSize: 10 }}>Série</div></div>
-              <div><div style={{ fontSize: 22, fontWeight: 900, color: '#facc15' }}>{stats.maxStreak}</div><div style={{ color: MUTED, fontSize: 10 }}>Max série</div></div>
+              <div><div style={{ fontSize: 22, fontWeight: 900, color: '#facc15' }}>{best}</div><div style={{ color: MUTED, fontSize: 10 }}>Max série</div></div>
             </div>
             {stats.distribution.length > 0 && (
               <div>

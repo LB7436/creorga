@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronLeft, Trophy, RotateCcw, Brain } from 'lucide-react'
 import { ACCENT, ACCENT2, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Types & Constants ────────────────────────────────────────────────────────
 type Phase = 'idle' | 'show' | 'input' | 'result'
@@ -14,23 +15,40 @@ const DIFFICULTY_CONFIG: Record<Difficulty, { label: string; msPerDigit: number;
 
 const STORAGE_KEY = 'numbermemory_stats'
 interface StoredStats {
-  bestByDifficulty: Record<Difficulty, number>
   history: { level: number; correct: boolean; difficulty: Difficulty }[]
 }
 
 function loadStats(): StoredStats {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw) as StoredStats
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<StoredStats>
+      if (Array.isArray(parsed.history)) return { history: parsed.history }
+    }
   } catch { /* noop */ }
-  return {
-    bestByDifficulty: { easy: 0, normal: 0, hard: 0 },
-    history: [],
-  }
+  return { history: [] }
 }
 function saveStats(s: StoredStats) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)) } catch { /* noop */ }
 }
+
+// Migration one-time du record : numbermemory_stats est un JSON complexe (bestByDifficulty),
+// donc pas de legacyKey possible — on copie le meilleur niveau toutes difficultés confondues
+// vers la clé simple lue par useGameScore('numbermemory').
+;(() => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return
+    const legacy = (JSON.parse(raw) as { bestByDifficulty?: Partial<Record<Difficulty, number>> }).bestByDifficulty ?? {}
+    const migrated = Object.values(legacy).reduce<number>(
+      (acc, v) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(acc, v) : acc),
+      0,
+    )
+    const key = 'creorga.game.best.numbermemory'
+    const current = Number(localStorage.getItem(key) || 0)
+    if (migrated > current) localStorage.setItem(key, String(migrated))
+  } catch { /* ignore */ }
+})()
 
 function randNum(digits: number): string {
   if (digits === 1) return String(Math.floor(Math.random() * 9) + 1)
@@ -148,6 +166,7 @@ function HistoryChart({ history }: { history: StoredStats['history'] }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function NumberMemoryGame({ onBack }: { onBack?: () => void }) {
+  const { best, submit } = useGameScore('numbermemory')
   const [phase, setPhase] = useState<Phase>('idle')
   const [level, setLevel] = useState(3)
   const [target, setTarget] = useState('')
@@ -162,6 +181,15 @@ export default function NumberMemoryGame({ onBack }: { onBack?: () => void }) {
 
   const showIntervalRef = useRef<ReturnType<typeof setInterval>>()
   const hideTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const runBestRef = useRef(0)        // meilleur niveau complété pendant la partie en cours
+  const submittedRef = useRef(false)  // évite tout double submit pour une même partie
+
+  // Fin de partie (vies épuisées, abandon ou fermeture du jeu) : soumet le score une seule fois.
+  const endRun = () => {
+    if (submittedRef.current || runBestRef.current <= 0) return
+    submittedRef.current = true
+    submit(runBestRef.current)
+  }
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -178,7 +206,8 @@ export default function NumberMemoryGame({ onBack }: { onBack?: () => void }) {
   useEffect(() => () => {
     clearInterval(showIntervalRef.current)
     clearTimeout(hideTimerRef.current)
-  }, [])
+    endRun()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const startRound = useCallback((lvl: number, diff: Difficulty) => {
     clearInterval(showIntervalRef.current)
@@ -219,11 +248,15 @@ export default function NumberMemoryGame({ onBack }: { onBack?: () => void }) {
     setCorrect(ok)
     setPhase('result')
 
+    if (ok) {
+      runBestRef.current = Math.max(runBestRef.current, level)
+    } else if (lives === 1) {
+      // Dernière vie perdue : la partie est terminée.
+      endRun()
+    }
+
     setStats(prev => {
-      const newBest = { ...prev.bestByDifficulty }
-      if (ok && level > newBest[difficulty]) newBest[difficulty] = level
       const next: StoredStats = {
-        bestByDifficulty: newBest,
         history: [...prev.history, { level, correct: ok, difficulty }].slice(-50),
       }
       saveStats(next)
@@ -239,6 +272,7 @@ export default function NumberMemoryGame({ onBack }: { onBack?: () => void }) {
     } else {
       const newLives = lives - 1
       if (newLives <= 0) {
+        endRun()
         setPhase('idle')
         setLives(3)
         setLevel(3)
@@ -250,6 +284,7 @@ export default function NumberMemoryGame({ onBack }: { onBack?: () => void }) {
   }
 
   const newGame = () => {
+    endRun() // abandon en cours de partie : le score atteint est soumis avant le reset
     clearInterval(showIntervalRef.current)
     clearTimeout(hideTimerRef.current)
     setPhase('idle')
@@ -259,8 +294,14 @@ export default function NumberMemoryGame({ onBack }: { onBack?: () => void }) {
     setCorrect(null)
   }
 
+  // Nouvelle partie depuis l'écran d'accueil : réinitialise le suivi de score de la partie.
+  const startRun = () => {
+    runBestRef.current = 0
+    submittedRef.current = false
+    startRound(level, difficulty)
+  }
+
   const diff = DIFFICULTY_CONFIG[difficulty]
-  const best = stats.bestByDifficulty[difficulty]
 
   // Dynamic font size for the number display
   const numFontSize = Math.max(22, Math.min(52, 52 - (level - 3) * 2.5))
@@ -345,14 +386,14 @@ export default function NumberMemoryGame({ onBack }: { onBack?: () => void }) {
             </div>
 
             <div style={{ fontSize: 11, color: MUTED }}>
-              Meilleur en {diff.label} : <span style={{ color: diff.color, fontWeight: 700 }}>{best || '—'} chiffres</span>
+              Meilleur : <span style={{ color: diff.color, fontWeight: 700 }}>{best || '—'} chiffres</span>
             </div>
           </div>
 
           <HistoryChart history={stats.history} />
 
           <button
-            onClick={() => startRound(level, difficulty)}
+            onClick={startRun}
             style={{
               padding: '15px', borderRadius: 14, fontWeight: 700, fontSize: 16,
               background: ACCENT, color: '#fff', border: 'none', cursor: 'pointer',
@@ -482,9 +523,9 @@ export default function NumberMemoryGame({ onBack }: { onBack?: () => void }) {
               </div>
             )}
 
-            {correct && stats.bestByDifficulty[difficulty] === level && (
+            {correct && level > best && (
               <div style={{ fontSize: 13, color: '#f59e0b', fontWeight: 700 }}>
-                🏆 Nouveau record en {diff.label} !
+                🏆 Nouveau record !
               </div>
             )}
           </div>
@@ -519,7 +560,7 @@ export default function NumberMemoryGame({ onBack }: { onBack?: () => void }) {
                 background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
               }}>
                 <span style={{ fontSize: 13, color: '#ef4444', fontWeight: 700 }}>Plus de vies !</span>
-                <span style={{ fontSize: 12, color: MUTED, marginLeft: 8 }}>Meilleur : {stats.bestByDifficulty[difficulty]} chiffres</span>
+                <span style={{ fontSize: 12, color: MUTED, marginLeft: 8 }}>Meilleur : {best} chiffres</span>
               </div>
               <button onClick={newGame} style={{
                 padding: '14px', borderRadius: 14, fontWeight: 700, fontSize: 15,

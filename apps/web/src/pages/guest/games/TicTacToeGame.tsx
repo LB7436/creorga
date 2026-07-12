@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { ACCENT, ACCENT2, BG, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -249,6 +250,7 @@ function WinLineOverlay({ line, boardSize }: { line: number[]; boardSize: number
 export default function TicTacToeGame({ onBack }: { onBack?: () => void }) {
   injectCSS('ttt-styles', CSS)
 
+  const { submit } = useGameScore('ttt')
   const [board, setBoard]         = useState<Cell[]>(Array(9).fill(null))
   const [diff, setDiff]           = useState<DiffId>('medium')
   const [cpuThinking, setCpu]     = useState(false)
@@ -304,7 +306,9 @@ export default function TicTacToeGame({ onBack }: { onBack?: () => void }) {
     next[i] = 'X'
     setLast(i)
     const r = checkWinner(next)
-    if (r?.winner === 'X') setScoreP(s => s + 1)
+    // score = victoires cumulées de la session (une seule détection possible par partie :
+    // gameOver bloque click() dès que la grille a un gagnant)
+    if (r?.winner === 'X') { setScoreP(s => s + 1); submit(scoreP + 1) }
     setBoard(next)
   }
 

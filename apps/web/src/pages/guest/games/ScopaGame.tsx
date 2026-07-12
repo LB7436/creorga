@@ -19,6 +19,7 @@ import {
   startScopaRound,
   type ScopaCard,
 } from './scopaRules'
+import { useGameScore } from './useGameScore'
 
 type Setup = 'setup' | 'play'
 
@@ -73,6 +74,7 @@ function ScopaImageCard({
 }
 
 export default function ScopaGame({ onBack }: { onBack?: () => void }) {
+  const { submit } = useGameScore('scoopa')
   const [setup, setSetup] = useState<Setup>('setup')
   const [players, setPlayers] = useState(2)
   const [state, setState] = useState(() => initScopaGame(2))
@@ -104,6 +106,9 @@ export default function ScopaGame({ onBack }: { onBack?: () => void }) {
       return
     }
     const madeScopa = chosenCapture.length > 0 && next.table.length === 0
+    // Fin de partie: score du vainqueur (meilleur score de table). Transition unique par partie,
+    // playScopaCard refusant tout coup hors phase 'playing'.
+    if (next.phase === 'gameEnd') submit(Math.max(...next.scores))
     setState(next)
     setSelectedCard(null)
     setSelectedCaptureKey('')

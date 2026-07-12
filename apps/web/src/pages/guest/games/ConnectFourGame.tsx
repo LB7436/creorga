@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { ACCENT, BG, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -320,6 +321,7 @@ function Disc({ player, isWin, isLast, dropFromRow, cellPx }: DiscProps) {
 export default function ConnectFourGame({ onBack }: { onBack?: () => void }) {
   injectCSS('c4-styles', CSS)
 
+  const { submit } = useGameScore('connect4')
   const [grid, setGrid]         = useState<Grid>(emptyGrid)
   const [diff, setDiff]         = useState<DiffId>('medium')
   const [winner, setWinner]     = useState<Cell>(0)
@@ -380,7 +382,9 @@ export default function ConnectFourGame({ onBack }: { onBack?: () => void }) {
     setDropAnims(d => ({ ...d, [`${r},${col}`]: r + 1 }))
 
     const win = checkWin(g, r, col, 1)
-    if (win) { setWinner(1); setWinCells(win); setScoreP(s => s + 1) }
+    // score = victoires cumulées de la session (une seule détection possible par partie :
+    // gameOver bloque drop() dès que winner est posé)
+    if (win) { setWinner(1); setWinCells(win); setScoreP(s => s + 1); submit(scoreP + 1) }
     else if (isDraw(g)) { setDraw(true); setDraws(d => d + 1) }
 
     setGrid(g)

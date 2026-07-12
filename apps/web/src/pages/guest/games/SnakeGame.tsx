@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
+import { useGameScore } from './useGameScore'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const COLS = 24
@@ -51,6 +52,8 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
+  const { best, submit } = useGameScore('snake')
+
   // game state refs (mutated each tick without re-render)
   const snakeRef = useRef<Pos[]>([{ x: 12, y: 9 }, { x: 11, y: 9 }, { x: 10, y: 9 }])
   const dirRef = useRef<Dir>('right')
@@ -58,7 +61,6 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
   const foodsRef = useRef<Food[]>([])
   const particlesRef = useRef<Particle[]>([])
   const scoreRef = useRef(0)
-  const bestRef = useRef(0)
   const foodsEatenRef = useRef(0)
   const runningRef = useRef(false)
   const gameOverRef = useRef(false)
@@ -71,7 +73,6 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
 
   // React state for HUD re-renders
   const [score, setScore] = useState(0)
-  const [best, setBest] = useState(0)
   const [difficulty, setDifficulty] = useState<Difficulty>('Normal')
   const [walls, setWalls] = useState(false)
   const [gameOver, setGameOver] = useState(false)
@@ -364,15 +365,12 @@ export default function SnakeGame({ onBack }: { onBack?: () => void }) {
   }, [spawnApple, spawnParticles, maybeSpawnBonus])
 
   const triggerGameOver = useCallback(() => {
+    if (gameOverRef.current) return
     runningRef.current = false
     gameOverRef.current = true
     flashCountRef.current = 0
 
-    const score = scoreRef.current
-    if (score > bestRef.current) {
-      bestRef.current = score
-      setBest(score)
-    }
+    submit(scoreRef.current)
     setGameOver(true)
 
     // flash animation: 3 flashes = 18 frames (each ~100ms)

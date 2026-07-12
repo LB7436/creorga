@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { ACCENT, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Types & Config ────────────────────────────────────────────────────────────
 
@@ -78,6 +79,33 @@ function saveBest(d: Difficulty, n: number) {
     const b = loadBest()
     if (!b[d] || n < b[d]!) { b[d] = n; localStorage.setItem('mastermind_best', JSON.stringify(b)) }
   } catch { /* ignore */ }
+}
+
+/** Pondération par difficulté du score global (higher-is-better). */
+const SCORE_MULT: Record<Difficulty, number> = { easy: 1, normal: 2, hard: 3 }
+
+/** Nb d'essais (lower-is-better) converti en points higher-is-better pour le leaderboard global. */
+function triesToPoints(d: Difficulty, tries: number): number {
+  return Math.max(0, DIFF[d].maxTries + 1 - tries) * 100 * SCORE_MULT[d]
+}
+
+/** Migration one-shot : l'ancien record 'mastermind_best' (JSON par difficulté, nb d'essais)
+ *  est converti en points et reporté vers le stockage du hook partagé. */
+function migrateLegacyMastermindBest() {
+  try {
+    const legacy = loadBest()
+    const converted = (['easy', 'normal', 'hard'] as Difficulty[])
+      .map(d => {
+        const tries = legacy[d]
+        return typeof tries === 'number' && Number.isFinite(tries) ? triesToPoints(d, tries) : null
+      })
+      .filter((v): v is number => v !== null)
+    if (converted.length === 0) return
+    const legacyMax = Math.max(...converted)
+    const key = 'creorga.game.best.mastermind'
+    const current = Number(localStorage.getItem(key) || 0)
+    if (legacyMax > current) localStorage.setItem(key, String(legacyMax))
+  } catch { /* */ }
 }
 
 // ─── Color Peg ────────────────────────────────────────────────────────────────
@@ -167,6 +195,10 @@ export default function MastermindGame({ onBack }: { onBack?: () => void }) {
   const [best, setBest] = useState(loadBest)
   const [showConfetti, setShowConfetti] = useState(false)
   const [codeRevealIdx, setCodeRevealIdx] = useState(0)
+  // Migration one-shot de l'ancien record JSON par difficulté vers le hook partagé
+  useEffect(() => { migrateLegacyMastermindBest() }, [])
+  const { submit: submitScore } = useGameScore('mastermind')
+  const submittedRef = useRef(false)
   const cfg = difficulty ? DIFF[difficulty] : DIFF.normal
 
   function startGame(d: Difficulty) {
@@ -179,6 +211,7 @@ export default function MastermindGame({ onBack }: { onBack?: () => void }) {
     setLost(false)
     setShowConfetti(false)
     setCodeRevealIdx(0)
+    submittedRef.current = false
   }
 
   function reset() {
@@ -238,9 +271,17 @@ export default function MastermindGame({ onBack }: { onBack?: () => void }) {
       if (difficulty) {
         saveBest(difficulty, newGuesses.length)
         setBest(loadBest())
+        if (!submittedRef.current) {
+          submittedRef.current = true
+          submitScore(triesToPoints(difficulty, newGuesses.length))
+        }
       }
     } else if (newGuesses.length >= cfg.maxTries) {
       setLost(true)
+      if (!submittedRef.current) {
+        submittedRef.current = true
+        submitScore(0)
+      }
     } else {
       setCurrent([null, null, null, null])
       setSelectedPeg(0)

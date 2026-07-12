@@ -1,34 +1,64 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronLeft, RotateCcw, Zap, Hash, Grid } from 'lucide-react'
 import { ACCENT, ACCENT2, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type GameMode = 'reaction' | 'sequence' | 'numbertap'
 type ReactionPhase = 'idle' | 'waiting' | 'ready' | 'result' | 'early'
 
 const STORAGE_KEY = 'reaction_stats'
+const HOOK_BEST_KEY = 'creorga.game.best.reaction'
+
+// ms lower-is-better → points higher-is-better attendus par le leaderboard
+const msToPoints = (ms: number) => Math.max(0, 100000 - Math.round(ms))
+
 interface Stats {
-  best: number
   times: number[]
 }
 function loadStats(): Stats {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw) as Stats
+    if (raw) {
+      const parsed = JSON.parse(raw) as { times?: number[] }
+      return { times: Array.isArray(parsed.times) ? parsed.times : [] }
+    }
   } catch { /* noop */ }
-  return { best: 0, times: [] }
+  return { times: [] }
 }
 function saveStats(s: Stats) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)) } catch { /* noop */ }
 }
 
+let legacyBestMigrated = false
+/** Migration one-shot de l'ancien record JSON (ms, lower-is-better) vers la clé du hook useGameScore. */
+function migrateLegacyBest() {
+  if (legacyBestMigrated) return
+  legacyBestMigrated = true
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return
+    const legacy = JSON.parse(raw) as { best?: number }
+    if (typeof legacy.best === 'number' && legacy.best > 0) {
+      const converted = msToPoints(legacy.best)
+      const current = Number(localStorage.getItem(HOOK_BEST_KEY) || 0)
+      if (converted > current) localStorage.setItem(HOOK_BEST_KEY, String(converted))
+    }
+  } catch { /* noop */ }
+}
+
 // ─── Reaction Time Mode ───────────────────────────────────────────────────────
 function ReactionTimeMode() {
+  migrateLegacyBest()
+  const { best, submit } = useGameScore('reaction')
   const [phase, setPhase] = useState<ReactionPhase>('idle')
   const [time, setTime] = useState(0)
   const [stats, setStats] = useState<Stats>(loadStats)
   const startRef = useRef<number>(0)
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
+
+  // record affiché en ms, reconstruit depuis les points du hook
+  const bestMs = best > 0 ? 100000 - best : 0
 
   useEffect(() => () => clearTimeout(timerRef.current), [])
 
@@ -51,11 +81,9 @@ function ReactionTimeMode() {
       const ms = Date.now() - startRef.current
       setTime(ms)
       setPhase('result')
+      submit(msToPoints(ms))
       setStats(prev => {
-        const next: Stats = {
-          best: prev.best === 0 ? ms : Math.min(prev.best, ms),
-          times: [...prev.times, ms].slice(-10),
-        }
+        const next: Stats = { times: [...prev.times, ms].slice(-10) }
         saveStats(next)
         return next
       })
@@ -109,7 +137,7 @@ function ReactionTimeMode() {
       {stats.times.length > 0 && (
         <div style={{ display: 'flex', gap: 8 }}>
           {[
-            { label: 'Meilleur', value: `${stats.best}ms`, color: ACCENT },
+            { label: 'Meilleur', value: `${bestMs}ms`, color: ACCENT },
             { label: 'Moyenne', value: `${avg}ms`, color: TEXT },
             { label: 'Tentatives', value: stats.times.length, color: MUTED },
           ].map(s => (
@@ -148,7 +176,7 @@ function ReactionTimeMode() {
             {rating(time).text}
           </span>
         )}
-        {phase === 'result' && stats.best === time && (
+        {phase === 'result' && bestMs === time && (
           <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 700 }}>🏆 Nouveau record !</span>
         )}
       </button>
@@ -163,7 +191,7 @@ function ReactionTimeMode() {
             {stats.times.map((t, i) => {
               const h = Math.max(8, Math.round((t / maxTime) * 56))
               const isLast = i === stats.times.length - 1
-              const isBest = t === stats.best
+              const isBest = t === bestMs
               return (
                 <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
                   <div style={{

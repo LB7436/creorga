@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronLeft, Trophy, RotateCcw, Timer } from 'lucide-react'
 import { ACCENT, ACCENT2, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Size = 3 | 4 | 5
@@ -58,6 +59,31 @@ function loadBest(n: Size): BestScore | null {
 function saveBest(n: Size, score: BestScore) {
   try { localStorage.setItem(`sliding_best_${n}`, JSON.stringify(score)) } catch { /* noop */ }
 }
+
+// Score leaderboard higher-is-better : base par taille moins 1000 pts par coup, moins le temps (s,
+// plafonné à 999) — même ordre que le record local : coups d'abord, temps en départage.
+const SCORE_BASE: Record<Size, number> = { 3: 100000, 4: 400000, 5: 1000000 }
+
+function solveScore(n: Size, moves: number, time: number): number {
+  return Math.max(0, Math.floor(SCORE_BASE[n] - moves * 1000 - Math.min(time, 999)))
+}
+
+// Migration one-time du record : sliding_best_N est un JSON complexe ({ moves, time }
+// lower-is-better par taille), donc pas de legacyKey possible — on convertit le meilleur score
+// équivalent vers la clé simple lue par useGameScore('sliding').
+;(() => {
+  try {
+    const migrated = ([3, 4, 5] as Size[]).reduce((acc, n) => {
+      const legacy = loadBest(n)
+      return legacy && Number.isFinite(legacy.moves) && Number.isFinite(legacy.time)
+        ? Math.max(acc, solveScore(n, legacy.moves, legacy.time))
+        : acc
+    }, 0)
+    const key = 'creorga.game.best.sliding'
+    const current = Number(localStorage.getItem(key) || 0)
+    if (migrated > current) localStorage.setItem(key, String(migrated))
+  } catch { /* noop */ }
+})()
 
 // ─── SVG Die for confetti-like particle ───────────────────────────────────────
 function Confetti({ active }: { active: boolean }) {
@@ -163,6 +189,7 @@ function Tile({ value, index, n, isCorrect, onClick, tileSize }: TileProps) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function SlidingPuzzleGame({ onBack }: { onBack?: () => void }) {
+  const { submit } = useGameScore('sliding')
   const [size, setSize] = useState<Size>(4)
   const [tiles, setTiles] = useState<number[]>(() => createShuffled(4))
   const [moves, setMoves] = useState(0)
@@ -171,6 +198,7 @@ export default function SlidingPuzzleGame({ onBack }: { onBack?: () => void }) {
   const [won, setWon] = useState(false)
   const [best, setBest] = useState<BestScore | null>(() => loadBest(4))
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const submittedRef = useRef(false)
 
   const goal = buildGoal(size)
 
@@ -191,6 +219,7 @@ export default function SlidingPuzzleGame({ onBack }: { onBack?: () => void }) {
     setRunning(false)
     setWon(false)
     setBest(loadBest(n))
+    submittedRef.current = false
   }, [])
 
   const moveTile = useCallback((idx: number) => {
@@ -223,6 +252,11 @@ export default function SlidingPuzzleGame({ onBack }: { onBack?: () => void }) {
       if (!prev || moves < prev.moves || (moves === prev.moves && elapsed < prev.time)) {
         saveBest(size, score)
         setBest(score)
+      }
+      // Une seule soumission par partie (un swipe post-victoire peut re-déclencher cet effet).
+      if (!submittedRef.current) {
+        submittedRef.current = true
+        submit(solveScore(size, moves, elapsed))
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

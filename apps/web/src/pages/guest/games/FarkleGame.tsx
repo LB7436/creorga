@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronLeft, Trophy, RotateCcw } from 'lucide-react'
 import { ACCENT, ACCENT2, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
+import { useGameScore } from './useGameScore'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TARGET = 10000
@@ -162,6 +163,7 @@ interface HistoryEntry { turn: number; player: string; pts: number; total: numbe
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function FarkleGame({ onBack }: { onBack?: () => void }) {
+  const { submit } = useGameScore('farkle')
   const [pScore, setPScore] = useState(0)
   const [cScore, setCScore] = useState(0)
   const [pOnBoard, setPOnBoard] = useState(false)
@@ -178,8 +180,17 @@ export default function FarkleGame({ onBack }: { onBack?: () => void }) {
   const [turnNum, setTurnNum] = useState(1)
   const [preview, setPreview] = useState<ScoreBreakdown>({ total: 0, lines: [] })
   const cpuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pScoreRef = useRef(0)        // score joueur à jour pour les closures CPU
+  const submittedRef = useRef(false) // un seul submit par partie
 
   const isOver = phase === 'over'
+
+  // Fin de partie : soumet le score du joueur une seule fois (refs stables face aux closures).
+  const submitFinal = (playerScore: number) => {
+    if (submittedRef.current) return
+    submittedRef.current = true
+    submit(playerScore)
+  }
 
   // Update score preview whenever kept changes
   useEffect(() => {
@@ -264,6 +275,7 @@ export default function FarkleGame({ onBack }: { onBack?: () => void }) {
 
     const newTotal = pScore + newTurnScore
     setPScore(newTotal)
+    pScoreRef.current = newTotal
     if (!pOnBoard) setPOnBoard(true)
     setHistory(h => [...h, { turn: turnNum, player: 'Vous', pts: newTurnScore, total: newTotal }])
     setTurnScore(0)
@@ -274,6 +286,7 @@ export default function FarkleGame({ onBack }: { onBack?: () => void }) {
       setPhase('over')
       setMsg(`Vous gagnez avec ${newTotal} points !`)
       setMsgColor('#22c55e')
+      submitFinal(newTotal)
       return
     }
 
@@ -331,6 +344,7 @@ export default function FarkleGame({ onBack }: { onBack?: () => void }) {
           setPhase('over')
           setMsg(`CPU gagne avec ${newCTotal} points !`)
           setMsgColor('#ef4444')
+          submitFinal(pScoreRef.current)
         } else {
           setMsg(`CPU banque ${cpuTurnScore} pts → total ${newCTotal}`)
           setMsgColor(MUTED)
@@ -365,6 +379,8 @@ export default function FarkleGame({ onBack }: { onBack?: () => void }) {
 
   const reset = () => {
     if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current)
+    submittedRef.current = false
+    pScoreRef.current = 0
     setPScore(0); setCScore(0)
     setPOnBoard(false); setCOnBoard(false)
     setTurn('p'); setDice([]); setKept([]); setRolling([])
