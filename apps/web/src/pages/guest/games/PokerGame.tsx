@@ -24,6 +24,7 @@ interface Player {
   folded: boolean
   isDealer: boolean
   isAllIn: boolean
+  hasActed: boolean    // a agi depuis la dernière relance / le début de la street
 }
 
 interface GameState {
@@ -88,23 +89,37 @@ function score5(cards: Card[]): { score: number; name: string } {
   const vals = cards.map(c => rankVal(c.rank)).sort((a, b) => b - a)
   const suits = cards.map(c => c.suit)
   const flush = suits.every(s => s === suits[0])
-  const straight = (vals.every((v, i) => i === 0 || v === vals[i - 1] - 1)) ||
-    (vals[0] === 12 && vals[1] === 3 && vals[2] === 2 && vals[3] === 1 && vals[4] === 0)
+  const isWheel = vals[0] === 12 && vals[1] === 3 && vals[2] === 2 && vals[3] === 1 && vals[4] === 0
+  const isRun = vals.every((v, i) => i === 0 || v === vals[i - 1] - 1)
+  const straight = isRun || isWheel
+  // La roue A-2-3-4-5 vaut « hauteur 5 » (pas As-haut) : sinon elle battrait à tort une suite au Roi.
+  const straightHigh = isWheel ? 3 : vals[0]
+
   const counts: Record<number, number> = {}
   vals.forEach(v => { counts[v] = (counts[v] || 0) + 1 })
-  const freq = Object.values(counts).sort((a, b) => b - a)
-  const topVal = vals[0]
+  // Rangs distincts ordonnés par (fréquence desc, puis valeur desc) = ordre canonique
+  // de départage : rang du groupe (paire/brelan/carré) d'abord, puis kickers décroissants.
+  const groups = Object.keys(counts).map(Number).sort((a, b) => counts[b] - counts[a] || b - a)
+  const freq = groups.map(v => counts[v]).sort((a, b) => b - a)
+
+  // Score = catégorie dominante puis 5 clés de départage (base 16, offset +1),
+  // pour départager correctement kickers et rangs de paires (fini paire-2 == paire-As).
+  const enc = (cat: number, tb: number[]): number => {
+    let s = cat
+    for (let i = 0; i < 5; i++) s = s * 16 + ((tb[i] ?? -1) + 1)
+    return s
+  }
 
   if (straight && flush)
-    return { score: 8_000_000 + topVal, name: topVal === 12 ? 'Quinte Royale' : 'Quinte Flush' }
-  if (freq[0] === 4) return { score: 7_000_000 + topVal, name: 'Carré' }
-  if (freq[0] === 3 && freq[1] === 2) return { score: 6_000_000 + topVal, name: 'Full House' }
-  if (flush) return { score: 5_000_000 + topVal, name: 'Couleur' }
-  if (straight) return { score: 4_000_000 + topVal, name: 'Suite' }
-  if (freq[0] === 3) return { score: 3_000_000 + topVal, name: 'Brelan' }
-  if (freq[0] === 2 && freq[1] === 2) return { score: 2_000_000 + topVal, name: 'Double Paire' }
-  if (freq[0] === 2) return { score: 1_000_000 + topVal, name: 'Paire' }
-  return { score: topVal, name: 'Carte haute' }
+    return { score: enc(8, [straightHigh]), name: straightHigh === 12 ? 'Quinte Royale' : 'Quinte Flush' }
+  if (freq[0] === 4) return { score: enc(7, groups), name: 'Carré' }
+  if (freq[0] === 3 && freq[1] === 2) return { score: enc(6, groups), name: 'Full House' }
+  if (flush) return { score: enc(5, vals), name: 'Couleur' }
+  if (straight) return { score: enc(4, [straightHigh]), name: 'Suite' }
+  if (freq[0] === 3) return { score: enc(3, groups), name: 'Brelan' }
+  if (freq[0] === 2 && freq[1] === 2) return { score: enc(2, groups), name: 'Double Paire' }
+  if (freq[0] === 2) return { score: enc(1, groups), name: 'Paire' }
+  return { score: enc(0, vals), name: 'Carte haute' }
 }
 
 function evalHand(cards: Card[]): { score: number; name: string } {
@@ -143,6 +158,7 @@ function initPlayers(dealer: PlayerPos, prevPlayers?: Player[]): Player[] {
     folded: false,
     isDealer: id === dealer,
     isAllIn: false,
+    hasActed: false,
   }))
 }
 
@@ -615,6 +631,15 @@ function applyAction(s: GameState, pid: PlayerPos, action: Action): GameState {
     actionLabel = `Relance ${totalPut}`
   }
 
+  // Le joueur a agi. Une relance rouvre le tour : tous les autres joueurs encore
+  // en jeu (non couchés, non all-in) doivent à nouveau répondre.
+  p.hasActed = true
+  if (action === 'raise') {
+    players.forEach(other => {
+      if (other.id !== pid && !other.folded && !other.isAllIn) other.hasActed = false
+    })
+  }
+
   // Check if betting round is over
   const bettingDone = checkBettingDone(players, currentBet, s.phase)
 
@@ -636,17 +661,19 @@ function applyAction(s: GameState, pid: PlayerPos, action: Action): GameState {
 }
 
 function checkBettingDone(players: Player[], currentBet: number, _phase: Phase): boolean {
-  const active = players.filter(p => !p.folded && !p.isAllIn)
   // Only 1 or 0 non-folded players left
   const notFolded = players.filter(p => !p.folded)
   if (notFolded.length <= 1) return true
-  // All active players have bet the same amount
-  return active.every(p => p.bet === currentBet)
+  const active = players.filter(p => !p.folded && !p.isAllIn)
+  // Le tour n'est clos que si TOUS les joueurs encore en jeu ont AGI depuis la
+  // dernière relance ET égalisé la mise. Sinon un simple check post-flop clôturait
+  // le tour (les autres ne jouaient jamais) et la grosse blinde n'avait pas son option préflop.
+  return active.every(p => p.hasActed && p.bet === currentBet)
 }
 
 function advancePhase(s: GameState): GameState {
-  // Reset bets for new round
-  const players = s.players.map(p => ({ ...p, bet: 0 }))
+  // Reset bets AND acted-flag for new round (chacun doit rejouer sur la nouvelle street)
+  const players = s.players.map(p => ({ ...p, bet: 0, hasActed: false }))
   const notFolded = players.filter(p => !p.folded)
 
   // Only 1 player left — they win
