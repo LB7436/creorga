@@ -720,27 +720,57 @@ function advancePhase(s: GameState): GameState {
 
 function doShowdown(s: GameState): GameState {
   const players = s.players.map(p => ({ ...p }))
-  const active = players.filter(p => !p.folded)
 
-  let bestScore = -1
-  active.forEach(p => {
-    const { score } = evalHand([...p.hand, ...s.community])
-    if (score > bestScore) bestScore = score
+  // Score de chaque joueur encore en lice, calculé une seule fois.
+  const scoreOf = new Map<PlayerPos, number>()
+  players.forEach(p => {
+    if (!p.folded) scoreOf.set(p.id, evalHand([...p.hand, ...s.community]).score)
   })
 
-  const winners = active.filter(p => evalHand([...p.hand, ...s.community]).score === bestScore)
-  const share = Math.floor(s.pot / winners.length)
-  winners.forEach(w => { players[w.id].chips += share })
+  // Répartition en side-pots par paliers de contribution (totalBet) : un joueur
+  // all-in short-stack ne peut gagner que le pot qu'il a réellement couvert, le
+  // surplus mis par les gros tapis forme un pot annexe disputé entre eux seuls.
+  const payouts: Record<number, number> = {}
+  players.forEach(p => { payouts[p.id] = 0 })
+
+  const levels = [...new Set(players.map(p => p.totalBet).filter(t => t > 0))].sort((a, b) => a - b)
+  let prev = 0
+  for (const level of levels) {
+    const layerPer = level - prev
+    const contributors = players.filter(p => p.totalBet >= level)
+    const potLayer = layerPer * contributors.length
+    const eligible = contributors.filter(p => !p.folded)
+    if (eligible.length > 0 && potLayer > 0) {
+      const best = Math.max(...eligible.map(p => scoreOf.get(p.id) ?? -1))
+      const winners = eligible.filter(p => scoreOf.get(p.id) === best)
+      const share = Math.floor(potLayer / winners.length)
+      let remainder = potLayer - share * winners.length
+      winners.forEach(w => {
+        payouts[w.id] += share
+        if (remainder > 0) { payouts[w.id] += 1; remainder-- } // jeton impair au(x) premier(s)
+      })
+    }
+    prev = level
+  }
+
+  players.forEach(p => { p.chips += payouts[p.id] })
+
+  // Vainqueur(s) du pot principal (meilleure main) pour le message et le surlignage.
+  const overallBest = Math.max(...[...scoreOf.values()])
+  const mainWinners = players.filter(p => !p.folded && scoreOf.get(p.id) === overallBest)
+  const humanWon = payouts[0] > 0
 
   let result = ''
-  if (winners.length === 1) {
-    const w = winners[0]
-    const hand = evalHand([...players[w.id].hand, ...s.community])
+  if (mainWinners.length === 1) {
+    const w = mainWinners[0]
+    const hand = evalHand([...w.hand, ...s.community])
     result = w.id === 0
-      ? `Vous gagnez avec ${hand.name} ! +${share} 🎉`
-      : `${w.name} gagne avec ${hand.name} 😞`
+      ? `Vous gagnez avec ${hand.name} ! +${payouts[0]} 🎉`
+      : humanWon
+        ? `${w.name} gagne avec ${hand.name} — vous récupérez +${payouts[0]}`
+        : `${w.name} gagne avec ${hand.name} 😞`
   } else {
-    result = `Égalité ! Pot partagé (${share} chacun) 🤝`
+    result = humanWon ? `Égalité — vous remportez +${payouts[0]} 🤝` : `Égalité ! Pot partagé 🤝`
   }
 
   // Bust check — give 1000 chips back
@@ -750,7 +780,7 @@ function doShowdown(s: GameState): GameState {
 
   return {
     ...s, players, phase: 'showdown',
-    result, winners: winners.map(w => w.id as PlayerPos),
+    result, winners: players.filter(p => payouts[p.id] > 0).map(w => w.id as PlayerPos),
     bettingDone: false,
   }
 }
