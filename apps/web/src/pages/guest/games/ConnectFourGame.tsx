@@ -405,8 +405,20 @@ export default function ConnectFourGame({ onBack }: { onBack?: () => void }) {
   const resetAll = () => { reset(); setScoreP(0); setScoreCpu(0); setDraws(0) }
 
   // ── Layout ──
-  // Fit board into ~340px container
-  const cellPx = 44
+  // cellPx responsive : les 7 colonnes doivent tenir dans le conteneur, sinon
+  // overflow:hidden coupe les colonnes de droite sur écrans ≤ 320px (injouable).
+  const boardAreaRef = useRef<HTMLDivElement>(null)
+  const [cellPx, setCellPx] = useState(44)
+  useEffect(() => {
+    const measure = () => {
+      const w = boardAreaRef.current?.clientWidth ?? 340
+      const avail = w - 32 // padding 16px de chaque côté
+      setCellPx(Math.max(34, Math.min(44, Math.floor(avail / COLS))))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
   const boardW = COLS * cellPx
 
   const statusText = winner === 1 ? 'Vous gagnez ! 🎉'
@@ -493,7 +505,7 @@ export default function ConnectFourGame({ onBack }: { onBack?: () => void }) {
       </div>
 
       {/* Board area */}
-      <div style={{
+      <div ref={boardAreaRef} style={{
         flex: 1, display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center', padding: '12px 16px',
         overflow: 'hidden',
