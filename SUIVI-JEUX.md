@@ -37,9 +37,10 @@
 - [x] onBack aligné optionnel (Blackjack, Solitaire, Chess)
 - [x] `useGameScore` auto-remplit nom+table (profil guest + ?table=) -> tout jeu sur ce hook envoie un score identifié (vérifié : leaderboard maxiburger montre « Testeur »/table 7)
 - [x] Découpage CreorgaOriginals -> originalsShared + 6 fichiers-jeux (7 chunks distincts, vérifié Playwright)
-- [ ] Migration des ~30 jeux à clés localStorage ad-hoc vers useGameScore (pour couverture leaderboard totale)
+- [x] Migration des 31 jeux vers useGameScore (id catalogue + legacyKey pour migration record) + fix ids basket3d/billard — build vert tsc+vite, commit d9e35d4
 - [x] i18n : GameOverModal (écran de fin de CHAQUE jeu) traduit FR/EN/DE/PT (vérifié Playwright lang=en)
-- [ ] i18n : hub GamesSection + catalog (gros rewiring, GamesSection n'a aucun accès langue actuellement)
+- [x] i18n 4b-1 : 97 clés `games_*` (FR/EN/DE/PT) ajoutées dans i18n.ts, tsc strict vert, commit cf6cc5f (rewiring de GamesSection = 4b-2, pas encore fait)
+- [ ] i18n 4b-2 : rewiring GamesSection (rethread `t`, split en games/hub/) + catalog `Record<GuestLang,string>`
 - [ ] Primitives UI partagées · progression/XP profil
 
 **Reste étape 4** : migration scores des jeux legacy + i18n + primitives/XP (gros volume, à faire en Opus high sur une session dédiée).
@@ -48,11 +49,20 @@
 
 ## Étape 6 — CASTLE RUSH (C1, titre phare) ⬜
 
-## Étape 7 — Lot D1 catastrophes ⬜
-Rami, Rummikub, Poker (side-pots), Farkle, Bingo, fusion Basket, Run21/TriTours terminer ou retirer.
+## Étape 7 — Lot D1 catastrophes 🔶 partiel (2026-07-12, session Opus)
+- [x] Farkle : Hot Dice joueur (relance après tout scoré), triche CPU (re-score des dés gardés), CPU-jamais-Farkle — commit c76a998
+- [x] Blackjack : double gagnant payé à mise simple (closure périmée → betAmount en paramètre), timers non nettoyés (helper later + cleanup) — commit b98be28
+- [x] 421 : hiérarchie des rangs (carte haute chevauchait paires → −1000), distribution jetons (perdant recevait SA combinaison au lieu de celle du gagnant) — commit 95c3490
+- [ ] Rami, Rummikub, Poker (side-pots + évaluateur kickers/wheel + tours d'enchères), Bingo (tirage/fin)
+- [ ] Run21 / TriTours : terminer règles → available:true OU retirer ; Erreur 11 : refondre OU available:false
+- Note : Basket `basket3d` + Billard `billard` — ids de score déjà corrigés en 4a (commit d9e35d4) ; reste fixes gameplay REVUE
 
-## Étape 8 — Lots D2+D3 ⬜
-Fixes par jeu de REVUE-JEUX-DETAIL.md (setInterval→useGameLoop, cibles 44 px, IA, règles) + polish.
+## Étape 8 — Lots D2+D3 🔶 partiel (2026-07-12, session Opus)
+- [x] MiniCard (arcade3d) : trèfle rouge / cœur 'H' noir → couleur correcte dans TOUS les jeux de cartes — commit c3a44bf
+- [x] Bataille (WarGame) : freshDeal() appelé 2× → 2 paquets différents (cartes dupliquées) → un seul mélange — commit c3a44bf
+- [x] Quiz : réponse « Saké » accentuée introuvable dans les options → question injouable — commit c3a44bf
+- [x] Hangman : mots imprenables (accents/tirets) + indice tueur (fausse lettre / instakill) — commit cef779b
+- [ ] Reste REVUE-JEUX-DETAIL.md : setInterval→useGameLoop (Snake/2048/Simon/Memory/Reaction/Motus), cibles 44px (Échecs/Démineur/Taquin), flag mobile Démineur, touch Solitaire, Motus (liste de mots corrompue ~250 entrées), NumberMemory (bouton « mémorisé »), ConnectFour (overflow 320px), IA (reversi coins, P4 profondeur), règles (solitaire re-pioche, yahtzee bonus 63, scopa primiera) + polish accents
 
 ---
 ### Notes techniques pour la reprise
