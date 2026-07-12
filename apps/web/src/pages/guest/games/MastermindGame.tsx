@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { ACCENT, SURFACE, SURFACE2, BORDER, TEXT, MUTED } from './theme'
 import { useGameScore } from './useGameScore'
@@ -163,18 +163,30 @@ function ClueDisplay({ black, white }: { black: number; white: number }) {
 // ─── Confetti ─────────────────────────────────────────────────────────────────
 
 function Confetti() {
-  const pieces = Array.from({ length: 24 }, (_, i) => i)
+  // Positions/durées tirées une seule fois au montage : un re-render du parent
+  // pendant l'animation ne doit pas re-tirer les valeurs (sinon les confettis « sautent »).
+  const pieces = useMemo(
+    () => Array.from({ length: 24 }, (_, i) => ({
+      key: i,
+      left: Math.random() * 100,
+      round: Math.random() > 0.5,
+      color: ALL_COLORS[i % ALL_COLORS.length],
+      duration: 1.2 + Math.random() * 1.2,
+      delay: Math.random() * 0.8,
+    })),
+    [],
+  )
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
-      {pieces.map(i => (
-        <div key={i} style={{
+      {pieces.map(p => (
+        <div key={p.key} style={{
           position: 'absolute',
-          left: `${Math.random() * 100}%`,
+          left: `${p.left}%`,
           top: '-10px',
           width: 8, height: 8,
-          borderRadius: Math.random() > 0.5 ? '50%' : 2,
-          background: ALL_COLORS[i % ALL_COLORS.length],
-          animation: `confettiFall ${1.2 + Math.random() * 1.2}s ${Math.random() * 0.8}s ease-in forwards`,
+          borderRadius: p.round ? '50%' : 2,
+          background: p.color,
+          animation: `confettiFall ${p.duration}s ${p.delay}s ease-in forwards`,
         }} />
       ))}
     </div>
@@ -199,6 +211,8 @@ export default function MastermindGame({ onBack }: { onBack?: () => void }) {
   useEffect(() => { migrateLegacyMastermindBest() }, [])
   const { submit: submitScore } = useGameScore('mastermind')
   const submittedRef = useRef(false)
+  const historyRef = useRef<HTMLDivElement>(null)
+  const shakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cfg = difficulty ? DIFF[difficulty] : DIFF.normal
 
   function startGame(d: Difficulty) {
@@ -206,7 +220,7 @@ export default function MastermindGame({ onBack }: { onBack?: () => void }) {
     setCode(makeCode(DIFF[d]))
     setGuesses([])
     setCurrent([null, null, null, null])
-    setSelectedPeg(null)
+    setSelectedPeg(0)
     setWon(false)
     setLost(false)
     setShowConfetti(false)
@@ -236,6 +250,17 @@ export default function MastermindGame({ onBack }: { onBack?: () => void }) {
     return () => clearTimeout(t)
   }, [won])
 
+  // Auto-scroll de l'historique vers le dernier essai soumis (sinon masqué dès ~7 essais)
+  useEffect(() => {
+    const el = historyRef.current
+    if (el) el.scrollTo({ top: el.scrollHeight })
+  }, [guesses.length])
+
+  // Nettoyage du timer de shake au démontage (évite un setState après unmount)
+  useEffect(() => () => {
+    if (shakeTimerRef.current) clearTimeout(shakeTimerRef.current)
+  }, [])
+
   function selectPeg(slotIdx: number) {
     if (over) return
     setSelectedPeg(slotIdx === selectedPeg ? null : slotIdx)
@@ -243,15 +268,13 @@ export default function MastermindGame({ onBack }: { onBack?: () => void }) {
 
   function pickColor(colorIdx: number) {
     if (over || selectedPeg === null) return
-    setCurrent(c => {
-      const next = [...c]
-      next[selectedPeg] = colorIdx
-      return next
-    })
-    // Auto-advance to next empty slot
-    const nextEmpty = current.findIndex((v, i) => i > selectedPeg && v === null)
-    if (nextEmpty !== -1) setSelectedPeg(nextEmpty)
-    else setSelectedPeg(null)
+    const slot = selectedPeg
+    const next = current.map((v, i) => (i === slot ? colorIdx : v))
+    setCurrent(next)
+    // Auto-advance circulaire : premier slot encore vide, où qu'il soit (calculé sur l'état frais)
+    const order = Array.from({ length: CODE_LEN }, (_, k) => (slot + 1 + k) % CODE_LEN)
+    const nextEmpty = order.find(i => next[i] === null)
+    setSelectedPeg(nextEmpty ?? null)
   }
 
   function submit() {
@@ -264,7 +287,8 @@ export default function MastermindGame({ onBack }: { onBack?: () => void }) {
     // Shake animation
     const rowIdx = newGuesses.length - 1
     setShakingRow(rowIdx)
-    setTimeout(() => setShakingRow(null), 400)
+    if (shakeTimerRef.current) clearTimeout(shakeTimerRef.current)
+    shakeTimerRef.current = setTimeout(() => setShakingRow(null), 400)
 
     if (result.black === CODE_LEN) {
       setWon(true)
@@ -457,7 +481,7 @@ export default function MastermindGame({ onBack }: { onBack?: () => void }) {
       )}
 
       {/* Guess history */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 260, overflowY: 'auto' }}>
+      <div ref={historyRef} style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 260, overflowY: 'auto' }}>
         {guesses.map((g, ri) => (
           <div key={ri} style={{
             display: 'flex', alignItems: 'center', gap: 10,
