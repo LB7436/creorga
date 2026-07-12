@@ -30,7 +30,8 @@ Détail complet dans `SUIVI-JEUX.md` et `REVUE-JEUX-DETAIL.md`.
 - NE PAS re-corriger les jeux déjà traités sans preuve d'un nouveau bug.
 
 # MISSION (par priorité)
-## P1 — Smoke-tests navigateur des 3 jeux nouvellement publiés (la seule vérif différée)
+## P1 — Smoke-tests navigateur des 3 jeux publiés — ✅ FAIT (2026-07-12)
+> Les 3 jeux ont été smoke-testés au navigateur : lancement, jeu réel jusqu'à la fin, GameOverModal, rejouer, retour — tous OK, 0 exception JS. 2 bugs trouvés & corrigés : (a) MiniCard imbriquait `<button>` dans `<button>` sur Run 21 (rendu `<div>` sans onClick) ; (b) Tri-Tours n'affichait pas le bonus +200 de victoire. Détail dans SUIVI-JEUX.md. **Ne pas refaire.** (Section d'origine conservée ci-dessous pour référence.)
 Pour `run21`, `tritowers`, `erreur11` : confirmer au navigateur qu'ils **se lancent**, se **jouent**
 (plusieurs actions réelles), atteignent la **fin de partie** (GameOverModal s'affiche), **rejouent**,
 avec **0 erreur console**. Ce sont des jeux qui passent maintenant devant les clients — c'est la
