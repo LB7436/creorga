@@ -137,15 +137,17 @@ export default function BasketballGame({ onBack }: { onBack?: () => void }) {
 
       // Physique
       if (ball.flying) {
+        const prevY = ball.y
         ball.vy += GRAVITY
         ball.x += ball.vx
         ball.y += ball.vy
 
-        // Collision panier (traverse le cercle vers le bas)
-        const dx = ball.x - hoop.x
-        const dy = ball.y - hoop.y
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        if (!scoredThisShotRef.current && dist < hoop.radius * 0.6 && ball.vy > 0) {
+        // Panier validé : le ballon traverse le plan de l'anneau PAR LE HAUT en
+        // descendant, à l'intérieur du cercle — plus fiable qu'une simple distance
+        // (qui pouvait valider un ballon entrant par le côté).
+        const withinRim = Math.abs(ball.x - hoop.x) < hoop.radius * 0.7
+        const crossedDown = prevY < hoop.y && ball.y >= hoop.y && ball.vy > 0
+        if (!scoredThisShotRef.current && withinRim && crossedDown) {
           scoredThisShotRef.current = true
           const pos = SHOT_POSITIONS[positionIndexRef.current % SHOT_POSITIONS.length]
           const points = pos.dist === 'proche' ? 2 : 3
@@ -200,7 +202,9 @@ export default function BasketballGame({ onBack }: { onBack?: () => void }) {
     if (power < 2) return
 
     const ball = ballRef.current
-    ball.vx = (dx / 40)
+    // vx à la MÊME échelle que vy (dx/8, comme power = magnitude/8) et borné :
+    // avant, dx/40 rendait la visée latérale quasi impossible (tir toujours vertical).
+    ball.vx = Math.max(-14, Math.min(14, dx / 8))
     ball.vy = -power
     ball.flying = true
   }
