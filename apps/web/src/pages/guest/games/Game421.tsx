@@ -58,8 +58,10 @@ function detectCombo(rawDice: number[]): Combo {
   const isSeq = sorted[1] === sorted[0] + 1 && sorted[2] === sorted[1] + 1
   if (isSeq) return { label: `${sorted[0]}-${sorted[1]}-${sorted[2]}`, rank: 200 + sorted[2], tokens: 2 }
 
-  // High card
-  return { label: d.join('-'), rank: a * 100 + b * 10 + c, tokens: 1 }
+  // High card (main la plus faible) : on garde l'ordre lexicographique a>b>c
+  // mais décalé sous la bande séquence (200) — sinon 6-5-3 (=653) battait à tort
+  // une paire (500-566) ou un 4-2-x, une paire perdait contre du néant.
+  return { label: d.join('-'), rank: a * 100 + b * 10 + c - 1000, tokens: 1 }
 }
 
 // ─── SVG Die ──────────────────────────────────────────────────────────────────
@@ -325,7 +327,9 @@ export default function Game421({ onBack }: { onBack?: () => void }) {
     const winnerResult = results.reduce((best, r) =>
       r.combo.rank > best.combo.rank ? r : best
     )
-    const tokensTaken = loser.combo.tokens
+    // Au 421, le perdant reçoit les jetons de la combinaison du GAGNANT
+    // (pas de la sienne) : sinon plus la main perdante est bonne, plus on est puni.
+    const tokensTaken = winnerResult.combo.tokens
 
     setPlayers(prev => {
       const next = prev.map(p => {
