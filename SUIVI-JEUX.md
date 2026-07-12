@@ -54,6 +54,8 @@
 - [x] Blackjack : double gagnant payé à mise simple (closure périmée → betAmount en paramètre), timers non nettoyés (helper later + cleanup) — commit b98be28
 - [x] 421 : hiérarchie des rangs (carte haute chevauchait paires → −1000), distribution jetons (perdant recevait SA combinaison au lieu de celle du gagnant) — commit 95c3490
 - [x] Poker COMPLET : évaluateur (kickers + rang des groupes + quinte au 5) + tours d'enchères (flag hasActed) + side-pots all-in (répartition par paliers) — commits d3b1698, 00f119d
+- [x] Motus : liste de mots nettoyée (720 vrais mots FR 5 lettres, fin des mots-poubelle type « ABCDE ») — commit a6e2fa1
+- [x] Reversi : gel de partie (soft-lock du passage de tour) + double-comptage StrictMode — commit c4e56fd
 - [ ] Rami, Rummikub, Bingo (tirage/fin)
 - [ ] Run21 / TriTours : terminer règles → available:true OU retirer ; Erreur 11 : refondre OU available:false
 - Note : Basket `basket3d` + Billard `billard` — ids de score déjà corrigés en 4a (commit d9e35d4) ; reste fixes gameplay REVUE
