@@ -28,7 +28,6 @@ interface BoardSnapshot {
   turn: Color
   lastMove: Move | null
   castling: CastlingRights
-  captured: { w: Piece[]; b: Piece[] }
 }
 
 // ─── Unicode pieces ───────────────────────────────────────────────────────────
@@ -540,6 +539,11 @@ function computeCaptured(board: Board): { w: Piece[]; b: Piece[] } {
   return captured
 }
 
+// ─── Layout constants ─────────────────────────────────────────────────────────
+
+const CONTAINER_HPAD = 8 // padding horizontal du container (px) — réduit pour agrandir les cases tactiles
+const MIN_CELL = 32      // garde-fou : taille minimale d'une case (px)
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ChessGame({ onBack }: { onBack?: () => void }) {
@@ -558,26 +562,31 @@ export default function ChessGame({ onBack }: { onBack?: () => void }) {
   const boardRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const winSubmittedRef = useRef(false)
+  const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const captured = computeCaptured(board)
 
   // Responsive sizing
   useEffect(() => {
     const update = () => {
-      if (containerRef.current) {
-        const w = containerRef.current.clientWidth
-        const available = Math.min(w - 48, 560)
-        setCellSize(Math.floor(available / 8))
-      }
+      const w = containerRef.current?.clientWidth ?? window.innerWidth
+      // Réservé = padding horizontal du container (2×) + padding du plateau (2×8)
+      const available = Math.min(w - CONTAINER_HPAD * 2 - 16, 560)
+      setCellSize(Math.max(MIN_CELL, Math.floor(available / 8)))
     }
     update()
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
   }, [])
 
+  // Nettoyage du timer IA au démontage (évite un setState sur composant démonté)
+  useEffect(() => () => {
+    if (aiTimerRef.current) clearTimeout(aiTimerRef.current)
+  }, [])
+
   // Victoire du joueur = mat infligé au CPU : status 'checkmate' pendant que turn === 'b'.
-  // score = victoires cumulées de la session vs CPU. Flag ref obligatoire : le timer IA
-  // rebascule ensuite turn à 'w' (status inchangé) et l'effet se re-déclenche.
+  // score = victoires cumulées de la session vs CPU. Flag ref obligatoire : l'effet se
+  // re-déclenche quand `wins` change (et au double-run StrictMode) — on ne soumet qu'une fois.
   useEffect(() => {
     if (status === 'checkmate' && turn === 'b' && !winSubmittedRef.current) {
       winSubmittedRef.current = true
@@ -622,7 +631,7 @@ export default function ChessGame({ onBack }: { onBack?: () => void }) {
 
         // AI move
         setThinking(true)
-        setTimeout(() => {
+        aiTimerRef.current = setTimeout(() => {
           const aiMove = getBestMove(newBoard, newCastling, mv)
           if (aiMove) {
             const afterAI = applyMove(newBoard, aiMove)
@@ -632,9 +641,10 @@ export default function ChessGame({ onBack }: { onBack?: () => void }) {
             setCastling(aiCastling)
             setTurn('w')
             checkGameStatus(afterAI, 'w', aiCastling, aiMove)
-          } else {
-            setTurn('w')
           }
+          // Sinon : les Noirs (CPU) n'ont aucun coup légal → mat/pat déjà positionné avant
+          // le timer. On NE rebascule PAS turn à 'w', sinon le modal (qui lit turn === 'b')
+          // afficherait « Défaite » à la place de « Victoire ».
           setThinking(false)
         }, 50)
         return
@@ -659,19 +669,20 @@ export default function ChessGame({ onBack }: { onBack?: () => void }) {
   }, [board, castling, legalMoves, lastMove, selected, status, thinking, turn, checkGameStatus])
 
   const handleUndo = useCallback(() => {
-    if (history.length < 2) return // need at least player move + AI response
-    const snap = history[history.length - 2]
+    if (history.length === 0) return // un snapshot est stocké par tour complet (joueur + CPU)
+    const snap = history[history.length - 1]
     setBoard(snap.board)
     setTurn(snap.turn)
     setLastMove(snap.lastMove)
     setCastling(snap.castling)
-    setHistory(h => h.slice(0, -2))
+    setHistory(h => h.slice(0, -1))
     setSelected(null)
     setLegalMoves([])
-    setStatus('playing')
-  }, [history])
+    checkGameStatus(snap.board, snap.turn, snap.castling, snap.lastMove)
+  }, [history, checkGameStatus])
 
   const handleNewGame = useCallback(() => {
+    if (aiTimerRef.current) clearTimeout(aiTimerRef.current)
     winSubmittedRef.current = false
     setBoard(initBoard())
     setCastling(initCastling())
@@ -713,7 +724,7 @@ export default function ChessGame({ onBack }: { onBack?: () => void }) {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '24px 16px',
+        padding: `20px ${CONTAINER_HPAD}px`,
         fontFamily: 'system-ui, sans-serif',
       }}
     >
@@ -746,14 +757,14 @@ export default function ChessGame({ onBack }: { onBack?: () => void }) {
         </h1>
         <button
           onClick={handleUndo}
-          disabled={history.length < 2 || thinking}
+          disabled={history.length === 0 || thinking}
           style={{
             background: SURFACE2,
             border: `1px solid ${BORDER}`,
-            color: history.length < 2 || thinking ? MUTED : TEXT,
+            color: history.length === 0 || thinking ? MUTED : TEXT,
             padding: '8px 14px',
             borderRadius: 8,
-            cursor: history.length < 2 || thinking ? 'not-allowed' : 'pointer',
+            cursor: history.length === 0 || thinking ? 'not-allowed' : 'pointer',
             fontSize: 13,
             fontWeight: 600,
           }}
@@ -878,6 +889,7 @@ export default function ChessGame({ onBack }: { onBack?: () => void }) {
             gridTemplateRows: `repeat(8, ${cellSize}px)`,
             width: boardSize,
             height: boardSize,
+            touchAction: 'manipulation',
           }}
         >
           {Array.from({ length: 64 }).map((_, idx) => {
@@ -893,7 +905,7 @@ export default function ChessGame({ onBack }: { onBack?: () => void }) {
             const isLastMoveTo = lastMove?.to[0] === row && lastMove?.to[1] === col
             const isCheck = checkedKing?.[0] === row && checkedKing?.[1] === col
 
-            let bg = isLight ? '#f0d9b5' : '#b58863'
+            const bg = isLight ? '#f0d9b5' : '#b58863'
 
             return (
               <div
