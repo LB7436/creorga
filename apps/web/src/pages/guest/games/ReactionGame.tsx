@@ -49,10 +49,15 @@ function migrateLegacyBest() {
 
 // ─── Reaction Time Mode ───────────────────────────────────────────────────────
 function ReactionTimeMode() {
-  migrateLegacyBest()
+  // Migration one-shot exécutée dans un effet (jamais pendant le rendu, pour ne
+  // pas violer la pureté React). Déclarée AVANT useGameScore afin que son effet
+  // s'exécute avant l'effet de lecture du hook (ordre de déclaration), de sorte
+  // que `best` reflète le record migré dès le montage.
+  useEffect(() => { migrateLegacyBest() }, [])
   const { best, submit } = useGameScore('reaction')
   const [phase, setPhase] = useState<ReactionPhase>('idle')
   const [time, setTime] = useState(0)
+  const [isNewRecord, setIsNewRecord] = useState(false)
   const [stats, setStats] = useState<Stats>(loadStats)
   const startRef = useRef<number>(0)
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
@@ -67,7 +72,7 @@ function ReactionTimeMode() {
     const delay = 1500 + Math.random() * 4000
     timerRef.current = setTimeout(() => {
       setPhase('ready')
-      startRef.current = Date.now()
+      startRef.current = performance.now()
     }, delay)
   }, [])
 
@@ -78,15 +83,15 @@ function ReactionTimeMode() {
       return
     }
     if (phase === 'ready') {
-      const ms = Date.now() - startRef.current
+      const ms = Math.round(performance.now() - startRef.current)
       setTime(ms)
       setPhase('result')
-      submit(msToPoints(ms))
-      setStats(prev => {
-        const next: Stats = { times: [...prev.times, ms].slice(-10) }
-        saveStats(next)
-        return next
-      })
+      // submit() renvoie true seulement si le score bat STRICTEMENT le record
+      // précédent : source de vérité fiable pour le badge « Nouveau record ».
+      setIsNewRecord(submit(msToPoints(ms)))
+      const nextStats: Stats = { times: [...stats.times, ms].slice(-10) }
+      setStats(nextStats)
+      saveStats(nextStats)
       return
     }
     // idle / result / early → start new round
@@ -102,6 +107,9 @@ function ReactionTimeMode() {
     ? Math.round(stats.times.reduce((a, b) => a + b, 0) / stats.times.length)
     : 0
   const maxTime = stats.times.length ? Math.max(...stats.times) : 1
+  // Index de la (première) barre correspondant au record, pour n'en illuminer
+  // qu'une seule même si plusieurs tentatives partagent le même temps.
+  const bestIdx = stats.times.indexOf(bestMs)
 
   const bgColor =
     phase === 'ready' ? '#16a34a' :
@@ -152,9 +160,10 @@ function ReactionTimeMode() {
         </div>
       )}
 
-      {/* Big tap target */}
+      {/* Big tap target — onPointerDown (et non onClick=pointer-up) pour ne pas
+          inclure la durée de contact du doigt dans le temps de réaction mesuré. */}
       <button
-        onClick={handleTap}
+        onPointerDown={handleTap}
         style={{
           width: '100%', minHeight: 220, borderRadius: 24,
           background: bgColor,
@@ -176,7 +185,7 @@ function ReactionTimeMode() {
             {rating(time).text}
           </span>
         )}
-        {phase === 'result' && bestMs === time && (
+        {phase === 'result' && isNewRecord && (
           <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 700 }}>🏆 Nouveau record !</span>
         )}
       </button>
@@ -191,7 +200,7 @@ function ReactionTimeMode() {
             {stats.times.map((t, i) => {
               const h = Math.max(8, Math.round((t / maxTime) * 56))
               const isLast = i === stats.times.length - 1
-              const isBest = t === bestMs
+              const isBest = i === bestIdx
               return (
                 <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
                   <div style={{
@@ -249,8 +258,9 @@ function SequenceMode() {
   const [bestLevel, setBestLevel] = useState(0)
   const [activeBtn, setActiveBtn] = useState<number | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
+  const flashRef = useRef<ReturnType<typeof setTimeout>>()
 
-  useEffect(() => () => clearTimeout(timerRef.current), [])
+  useEffect(() => () => { clearTimeout(timerRef.current); clearTimeout(flashRef.current) }, [])
 
   const playSequence = useCallback((seq: number[]) => {
     setPhase('showing')
@@ -280,8 +290,9 @@ function SequenceMode() {
 
   const handlePress = (id: number) => {
     if (phase !== 'input') return
+    clearTimeout(flashRef.current)
     setActiveBtn(id)
-    setTimeout(() => setActiveBtn(null), 200)
+    flashRef.current = setTimeout(() => setActiveBtn(null), 200)
 
     const next = [...playerSeq, id]
     const idx = next.length - 1
@@ -407,8 +418,14 @@ function NumberTapMode() {
   const [wrongFlash, setWrongFlash] = useState<number | null>(null)
   const [correctFlash, setCorrectFlash] = useState<number | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval>>()
+  const correctFlashRef = useRef<ReturnType<typeof setTimeout>>()
+  const wrongFlashRef = useRef<ReturnType<typeof setTimeout>>()
 
-  useEffect(() => () => clearInterval(intervalRef.current), [])
+  useEffect(() => () => {
+    clearInterval(intervalRef.current)
+    clearTimeout(correctFlashRef.current)
+    clearTimeout(wrongFlashRef.current)
+  }, [])
 
   const shuffle = useCallback(() => {
     const nums = Array.from({ length: COUNT }, (_, i) => i + 1)
@@ -433,8 +450,9 @@ function NumberTapMode() {
   const handleTap = (num: number) => {
     if (phase !== 'playing') return
     if (num === next) {
+      clearTimeout(correctFlashRef.current)
       setCorrectFlash(num)
-      setTimeout(() => setCorrectFlash(null), 300)
+      correctFlashRef.current = setTimeout(() => setCorrectFlash(null), 300)
       const newNext = next + 1
       if (newNext > COUNT) {
         clearInterval(intervalRef.current)
@@ -446,8 +464,9 @@ function NumberTapMode() {
         setNext(newNext)
       }
     } else {
+      clearTimeout(wrongFlashRef.current)
       setWrongFlash(num)
-      setTimeout(() => setWrongFlash(null), 300)
+      wrongFlashRef.current = setTimeout(() => setWrongFlash(null), 300)
     }
   }
 
