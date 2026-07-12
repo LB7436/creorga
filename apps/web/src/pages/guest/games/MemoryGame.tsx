@@ -381,8 +381,6 @@ function WinScreen({ moves, time, comboBest, isRecord, diffLabel, onReplay, onBa
 // ── Main MemoryGame ────────────────────────────────────────────────────────────
 
 export default function MemoryGame({ onBack }: { onBack?: () => void }) {
-  injectCSS('mem-styles', CSS)
-
   const { best, submit } = useGameScore('memory')
   const [diffId, setDiffId]     = useState<DifficultyId>('easy')
   const [themeId, setThemeId]   = useState<ThemeId>('animals')
@@ -402,12 +400,29 @@ export default function MemoryGame({ onBack }: { onBack?: () => void }) {
   const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
   const lockRef   = useRef(false)
   const submittedRef = useRef(false)
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  // Timeouts trackés : annulés en masse au restart et au démontage pour éviter
+  // les callbacks orphelins sur un nouveau deck et les setState post-unmount.
+  const schedule = useCallback((fn: () => void, ms: number) => {
+    const id = setTimeout(() => {
+      timeoutsRef.current = timeoutsRef.current.filter(t => t !== id)
+      fn()
+    }, ms)
+    timeoutsRef.current = [...timeoutsRef.current, id]
+  }, [])
+
+  const clearScheduled = useCallback(() => {
+    timeoutsRef.current.forEach(clearTimeout)
+    timeoutsRef.current = []
+  }, [])
 
   const diff = DIFFICULTIES.find(d => d.id === diffId)!
 
   // ── Init ──
   const startGame = useCallback((d: DifficultyId = diffId, t: ThemeId = themeId) => {
     if (timerRef.current) clearInterval(timerRef.current)
+    clearScheduled()
     const newCards = buildCards(DIFFICULTIES.find(x => x.id === d)!, t)
     setCards(newCards)
     setFlipped([])
@@ -422,9 +437,19 @@ export default function MemoryGame({ onBack }: { onBack?: () => void }) {
     setLocked(false)
     lockRef.current = false
     submittedRef.current = false
-  }, [diffId, themeId])
+  }, [diffId, themeId, clearScheduled])
 
   useEffect(() => { startGame() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── CSS animations : injectées une fois, hors du rendu (pas d'effet de bord au render) ──
+  useEffect(() => { injectCSS('mem-styles', CSS) }, [])
+
+  // ── Cleanup au démontage : timer + timeouts en attente (évite setState post-unmount) ──
+  useEffect(() => () => {
+    if (timerRef.current) clearInterval(timerRef.current)
+    timeoutsRef.current.forEach(clearTimeout)
+    timeoutsRef.current = []
+  }, [])
 
   // ── Timer ──
   useEffect(() => {
@@ -456,7 +481,7 @@ export default function MemoryGame({ onBack }: { onBack?: () => void }) {
     setCards(cs => cs.map(c => c.id === id ? { ...c, flipped: true, bouncing: true } : c))
 
     // Clear bounce after anim
-    setTimeout(() => {
+    schedule(() => {
       setCards(cs => cs.map(c => c.id === id ? { ...c, bouncing: false } : c))
     }, 450)
 
@@ -476,24 +501,25 @@ export default function MemoryGame({ onBack }: { onBack?: () => void }) {
         setComboBest(prev => Math.max(prev, newCombo))
         if (newCombo >= 2) {
           setComboAnim(true)
-          setTimeout(() => setComboAnim(false), 700)
+          schedule(() => setComboAnim(false), 700)
         }
 
-        setTimeout(() => {
-          setCards(cs => {
-            const next = cs.map(c =>
-              newFlipped.includes(c.id) ? { ...c, matched: true, flipped: true } : c
-            )
-            // Check win — le score est soumis par l'effet dédié quand won passe à true
-            if (next.every(c => c.matched)) {
-              setWon(true)
-              setRunning(false)
-            }
-            return next
-          })
+        // Victoire calculée HORS updater (pas d'effet de bord dans setCards → évite le
+        // double-run StrictMode) : toutes les cartes sont soit déjà matchées, soit la
+        // paire qu'on vient d'apparier. Le score est soumis par l'effet dédié sur `won`.
+        const willWin = cards.every(c => c.matched || newFlipped.includes(c.id))
+
+        schedule(() => {
+          setCards(cs => cs.map(c =>
+            newFlipped.includes(c.id) ? { ...c, matched: true, flipped: true } : c
+          ))
           setFlipped([])
           setLocked(false)
           lockRef.current = false
+          if (willWin) {
+            setWon(true)
+            setRunning(false)
+          }
         }, 400)
       } else {
         // Mismatch
@@ -501,7 +527,7 @@ export default function MemoryGame({ onBack }: { onBack?: () => void }) {
         setCards(cs => cs.map(c =>
           newFlipped.includes(c.id) ? { ...c, mismatch: true } : c
         ))
-        setTimeout(() => {
+        schedule(() => {
           setCards(cs => cs.map(c =>
             newFlipped.includes(c.id) ? { ...c, flipped: false, mismatch: false } : c
           ))
@@ -514,7 +540,7 @@ export default function MemoryGame({ onBack }: { onBack?: () => void }) {
     } else {
       setFlipped(newFlipped)
     }
-  }, [cards, flipped, running, won, combo])
+  }, [cards, flipped, running, won, combo, schedule])
 
   const matched = cards.filter(c => c.matched).length / 2
   const total   = diff.pairs
