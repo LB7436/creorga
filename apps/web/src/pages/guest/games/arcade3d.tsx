@@ -135,22 +135,27 @@ export function MiniCard({
   small?: boolean
 }) {
   const red = suit === '♦' || suit === '♥' || suit === 'D' || suit === 'H'
-  return (
-    <button
-      onClick={onClick}
-      disabled={!onClick}
-      style={{
-        ...card3DStyle,
-        width: small ? 54 : 72,
-        height: small ? 78 : 104,
-        transform: selected ? 'translateY(-10px) rotateX(9deg) rotateZ(-2deg)' : 'rotateX(9deg)',
-        opacity: muted ? 0.45 : 1,
-        borderColor: selected ? ACCENT2 : 'rgba(255,255,255,0.18)',
-        cursor: onClick ? 'pointer' : 'default',
-      }}
-    >
+  const cardStyle: CSSProperties = {
+    ...card3DStyle,
+    width: small ? 54 : 72,
+    height: small ? 78 : 104,
+    transform: selected ? 'translateY(-10px) rotateX(9deg) rotateZ(-2deg)' : 'rotateX(9deg)',
+    opacity: muted ? 0.45 : 1,
+    borderColor: selected ? ACCENT2 : 'rgba(255,255,255,0.18)',
+    cursor: onClick ? 'pointer' : 'default',
+  }
+  const face = (
+    <>
       <span style={{ color: red ? '#ef4444' : '#111827', fontSize: small ? 16 : 20, fontWeight: 950 }}>{rank}</span>
       <span style={{ color: red ? '#ef4444' : '#111827', fontSize: small ? 22 : 28, lineHeight: 1 }}>{suitGlyph(suit)}</span>
+    </>
+  )
+  // Sans onClick, la carte est purement decorative : un <div> evite l'imbrication
+  // <button> dans <button> (Run 21 affiche des MiniCard dans des colonnes-boutons).
+  if (!onClick) return <div style={cardStyle}>{face}</div>
+  return (
+    <button onClick={onClick} style={cardStyle}>
+      {face}
     </button>
   )
 }
