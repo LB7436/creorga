@@ -13,7 +13,7 @@ export default function RummikubGame({ onBack }: GameProps) {
   const [cpuMelds, setCpuMelds] = useState<Tile[][]>([])
   const [opened, setOpened] = useState(false)
   const [dirty, setDirty] = useState(false) // manipulation en cours, non validée
-  const [message, setMessage] = useState('Selectionnez des tuiles (chevalet OU table), puis « Nouvelle combi. » ou « + ici » sur une combinaison. Validez le tour quand la table est correcte.')
+  const [message, setMessage] = useState('Sélectionnez des tuiles (chevalet OU table), puis « Nouvelle combi. » ou « + ici » sur une combinaison. Validez le tour quand la table est correcte.')
   const [gameOver, setGameOver] = useState(false)
   const [winner, setWinner] = useState<'player' | 'cpu' | null>(null)
   const cpuTurnTimeout = useRef<number>()
@@ -141,7 +141,7 @@ export default function RummikubGame({ onBack }: GameProps) {
     const nextMelds = [...strippedMelds.filter((m) => m.length > 0), sortTiles(pulled)]
     commitLocal(nextMelds, nextRack)
     setSelected([])
-    setMessage('Nouvelle combinaison creee. Ajustez la table puis « Valider le tour ».')
+    setMessage('Nouvelle combinaison créée. Ajustez la table puis « Valider le tour ».')
   }
 
   // Ajoute la sélection à une combinaison existante (prolonge/complète). Peut vider
@@ -154,7 +154,7 @@ export default function RummikubGame({ onBack }: GameProps) {
     const nextMelds = withTarget.filter((m) => m.length > 0)
     commitLocal(nextMelds, nextRack)
     setSelected([])
-    setMessage('Tuiles deplacees vers cette combinaison.')
+    setMessage('Tuiles déplacées vers cette combinaison.')
   }
 
   const annuler = () => {
@@ -164,7 +164,7 @@ export default function RummikubGame({ onBack }: GameProps) {
     snapshotRef.current = null
     setDirty(false)
     setSelected([])
-    setMessage('Manipulation annulee : table restauree.')
+    setMessage('Manipulation annulée : table restaurée.')
   }
 
   // Valide le tour : toute combinaison de la table doit être valide (min 3, groupe
@@ -172,7 +172,7 @@ export default function RummikubGame({ onBack }: GameProps) {
   // ouvert — la 1re pose depuis le chevalet doit valoir >= 30.
   const valider = () => {
     if (!snapshotRef.current) {
-      setMessage('Rien a valider. Selectionnez des tuiles pour poser/manipuler, ou piochez.')
+      setMessage('Rien à valider. Sélectionnez des tuiles pour poser/manipuler, ou piochez.')
       return
     }
     const badIdx = melds.findIndex((m) => !isRummiMeld(m))
@@ -190,7 +190,7 @@ export default function RummikubGame({ onBack }: GameProps) {
     if (!opened) {
       const poseValue = playedFromRack.reduce((s, t) => s + t.number, 0)
       if (poseValue < 30) {
-        setMessage(`Premiere pose : ${poseValue}/30 pts depuis le chevalet.`)
+        setMessage(`Première pose : ${poseValue}/30 pts depuis le chevalet.`)
         return
       }
       setOpened(true)
@@ -199,7 +199,7 @@ export default function RummikubGame({ onBack }: GameProps) {
     snapshotRef.current = null
     setDirty(false)
     setSelected([])
-    setMessage('Tour valide !')
+    setMessage('Tour validé !')
     if (rack.length === 0) { endGame('player', melds, rack); return }
     scheduleCpu()
   }
@@ -217,7 +217,7 @@ export default function RummikubGame({ onBack }: GameProps) {
     setRack(nextRack)
     setPool(nextPool)
     setSelected([])
-    setMessage('Tuile piochee.')
+    setMessage('Tuile piochée.')
     scheduleCpu()
   }
 
@@ -292,7 +292,7 @@ export default function RummikubGame({ onBack }: GameProps) {
                   {selected.length > 0 && (
                     <button
                       onClick={() => addSelectedToMeld(index)}
-                      title="Ajouter les tuiles selectionnees a cette combinaison"
+                      title="Ajouter les tuiles sélectionnées à cette combinaison"
                       style={{ ...ghostButtonStyle, padding: '4px 8px', minHeight: 32, fontSize: 11 }}
                     >
                       + ici
@@ -301,7 +301,7 @@ export default function RummikubGame({ onBack }: GameProps) {
                   {!ok && <span style={{ color: '#ef4444', fontSize: 10, fontWeight: 700 }}>invalide</span>}
                 </div>
               )
-            }) : <span style={{ color: MUTED }}>Table libre — posez une premiere combinaison (30 pts).</span>}
+            }) : <span style={{ color: MUTED }}>Table libre — posez une première combinaison (30 pts).</span>}
           </div>
           <div style={rummiRackStyle}>
             {rack.map((tile) => (
