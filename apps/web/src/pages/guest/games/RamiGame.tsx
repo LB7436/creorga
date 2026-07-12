@@ -18,7 +18,7 @@ export default function RamiGame({ onBack }: GameProps) {
   const [cpuScore, setCpuScore] = useState(0)
   const [mode, setMode] = useState<'normal' | 'sortie40'>('sortie40')
   const [opened, setOpened] = useState(false)
-  const [message, setMessage] = useState('Selectionnez une combinaison: brelan/carre ou suite.')
+  const [message, setMessage] = useState('Sélectionnez une combinaison : brelan/carré ou suite.')
   const [gameOver, setGameOver] = useState(false)
   const [winner, setWinner] = useState<'player' | 'cpu' | null>(null)
   const cpuTurnTimeout = useRef<number>()
@@ -76,7 +76,7 @@ export default function RamiGame({ onBack }: GameProps) {
       }, 0)
       setCpuDiscard(nextHand[discardIdx])
       nextHand = nextHand.filter((_, i) => i !== discardIdx)
-      setMessage('Le CPU pioche et defausse.')
+      setMessage('Le CPU pioche et défausse.')
     }
     cpuHandRef.current = nextHand
     setCpuHand(nextHand)
@@ -91,7 +91,7 @@ export default function RamiGame({ onBack }: GameProps) {
   const toggle = (id: string) => setSelected((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id])
   const meld = () => {
     if (!valid) {
-      setMessage(mode === 'sortie40' && !opened ? 'Pour la sortie 40, la premiere pose doit valoir 40 points.' : 'Combinaison non valide.')
+      setMessage(mode === 'sortie40' && !opened ? 'Pour la sortie 40, la première pose doit valoir 40 points.' : 'Combinaison non valide.')
       return
     }
     const nextHand = hand.filter((card) => !selected.includes(card.id))
@@ -102,7 +102,7 @@ export default function RamiGame({ onBack }: GameProps) {
     setScore(nextScore)
     setOpened(true)
     setSelected([])
-    setMessage(`Combinaison posee: ${value} pts.`)
+    setMessage(`Combinaison posée : ${value} pts.`)
     if (nextHand.length === 0) { endGame('player', nextScore, nextHand); return }
     scheduleCpu()
   }
@@ -114,7 +114,7 @@ export default function RamiGame({ onBack }: GameProps) {
     deckRef.current = nextDeck
     setHand(nextHand)
     setDeck(nextDeck)
-    setMessage('Carte piochee.')
+    setMessage('Carte piochée.')
     scheduleCpu()
   }
 
@@ -159,7 +159,7 @@ export default function RamiGame({ onBack }: GameProps) {
             <ActionButton onClick={meld} disabled={!selected.length}>Poser</ActionButton>
             <button onClick={draw} style={ghostButtonStyle}>Piocher</button>
             {cpuDiscard && (
-              <div style={{ fontSize: 11, color: MUTED }}>Defausse CPU : {cpuDiscard.rank}{cpuDiscard.suit}</div>
+              <div style={{ fontSize: 11, color: MUTED }}>Défausse CPU : {cpuDiscard.rank}{cpuDiscard.suit}</div>
             )}
           </>
         ),
@@ -168,7 +168,7 @@ export default function RamiGame({ onBack }: GameProps) {
       <Stage tone="salon">
         <div style={ramiTableStyle}>
           <div style={meldPreviewStyle}>
-            {selectedCards.length ? selectedCards.map((card) => <MiniCard key={card.id} rank={card.rank} suit={card.suit} joker={card.joker} selected small />) : <span>Selectionnez 3 cartes ou plus</span>}
+            {selectedCards.length ? selectedCards.map((card) => <MiniCard key={card.id} rank={card.rank} suit={card.suit} joker={card.joker} selected small />) : <span>Sélectionnez 3 cartes ou plus</span>}
           </div>
           <div style={ramiHandStyle}>
             {hand.map((card) => (
