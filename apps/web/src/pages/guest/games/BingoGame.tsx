@@ -31,14 +31,16 @@ function makeCard(): number[][] {
 const FREE_KEY = '2,2'
 const FREE_SET = new Set([FREE_KEY])
 
-function isMarked(r: number, c: number, card: number[][], called: Set<number>): boolean {
-  return FREE_SET.has(`${r},${c}`) || called.has(card[r][c])
+// Marquage désormais par CASE (clé "r,c") et non par numéro : en pointage manuel,
+// une case n'est marquée que si le joueur l'a pointée, pas dès que le numéro sort.
+function isMarked(r: number, c: number, daubed: Set<string>): boolean {
+  return FREE_SET.has(`${r},${c}`) || daubed.has(`${r},${c}`)
 }
 
 type WinType = 'row' | 'col' | 'diag' | 'corners' | 'full' | null
 
-function checkWin(card: number[][], called: Set<number>): WinType {
-  const m = (r: number, c: number) => isMarked(r, c, card, called)
+function checkWin(daubed: Set<string>): WinType {
+  const m = (r: number, c: number) => isMarked(r, c, daubed)
   // Rows
   for (let r = 0; r < 5; r++) if ([0,1,2,3,4].every(c => m(r, c))) return 'row'
   // Cols
@@ -132,11 +134,15 @@ export default function BingoGame({ onBack }: { onBack?: () => void }) {
   const { best, submit } = useGameScore('bingo')
   const [card, setCard] = useState<number[][]>(makeCard)
   const [called, setCalled] = useState<Set<number>>(new Set())
+  const [daubed, setDaubed] = useState<Set<string>>(new Set())
   const [history, setHistory] = useState<number[]>([])
   const [lastCall, setLastCall] = useState<number | null>(null)
   const [winType, setWinType] = useState<WinType>(null)
   const [ballAnim, setBallAnim] = useState(false)
-  const [speed, setSpeed] = useState<SpeedMode>('manual')
+  const [speed, setSpeed] = useState<SpeedMode>('manual')       // cadence de tirage
+  const [daubMode, setDaubMode] = useState<SpeedMode>('manual') // pointage manuel/auto
+  const [misses, setMisses] = useState(0)                       // pointages sur un n° non tiré
+  const [hint, setHint] = useState<string | null>(null)
   const [stats, setStats] = useState<BingoStats>(loadStats)
   const [newlyMarked, setNewlyMarked] = useState<string | null>(null)
   const autoRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -145,6 +151,10 @@ export default function BingoGame({ onBack }: { onBack?: () => void }) {
   const markTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const calledRef = useRef(called)
   calledRef.current = called
+  const daubedRef = useRef(daubed)
+  daubedRef.current = daubed
+  const daubModeRef = useRef(daubMode)
+  daubModeRef.current = daubMode
   // Positions du confetti figées une fois : sinon Math.random() dans le JSX les
   // recalcule à chaque re-render post-victoire (les confettis « sautent »).
   const confettiRef = useRef(
@@ -164,54 +174,132 @@ export default function BingoGame({ onBack }: { onBack?: () => void }) {
   // détruit/recréé à chaque numéro -> cadence réelle imprévisible).
   const callNumberRef = useRef<() => void>(() => {})
 
-  // Auto mode : un seul intervalle par session auto.
+  // Auto mode (cadence) : un seul intervalle par session auto.
   useEffect(() => {
     if (speed !== 'auto' || winType) return
     autoRef.current = setInterval(() => callNumberRef.current(), 2000)
     return () => { if (autoRef.current) clearInterval(autoRef.current) }
   }, [speed, winType])
 
+  // Pop bref d'une case (au pointage manuel ou auto).
+  const flashCell = (key: string) => {
+    setNewlyMarked(key)
+    if (markTimerRef.current) clearTimeout(markTimerRef.current)
+    markTimerRef.current = setTimeout(() => setNewlyMarked(null), 800)
+  }
+
+  // Applique un nouvel ensemble pointé + vérifie le bingo. Utilisé par les actions
+  // pilotées par l'utilisateur (pointage manuel, bascule vers auto). N'utilise que
+  // des refs + setters stables -> sûr même redéfini à chaque rendu.
+  const commitDaub = (nextDaubed: Set<string>) => {
+    daubedRef.current = nextDaubed
+    setDaubed(nextDaubed)
+    const w = checkWin(nextDaubed)
+    if (w && !statsSavedRef.current) {
+      statsSavedRef.current = true
+      setWinType(w)
+      setStats(saveStats(true))
+      submit(Math.max(0, SCORE_BASE - calledRef.current.size))
+    }
+  }
+
   const callNumber = useCallback(() => {
-    // Tout HORS de l'updater setCalled : sinon StrictMode le ré-exécute avec un
+    // Tout HORS d'un updater setState : sinon StrictMode le ré-exécute avec un
     // second Math.random() -> le numéro poussé dans l'historique diffère de celui
     // ajouté à 'called' (grille et historique désynchronisés).
-    const prev = calledRef.current
-    const remaining = range(1, 75).filter(n => !prev.has(n))
+    const prevCalled = calledRef.current
+    const remaining = range(1, 75).filter(n => !prevCalled.has(n))
     if (!remaining.length) return
     const n = remaining[Math.floor(Math.random() * remaining.length)]
-    const next = new Set(prev)
-    next.add(n)
-    calledRef.current = next
-    setCalled(next)
+    const nextCalled = new Set(prevCalled)
+    nextCalled.add(n)
+    calledRef.current = nextCalled
+    setCalled(nextCalled)
     setLastCall(n)
     setHistory(h => [n, ...h].slice(0, 10))
     setBallAnim(true)
     if (ballTimerRef.current) clearTimeout(ballTimerRef.current)
     ballTimerRef.current = setTimeout(() => setBallAnim(false), 500)
+    setHint(null)
 
-    // Case fraîchement marquée
+    // Localise la case portant n (unique sur la carte).
+    let cell: string | null = null
     outer: for (let r = 0; r < 5; r++) {
       for (let c = 0; c < 5; c++) {
-        if (card[r][c] === n) {
-          setNewlyMarked(`${r},${c}`)
-          if (markTimerRef.current) clearTimeout(markTimerRef.current)
-          markTimerRef.current = setTimeout(() => setNewlyMarked(null), 800)
-          break outer
-        }
+        if (card[r][c] === n) { cell = `${r},${c}`; break outer }
       }
     }
 
-    // Fin de partie (bingo) : statsSavedRef (réarmé par newGame) => une seule
-    // soumission par partie ; conversion lower→higher-is-better.
-    const w = checkWin(card, next)
-    if (w && !statsSavedRef.current) {
-      statsSavedRef.current = true
-      setWinType(w)
-      setStats(saveStats(true))
-      submit(Math.max(0, SCORE_BASE - next.size))
+    if (daubModeRef.current === 'auto' && cell) {
+      // Pointage auto : marque immédiatement + vérifie le bingo (ancien comportement).
+      const nextDaubed = new Set(daubedRef.current)
+      nextDaubed.add(cell)
+      daubedRef.current = nextDaubed
+      setDaubed(nextDaubed)
+      setNewlyMarked(cell)
+      if (markTimerRef.current) clearTimeout(markTimerRef.current)
+      markTimerRef.current = setTimeout(() => setNewlyMarked(null), 800)
+      const w = checkWin(nextDaubed)
+      if (w && !statsSavedRef.current) {
+        statsSavedRef.current = true
+        setWinType(w)
+        setStats(saveStats(true))
+        submit(Math.max(0, SCORE_BASE - nextCalled.size))
+      }
+    } else if (cell) {
+      // Pointage manuel : la case devient « à pointer » (rendu pulsant) + indice.
+      setHint(`Vous avez le ${n} — touchez la case pour le pointer.`)
     }
   }, [card, submit])
   callNumberRef.current = callNumber
+
+  // Pointage manuel : le joueur touche une case pour la marquer.
+  const toggleDaub = (r: number, c: number) => {
+    if (winType) return
+    const key = `${r},${c}`
+    if (FREE_SET.has(key)) return
+    if (daubedRef.current.has(key)) {
+      // Dé-pointer (corriger un clic) — pas de re-check bingo (partie non gagnée).
+      const next = new Set(daubedRef.current)
+      next.delete(key)
+      daubedRef.current = next
+      setDaubed(next)
+      setHint(null)
+      return
+    }
+    if (calledRef.current.has(card[r][c])) {
+      const next = new Set(daubedRef.current)
+      next.add(key)
+      flashCell(key)
+      setHint(null)
+      commitDaub(next)
+    } else {
+      // Pointage d'un numéro pas encore tiré : raté (métrique d'adresse).
+      setMisses(m => m + 1)
+      setHint('Ce numéro n’a pas encore été tiré.')
+    }
+  }
+
+  // Bascule du mode de pointage. Vers « auto » : rattrape toutes les cases déjà
+  // tirées et vérifie un éventuel bingo immédiat.
+  const changeDaubMode = (mode: SpeedMode) => {
+    if (winType) return
+    if (mode === 'auto') {
+      const next = new Set(daubedRef.current)
+      for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+          if (calledRef.current.has(card[r][c])) next.add(`${r},${c}`)
+        }
+      }
+      setDaubMode('auto')
+      daubModeRef.current = 'auto'
+      setHint(null)
+      commitDaub(next)
+    } else {
+      setDaubMode('manual')
+      daubModeRef.current = 'manual'
+    }
+  }
 
   const newGame = useCallback(() => {
     if (autoRef.current) clearInterval(autoRef.current)
@@ -220,10 +308,16 @@ export default function BingoGame({ onBack }: { onBack?: () => void }) {
     }
     setCard(makeCard())
     setCalled(new Set())
+    setDaubed(new Set())
+    daubedRef.current = new Set()
     setHistory([])
     setLastCall(null)
     setWinType(null)
     setSpeed('manual')
+    setDaubMode('manual')
+    daubModeRef.current = 'manual'
+    setMisses(0)
+    setHint(null)
     setBallAnim(false)
     setNewlyMarked(null)
     statsSavedRef.current = false
@@ -254,6 +348,10 @@ export default function BingoGame({ onBack }: { onBack?: () => void }) {
           0%   { transform: scale(1); }
           40%  { transform: scale(1.25); }
           100% { transform: scale(1); }
+        }
+        @keyframes daubPulse {
+          0%, 100% { box-shadow: inset 0 0 0 0 rgba(234,179,8,0); }
+          50%      { box-shadow: inset 0 0 11px 1px rgba(234,179,8,0.55); }
         }
       `}</style>
 
@@ -359,23 +457,37 @@ export default function BingoGame({ onBack }: { onBack?: () => void }) {
           <div key={r} className="grid grid-cols-5">
             {row.map((n, c) => {
               const free = r === 2 && c === 2
-              const marked = isMarked(r, c, card, called)
+              const marked = isMarked(r, c, daubed)
+              // « À pointer » : numéro tiré mais pas encore marqué (pointage manuel).
+              const callable = !free && !marked && called.has(n)
               const isNew = newlyMarked === `${r},${c}`
+              const interactive = !free && !winType
               return (
                 <div
                   key={c}
+                  onClick={interactive ? () => toggleDaub(r, c) : undefined}
+                  role={interactive ? 'button' : undefined}
+                  aria-pressed={interactive ? marked : undefined}
+                  aria-label={free ? 'Case gratuite' : `${COLS[c]} ${n}${marked ? ', pointé' : callable ? ', à pointer' : ''}`}
                   className="flex items-center justify-center text-sm font-bold transition-all"
                   style={{
                     height: 46,
+                    cursor: interactive ? 'pointer' : 'default',
                     background: free
                       ? COL_BG[2]
                       : marked
                         ? 'rgba(168,85,247,0.25)'
-                        : SURFACE,
-                    border: `1px solid ${BORDER}`,
+                        : callable
+                          ? 'rgba(234,179,8,0.14)'
+                          : SURFACE,
+                    border: `1px solid ${callable ? '#eab308' : BORDER}`,
                     color: free ? '#1e293b' : marked ? '#a855f7' : TEXT,
                     position: 'relative',
-                    animation: isNew ? 'cellPop 0.4s ease-out' : 'none',
+                    animation: isNew
+                      ? 'cellPop 0.4s ease-out'
+                      : callable
+                        ? 'daubPulse 1.1s ease-in-out infinite'
+                        : 'none',
                     boxShadow: marked && !free ? 'inset 0 0 12px rgba(168,85,247,0.2)' : 'none',
                   }}
                 >
@@ -401,23 +513,57 @@ export default function BingoGame({ onBack }: { onBack?: () => void }) {
         ))}
       </div>
 
-      {/* Speed toggle */}
-      <div className="flex gap-1.5 justify-center">
-        {(['manual', 'auto'] as SpeedMode[]).map(s => (
-          <button
-            key={s}
-            onClick={() => setSpeed(s)}
-            disabled={!!winType || allUsed}
-            className="px-4 py-1.5 rounded-full text-xs font-semibold transition-all"
-            style={{
-              background: speed === s ? '#a855f7' : SURFACE2,
-              color: speed === s ? '#fff' : MUTED,
-              border: `1px solid ${speed === s ? '#a855f7' : BORDER}`,
-            }}
-          >
-            {s === 'manual' ? 'Manuel' : '⚡ Auto (2s)'}
-          </button>
-        ))}
+      {/* Instruction / feedback line (états vides + guidage du pointage manuel) */}
+      {!winType && (
+        <p className="text-xs text-center px-2" style={{ color: hint ? '#eab308' : MUTED, minHeight: 16 }}>
+          {hint
+            ? hint
+            : daubMode === 'auto'
+              ? 'Pointage automatique : les cases se marquent seules.'
+              : called.size === 0
+                ? 'Tirez une boule, puis touchez vos numéros pour les pointer.'
+                : 'Touchez vos numéros dès qu’ils sortent pour valider votre carte.'}
+        </p>
+      )}
+
+      {/* Toggles : pointage (manuel/auto) + cadence de tirage */}
+      <div className="flex flex-col gap-1.5 items-center">
+        <div className="flex items-center gap-2">
+          <span className="text-xs w-14 text-right" style={{ color: MUTED }}>Pointage</span>
+          {(['manual', 'auto'] as SpeedMode[]).map(mode => (
+            <button
+              key={mode}
+              onClick={() => changeDaubMode(mode)}
+              disabled={!!winType}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+              style={{
+                background: daubMode === mode ? '#eab308' : SURFACE2,
+                color: daubMode === mode ? '#1e293b' : MUTED,
+                border: `1px solid ${daubMode === mode ? '#eab308' : BORDER}`,
+              }}
+            >
+              {mode === 'manual' ? '✋ Manuel' : 'Auto'}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs w-14 text-right" style={{ color: MUTED }}>Tirage</span>
+          {(['manual', 'auto'] as SpeedMode[]).map(s => (
+            <button
+              key={s}
+              onClick={() => setSpeed(s)}
+              disabled={!!winType || allUsed}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+              style={{
+                background: speed === s ? '#a855f7' : SURFACE2,
+                color: speed === s ? '#fff' : MUTED,
+                border: `1px solid ${speed === s ? '#a855f7' : BORDER}`,
+              }}
+            >
+              {s === 'manual' ? 'Manuel' : '⚡ Auto (2s)'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Controls */}
@@ -448,10 +594,13 @@ export default function BingoGame({ onBack }: { onBack?: () => void }) {
       </div>
 
       {/* Stats row */}
-      {stats.games > 0 && (
-        <div className="flex justify-center gap-4 text-xs" style={{ color: MUTED }}>
+      {(stats.games > 0 || misses > 0) && (
+        <div className="flex justify-center gap-4 text-xs flex-wrap" style={{ color: MUTED }}>
           <span>Parties : <strong style={{ color: TEXT }}>{stats.games}</strong></span>
           <span>Bingos : <strong style={{ color: '#22c55e' }}>{stats.bingos}</strong></span>
+          {misses > 0 && (
+            <span>Ratés : <strong style={{ color: '#ef4444' }}>{misses}</strong></span>
+          )}
           {best > 0 && (
             <span>Record : <strong style={{ color: '#f59e0b' }}>{SCORE_BASE - best} 🎱</strong></span>
           )}
