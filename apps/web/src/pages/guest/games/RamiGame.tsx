@@ -32,28 +32,39 @@ export default function RamiGame({ onBack }: GameProps) {
 
   const finalScore = score + (winner === 'player' ? 50 : 0) - hand.reduce((s, c) => s + cardPoints(c), 0)
 
-  const endGame = (who: 'player' | 'cpu') => {
-    if (gameOver) return
+  // Refs synchrones : cpuTurn/endGame tournent dans un setTimeout et doivent lire
+  // l'état COURANT, pas la closure du rendu de planification (sinon le CPU repioche
+  // la carte que le joueur vient de prendre -> carte dupliquée ; et endGame calcule
+  // le score sur un hand/score périmés -> le meld gagnant est soustrait au lieu d'ajouté).
+  const deckRef = useRef(deck); deckRef.current = deck
+  const handRef = useRef(hand); handRef.current = hand
+  const cpuHandRef = useRef(cpuHand); cpuHandRef.current = cpuHand
+  const scoreRef = useRef(score); scoreRef.current = score
+  const gameOverRef = useRef(gameOver); gameOverRef.current = gameOver
+
+  const endGame = (who: 'player' | 'cpu', finalScoreVal: number, finalHand: Card[]) => {
+    if (gameOverRef.current) return
+    gameOverRef.current = true
     setGameOver(true)
     setWinner(who)
-    const s = score + (who === 'player' ? 50 : 0) - hand.reduce((sum, c) => sum + cardPoints(c), 0)
-    const record = submit(Math.max(0, s))
-    setIsNewRecord(record)
+    const s = finalScoreVal + (who === 'player' ? 50 : 0) - finalHand.reduce((sum, c) => sum + cardPoints(c), 0)
+    setIsNewRecord(submit(Math.max(0, s)))
   }
 
   const cpuTurn = () => {
-    if (gameOver) return
-    let nextHand = [...cpuHand]
-    let nextDeck = deck
+    if (gameOverRef.current) return
+    let nextHand = [...cpuHandRef.current]
+    let nextDeck = deckRef.current
     if (nextDeck.length > 0) {
       nextHand = [...nextHand, nextDeck[0]]
       nextDeck = nextDeck.slice(1)
+      deckRef.current = nextDeck
       setDeck(nextDeck)
     }
-    const meld = findMeld(nextHand)
-    if (meld) {
-      const meldValue = meld.reduce((s, c) => s + cardPoints(c), 0)
-      nextHand = nextHand.filter((c) => !meld.includes(c))
+    const meldFound = findMeld(nextHand)
+    if (meldFound) {
+      const meldValue = meldFound.reduce((s, c) => s + cardPoints(c), 0)
+      nextHand = nextHand.filter((c) => !meldFound.includes(c))
       setCpuScore((s) => s + meldValue)
       setMessage(`Le CPU pose une combinaison (${meldValue} pts).`)
     } else {
@@ -62,8 +73,14 @@ export default function RamiGame({ onBack }: GameProps) {
       nextHand = nextHand.filter((_, i) => i !== discardIdx)
       setMessage('Le CPU pioche et defausse.')
     }
+    cpuHandRef.current = nextHand
     setCpuHand(nextHand)
-    if (nextHand.length === 0) endGame('cpu')
+    if (nextHand.length === 0) endGame('cpu', scoreRef.current, handRef.current)
+  }
+
+  const scheduleCpu = () => {
+    window.clearTimeout(cpuTurnTimeout.current)
+    cpuTurnTimeout.current = window.setTimeout(cpuTurn, 800)
   }
 
   const toggle = (id: string) => setSelected((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id])
@@ -72,20 +89,28 @@ export default function RamiGame({ onBack }: GameProps) {
       setMessage(mode === 'sortie40' && !opened ? 'Pour la sortie 40, la premiere pose doit valoir 40 points.' : 'Combinaison non valide.')
       return
     }
-    setHand((cards) => cards.filter((card) => !selected.includes(card.id)))
-    setScore((points) => points + value)
+    const nextHand = hand.filter((card) => !selected.includes(card.id))
+    const nextScore = score + value
+    handRef.current = nextHand
+    scoreRef.current = nextScore
+    setHand(nextHand)
+    setScore(nextScore)
     setOpened(true)
     setSelected([])
     setMessage(`Combinaison posee: ${value} pts.`)
-    if (hand.length - selected.length === 0) { endGame('player'); return }
-    cpuTurnTimeout.current = window.setTimeout(cpuTurn, 800)
+    if (nextHand.length === 0) { endGame('player', nextScore, nextHand); return }
+    scheduleCpu()
   }
   const draw = () => {
-    if (!deck.length) return
-    setHand((cards) => sortHand([...cards, deck[0]]))
-    setDeck((cards) => cards.slice(1))
+    if (!deckRef.current.length) return
+    const nextHand = sortHand([...hand, deckRef.current[0]])
+    const nextDeck = deckRef.current.slice(1)
+    handRef.current = nextHand
+    deckRef.current = nextDeck
+    setHand(nextHand)
+    setDeck(nextDeck)
     setMessage('Carte piochee.')
-    cpuTurnTimeout.current = window.setTimeout(cpuTurn, 800)
+    scheduleCpu()
   }
 
   useEffect(() => () => window.clearTimeout(cpuTurnTimeout.current), [])
