@@ -18,16 +18,23 @@ import {
   type CastlingRights,
   type BoardSnapshot,
 } from './chessEngine'
+import { useGameShell } from './lib/GameShell'
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
 
 const CONTAINER_HPAD = 8 // padding horizontal du container (px) — réduit pour agrandir les cases tactiles
 const MIN_CELL = 32      // garde-fou : taille minimale d'une case (px)
 
+// Profondeur de recherche minimax selon la difficulté choisie au lancement.
+// facile = coups rapides et faibles, difficile = recherche plus profonde.
+const DEPTH_BY_DIFFICULTY: Record<string, number> = { facile: 1, moyen: 2, difficile: 3 }
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ChessGame({ onBack }: { onBack?: () => void }) {
   const { submit } = useGameScore('chess')
+  const { difficulty } = useGameShell()
+  const aiDepth = DEPTH_BY_DIFFICULTY[difficulty] ?? 3
   const [wins, setWins] = useState(0)
   const [board, setBoard] = useState<Board>(initBoard())
   const [castling, setCastling] = useState<CastlingRights>(initCastling())
@@ -47,6 +54,9 @@ export default function ChessGame({ onBack }: { onBack?: () => void }) {
   // invalide un résultat périmé après « nouvelle partie »).
   const workerRef = useRef<Worker | null>(null)
   const pendingRef = useRef<{ board: Board; castling: CastlingRights } | null>(null)
+  // Ref synchrone : le handler de clic (mémoïsé) lit la profondeur courante sans
+  // se recréer quand la difficulté change.
+  const aiDepthRef = useRef(aiDepth); aiDepthRef.current = aiDepth
 
   const captured = computeCaptured(board)
 
@@ -147,10 +157,10 @@ export default function ChessGame({ onBack }: { onBack?: () => void }) {
         pendingRef.current = { board: newBoard, castling: newCastling }
         const worker = workerRef.current
         if (worker) {
-          worker.postMessage({ board: newBoard, castling: newCastling, lastMove: mv })
+          worker.postMessage({ board: newBoard, castling: newCastling, lastMove: mv, depth: aiDepthRef.current })
         } else {
           // Fallback synchrone si le worker n'a pas pu démarrer (gèle brièvement mais joue).
-          const aiMove = getBestMove(newBoard, newCastling, mv)
+          const aiMove = getBestMove(newBoard, newCastling, mv, aiDepthRef.current)
           pendingRef.current = null
           if (aiMove) {
             const afterAI = applyMove(newBoard, aiMove)
@@ -271,6 +281,12 @@ export default function ChessGame({ onBack }: { onBack?: () => void }) {
         <h1 style={{ color: TEXT, fontSize: 22, fontWeight: 700, margin: 0, flex: 1 }}>
           ♟ Échecs
         </h1>
+        <span style={{
+          fontSize: 11, color: MUTED, fontWeight: 700, padding: '4px 9px',
+          borderRadius: 999, background: SURFACE2, border: `1px solid ${BORDER}`, whiteSpace: 'nowrap',
+        }}>
+          IA · {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
+        </span>
         <button
           onClick={handleUndo}
           disabled={history.length === 0 || thinking}

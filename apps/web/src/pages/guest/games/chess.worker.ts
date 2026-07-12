@@ -11,11 +11,12 @@ interface AiRequest {
   board: Board
   castling: CastlingRights
   lastMove: Move | null
+  depth: number
 }
 
 ctx.onmessage = (e: MessageEvent<AiRequest>) => {
-  const { board, castling, lastMove } = e.data
-  const move = getBestMove(board, castling, lastMove)
+  const { board, castling, lastMove, depth } = e.data
+  const move = getBestMove(board, castling, lastMove, depth)
   ctx.postMessage(move)
 }
 

@@ -481,10 +481,13 @@ export function minimax(
   }
 }
 
+// `depth` = profondeur de recherche minimax (piloté par la difficulté choisie :
+// facile=1, moyen=2, difficile=3). Défaut 3 = comportement historique.
 export function getBestMove(
   board: Board,
   castling: CastlingRights,
   lastMove: Move | null,
+  depth = 3,
 ): Move | null {
   const moves = getLegalMoves(board, 'b', castling, lastMove)
   if (moves.length === 0) return null
@@ -502,7 +505,7 @@ export function getBestMove(
   for (const mv of moves) {
     const next = applyMove(board, mv)
     const nextCast = updateCastling(castling, mv)
-    const val = minimax(next, 3, -Infinity, Infinity, true, nextCast, mv)
+    const val = minimax(next, depth, -Infinity, Infinity, true, nextCast, mv)
     if (val < best) {
       best = val
       bestMove = mv
