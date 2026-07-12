@@ -61,7 +61,9 @@
 - [x] Rummikub : duplication de tuiles + score de victoire faux + timeouts (refs synchrones) — commit 2c6a051
 - [x] Rami : duplication de cartes + score de victoire faux + timeouts (refs synchrones) — commit 29ecdc7
 - [x] Billard : déjà réécrit (v4.9, vraie physique 2D canvas, collisions/fautes/score) — bug « factice » de la revue obsolète, aucun changement nécessaire
-- [ ] Reste : polish (setInterval→useGameLoop, cibles 44px, états vides, accents) + complétude Rami/Rummikub (jokers, défausse ramassable, manipulation de table — enhancements, pas des bugs)
+- [x] Lot 5 jeux en parallèle (agents) : **2048** (updater impur/StrictMode, undo victoire, timers, score abandon — 3f297d7), **Snake** (file de virages, pause visibilitychange, timers, touch-action, 44px — 50a8faf), **Échecs** (undo décalé, statut à l'undo, modal victoire/défaite, timer IA, cases+touch — ab41d95), **Simon** (timers/jeton, séquences fantômes, audio iOS singleton — a080533), **Réaction** (effet dans le rendu, faux record, pointer-down, horloge monotone, fuites timers — 3b618c5)
+- [x] **WordScramble** : mot anglais + mot accentué + indice qui révèle la réponse — 731374e
+- [ ] Reste : polish restant (états vides, accents FR épars), Web Worker pour l'IA d'échecs (perf, hors périmètre), + complétude Rami/Rummikub (jokers, défausse ramassable, manipulation de table — enhancements, pas des bugs)
 - [ ] Run21 / TriTours : terminer règles → available:true OU retirer ; Erreur 11 : refondre OU available:false
 - Note : Basket `basket3d` + Billard `billard` — ids de score déjà corrigés en 4a (commit d9e35d4) ; reste fixes gameplay REVUE
 
