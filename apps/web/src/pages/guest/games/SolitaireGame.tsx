@@ -168,13 +168,13 @@ interface CardViewProps {
   selected?: boolean
   validDrop?: boolean
   style?: React.CSSProperties
-  onMouseDown?: (e: React.MouseEvent) => void
+  onPointerDown?: (e: React.PointerEvent) => void
   onDoubleClick?: (e: React.MouseEvent) => void
   onClick?: (e: React.MouseEvent) => void
   dragging?: boolean
 }
 
-function CardView({ card, width, selected, validDrop, style, onMouseDown, onDoubleClick, onClick, dragging }: CardViewProps) {
+function CardView({ card, width, selected, validDrop, style, onPointerDown, onDoubleClick, onClick, dragging }: CardViewProps) {
   const height = width * 1.4
   const color = isRed(card.suit) ? '#dc2626' : '#1a1a1a'
   const rankFontSize = Math.max(9, width * 0.18)
@@ -203,6 +203,7 @@ function CardView({ card, width, selected, validDrop, style, onMouseDown, onDoub
     position: 'relative',
     overflow: 'hidden',
     transition: dragging ? 'none' : 'box-shadow 0.15s ease',
+    touchAction: 'none', // indispensable : le drag tactile ne doit pas etre pris pour un scroll/zoom
     ...style,
   }
 
@@ -211,7 +212,7 @@ function CardView({ card, width, selected, validDrop, style, onMouseDown, onDoub
     return (
       <div
         style={baseStyle}
-        onMouseDown={onMouseDown}
+        onPointerDown={onPointerDown}
         onDoubleClick={onDoubleClick}
         onClick={onClick}
       >
@@ -241,7 +242,7 @@ function CardView({ card, width, selected, validDrop, style, onMouseDown, onDoub
   return (
     <div
       style={{ ...baseStyle, background: '#ffffff' }}
-      onMouseDown={onMouseDown}
+      onPointerDown={onPointerDown}
       onDoubleClick={onDoubleClick}
       onClick={onClick}
     >
@@ -570,9 +571,9 @@ export default function SolitaireGame({ onBack }: { onBack?: () => void }) {
     sourceType: 'tableau' | 'waste' | 'foundation',
     sourceIndex: number,
     cardIndex: number,
-    e: React.MouseEvent
+    e: React.PointerEvent
   ) => {
-    if (e.button !== 0) return
+    if (e.pointerType === 'mouse' && e.button !== 0) return // souris : bouton gauche seul ; tactile/pen : ok
     if (!cards[0]?.faceUp) return
     e.preventDefault()
     setDrag({
@@ -589,7 +590,7 @@ export default function SolitaireGame({ onBack }: { onBack?: () => void }) {
   }
 
   useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
+    const onMouseMove = (e: PointerEvent) => {
       setDrag(d => {
         if (!d) return d
         const dx = e.clientX - d.startX
@@ -604,7 +605,7 @@ export default function SolitaireGame({ onBack }: { onBack?: () => void }) {
       })
     }
 
-    const onMouseUp = (e: MouseEvent) => {
+    const onMouseUp = (e: PointerEvent) => {
       if (!drag) return
       if (drag.active) {
         // Find drop target under cursor
@@ -627,11 +628,11 @@ export default function SolitaireGame({ onBack }: { onBack?: () => void }) {
       setValidDropTargets(new Set())
     }
 
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
+    window.addEventListener('pointermove', onMouseMove)
+    window.addEventListener('pointerup', onMouseUp)
     return () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
+      window.removeEventListener('pointermove', onMouseMove)
+      window.removeEventListener('pointerup', onMouseUp)
     }
   }, [drag, computeValidDrops]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -957,7 +958,7 @@ export default function SolitaireGame({ onBack }: { onBack?: () => void }) {
                     width={cardWidth}
                     selected={isWasteSelected}
                     style={{ opacity: isDragged ? 0.3 : 1, cursor: 'grab' }}
-                    onMouseDown={(e) => handleMouseDown([top], 'waste', 0, 0, e)}
+                    onPointerDown={(e) => handleMouseDown([top], 'waste', 0, 0, e)}
                     onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClick([top], 'waste', 0, 0) }}
                     onClick={(e) => handleCardClick([top], 'waste', 0, 0, e)}
                   />
@@ -998,7 +999,7 @@ export default function SolitaireGame({ onBack }: { onBack?: () => void }) {
                     style={{
                       opacity: isDragSource('foundation', fi, pile.length - 1) ? 0.3 : 1,
                     }}
-                    onMouseDown={(e) => handleMouseDown([top], 'foundation', fi, pile.length - 1, e)}
+                    onPointerDown={(e) => handleMouseDown([top], 'foundation', fi, pile.length - 1, e)}
                     onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClick([top], 'foundation', fi, pile.length - 1) }}
                     onClick={(e) => handleCardClick([top], 'foundation', fi, pile.length - 1, e)}
                   />
@@ -1110,7 +1111,7 @@ export default function SolitaireGame({ onBack }: { onBack?: () => void }) {
                         width={cardWidth}
                         selected={isCardSelected}
                         validDrop={showAsDropTarget && !isCardSelected}
-                        onMouseDown={isDraggable ? (e) => handleMouseDown(cardsToMove, 'tableau', colIdx, cardIdx, e) : undefined}
+                        onPointerDown={isDraggable ? (e) => handleMouseDown(cardsToMove, 'tableau', colIdx, cardIdx, e) : undefined}
                         onDoubleClick={(e) => {
                           e.stopPropagation()
                           if (cardIdx === col.length - 1) {
