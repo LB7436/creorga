@@ -135,6 +135,13 @@ function targetTrack(playerIndex: number, targetSteps: number) {
   return targetSteps >= 0 && targetSteps < TRACK_LENGTH ? absoluteTrack(playerIndex, targetSteps) : null
 }
 
+// La colonne finale se remplit depuis le fond: le 1er pion arrive doit atteindre
+// exactement 57, le 2e 56, puis 55, 54. Chaque pion fini occupe donc une case
+// distincte (plus d'empilement) et la manche se termine reellement.
+function homeSlot(finishedCount: number) {
+  return FINISH_STEP - finishedCount
+}
+
 function canMove(state: MenschState, piece: Piece, playerIndex: number) {
   if (!state.rolled || state.rolling || state.winner !== null || piece.finished) return false
   if (piece.steps < 0) {
@@ -142,7 +149,10 @@ function canMove(state: MenschState, piece: Piece, playerIndex: number) {
     return !hasOwnPieceAt(state, playerIndex, 0)
   }
   const target = piece.steps + state.die
-  if (target > FINISH_STEP) return false
+  if (target >= TRACK_LENGTH) {
+    // Entree dans la colonne finale: arrivee exacte sur la prochaine case libre.
+    return target === homeSlot(state.players[playerIndex].finished)
+  }
   if (hasOwnPieceAt(state, playerIndex, target)) return false
   return true
 }
@@ -188,6 +198,11 @@ export default function MenschGame() {
   const [tournament, setTournament] = useState([0, 0, 0, 0])
   const [sessionWins, setSessionWins] = useState(0)
   const winCountedRef = useRef(false)
+  const tournamentCountedRef = useRef(false)
+  const stateRef = useRef(state)
+  stateRef.current = state
+  const rollTimerRef = useRef<number | null>(null)
+  const botTimerRef = useRef<number | null>(null)
   const current = state.players[state.current]
   const movable = useMemo(() => current.pieces.map((piece) => canMove(state, piece, state.current)), [current.pieces, state])
   const botTurn = !setup && isBot(mode, state.current) && state.winner === null
@@ -214,6 +229,7 @@ export default function MenschGame() {
     setCount(normalizedPlayers)
     setMode(nextMode)
     saveMode(nextMode)
+    setTournament([0, 0, 0, 0])
     setState(createState(normalizedPlayers))
     setSetup(false)
   }
@@ -222,28 +238,44 @@ export default function MenschGame() {
     setState(createState(count))
   }
 
-  const roll = () => {
-    if (state.rolled || state.rolling || state.winner !== null || botTurn) return
-    const die = rollDie()
+  // Applique un de deja tire (via updater fonctionnel: pas d'etat perime, le de
+  // s'applique toujours au joueur courant reel au moment de la resolution).
+  const finishRoll = (die: number) => {
+    setState((currentState) => {
+      const next = { ...currentState, die, rolled: true, rolling: false, message: `Joueur ${currentState.current + 1}: ${die}` }
+      if (!next.players[next.current].pieces.some((piece) => canMove(next, piece, next.current))) {
+        next.rolled = false
+        next.current = (next.current + 1) % next.players.length
+        next.message = die === 6 ? 'Aucun pion ne peut sortir: case de depart occupee.' : 'Aucun mouvement. Joueur suivant.'
+      }
+      return next
+    })
+  }
+
+  const beginRoll = (die: number) => {
     setState((currentState) => ({ ...currentState, rolling: true, message: `Joueur ${currentState.current + 1} lance...` }))
-    window.setTimeout(() => {
-      setState((currentState) => {
-        const next = { ...currentState, die, rolled: true, rolling: false, message: `Joueur ${currentState.current + 1}: ${die}` }
-        if (!next.players[next.current].pieces.some((piece) => canMove(next, piece, next.current))) {
-          next.rolled = false
-          next.current = (next.current + 1) % next.players.length
-          next.message = die === 6 ? 'Aucun pion ne peut sortir: case de depart occupee.' : 'Aucun mouvement. Joueur suivant.'
-        }
-        return next
-      })
+    if (rollTimerRef.current !== null) window.clearTimeout(rollTimerRef.current)
+    rollTimerRef.current = window.setTimeout(() => {
+      rollTimerRef.current = null
+      finishRoll(die)
     }, 380)
   }
 
+  const roll = () => {
+    if (state.rolled || state.rolling || state.winner !== null || botTurn) return
+    beginRoll(rollDie())
+  }
+
   const move = (pieceIndex: number) => {
-    if (!state.rolled || state.rolling || state.winner !== null || !movable[pieceIndex]) return
     setState((currentState) => {
+      // Re-validation sur l'etat frais: protege des appels differes (bot/setTimeout)
+      // qui pourraient porter un pieceIndex devenu illegal entre-temps.
+      if (!currentState.rolled || currentState.rolling || currentState.winner !== null) return currentState
+      const mover = currentState.current
+      const candidate = currentState.players[mover].pieces[pieceIndex]
+      if (!candidate || !canMove(currentState, candidate, mover)) return currentState
+
       const next: MenschState = JSON.parse(JSON.stringify(currentState))
-      const mover = next.current
       const piece = next.players[mover].pieces[pieceIndex]
       const wasBase = piece.steps < 0
       const target = wasBase ? 0 : piece.steps + next.die
@@ -251,7 +283,7 @@ export default function MenschGame() {
       let captured = false
 
       piece.steps = target
-      piece.finished = target === FINISH_STEP
+      piece.finished = !wasBase && target === homeSlot(next.players[mover].finished)
       if (piece.finished) next.players[mover].finished += 1
 
       if (track !== null && !SAFE_TRACKS.has(track)) {
@@ -269,14 +301,12 @@ export default function MenschGame() {
       if (next.players[mover].finished === 4) {
         next.winner = mover
         next.message = `${COLOR_NAMES[mover]} gagne la manche.`
-        if (mode === 'tournoi') {
-          setTournament((scores) => scores.map((score, index) => index === mover ? score + 3 : score).slice(0, next.players.length))
-        }
-      } else if (next.die === 6 || captured) {
-        next.message = captured ? 'Capture! Vous rejouez.' : '6: vous gardez la main.'
+      } else if (next.die === 6) {
+        // Tour supplementaire uniquement sur un 6 (regle standard + RULES affichees).
+        next.message = captured ? 'Capture! Vous rejouez (6).' : '6: vous gardez la main.'
       } else {
         next.current = (mover + 1) % next.players.length
-        next.message = `Au joueur ${next.current + 1}.`
+        next.message = captured ? `Capture! Au joueur ${next.current + 1}.` : `Au joueur ${next.current + 1}.`
       }
 
       next.rolled = false
@@ -287,28 +317,46 @@ export default function MenschGame() {
 
   useEffect(() => {
     if (!botTurn) return
-    const timer = window.setTimeout(() => {
-      if (!state.rolled) {
-        const die = rollDie()
-        setState((currentState) => ({ ...currentState, rolling: true, message: `Joueur ${currentState.current + 1} lance...` }))
-        window.setTimeout(() => {
-          setState((currentState) => {
-            const next = { ...currentState, die, rolled: true, rolling: false, message: `Joueur ${currentState.current + 1}: ${die}` }
-            if (!next.players[next.current].pieces.some((piece) => canMove(next, piece, next.current))) {
-              next.rolled = false
-              next.current = (next.current + 1) % next.players.length
-              next.message = die === 6 ? 'Aucun pion ne peut sortir: case de depart occupee.' : 'Aucun mouvement. Joueur suivant.'
-            }
-            return next
-          })
-        }, 380)
+    botTimerRef.current = window.setTimeout(() => {
+      botTimerRef.current = null
+      const latest = stateRef.current
+      if (latest.rolling || latest.winner !== null) return
+      if (!latest.rolled) {
+        beginRoll(rollDie())
       } else {
-        const index = chooseBotPiece(state)
+        const index = chooseBotPiece(latest)
         if (index >= 0) move(index)
       }
     }, state.rolled ? 720 : 680)
-    return () => window.clearTimeout(timer)
+    return () => {
+      if (botTimerRef.current !== null) {
+        window.clearTimeout(botTimerRef.current)
+        botTimerRef.current = null
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botTurn, state.rolled, state.current, state.die])
+
+  // Nettoyage des minuteries au demontage: evite tout setState apres unmount.
+  useEffect(() => {
+    return () => {
+      if (rollTimerRef.current !== null) window.clearTimeout(rollTimerRef.current)
+      if (botTimerRef.current !== null) window.clearTimeout(botTimerRef.current)
+    }
+  }, [])
+
+  // Points de tournoi hors updater setState (sinon double comptage en StrictMode).
+  // Un ref garantit un seul credit par manche, remis a zero quand winner repasse a null.
+  useEffect(() => {
+    if (state.winner === null) {
+      tournamentCountedRef.current = false
+      return
+    }
+    if (tournamentCountedRef.current || mode !== 'tournoi') return
+    tournamentCountedRef.current = true
+    const winner = state.winner
+    setTournament((scores) => scores.map((score, index) => (index === winner ? score + 3 : score)))
+  }, [state.winner, mode])
 
   // Duel/course sans points: le score leaderboard = victoires cumulees de la session.
   // winCountedRef garantit un seul submit par manche (reset quand winner repasse a null).
@@ -874,12 +922,16 @@ function addMoveHints(group: THREE.Group, moveHints: MoveHint[]) {
 }
 
 function addPieces(group: THREE.Group, state: MenschState, movable: boolean[]) {
-  const occupancy = new Map<string, number>()
+  // Occupation globale (tous joueurs confondus): l'index de pile doit couvrir les
+  // pions adverses cohabitant sur une case protegee, sinon ils se superposent.
+  const occupants = new Map<string, { playerIndex: number; pieceIndex: number }[]>()
   state.players.forEach((player, playerIndex) => {
     player.pieces.forEach((piece, pieceIndex) => {
       const [x, y] = pieceCell(piece, playerIndex, pieceIndex)
       const key = `${x}-${y}`
-      occupancy.set(key, (occupancy.get(key) ?? 0) + 1)
+      const list = occupants.get(key)
+      if (list) list.push({ playerIndex, pieceIndex })
+      else occupants.set(key, [{ playerIndex, pieceIndex }])
     })
   })
 
@@ -888,11 +940,9 @@ function addPieces(group: THREE.Group, state: MenschState, movable: boolean[]) {
       const [x, y] = pieceCell(piece, playerIndex, pieceIndex)
       const key = `${x}-${y}`
       const pos = gridToWorld(x, y)
-      const crowded = (occupancy.get(key) ?? 0) > 1
-      const stack = player.pieces
-        .map((candidate, index) => ({ index, key: `${pieceCell(candidate, playerIndex, index)[0]}-${pieceCell(candidate, playerIndex, index)[1]}` }))
-        .filter((entry) => entry.key === key)
-        .findIndex((entry) => entry.index === pieceIndex)
+      const list = occupants.get(key) ?? []
+      const crowded = list.length > 1
+      const stack = list.findIndex((entry) => entry.playerIndex === playerIndex && entry.pieceIndex === pieceIndex)
       const offsets = [[-0.09, -0.09], [0.09, -0.09], [-0.09, 0.09], [0.09, 0.09]]
       const [ox, oz] = crowded ? offsets[stack % offsets.length] : [0, 0]
       const active = state.current === playerIndex && movable[pieceIndex] && state.rolled && state.winner === null
