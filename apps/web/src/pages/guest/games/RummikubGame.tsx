@@ -22,24 +22,37 @@ export default function RummikubGame({ onBack }: GameProps) {
   const selectedValue = selectedTiles.reduce((sum, tile) => sum + tile.number, 0)
   const valid = isRummiMeld(selectedTiles) && (opened || selectedValue >= 30)
 
-  const endGame = (who: 'player' | 'cpu') => {
-    if (gameOver) return
+  // Refs synchrones : cpuTurn/endGame s'exécutent dans un setTimeout, ils DOIVENT
+  // lire l'état courant et non la closure du rendu où ils ont été planifiés (sinon
+  // le CPU repioche la tuile que le joueur vient de prendre -> tuile dupliquée, et
+  // endGame calcule le score sur un rack/melds périmés).
+  const poolRef = useRef(pool); poolRef.current = pool
+  const rackRef = useRef(rack); rackRef.current = rack
+  const cpuRackRef = useRef(cpuRack); cpuRackRef.current = cpuRack
+  const meldsRef = useRef(melds); meldsRef.current = melds
+  const gameOverRef = useRef(gameOver); gameOverRef.current = gameOver
+
+  const endGame = (who: 'player' | 'cpu', finalMelds: Tile[][], finalRack: Tile[]) => {
+    if (gameOverRef.current) return
+    gameOverRef.current = true
     setGameOver(true)
     setWinner(who)
-    const s = melds.reduce((sum, m) => sum + m.reduce((a, t) => a + t.number, 0), 0)
+    // Score joueur = valeur de SES melds (+50 s'il gagne) − valeur de son rack restant,
+    // calculé sur les valeurs POST-coup passées en paramètre.
+    const s = finalMelds.reduce((sum, m) => sum + m.reduce((a, t) => a + t.number, 0), 0)
       + (who === 'player' ? 50 : 0)
-      - rack.reduce((sum, t) => sum + t.number, 0)
-    const record = submit(Math.max(0, s))
-    setIsNewRecord(record)
+      - finalRack.reduce((sum, t) => sum + t.number, 0)
+    setIsNewRecord(submit(Math.max(0, s)))
   }
 
   const cpuTurn = () => {
-    if (gameOver) return
-    let nextRack = [...cpuRack]
-    let nextPool = pool
+    if (gameOverRef.current) return
+    let nextRack = [...cpuRackRef.current]
+    let nextPool = poolRef.current
     if (nextPool.length > 0) {
       nextRack = [...nextRack, nextPool[0]]
       nextPool = nextPool.slice(1)
+      poolRef.current = nextPool
       setPool(nextPool)
     }
     const meld = findRummiMeld(nextRack)
@@ -50,8 +63,14 @@ export default function RummikubGame({ onBack }: GameProps) {
     } else {
       setMessage('Le CPU pioche une tuile.')
     }
+    cpuRackRef.current = nextRack
     setCpuRack(nextRack)
-    if (nextRack.length === 0) endGame('cpu')
+    if (nextRack.length === 0) endGame('cpu', meldsRef.current, rackRef.current)
+  }
+
+  const scheduleCpu = () => {
+    window.clearTimeout(cpuTurnTimeout.current)
+    cpuTurnTimeout.current = window.setTimeout(cpuTurn, 800)
   }
 
   const place = () => {
@@ -59,20 +78,28 @@ export default function RummikubGame({ onBack }: GameProps) {
       setMessage(opened ? 'Suite ou groupe invalide.' : 'La premiere pose doit atteindre 30 points.')
       return
     }
-    setMelds((items) => [...items, selectedTiles])
-    setRack((items) => items.filter((tile) => !selected.includes(tile.id)))
+    const nextRack = rack.filter((tile) => !selected.includes(tile.id))
+    const nextMelds = [...melds, selectedTiles]
+    meldsRef.current = nextMelds
+    rackRef.current = nextRack
+    setMelds(nextMelds)
+    setRack(nextRack)
     setSelected([])
     setOpened(true)
     setMessage('Combinaison posee sur la table.')
-    if (rack.length - selected.length === 0) { endGame('player'); return }
-    cpuTurnTimeout.current = window.setTimeout(cpuTurn, 800)
+    if (nextRack.length === 0) { endGame('player', nextMelds, nextRack); return }
+    scheduleCpu()
   }
   const draw = () => {
-    if (!pool.length) return
-    setRack((items) => sortTiles([...items, pool[0]]))
-    setPool((items) => items.slice(1))
+    if (!poolRef.current.length) return
+    const nextRack = sortTiles([...rack, poolRef.current[0]])
+    const nextPool = poolRef.current.slice(1)
+    rackRef.current = nextRack
+    poolRef.current = nextPool
+    setRack(nextRack)
+    setPool(nextPool)
     setMessage('Tuile piochee.')
-    cpuTurnTimeout.current = window.setTimeout(cpuTurn, 800)
+    scheduleCpu()
   }
 
   useEffect(() => () => window.clearTimeout(cpuTurnTimeout.current), [])
