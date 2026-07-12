@@ -10,7 +10,7 @@ export default function RummikubGame({ onBack }: GameProps) {
   const [melds, setMelds] = useState<Tile[][]>([])
   const [cpuMelds, setCpuMelds] = useState<Tile[][]>([])
   const [opened, setOpened] = useState(false)
-  const [message, setMessage] = useState('Creez une serie ou un groupe de 3 tuiles minimum.')
+  const [message, setMessage] = useState('Creez une combinaison (3+). Apres ouverture, cliquez une combinaison de la table pour y ajouter vos tuiles.')
   const [gameOver, setGameOver] = useState(false)
   const [winner, setWinner] = useState<'player' | 'cpu' | null>(null)
   const cpuTurnTimeout = useRef<number>()
@@ -90,6 +90,24 @@ export default function RummikubGame({ onBack }: GameProps) {
     if (nextRack.length === 0) { endGame('player', nextMelds, nextRack); return }
     scheduleCpu()
   }
+  // Manipulation de table : ajouter les tuiles sélectionnées à une combinaison déjà
+  // posée (prolonger une suite, compléter un groupe). Autorisé après l'ouverture.
+  const addToMeld = (meldIndex: number) => {
+    if (!selected.length) return
+    if (!opened) { setMessage('Ouvrez d abord (pose a 30 pts) avant de manipuler la table.'); return }
+    const combined = sortTiles([...melds[meldIndex], ...selectedTiles])
+    if (!isRummiMeld(combined)) { setMessage('Ces tuiles ne completent pas cette combinaison.'); return }
+    const nextRack = rack.filter((tile) => !selected.includes(tile.id))
+    const nextMelds = melds.map((m, i) => (i === meldIndex ? combined : m))
+    meldsRef.current = nextMelds
+    rackRef.current = nextRack
+    setMelds(nextMelds)
+    setRack(nextRack)
+    setSelected([])
+    setMessage('Tuiles ajoutees a la combinaison !')
+    if (nextRack.length === 0) { endGame('player', nextMelds, nextRack); return }
+    scheduleCpu()
+  }
   const draw = () => {
     if (!poolRef.current.length) return
     const nextRack = sortTiles([...rack, poolRef.current[0]])
@@ -145,8 +163,15 @@ export default function RummikubGame({ onBack }: GameProps) {
         <div style={rummiBoardStyle}>
           <div style={rummiMeldsStyle}>
             {melds.length ? melds.map((meld, index) => (
-              <div key={index} style={rummiMeldRowStyle}>
-                {meld.map((tile) => <RummiTile key={tile.id} tile={tile} small />)}
+              <div
+                key={index}
+                onClick={() => { if (selected.length) addToMeld(index) }}
+                title={selected.length ? 'Ajouter les tuiles selectionnees a cette combinaison' : undefined}
+                style={{ cursor: selected.length ? 'pointer' : 'default', outline: selected.length ? `2px dashed ${ACCENT}88` : 'none', borderRadius: 8 }}
+              >
+                <div style={{ ...rummiMeldRowStyle, pointerEvents: selected.length ? 'none' : 'auto' }}>
+                  {meld.map((tile) => <RummiTile key={tile.id} tile={tile} small />)}
+                </div>
               </div>
             )) : <span style={{ color: MUTED }}>Table libre</span>}
           </div>
