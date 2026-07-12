@@ -45,7 +45,7 @@ const QUICK_ACTIONS = [
 
 const CHANNELS: { id: ChannelId; label: string; desc: string; icon: typeof Users }[] = [
   { id: 'staff', label: 'Personnel', desc: 'Serveur/serveuse', icon: MessageCircle },
-  { id: 'cafe', label: 'Cafe', desc: 'Groupe public', icon: Coffee },
+  { id: 'cafe', label: 'Café', desc: 'Groupe public', icon: Coffee },
   { id: 'tables', label: 'Tables', desc: 'Table a table', icon: Table2 },
   { id: 'players', label: 'Joueurs', desc: 'Defis individuels', icon: Users },
   { id: 'owner', label: 'Patron', desc: 'Message plus tard', icon: UserRound },
@@ -63,7 +63,7 @@ const CHANNEL_QUICK_ACTIONS: Partial<Record<ChannelId, { emoji: string; label: s
     { emoji: '🏆', label: 'Mini tournoi ?' },
   ],
   players: [
-    { emoji: '🎮', label: 'Defi individuel' },
+    { emoji: '🎮', label: 'Défi individuel' },
     { emoji: '🏅', label: 'Revanche ?' },
     { emoji: '👋', label: 'Salut, tu joues ?' },
   ],
@@ -107,19 +107,19 @@ function initialMessagesFor(channel: ChannelId): Message[] {
   const now = Date.now()
   if (channel === 'cafe') {
     return [
-      { id: 'c1', from: 'system', text: 'Groupe cafe: messages visibles par les clients connectes.', kind: 'system', time: now - 60000 },
-      { id: 'c2', from: 'staff', staffName: 'Creorga', text: 'Bienvenue dans le groupe du cafe. Vous pouvez discuter et partager une photo du moment.', kind: 'text', time: now - 45000 },
+      { id: 'c1', from: 'system', text: 'Groupe café: messages visibles par les clients connectés.', kind: 'system', time: now - 60000 },
+      { id: 'c2', from: 'staff', staffName: 'Creorga', text: 'Bienvenue dans le groupe du café. Vous pouvez discuter et partager une photo du moment.', kind: 'text', time: now - 45000 },
     ]
   }
   if (channel === 'tables') {
     return [
-      { id: 't1', from: 'system', text: 'Table a table: proposez une partie ou un tournoi local.', kind: 'system', time: now - 60000 },
+      { id: 't1', from: 'system', text: 'Table à table: proposez une partie ou un tournoi local.', kind: 'system', time: now - 60000 },
       { id: 't2', from: 'staff', staffName: 'Table 2', text: 'On cherche une autre table pour Petits Chevaux 3D.', kind: 'text', time: now - 42000 },
     ]
   }
   if (channel === 'players') {
     return [
-      { id: 'p1', from: 'system', text: 'Joueurs: defis individuels et invitations avec code.', kind: 'system', time: now - 60000 },
+      { id: 'p1', from: 'system', text: 'Joueurs: défis individuels et invitations avec code.', kind: 'system', time: now - 60000 },
       { id: 'p2', from: 'staff', staffName: 'Joueur local', text: 'Disponible pour un duel rapide.', kind: 'text', time: now - 43000 },
     ]
   }
@@ -130,7 +130,7 @@ function initialMessagesFor(channel: ChannelId): Message[] {
   }
   return [
     { id: 's1', from: 'system', text: 'Conversation avec le personnel de service.', kind: 'system', time: now - 1000 * 60 * 3 },
-    { id: 's2', from: 'staff', staffName: 'Marie', text: 'Bonjour, ecrivez ici pour demander du pain, de l eau, l addition ou une aide a table.', kind: 'text', time: now - 1000 * 60 * 2 },
+    { id: 's2', from: 'staff', staffName: 'Marie', text: 'Bonjour, écrivez ici pour demander du pain, de l eau, l addition ou une aide à table.', kind: 'text', time: now - 1000 * 60 * 2 },
   ]
 }
 

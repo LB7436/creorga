@@ -146,7 +146,7 @@ export default function GuestHome() {
   const [announcements] = useState<Announcement[]>([])
   const [guestClient, setGuestClient] = useState<GuestClientProfile | null>(() => loadGuestClient())
   const [registrationOpen, setRegistrationOpen] = useState(false)
-  const [registrationReason, setRegistrationReason] = useState('Creorga cree votre fiche client pour les commandes, les avis et les records de jeux.')
+  const [registrationReason, setRegistrationReason] = useState('Creorga crée votre fiche client pour les commandes, les avis et les records de jeux.')
 
   // Cart state shared with menu
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -662,7 +662,7 @@ function GuestMenu({
         marginBottom: 12,
       }}>
         <div>
-          <p style={{ fontSize: 12, fontWeight: 800, color: TEXT }}>Menu connecte POS + stock</p>
+          <p style={{ fontSize: 12, fontWeight: 800, color: TEXT }}>Menu connecté POS + stock</p>
           <p style={{ fontSize: 10.5, color: MUTED, marginTop: 2 }}>
             Profil: {guestClient ? guestDisplayName(guestClient) : 'inscription requise pour commander'}
           </p>
@@ -700,7 +700,7 @@ function GuestMenu({
             📄
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 13, fontWeight: 800, color: TEXT }}>QR Menu publie</p>
+            <p style={{ fontSize: 13, fontWeight: 800, color: TEXT }}>QR Menu publié</p>
             <p style={{ fontSize: 11, color: MUTED, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {qrMenuDocument.name}
             </p>
@@ -775,7 +775,7 @@ function GuestMenu({
                 </p>
                 {p.stockStatus === 'OUT' && (
                   <p style={{ fontSize: 11, color: '#f97316', marginTop: 4, fontWeight: 800 }}>
-                    Stock epuise cote inventaire
+                    Stock épuisé côté inventaire
                   </p>
                 )}
                 {p.stockStatus === 'LOW' && (
@@ -1153,7 +1153,7 @@ function GuestFeedback({
   const submit = async () => {
     if (!rating) return
     const profile = loadGuestClient() ?? guestClient
-    if (!profile && !requireGuestClient('Inscrivez-vous pour envoyer un avis: il sera rattache a votre fiche client Creorga.')) return
+    if (!profile && !requireGuestClient('Inscrivez-vous pour envoyer un avis: il sera rattaché à votre fiche client Creorga.')) return
     setState('submitting')
     setErrorMsg('')
     try {
