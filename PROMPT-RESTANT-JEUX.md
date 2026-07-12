@@ -8,12 +8,12 @@
 
 # CONTEXTE — CE QUI EST DÉJÀ FAIT (NE PAS REFAIRE)
 La grosse session de corrections est terminée : **55+ commits poussés sur origin/master**
-(LB7436/creorga, dernier = `e471337`). État :
+(LB7436/creorga, dernier = `ed7176d`). État :
 > **MàJ 2026-07-12 (session suite) :** smoke-tests navigateur des 3 jeux publiés FAITS ;
 > validation runtime approfondie (Blackjack money-logic, Reversi soft-lock, Rami, + revue 421/2048) ;
 > **balayage non-régression de TOUT le catalogue** (~38 jeux, 0 crash/exception/erreur/imbrication,
 > harnais `tests-qa/smoke-sweep.mjs`) ; **2 bugs corrigés** (imbrication `<button>` dans MiniCard,
-> bonus +200 victoire Tri-Tours non affiché) ; **6 features livrées** : jokers Rami/Rummikub +
+> bonus +200 victoire Tri-Tours non affiché) ; **7 features livrées** : jokers Rami/Rummikub +
 > manipulation de table Rummikub (ajout de tuiles) + pointage manuel Bingo (daubing) + manipulation
 > LIBRE de la table Rummikub (scinder/recombiner + IA CPU) + **IA échecs dans un Web Worker** (fin du
 > gel d'UI) + **difficulté IA échecs réglable** (profondeur minimax pilotée par le dialog, commit
@@ -68,8 +68,9 @@ hors du thread UI → fin du gel de l'onglet ; fallback synchrone — commit `7a
 **RESTE** : plus rien de borné/prioritaire côté jeux. FAIT en plus ce round : **difficulté IA échecs**,
 **meilleur état vide du hub** (message contextuel + reset filtres), **accents FR** catalogue +
 ChatSection/GuestHome, micro-polish 6 jeux (Simon/Snake/2048/Memory/Mastermind/Hangman → déjà propres).
-Prochain vrai chantier = **backend (P0 Postgres/Stripe)**, hors périmètre. Note Rummikub : la manipulation
-opère sur la table du JOUEUR (l'archi sépare melds joueur/CPU) ; une vraie table PARTAGÉE = chantier distinct.
++ **table PARTAGÉE Rummikub** (la vraie règle : table commune joueur/CPU visible, le joueur réarrange
+n'importe quelle combinaison, score repensé — commit `ed7176d`). **Plus AUCUN chantier jeux en attente.**
+Prochain vrai chantier = **backend (P0 Postgres/Stripe)**, hors périmètre.
 Note technique jokers/table (déjà en place) : joker = `value`/`number` **10** (ignoré par la
 validation via le flag `joker`) ; validateurs joker-aware `isRamiMeld`/`isRummiMeld` + helper
 `runWithJokersOK` dans `originalsShared.tsx` ; `addToMeld` dans `RummikubGame.tsx`.
