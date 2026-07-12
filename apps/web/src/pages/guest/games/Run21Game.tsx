@@ -7,24 +7,53 @@ export default function Run21Game({ onBack }: GameProps) {
   const [current, setCurrent] = useState<Card | null>(initial[0])
   const [columns, setColumns] = useState<Card[][]>([[], [], [], [], []])
   const [score, setScore] = useState(0)
-  const [message, setMessage] = useState('Placez les cartes dans 5 colonnes sans depasser 21.')
+  const [message, setMessage] = useState('Placez les cartes sans depasser 21. Une colonne a 21 pile est validee (+25) et se vide.')
+  const [gameOver, setGameOver] = useState(false)
+  const [isNewRecord, setIsNewRecord] = useState(false)
+
+  const { best, submit } = useGameScore('run21')
+  const submittedRef = useRef(false)
 
   const sums = columns.map((column) => column.reduce((sum, card) => sum + card.value, 0))
   const locked = current ? sums.every((sum) => sum + current.value > 21) : true
 
+  // Fin de partie : plus de carte a placer OU aucune colonne ne peut prendre la
+  // carte courante. Une seule soumission par partie (submittedRef, rearme au reset).
+  const finish = (finalScore: number) => {
+    if (submittedRef.current) return
+    submittedRef.current = true
+    setGameOver(true)
+    setIsNewRecord(submit(Math.max(0, Math.min(1_000_000, finalScore))))
+  }
+
   const place = (index: number) => {
-    if (!current) return
+    if (!current || gameOver) return
     if (sums[index] + current.value > 21) {
-      setMessage('Colonne trop haute.')
+      setMessage('Colonne trop haute (> 21).')
       return
     }
-    const nextColumns = columns.map((column, colIndex) => colIndex === index ? [...column, current] : column)
     const nextSum = sums[index] + current.value
+    const cleared = nextSum === 21
+    // Coeur du jeu : une colonne a 21 pile rapporte +25 ET se vide (reutilisable),
+    // sinon les 5 colonnes se remplissent et bloquent la partie en quelques coups.
+    const nextColumns = columns.map((column, colIndex) =>
+      colIndex === index ? (cleared ? [] : [...column, current]) : column,
+    )
+    const nextScore = score + current.value + (cleared ? 25 : 0)
+    const nextCurrent = deck[0] ?? null
+
     setColumns(nextColumns)
-    setScore((value) => value + current.value + (nextSum === 21 ? 25 : 0))
-    setCurrent(deck[0] ?? null)
+    setScore(nextScore)
+    setCurrent(nextCurrent)
     setDeck((list) => list.slice(1))
-    setMessage(nextSum === 21 ? 'Run 21 parfait: bonus.' : 'Carte posee.')
+    setMessage(cleared ? 'Run 21 parfait ! +25, colonne videe.' : 'Carte posee.')
+
+    if (!nextCurrent) {
+      finish(nextScore) // pioche epuisee
+    } else {
+      const nextSums = nextColumns.map((c) => c.reduce((s, card) => s + card.value, 0))
+      if (nextSums.every((s) => s + nextCurrent.value > 21)) finish(nextScore) // plus aucun placement
+    }
   }
 
   const reset = () => {
@@ -33,6 +62,9 @@ export default function Run21Game({ onBack }: GameProps) {
     setCurrent(next[0])
     setColumns([[], [], [], [], []])
     setScore(0)
+    setGameOver(false)
+    setIsNewRecord(false)
+    submittedRef.current = false
     setMessage('Nouvelle grille Run 21.')
   }
 
@@ -44,9 +76,10 @@ export default function Run21Game({ onBack }: GameProps) {
       side={gameSide({
         stats: [
           { label: 'Score', value: score, color: '#f59e0b' },
+          { label: 'Record', value: best, color: '#22c55e' },
           { label: 'Pioche', value: deck.length, color: ACCENT2 },
         ],
-        message: locked ? 'Plus aucun placement possible. Relancez une grille.' : message,
+        message: locked && !gameOver ? 'Plus aucun placement possible.' : message,
         children: <button onClick={reset} style={ghostButtonStyle}>Nouvelle grille</button>,
       })}
     >
@@ -67,6 +100,15 @@ export default function Run21Game({ onBack }: GameProps) {
           </div>
         </div>
       </Stage>
+      {gameOver && (
+        <GameOverModal
+          score={score}
+          best={best}
+          isNewRecord={isNewRecord}
+          onReplay={reset}
+          onBack={onBack}
+        />
+      )}
     </Game3DShell>
   )
 }
