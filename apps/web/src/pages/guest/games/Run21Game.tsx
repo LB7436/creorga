@@ -7,7 +7,7 @@ export default function Run21Game({ onBack }: GameProps) {
   const [current, setCurrent] = useState<Card | null>(initial[0])
   const [columns, setColumns] = useState<Card[][]>([[], [], [], [], []])
   const [score, setScore] = useState(0)
-  const [message, setMessage] = useState('Placez les cartes sans depasser 21. Une colonne a 21 pile est validee (+25) et se vide.')
+  const [message, setMessage] = useState('Placez les cartes sans dépasser 21. Une colonne à 21 pile est validée (+25) et se vide.')
   const [gameOver, setGameOver] = useState(false)
   const [isNewRecord, setIsNewRecord] = useState(false)
 
@@ -46,7 +46,7 @@ export default function Run21Game({ onBack }: GameProps) {
     setScore(nextScore)
     setCurrent(nextCurrent)
     setDeck((list) => list.slice(1))
-    setMessage(cleared ? 'Run 21 parfait ! +25, colonne videe.' : 'Carte posee.')
+    setMessage(cleared ? 'Run 21 parfait ! +25, colonne vidée.' : 'Carte posée.')
 
     if (!nextCurrent) {
       finish(nextScore) // pioche epuisee

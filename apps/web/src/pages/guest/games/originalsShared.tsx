@@ -207,7 +207,7 @@ export const differences = [
   { id: 'lamp', label: 'lampe', x: 83, y: 41 },
   { id: 'stripe', label: 'store', x: 42, y: 22 },
   { id: 'plate', label: 'assiette', x: 47, y: 67 },
-  { id: 'window', label: 'fenetre', x: 73, y: 35 },
+  { id: 'window', label: 'fenêtre', x: 73, y: 35 },
   { id: 'path', label: 'dalle', x: 57, y: 82 },
   { id: 'flower', label: 'fleur', x: 16, y: 72 },
 ]

@@ -71,7 +71,7 @@ export default function MahjongGame({ onBack }: GameProps) {
     setSeconds(0)
     setGameOver(false)
     setIsNewRecord(false)
-    setMessage('Plateau melange.')
+    setMessage('Plateau mélangé.')
   }
 
   return (
