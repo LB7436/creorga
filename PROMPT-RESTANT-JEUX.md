@@ -8,14 +8,14 @@
 
 # CONTEXTE — CE QUI EST DÉJÀ FAIT (NE PAS REFAIRE)
 La grosse session de corrections est terminée : **55+ commits poussés sur origin/master**
-(LB7436/creorga, dernier = `51daf82`). État :
+(LB7436/creorga, dernier = `4857667`). État :
 > **MàJ 2026-07-12 (session suite) :** smoke-tests navigateur des 3 jeux publiés FAITS ;
 > validation runtime approfondie (Blackjack money-logic, Reversi soft-lock, Rami, + revue 421/2048) ;
 > **balayage non-régression de TOUT le catalogue** (~38 jeux, 0 crash/exception/erreur/imbrication,
 > harnais `tests-qa/smoke-sweep.mjs`) ; **2 bugs corrigés** (imbrication `<button>` dans MiniCard,
-> bonus +200 victoire Tri-Tours non affiché) ; **3 features livrées** : jokers Rami/Rummikub +
-> manipulation de table Rummikub (ajout de tuiles à une combinaison posée) + pointage manuel Bingo
-> (daubing, commit `51daf82`). **Détail complet et à
+> bonus +200 victoire Tri-Tours non affiché) ; **4 features livrées** : jokers Rami/Rummikub +
+> manipulation de table Rummikub (ajout de tuiles) + pointage manuel Bingo (daubing) + manipulation
+> LIBRE de la table Rummikub (scinder/recombiner + IA CPU, commit `4857667`). **Détail complet et à
 > jour dans `SUIVI-JEUX.md`** — le lire en premier. Le « restant » P3 ci-dessous est actualisé.
 - **~30 jeux corrigés (~65 bugs)** : Poker (évaluateur+enchères+side-pots), Rami, Rummikub,
   Reversi (soft-lock), Blackjack (double payout), 421, Farkle, Motus (720 mots), Hangman,
@@ -58,11 +58,12 @@ Rejouer 2-3 smoke-tests existants (`tests-qa/smoke-*.mjs`) pour non-régression.
 
 ## P3 — (enhancements, seulement si explicitement demandé — ce ne sont PAS des bugs)
 ✅ **FAIT (2026-07-12)** : jokers Rami/Rummikub ; manipulation de table Rummikub (ajout de tuiles) ;
-pointage manuel Bingo (daubing : le joueur pointe ses numéros, mode Manuel par défaut + bascule Auto,
-compteur de Ratés, cases « à pointer » — commit `51daf82`, vérifié navigateur).
-**RESTE** : réarrangement LIBRE de la table Rummikub (scinder/recombiner les combinaisons, + IA qui
-l'exploite) ; Web Worker pour l'IA d'échecs (extraire le moteur pur de `ChessGame.tsx` dans un module
-worker) ; polish (états vides, accents FR épars).
+pointage manuel Bingo (daubing, commit `51daf82`) ; **manipulation LIBRE de la table Rummikub**
+(scinder/recombiner les combinaisons posées via un modèle transactionnel « Nouvelle combi. / + ici /
+Valider / Annuler » + IA CPU qui prolonge ses propres combinaisons — commit `4857667`, vérifié navigateur).
+**RESTE** : Web Worker pour l'IA d'échecs (extraire le moteur pur de `ChessGame.tsx` dans un module
+worker) ; polish (états vides, accents FR épars). Note Rummikub : la manipulation opère sur la table du
+JOUEUR (l'archi sépare melds joueur/CPU) ; une vraie table PARTAGÉE serait un chantier distinct.
 Note technique jokers/table (déjà en place) : joker = `value`/`number` **10** (ignoré par la
 validation via le flag `joker`) ; validateurs joker-aware `isRamiMeld`/`isRummiMeld` + helper
 `runWithJokersOK` dans `originalsShared.tsx` ; `addToMeld` dans `RummikubGame.tsx`.
