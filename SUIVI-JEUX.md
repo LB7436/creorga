@@ -65,7 +65,8 @@
 - [x] **WordScramble** : mot anglais + mot accentué + indice qui révèle la réponse — 731374e
 - [x] Lot 2 de 5 jeux en parallèle (agents) : **Mastermind** (friction 1er tour, auto-scroll, pickColor, confetti, timer ; indices audités OK — 2cd58eb), **Memory** (timeouts orphelins, post-unmount, effets updater, injectCSS — 7457412), **Taquin** (compteur de coups/StrictMode, swipe post-victoire, 44px ; solvabilité auditée OK — 3dcda81), **Higher/Lower** (égalité, exploit As, valeurs cartes, doublon, UI — 3ace0f4), **Mensch/Ludo** (colonne d'arrivée→victoire, timers CPU, tour bonus, captures — 65676cd)
 - [x] **QuizGame** vérifié : 120 questions, 0 injouable (aucune réponse absente des options) — sain, aucun changement
-- [ ] Reste : polish (états vides, accents FR épars), Web Worker IA échecs (perf), complétude Rami/Rummikub (jokers, manipulation de table), + jeux « à décider » Erreur 11 / Run21 / TriTours (refondre ou retirer du catalogue — décision produit) — tous des enhancements/décisions, plus aucun bug bloquant
+- [x] **Run 21** COMPLÉTÉ et PUBLIÉ (available:true) : mécanique « colonne à 21 se vide » + fin de partie + GameOverModal + useGameScore — commit 3844a19 (⚠️ à smoke-tester au navigateur avant mise en prod finale)
+- [ ] Reste : jeux « à décider » restants **Erreur 11** et **Tri-Tours** (finir + publier OU garder cachés — décision produit), polish (états vides, accents FR épars), Web Worker IA échecs, complétude Rami/Rummikub (jokers, manipulation de table) — enhancements/décisions, plus aucun bug bloquant
 - [ ] Run21 / TriTours : terminer règles → available:true OU retirer ; Erreur 11 : refondre OU available:false
 - Note : Basket `basket3d` + Billard `billard` — ids de score déjà corrigés en 4a (commit d9e35d4) ; reste fixes gameplay REVUE
 
