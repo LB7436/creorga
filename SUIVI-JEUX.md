@@ -62,7 +62,10 @@
 - [x] Bataille (WarGame) : freshDeal() appelé 2× → 2 paquets différents (cartes dupliquées) → un seul mélange — commit c3a44bf
 - [x] Quiz : réponse « Saké » accentuée introuvable dans les options → question injouable — commit c3a44bf
 - [x] Hangman : mots imprenables (accents/tirets) + indice tueur (fausse lettre / instakill) — commit cef779b
-- [ ] Reste REVUE-JEUX-DETAIL.md : setInterval→useGameLoop (Snake/2048/Simon/Memory/Reaction/Motus), cibles 44px (Échecs/Démineur/Taquin), flag mobile Démineur, touch Solitaire, Motus (liste de mots corrompue ~250 entrées), NumberMemory (bouton « mémorisé »), ConnectFour (overflow 320px), IA (reversi coins, P4 profondeur), règles (solitaire re-pioche, yahtzee bonus 63, scopa primiera) + polish accents
+- [x] Puissance 4 : plateau responsive (overflow 320px, colonnes coupées) — commit 518e03c
+- [x] Mémoire des nombres : bouton « J'ai mémorisé » (fin des 48s d'attente passive) — commit 2b176f0
+- [x] Démineur : pose de drapeau au tactile (mode drapeau + appui long 350ms + vibration) — bloquant mobile levé — commit c9398bf
+- [ ] Reste REVUE-JEUX-DETAIL.md : setInterval→useGameLoop (Snake/2048/Simon/Memory/Reaction/Motus), cibles 44px (Échecs/Taquin/Solitaire), touch Solitaire (drag), Motus (liste de mots corrompue ~250 entrées), IA (reversi coins, P4 profondeur), règles (solitaire re-pioche, yahtzee bonus 63, scopa primiera) + polish accents
 
 ---
 ### Notes techniques pour la reprise
