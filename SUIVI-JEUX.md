@@ -53,8 +53,8 @@
 - [x] Farkle : Hot Dice joueur (relance après tout scoré), triche CPU (re-score des dés gardés), CPU-jamais-Farkle — commit c76a998
 - [x] Blackjack : double gagnant payé à mise simple (closure périmée → betAmount en paramètre), timers non nettoyés (helper later + cleanup) — commit b98be28
 - [x] 421 : hiérarchie des rangs (carte haute chevauchait paires → −1000), distribution jetons (perdant recevait SA combinaison au lieu de celle du gagnant) — commit 95c3490
-- [x] Poker : évaluateur (kickers + rang des groupes + quinte au 5) + tours d'enchères (flag hasActed : check post-flop ne clôt plus le tour, BB a son option préflop) — commit d3b1698
-- [ ] Rami, Rummikub, Poker (reste : side-pots all-in — l'évaluateur et les enchères sont OK), Bingo (tirage/fin)
+- [x] Poker COMPLET : évaluateur (kickers + rang des groupes + quinte au 5) + tours d'enchères (flag hasActed) + side-pots all-in (répartition par paliers) — commits d3b1698, 00f119d
+- [ ] Rami, Rummikub, Bingo (tirage/fin)
 - [ ] Run21 / TriTours : terminer règles → available:true OU retirer ; Erreur 11 : refondre OU available:false
 - Note : Basket `basket3d` + Billard `billard` — ids de score déjà corrigés en 4a (commit d9e35d4) ; reste fixes gameplay REVUE
 
