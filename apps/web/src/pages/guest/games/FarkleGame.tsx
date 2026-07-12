@@ -201,23 +201,28 @@ export default function FarkleGame({ onBack }: { onBack?: () => void }) {
   const rollDice = useCallback(() => {
     if (isOver || turn !== 'p') return
     const numKept = kept.filter(Boolean).length
-    const numToRoll = dice.length === 0 ? 6 : dice.length - numKept
+    // Hot dice : les 6 dés sont gardés (et marquent) -> on rejoue 6 dés neufs
+    // en banquant d'abord les points déjà gardés dans le score du tour, sinon
+    // impossible de relancer après avoir tout scoré (règle centrale du Farkle).
+    const hot = dice.length > 0 && numKept === dice.length
+    if (hot) {
+      const keptPts = scoreDice(dice.filter((_, i) => kept[i])).total
+      if (keptPts > 0) setTurnScore(ts => ts + keptPts)
+    }
+    const fresh = dice.length === 0 || hot
+    const numToRoll = fresh ? 6 : dice.length - numKept
     if (numToRoll === 0) return
 
     // Animate rolling dice
-    const rollingMask = dice.length === 0
-      ? Array(6).fill(true)
-      : kept.map(k => !k)
-    setRolling(dice.length === 0 ? Array(6).fill(true) : rollingMask)
+    const rollingMask = fresh ? Array(6).fill(true) : kept.map(k => !k)
+    setRolling(rollingMask)
 
     setTimeout(() => {
       setRolling([])
       const newVals = Array.from({ length: numToRoll }, () => Math.ceil(Math.random() * 6))
       let idx = 0
-      const newDice = dice.length === 0
-        ? newVals
-        : dice.map((v, i) => kept[i] ? v : newVals[idx++])
-      const newKept = dice.length === 0 ? Array(6).fill(false) : [...kept]
+      const newDice = fresh ? newVals : dice.map((v, i) => kept[i] ? v : newVals[idx++])
+      const newKept = fresh ? Array(6).fill(false) : [...kept]
       const freeDice = newDice.filter((_, i) => !newKept[i])
 
       if (!canScore(freeDice)) {
@@ -298,20 +303,20 @@ export default function FarkleGame({ onBack }: { onBack?: () => void }) {
   }
 
   const startCpuTurn = (currentScore: number, onBoard: boolean) => {
-    let cpuDice: number[] = []
     let cpuTurnScore = 0
+    let setAsideCount = 0 // dés déjà gardés+scorés ce tour (leurs points sont dans cpuTurnScore)
     let rollCount = 0
 
     const cpuRoll = () => {
-      const numToRoll = cpuDice.length === 0 ? 6 : cpuDice.filter((_: unknown, i: number) => !cpuDecideKeep(cpuDice)[i]).length || cpuDice.length
-      const newVals = Array.from({ length: numToRoll }, () => Math.ceil(Math.random() * 6))
-      let idx2 = 0
-      cpuDice = cpuDice.length === 0 ? newVals : cpuDice.map((v, i) => cpuDecideKeep(cpuDice)[i] ? v : newVals[idx2++])
-      const cpuKept = cpuDecideKeep(cpuDice)
-      const keptDice = cpuDice.filter((_, i) => cpuKept[i])
+      // Le CPU ne relance QUE les dés libres et ne score QUE les dés
+      // fraîchement gardés (fini le re-score des dés déjà mis de côté).
+      const numFree = 6 - setAsideCount
+      const rolled = Array.from({ length: numFree }, () => Math.ceil(Math.random() * 6))
+      const keepMask = cpuDecideKeep(rolled)
+      const keptDice = rolled.filter((_, i) => keepMask[i])
 
-      if (!canScore(cpuDice.filter((_, i) => !cpuKept[i])) && keptDice.length === 0) {
-        // Farkle
+      if (keptDice.length === 0) {
+        // Farkle : aucun dé fraîchement lancé ne marque -> perd le score du tour
         setMsg(`CPU Farkle ! Perd ${cpuTurnScore} pts.`)
         setMsgColor('#ef4444')
         cpuTimerRef.current = setTimeout(endCpuTurn, 1200)
@@ -320,13 +325,11 @@ export default function FarkleGame({ onBack }: { onBack?: () => void }) {
 
       const { total: pts } = scoreDice(keptDice)
       cpuTurnScore += pts
+      setAsideCount += keptDice.length
       rollCount++
 
-      // Hot dice: all 6 scored
-      const allScored = keptDice.length === cpuDice.length
-      if (allScored) {
-        cpuDice = []
-      }
+      // Hot dice : les 6 dés ont été mis de côté -> on repart sur 6 dés neufs
+      if (setAsideCount >= 6) setAsideCount = 0
 
       // CPU banks if: has enough pts to get on board (or already on), and score threshold reached
       const threshold = onBoard ? 300 : ON_BOARD_MIN
