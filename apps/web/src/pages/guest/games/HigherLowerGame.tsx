@@ -12,8 +12,8 @@ type Card = { rank: Rank; suit: Suit }
 
 const isRed = (s: Suit) => s === '♥' || s === '♦'
 const cardValue = (r: Rank, aceHigh: boolean): number => {
-  if (r === 'A') return aceHigh ? 13 : 0
-  return RANKS.indexOf(r)
+  if (r === 'A') return aceHigh ? 14 : 1
+  return RANKS.indexOf(r) + 2
 }
 
 function randCard(): Card {
@@ -21,6 +21,16 @@ function randCard(): Card {
     rank: RANKS[Math.floor(Math.random() * 13)],
     suit: SUITS[Math.floor(Math.random() * 4)],
   }
+}
+
+// Tire une carte différente (rang + couleur) de `exclude` : évite qu'une carte
+// identique sorte deux fois d'affilée (« 10♠ puis 10♠ »), qui paraît buggé.
+function randCardExcept(exclude: Card): Card {
+  let c = randCard()
+  while (c.rank === exclude.rank && c.suit === exclude.suit) {
+    c = randCard()
+  }
+  return c
 }
 
 // ─── Playing Card Component ───────────────────────────────────────────────────
@@ -104,7 +114,6 @@ function LivesDisplay({ lives, max = 3 }: { lives: number; max?: number }) {
 // ─── Streak Multiplier Badge ──────────────────────────────────────────────────
 function StreakBadge({ streak }: { streak: number }) {
   if (streak < 3) return null
-  const multiplier = streak >= 10 ? 4 : streak >= 7 ? 3 : streak >= 5 ? 2 : 1.5
   const color = streak >= 10 ? '#f59e0b' : streak >= 7 ? '#ef4444' : streak >= 5 ? '#a855f7' : ACCENT2
 
   return (
@@ -116,7 +125,7 @@ function StreakBadge({ streak }: { streak: number }) {
     }}>
       <Zap size={13} style={{ color }} />
       <span style={{ fontSize: 12, fontWeight: 700, color }}>
-        x{multiplier} · Série de {streak} !
+        Série de {streak} !
       </span>
     </div>
   )
@@ -124,12 +133,13 @@ function StreakBadge({ streak }: { streak: number }) {
 
 // ─── Main Game ────────────────────────────────────────────────────────────────
 type GameState = 'playing' | 'feedback' | 'gameover'
+type Feedback = 'correct' | 'wrong' | 'tie' | null
 
 export default function HigherLowerGame({ onBack }: { onBack?: () => void }) {
   const [currentCard, setCurrentCard] = useState<Card>(randCard)
   const [nextCard, setNextCard] = useState<Card | null>(null)
   const [state, setState] = useState<GameState>('playing')
-  const [feedbackCorrect, setFeedbackCorrect] = useState<boolean | null>(null)
+  const [feedback, setFeedback] = useState<Feedback>(null)
   const [streak, setStreak] = useState(0)
   const [lives, setLives] = useState(3)
   const [totalCorrect, setTotalCorrect] = useState(0)
@@ -145,15 +155,18 @@ export default function HigherLowerGame({ onBack }: { onBack?: () => void }) {
 
   const handleGuess = (higher: boolean) => {
     if (state !== 'playing') return
-    const next = randCard()
+    const next = randCardExcept(currentCard)
     setNextCard(next)
     setAnimKey(k => k + 1)
 
     const cv = cardValue(currentCard.rank, aceHigh)
     const nv = cardValue(next.rank, aceHigh)
-    const correct = higher ? nv >= cv : nv <= cv
+    // Égalité = même valeur : règle arcade explicite (perdu), plus de « victoire
+    // gratuite » silencieuse via >= / <= qui gagnait pour les deux choix.
+    const isTie = nv === cv
+    const correct = isTie ? false : higher ? nv > cv : nv < cv
 
-    setFeedbackCorrect(correct)
+    setFeedback(isTie ? 'tie' : correct ? 'correct' : 'wrong')
     setState('feedback')
     setHistory(h => [...h.slice(-9), correct])
 
@@ -165,7 +178,7 @@ export default function HigherLowerGame({ onBack }: { onBack?: () => void }) {
         setRunBest(r => Math.max(r, newStreak))
         setCurrentCard(next)
         setNextCard(null)
-        setFeedbackCorrect(null)
+        setFeedback(null)
         setState('playing')
       } else {
         const newLives = lives - 1
@@ -180,7 +193,7 @@ export default function HigherLowerGame({ onBack }: { onBack?: () => void }) {
           setStreak(0)
           setCurrentCard(next)
           setNextCard(null)
-          setFeedbackCorrect(null)
+          setFeedback(null)
           setState('playing')
         }
       }
@@ -192,7 +205,7 @@ export default function HigherLowerGame({ onBack }: { onBack?: () => void }) {
     setCurrentCard(randCard())
     setNextCard(null)
     setState('playing')
-    setFeedbackCorrect(null)
+    setFeedback(null)
     setStreak(0)
     setLives(3)
     setTotalCorrect(0)
@@ -202,17 +215,26 @@ export default function HigherLowerGame({ onBack }: { onBack?: () => void }) {
     setAnimKey(k => k + 1)
   }
 
-  const feedbackBg = feedbackCorrect === true
+  const feedbackBg = feedback === 'correct'
     ? 'rgba(34,197,94,0.12)'
-    : feedbackCorrect === false
+    : feedback === 'wrong'
       ? 'rgba(239,68,68,0.12)'
-      : 'transparent'
+      : feedback === 'tie'
+        ? 'rgba(245,158,11,0.12)'
+        : 'transparent'
 
-  const feedbackBorder = feedbackCorrect === true
+  const feedbackBorder = feedback === 'correct'
     ? 'rgba(34,197,94,0.3)'
-    : feedbackCorrect === false
+    : feedback === 'wrong'
       ? 'rgba(239,68,68,0.3)'
-      : BORDER
+      : feedback === 'tie'
+        ? 'rgba(245,158,11,0.3)'
+        : BORDER
+
+  // L'interprétation de l'As est un réglage de pré-partie : on la verrouille dès
+  // le 1er coup pour tuer l'exploit (mettre l'As courant à une valeur extrême
+  // entre deux tirages garantissait un choix gagnant à ~100 %).
+  const aceLocked = state !== 'playing' || history.length > 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, userSelect: 'none' }}>
@@ -257,14 +279,14 @@ export default function HigherLowerGame({ onBack }: { onBack?: () => void }) {
       )}
 
       {/* Feedback banner */}
-      {feedbackCorrect !== null && (
+      {feedback !== null && (
         <div style={{
           borderRadius: 12, padding: '10px 16px', textAlign: 'center',
           background: feedbackBg, border: `1px solid ${feedbackBorder}`,
           transition: 'all 0.3s ease',
         }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: feedbackCorrect ? '#22c55e' : '#ef4444' }}>
-            {feedbackCorrect ? '✓ Correct !' : '✗ Raté !'}
+          <span style={{ fontSize: 15, fontWeight: 700, color: feedback === 'correct' ? '#22c55e' : feedback === 'tie' ? '#f59e0b' : '#ef4444' }}>
+            {feedback === 'correct' ? '✓ Correct !' : feedback === 'tie' ? '= Égalité ! (-1 vie)' : '✗ Raté !'}
           </span>
         </div>
       )}
@@ -300,7 +322,7 @@ export default function HigherLowerGame({ onBack }: { onBack?: () => void }) {
               <PlayingCard
                 card={nextCard}
                 size="lg"
-                glow={feedbackCorrect === true ? 'green' : feedbackCorrect === false ? 'red' : null}
+                glow={feedback === 'correct' ? 'green' : feedback === 'wrong' ? 'red' : null}
               />
             </div>
           ) : (
@@ -314,13 +336,15 @@ export default function HigherLowerGame({ onBack }: { onBack?: () => void }) {
         <span style={{ fontSize: 12, color: MUTED }}>As :</span>
         <button
           onClick={() => setAceHigh(h => !h)}
-          disabled={state === 'feedback'}
+          disabled={aceLocked}
+          title={aceLocked ? "Le choix de l'As est verrouillé pendant la partie" : undefined}
           style={{
             padding: '4px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700,
             background: aceHigh ? `${ACCENT}20` : `${ACCENT2}20`,
             border: `1px solid ${aceHigh ? ACCENT : ACCENT2}`,
             color: aceHigh ? ACCENT : ACCENT2,
-            cursor: 'pointer',
+            cursor: aceLocked ? 'not-allowed' : 'pointer',
+            opacity: aceLocked ? 0.5 : 1,
           }}
         >
           {aceHigh ? 'As haut (14)' : 'As bas (1)'}
