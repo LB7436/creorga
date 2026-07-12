@@ -8,7 +8,7 @@
 
 # CONTEXTE — CE QUI EST DÉJÀ FAIT (NE PAS REFAIRE)
 La grosse session de corrections est terminée : **55+ commits poussés sur origin/master**
-(LB7436/creorga, dernier = `7a068e5`). État :
+(LB7436/creorga, dernier = `7281fed`). État :
 > **MàJ 2026-07-12 (session suite) :** smoke-tests navigateur des 3 jeux publiés FAITS ;
 > validation runtime approfondie (Blackjack money-logic, Reversi soft-lock, Rami, + revue 421/2048) ;
 > **balayage non-régression de TOUT le catalogue** (~38 jeux, 0 crash/exception/erreur/imbrication,
@@ -64,8 +64,9 @@ pointage manuel Bingo (daubing, commit `51daf82`) ; **manipulation LIBRE de la t
 Valider / Annuler » + IA CPU qui prolonge ses propres combinaisons — commit `4857667`, vérifié navigateur) ;
 **Web Worker IA échecs** (moteur pur extrait dans `chessEngine.ts` + `chess.worker.ts`, calcul minimax
 hors du thread UI → fin du gel de l'onglet ; fallback synchrone — commit `7a068e5`, vérifié navigateur).
-**RESTE** : polish (états vides, accents FR épars). Note Rummikub : la manipulation opère sur la table du
-JOUEUR (l'archi sépare melds joueur/CPU) ; une vraie table PARTAGÉE serait un chantier distinct.
+**RESTE** : accents FR **FAITS** (balayage catalogue propre — Rummikub/Rami/Mahjong/Run21/Erreur11) ; ne
+reste que d'éventuels états vides (à explorer si demandé). Note Rummikub : la manipulation opère sur la
+table du JOUEUR (l'archi sépare melds joueur/CPU) ; une vraie table PARTAGÉE serait un chantier distinct.
 Note technique jokers/table (déjà en place) : joker = `value`/`number` **10** (ignoré par la
 validation via le flag `joker`) ; validateurs joker-aware `isRamiMeld`/`isRummiMeld` + helper
 `runWithJokersOK` dans `originalsShared.tsx` ; `addToMeld` dans `RummikubGame.tsx`.
