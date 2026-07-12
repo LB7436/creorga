@@ -248,6 +248,7 @@ export default function Hangman({ onBack }: { onBack?: () => void }) {
   const [entry, setEntry] = useState<WordEntry | null>(null)
   const [guessed, setGuessed] = useState<Set<string>>(new Set())
   const [hintUsed, setHintUsed] = useState(false)
+  const [hintPenalty, setHintPenalty] = useState(0)
   const [stats, setStats] = useState<Stats>(loadStats)
   const [revealIdx, setRevealIdx] = useState(0)
   const [celebrating, setCelebrating] = useState(false)
@@ -266,6 +267,7 @@ export default function Hangman({ onBack }: { onBack?: () => void }) {
     setEntry(pickWord(diff))
     setGuessed(new Set())
     setHintUsed(false)
+    setHintPenalty(0)
     setRevealIdx(0)
     setCelebrating(false)
     statsUpdated.current = false
@@ -276,11 +278,15 @@ export default function Hangman({ onBack }: { onBack?: () => void }) {
     startGame(difficulty)
   }
 
-  const word = entry?.word ?? ''
+  // Mot normalisé : sans accents (le clavier AZERTY n'a que A-Z, sinon
+  // PANTHÈRE/PÉLICAN/PÂTES/IMPERMÉABLE sont imprenables) ; les tirets/espaces
+  // (NOUVELLE-ZELANDE, LAVE-VAISSELLE) sont révélés d'office, pas à deviner.
+  const word = (entry?.word ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '')
+  const isGuessable = (l: string) => /[A-Z]/.test(l)
   const maxLives = difficulty ? DIFF_CONFIG[difficulty].lives : 6
   const wrongLetters = [...guessed].filter(l => !word.includes(l))
-  const wrong = wrongLetters.length
-  const won = word.length > 0 && word.split('').every(l => guessed.has(l))
+  const wrong = wrongLetters.length + hintPenalty
+  const won = word.length > 0 && word.split('').every(l => !isGuessable(l) || guessed.has(l))
   const lost = wrong >= maxLives
   const over = won || lost
 
@@ -327,21 +333,15 @@ export default function Hangman({ onBack }: { onBack?: () => void }) {
   }
 
   function useHint() {
-    if (hintUsed || over) return
-    const hidden = word.split('').filter(l => !guessed.has(l))
+    // L'indice coûte 1 vie : interdit s'il serait fatal (sinon il tuait la partie
+    // dans le même render). On révèle une VRAIE lettre cachée (A-Z uniquement).
+    if (hintUsed || over || wrong >= maxLives - 1) return
+    const hidden = word.split('').filter(l => isGuessable(l) && !guessed.has(l))
     if (!hidden.length) return
     const letter = hidden[Math.floor(Math.random() * hidden.length)]
     setHintUsed(true)
-    // Cost 1 life: add a wrong letter placeholder
-    const dummy = Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ').find(
-      l => !word.includes(l) && !guessed.has(l)
-    )
-    setGuessed(s => {
-      const next = new Set(s)
-      next.add(letter)
-      if (dummy) next.add(dummy)
-      return next
-    })
+    setHintPenalty(1) // coût via un compteur dédié — plus d'injection d'une fausse lettre sur le clavier
+    setGuessed(s => new Set(s).add(letter))
   }
 
   // ── Difficulty selection screen ──────────────────────────────────────────────
@@ -451,7 +451,7 @@ export default function Hangman({ onBack }: { onBack?: () => void }) {
       {/* Word display */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 5, flexWrap: 'wrap', padding: '4px 0' }}>
         {word.split('').map((letter, i) => {
-          const isRevealed = guessed.has(letter) || (lost && i < revealIdx)
+          const isRevealed = !isGuessable(letter) || guessed.has(letter) || (lost && i < revealIdx)
           const isNew = celebrating && guessed.has(letter)
           return (
             <div key={i} style={{
@@ -459,7 +459,7 @@ export default function Hangman({ onBack }: { onBack?: () => void }) {
               borderBottom: `2px solid ${ACCENT}`,
               display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
               paddingBottom: 2, fontWeight: 800, fontSize: 14,
-              color: lost && !guessed.has(letter) ? '#ef4444' : TEXT,
+              color: lost && isGuessable(letter) && !guessed.has(letter) ? '#ef4444' : TEXT,
               animation: isNew ? `bounce 0.4s ease ${i * 60}ms` : undefined,
             }}>
               {isRevealed ? letter : ''}
@@ -486,9 +486,9 @@ export default function Hangman({ onBack }: { onBack?: () => void }) {
       {/* Hint button */}
       {!over && (
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button onClick={useHint} disabled={hintUsed}
+          <button onClick={useHint} disabled={hintUsed || wrong >= maxLives - 1}
             style={{
-              fontSize: 11, padding: '4px 10px', borderRadius: 8, cursor: hintUsed ? 'default' : 'pointer',
+              fontSize: 11, padding: '4px 10px', borderRadius: 8, cursor: hintUsed || wrong >= maxLives - 1 ? 'default' : 'pointer',
               background: hintUsed ? 'transparent' : `${ACCENT}18`,
               border: `1px solid ${hintUsed ? BORDER : ACCENT}40`,
               color: hintUsed ? MUTED : ACCENT, fontWeight: 600,
