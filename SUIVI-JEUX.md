@@ -67,7 +67,9 @@
 - [x] **QuizGame** vérifié : 120 questions, 0 injouable (aucune réponse absente des options) — sain, aucun changement
 - [x] **Run 21** COMPLÉTÉ et PUBLIÉ (available:true) : mécanique « colonne à 21 se vide » + fin de partie + GameOverModal + useGameScore — commit 3844a19 (⚠️ à smoke-tester au navigateur avant mise en prod finale)
 - [x] **Tri-Tours** COMPLÉTÉ et PUBLIÉ (available:true) : victoire/blocage + combos + GameOverModal + useGameScore — commit 68e94fc (⚠️ à smoke-tester au navigateur)
-- [ ] Reste : **Erreur 11** (spot-the-difference — nécessite d'implémenter 11 vraies différences visuelles + détection de clic ; plus visuel que Run21/TriTours), polish (états vides, accents FR épars), Web Worker IA échecs, complétude Rami/Rummikub — enhancements/décisions, plus aucun bug bloquant
+- [x] **Erreur 11** COMPLÉTÉ et PUBLIÉ (available:true) : les 11 différences visuelles existaient déjà dans BistroScene (jeu pas factice) ; ajout score de précision (trouvées − ratés) + GameOverModal + useGameScore — commit faafa55 (⚠️ smoke-test navigateur recommandé)
+- [x] **Les 3 jeux cachés sont désormais tous publiés et complets** (Run21, Tri-Tours, Erreur 11) → tout le catalogue est actif et fonctionnel
+- [ ] Reste (enhancements uniquement, aucun bug) : smoke-tests navigateur des 3 jeux nouvellement publiés, polish (états vides, accents FR épars), Web Worker IA échecs, complétude Rami/Rummikub (jokers, manipulation de table)
 - [ ] Run21 / TriTours : terminer règles → available:true OU retirer ; Erreur 11 : refondre OU available:false
 - Note : Basket `basket3d` + Billard `billard` — ids de score déjà corrigés en 4a (commit d9e35d4) ; reste fixes gameplay REVUE
 
