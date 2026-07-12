@@ -182,15 +182,29 @@ interface CellProps {
   gameState: GameState
   onReveal: () => void
   onFlag: (e: React.MouseEvent) => void
+  onFlagCell: () => void
+  flagMode: boolean
   onMouseDown: () => void
   onMouseUp: () => void
   onChord: () => void
   size: number
 }
 
-function CellButton({ cell, gameState, onReveal, onFlag, onMouseDown, onMouseUp, onChord, size }: CellProps) {
+function CellButton({ cell, gameState, onReveal, onFlag, onFlagCell, flagMode, onMouseDown, onMouseUp, onChord, size }: CellProps) {
   const fontSize = Math.max(10, size * 0.48)
   const isActive = gameState === 'playing' || gameState === 'idle'
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const firedRef = useRef(false)
+  const clearLong = () => { if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null } }
+  const handlePointerDown = () => {
+    if (!isActive || cell.revealed) return
+    firedRef.current = false
+    longPressRef.current = setTimeout(() => {
+      firedRef.current = true          // supprime le clic de synthèse qui suit
+      onFlagCell()
+      try { navigator.vibrate?.(20) } catch { /* */ }
+    }, 350)
+  }
 
   let bg = '#2a2a3e'
   let content: React.ReactNode = null
@@ -219,7 +233,9 @@ function CellButton({ cell, gameState, onReveal, onFlag, onMouseDown, onMouseUp,
   }
 
   const handleClick = () => {
+    if (firedRef.current) { firedRef.current = false; return } // appui long déjà traité
     if (!isActive) return
+    if (!cell.revealed && flagMode) { onFlagCell(); return }
     if (!cell.revealed) { onReveal(); return }
     if (cell.revealed && cell.adj > 0) onChord()
   }
@@ -230,6 +246,10 @@ function CellButton({ cell, gameState, onReveal, onFlag, onMouseDown, onMouseUp,
       onContextMenu={onFlag}
       onMouseDown={() => { if (!cell.revealed) onMouseDown() }}
       onMouseUp={onMouseUp}
+      onPointerDown={handlePointerDown}
+      onPointerUp={clearLong}
+      onPointerLeave={clearLong}
+      onPointerCancel={clearLong}
       style={{
         width: size, height: size, fontSize,
         background: bg, color,
@@ -238,6 +258,7 @@ function CellButton({ cell, gameState, onReveal, onFlag, onMouseDown, onMouseUp,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontWeight: 900, userSelect: 'none', flexShrink: 0,
         transition: 'background 0.05s',
+        touchAction: 'manipulation', WebkitTouchCallout: 'none',
       }}
     >
       {content}
@@ -257,6 +278,7 @@ export default function MinesweeperGame({ onBack }: { onBack?: () => void }) {
   const [smiley, setSmiley] = useState<'normal' | 'scared' | 'win' | 'lose'>('normal')
   const [stats, setStats] = useState<Stats>(loadStats)
   const [showStats, setShowStats] = useState(false)
+  const [flagMode, setFlagMode] = useState(false)
   const [winTime, setWinTime] = useState<number | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startTimeRef = useRef<number>(0)
@@ -361,8 +383,9 @@ export default function MinesweeperGame({ onBack }: { onBack?: () => void }) {
     })
   }, [gameState, cfg, difficulty])
 
-  const handleFlag = useCallback((e: React.MouseEvent, r: number, c: number) => {
-    e.preventDefault()
+  // Cœur de la pose de drapeau, sans MouseEvent : appelable au clic droit (desktop),
+  // au tap en mode drapeau et à l'appui long (mobile).
+  const toggleFlag = useCallback((r: number, c: number) => {
     if (gameState !== 'playing' && gameState !== 'idle') return
     setGrid(prev => {
       const cell = prev[r][c]
@@ -379,6 +402,11 @@ export default function MinesweeperGame({ onBack }: { onBack?: () => void }) {
       ))
     })
   }, [gameState])
+
+  const handleFlag = useCallback((e: React.MouseEvent, r: number, c: number) => {
+    e.preventDefault()
+    toggleFlag(r, c)
+  }, [toggleFlag])
 
   const handleChord = useCallback((r: number, c: number) => {
     if (gameState !== 'playing') return
@@ -506,6 +534,24 @@ export default function MinesweeperGame({ onBack }: { onBack?: () => void }) {
         </div>
       )}
 
+      {/* Bascule mode drapeau — indispensable au tactile (pas de clic droit ni
+          de contextmenu au long-press iOS). L'appui long 350ms marche aussi. */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+        <button
+          onClick={() => setFlagMode(m => !m)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px',
+            borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: 'pointer',
+            minHeight: 44, touchAction: 'manipulation',
+            border: `1px solid ${flagMode ? '#f59e0b' : BORDER}`,
+            background: flagMode ? 'rgba(245,158,11,0.15)' : SURFACE2,
+            color: flagMode ? '#f59e0b' : MUTED,
+          }}
+        >
+          {flagMode ? '🚩 Mode drapeau' : '⛏️ Mode creuser'}
+        </button>
+      </div>
+
       {/* Game panel — sunken 3D header */}
       <div style={{
         background: SURFACE,
@@ -559,6 +605,8 @@ export default function MinesweeperGame({ onBack }: { onBack?: () => void }) {
                   size={cellSize}
                   onReveal={() => handleReveal(r, c)}
                   onFlag={e => handleFlag(e, r, c)}
+                  onFlagCell={() => toggleFlag(r, c)}
+                  flagMode={flagMode}
                   onMouseDown={() => setSmiley('scared')}
                   onMouseUp={() => setSmiley(gameState === 'won' ? 'win' : gameState === 'lost' ? 'lose' : 'normal')}
                   onChord={() => handleChord(r, c)}
@@ -598,7 +646,7 @@ export default function MinesweeperGame({ onBack }: { onBack?: () => void }) {
       {/* Hint */}
       {gameState === 'idle' && (
         <p style={{ color: MUTED, fontSize: 11, textAlign: 'center', marginTop: 10 }}>
-          Cliquez pour commencer · Clic droit pour poser un drapeau
+          Cliquez pour creuser · Appui long, clic droit ou 🚩 Mode drapeau pour marquer
         </p>
       )}
     </div>
