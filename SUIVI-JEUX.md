@@ -56,7 +56,8 @@
 - [x] Poker COMPLET : évaluateur (kickers + rang des groupes + quinte au 5) + tours d'enchères (flag hasActed) + side-pots all-in (répartition par paliers) — commits d3b1698, 00f119d
 - [x] Motus : liste de mots nettoyée (720 vrais mots FR 5 lettres, fin des mots-poubelle type « ABCDE ») — commit a6e2fa1
 - [x] Reversi : gel de partie (soft-lock du passage de tour) + double-comptage StrictMode — commit c4e56fd
-- [ ] Rami, Rummikub, Bingo (tirage/fin)
+- [x] Basket : visée latérale (vx dx/40→dx/8) + validation du panier (traversée du plan de l'anneau) — commit e645e79
+- [ ] Rami, Rummikub, Bingo (tirage/fin), Billard (visée/physique)
 - [ ] Run21 / TriTours : terminer règles → available:true OU retirer ; Erreur 11 : refondre OU available:false
 - Note : Basket `basket3d` + Billard `billard` — ids de score déjà corrigés en 4a (commit d9e35d4) ; reste fixes gameplay REVUE
 
