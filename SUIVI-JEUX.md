@@ -47,7 +47,8 @@
 
 ## Étape 5 — SERVICE !, GLOUTON, L'ADDITION (C4, C3, C5) ⬜
 
-## Étape 6 — CASTLE RUSH (C1, titre phare) ⬜
+## Étape 6 — CASTLE RUSH (C1, titre phare) ✅ (2026-07-14)
+- [x] **Castle Rush** (`castlerush`) — nouveau jeu canvas, **distinct du Tower Defense** (aucune tour, tout au TAP) : 3 couloirs d'assaillants → tape-les (soldats 1 coup / brutes 3 / boss toutes les 5 vagues), huile bouillante (5 or) balaie l'écran, PV de château, vagues croissantes, difficulté via `useGameShell`. Kit `juice` (canvas DPR, `useGameLoop` pause-onglet-caché, particules, shake, sons), `useGameScore('castlerush')`, `GameOverModal`. Enregistré catalog (available:true/new) + GAME_COMPONENTS. `tsc -b` vert ; monté + carte + lancement OK (rendu en pause quand l'onglet est en arrière-plan = voulu). Commit `a71f0cd`.
 
 ## Étape 7 — Lot D1 catastrophes 🔶 partiel (2026-07-12, session Opus)
 - [x] Farkle : Hot Dice joueur (relance après tout scoré), triche CPU (re-score des dés gardés), CPU-jamais-Farkle — commit c76a998
