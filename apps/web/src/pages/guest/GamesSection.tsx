@@ -156,6 +156,7 @@ const GAME_COMPONENTS: Record<string, GameComponent> = {
   chess: makeLazyGame(() => import('./games/ChessGame')),
   towerdefense: makeLazyGame(() => import('./games/TowerDefenseGame')),
   maxiburger: makeLazyGame(() => import('./games/MaxiBurgerGame')),
+  castlerush: makeLazyGame(() => import('./games/CastleRushGame')),
   ttt: makeLazyGame(() => import('./games/TicTacToeGame')),
   connect4: makeLazyGame(() => import('./games/ConnectFourGame')),
   mastermind: makeLazyGame(() => import('./games/MastermindGame')),
