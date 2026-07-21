@@ -130,14 +130,16 @@ export const useTheme = create<ThemeState>()(
   persist(
     (set, get) => ({
       themeId: 'indigo',
-      darkMode: false,
+      darkMode: true,
       setTheme: (id) => set({ themeId: id }),
       setDarkMode: (on) => { applyDark(on); set({ darkMode: on }) },
       toggleDarkMode: () => { const next = !get().darkMode; applyDark(next); set({ darkMode: next }) },
       theme: () => THEMES.find((t) => t.id === get().themeId) || THEMES[1],
     }),
     {
-      name: 'creorga-theme',
+      // NB: distinct from lib/theme.ts's 'creorga-theme' key — the two stores
+      // used to share it and overwrote each other's persisted state.
+      name: 'creorga-theme-design',
       onRehydrateStorage: () => (state) => {
         // Re-apply attribute on page load
         if (state) applyDark(state.darkMode)
