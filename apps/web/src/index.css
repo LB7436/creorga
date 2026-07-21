@@ -45,33 +45,7 @@
     display: none;
   }
 
-  .pos-dashboard-dark [style*="background: #ffffff"],
-  .pos-dashboard-dark [style*="background: '#ffffff'"],
-  .pos-dashboard-dark [style*="background: #fff"],
-  .pos-dashboard-dark [style*="background: '#fff'"] {
-    background: #111827 !important;
-    color: #f8fafc !important;
-    border-color: rgba(148, 163, 184, 0.18) !important;
-    box-shadow: none !important;
-  }
-
-  .pos-dashboard-dark [style*="background: #f8fafc"],
-  .pos-dashboard-dark [style*="background: #f1f5f9"] {
-    background: rgba(148, 163, 184, 0.12) !important;
-  }
-
-  .pos-dashboard-dark [style*="color: #0f172a"],
-  .pos-dashboard-dark [style*="color: #1e293b"] {
-    color: #f8fafc !important;
-  }
-
-  .pos-dashboard-dark [style*="color: #475569"],
-  .pos-dashboard-dark [style*="color: #64748b"] {
-    color: #cbd5e1 !important;
-  }
-
-  .pos-dashboard-dark [style*="borderBottom: '1px solid #e2e8f0'"],
-  .pos-dashboard-dark [style*="border-bottom: 1px solid #e2e8f0"] {
-    border-color: rgba(148, 163, 184, 0.18) !important;
-  }
+  /* The old .pos-dashboard-dark [style*="#fff"] rules were removed: inline
+     hex colors serialize to rgb() so they never matched. The global
+     styles/dark-overlay.css now themes these surfaces app-wide. */
 }
