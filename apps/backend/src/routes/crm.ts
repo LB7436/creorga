@@ -133,7 +133,30 @@ router.post('/customers/:id/loyalty', async (req: any, res: Response) => {
     const existing = await prisma.customer.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Client non trouvé' }); return }
     const { type, points, amount, orderId } = req.body
-    const delta = type === 'SPEND' ? -Math.abs(points) : Math.abs(points)
+
+    // `type` est obligatoire côté schéma : sans validation, une requête sans
+    // ce champ faisait planter Prisma et remontait en 500 « erreur serveur ».
+    if (type !== 'EARN' && type !== 'SPEND') {
+      res.status(400).json({ message: 'type doit valoir EARN ou SPEND' })
+      return
+    }
+    const nbPoints = Number(points)
+    if (!Number.isFinite(nbPoints) || nbPoints <= 0) {
+      res.status(400).json({ message: 'points doit être un nombre strictement positif' })
+      return
+    }
+
+    const delta = type === 'SPEND' ? -nbPoints : nbPoints
+
+    // Un client ne peut pas dépenser plus de points qu'il n'en a : sans ce
+    // contrôle, le solde passait négatif et offrait des points à crédit.
+    if (delta < 0 && existing.points + delta < 0) {
+      res.status(400).json({
+        message: `Solde insuffisant : ${existing.points} point(s) disponible(s), ${nbPoints} demandé(s)`,
+      })
+      return
+    }
+
     const [transaction, customer] = await prisma.$transaction([
       prisma.loyaltyTransaction.create({
         data: { customerId: req.params.id, type, points: delta, amount: amount || 0, orderId: orderId || null },
@@ -156,10 +179,26 @@ router.post('/customers/:id/wallet', async (req: any, res: Response) => {
   try {
     const existing = await prisma.customer.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Client non trouvé' }); return }
-    const { amount } = req.body
+    const montant = Number(req.body?.amount)
+    // parseFloat sur une valeur non numérique donnait NaN, écrit tel quel en base.
+    if (!Number.isFinite(montant) || montant === 0) {
+      res.status(400).json({ message: 'amount doit être un nombre non nul' })
+      return
+    }
+
+    // Le portefeuille est un solde prépayé : il ne peut pas passer sous zéro,
+    // sinon le client consomme un crédit que l'établissement n'a jamais reçu.
+    if (existing.walletBalance + montant < 0) {
+      res.status(400).json({
+        message: `Solde insuffisant : ${existing.walletBalance.toFixed(2)} € disponible(s), ${Math.abs(montant).toFixed(2)} € demandé(s)`,
+      })
+      return
+    }
+
     const customer = await prisma.customer.update({
       where: { id: req.params.id },
-      data: { walletBalance: { increment: parseFloat(amount) } },
+      // Arrondi au centime : un solde monétaire ne porte pas de millièmes.
+      data: { walletBalance: Math.round((existing.walletBalance + montant) * 100) / 100 },
     })
     res.json(customer)
   } catch (error) {

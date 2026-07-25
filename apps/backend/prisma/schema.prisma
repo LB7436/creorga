@@ -313,6 +313,8 @@ model Invoice {
   customer Customer?     @relation(fields: [customerId], references: [id])
   items    InvoiceItem[]
 
+  // Numérotation séquentielle unique : obligation légale de facturation.
+  @@unique([companyId, number])
   @@index([companyId, status])
 }
 
@@ -345,6 +347,7 @@ model Quote {
   customer Customer?   @relation(fields: [customerId], references: [id])
   items    QuoteItem[]
 
+  @@unique([companyId, number])
   @@index([companyId, status])
 }
 
