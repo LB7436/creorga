@@ -667,7 +667,12 @@ function MenschBoard3D({
       const rect = host.getBoundingClientRect()
       const width = Math.max(1, rect.width)
       const height = Math.max(1, rect.height)
-      renderer.setSize(width, height, false)
+      // `updateStyle = true` (défaut) est indispensable : Three.js multiplie la
+      // taille du canvas par le devicePixelRatio, et sans mise à jour de la
+      // taille CSS le canvas débordait de son conteneur sur les écrans Retina
+      // (tablettes, mobiles récents). Résultat : seul le quart haut-gauche de
+      // la scène était visible, le plateau apparaissait décalé en bas à droite.
+      renderer.setSize(width, height)
       camera.aspect = width / height
       const portrait = camera.aspect < 0.78
       camera.fov = portrait ? 48 : 42
