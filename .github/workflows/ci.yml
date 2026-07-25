@@ -44,6 +44,33 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+
+    # Les parcours critiques ont besoin de vraies données : sans base, le
+    # backend démarre en mode dégradé et seul l'admin de repli existe — les
+    # écrans testés (clients, factures, plan de salle) seraient vides.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: creorga
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: creorga_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U creorga"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://creorga:password@localhost:5432/creorga_ci
+      JWT_SECRET: ci-jwt-secret-creorga
+      JWT_REFRESH_SECRET: ci-refresh-secret-creorga
+      # Les tests enchaînent des connexions volontairement erronées : sans
+      # cela le quota anti-force-brute (10 / 5 min) coupe la suite.
+      RATE_LIMIT_DISABLED: 'true'
+
     steps:
       - uses: actions/checkout@v4
 
@@ -59,10 +86,18 @@ jobs:
         run: npx prisma generate
         working-directory: apps/backend
 
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+        working-directory: apps/backend
+
+      - name: Seed demo data
+        run: npm run db:seed:rich
+        working-directory: apps/backend
+
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run e2e smoke tests
+      - name: Run e2e tests
         run: npx playwright test
 
       - name: Upload traces on failure
