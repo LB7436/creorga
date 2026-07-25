@@ -1162,7 +1162,9 @@ export default function HistoriquePage() {
                   gap: 10,
                 }}
               >
-                <button style={ghostBtn}>
+                {/* L'envoi par e-mail n'est pas branché : bouton désactivé
+                    plutôt que silencieusement inopérant au clic. */}
+                <button style={{ ...ghostBtn, opacity: 0.5, cursor: 'not-allowed' }} disabled title="Envoi par e-mail à venir">
                   <Mail size={14} />
                   Envoyer par e-mail
                 </button>
@@ -1170,7 +1172,10 @@ export default function HistoriquePage() {
                   <Printer size={14} />
                   Imprimer
                 </button>
-                <button style={primaryBtn}>
+                {/* Ce bouton n'avait aucun handler : le clic ne produisait rien.
+                    La boîte d'impression du navigateur propose « Enregistrer au
+                    format PDF », ce qui produit réellement le rapport ITM. */}
+                <button style={primaryBtn} onClick={() => window.print()}>
                   <Download size={14} />
                   Télécharger PDF
                 </button>

@@ -229,8 +229,12 @@ function MapView({ drivers, onDriverClick, selectedDriver, orders }: {
             <g key={d.id} onClick={(e) => { e.stopPropagation(); onDriverClick(d) }} style={{ cursor: 'pointer' }}>
               {d.status === 'En mission' && (
                 <motion.circle
-                  cx={x} cy={y} r="20"
+                  cx={x} cy={y}
                   fill={d.color} fillOpacity="0.2"
+                  // `initial` est indispensable : sans valeur de départ, Framer
+                  // Motion rend r="undefined" à la première frame et le
+                  // navigateur rejette l'attribut (« Expected length »).
+                  initial={{ r: 15 }}
                   animate={{ r: [15, 25, 15] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
                 />
