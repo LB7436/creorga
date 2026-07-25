@@ -26,8 +26,13 @@ function randInt(min: number, max: number) {
  * TVA luxembourgeoise — taux normal 17 % (le plus bas de l'UE).
  * Taux réduits : 14 % (intermédiaire), 8 % (réduit), 3 % (super-réduit,
  * applicable à la restauration hors boissons alcoolisées).
+ *
+ * Convention du code : Product.taxRate et OrderItem.taxRate stockent un
+ * POURCENTAGE (17), pas une fraction — cf. routes/orders.ts qui calcule
+ * `lineTotal * (product.taxRate / 100)`.
  */
-const LUX_VAT_STANDARD = 0.17
+const LUX_VAT_STANDARD_PCT = 17
+const LUX_VAT_STANDARD = LUX_VAT_STANDARD_PCT / 100
 function randFloat(min: number, max: number, decimals = 2) {
   return Number((Math.random() * (max - min) + min).toFixed(decimals))
 }
@@ -479,7 +484,7 @@ async function main() {
               productId: it.productId,
               quantity: it.quantity,
               unitPrice: it.price,
-              taxRate: LUX_VAT_STANDARD,
+              taxRate: LUX_VAT_STANDARD_PCT,
               status: 'SERVED',
             })),
           },
