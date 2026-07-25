@@ -105,12 +105,24 @@ function ModuleCard({ mod, onClick, pinned, onTogglePin }: ModuleCardProps) {
   const emoji = MODULE_EMOJI[mod.id] || '📁'
 
   return (
-    <motion.button
+    // La carte contient un bouton « épingler » : un <button> ne peut pas en
+    // contenir un autre (HTML invalide, React le signale et le clic imbriqué
+    // devient imprévisible). La carte est donc un div avec le rôle bouton et
+    // la gestion clavier équivalente.
+    <motion.div
       variants={cardVariants}
       layout
+      role="button"
+      tabIndex={0}
       whileHover={{ scale: 1.03, boxShadow: `0 20px 50px ${hexToRgba(mod.color, 0.25)}` }}
       whileTap={{ scale: 0.97 }}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      }}
       style={{
         position: 'relative',
         width: '100%',
@@ -256,7 +268,7 @@ function ModuleCard({ mod, onClick, pinned, onTogglePin }: ModuleCardProps) {
           opacity: 0.5,
         }}
       />
-    </motion.button>
+    </motion.div>
   )
 }
 

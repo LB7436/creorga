@@ -72,8 +72,20 @@ export function buildCorsOrigin() {
   }
 }
 
+/**
+ * Désactive les limiteurs quand RATE_LIMIT_DISABLED=true — uniquement hors
+ * production. La suite d'audit API (`npm run test:api`) enchaîne des tentatives
+ * de login volontairement fausses (mot de passe erroné, compte inconnu) et
+ * épuiserait sinon le quota de 10 tentatives / 5 min dès le premier run.
+ * Le garde-fou isProduction() rend l'interrupteur inopérant en production.
+ */
+function rateLimitBypass(): boolean {
+  return !isProduction() && process.env.RATE_LIMIT_DISABLED === 'true'
+}
+
 /** Anti brute-force sur le login : 10 tentatives / 5 min / IP. */
 export const authLimiter = rateLimit({
+  skip: rateLimitBypass,
   windowMs: 5 * 60 * 1000,
   limit: 10,
   standardHeaders: true,
@@ -83,6 +95,7 @@ export const authLimiter = rateLimit({
 
 /** Quota IA : les routes agent/IA coûtent des tokens — 60 req / min / IP. */
 export const aiLimiter = rateLimit({
+  skip: rateLimitBypass,
   windowMs: 60 * 1000,
   limit: 60,
   standardHeaders: true,
@@ -92,6 +105,7 @@ export const aiLimiter = rateLimit({
 
 /** Limiteur générique API publique (portail client) : 300 req / min / IP. */
 export const publicLimiter = rateLimit({
+  skip: rateLimitBypass,
   windowMs: 60 * 1000,
   limit: 300,
   standardHeaders: true,

@@ -89,6 +89,54 @@
   color: var(--crg-text-muted) !important;
 }
 
+/* ── Classes Tailwind teintées claires (nav admin, badges) ────────────── */
+:root[data-theme-mode="dark"] .bg-blue-50,
+:root[data-theme-mode="dark"] .bg-indigo-50,
+:root[data-theme-mode="dark"] .bg-sky-50 { background: rgba(59, 130, 246, 0.16) !important; }
+:root[data-theme-mode="dark"] .bg-green-50,
+:root[data-theme-mode="dark"] .bg-emerald-50 { background: rgba(34, 197, 94, 0.16) !important; }
+:root[data-theme-mode="dark"] .bg-red-50,
+:root[data-theme-mode="dark"] .bg-rose-50 { background: rgba(239, 68, 68, 0.16) !important; }
+:root[data-theme-mode="dark"] .bg-amber-50,
+:root[data-theme-mode="dark"] .bg-yellow-50,
+:root[data-theme-mode="dark"] .bg-orange-50 { background: rgba(245, 158, 11, 0.16) !important; }
+:root[data-theme-mode="dark"] .bg-purple-50,
+:root[data-theme-mode="dark"] .bg-violet-50,
+:root[data-theme-mode="dark"] .bg-fuchsia-50,
+:root[data-theme-mode="dark"] .bg-pink-50 { background: rgba(168, 85, 247, 0.16) !important; }
+/* Textes 700/800 associés à ces fonds */
+:root[data-theme-mode="dark"] .text-blue-700, :root[data-theme-mode="dark"] .text-blue-800 { color: #93c5fd !important; }
+:root[data-theme-mode="dark"] .text-green-700, :root[data-theme-mode="dark"] .text-emerald-700 { color: #86efac !important; }
+:root[data-theme-mode="dark"] .text-red-700, :root[data-theme-mode="dark"] .text-rose-700 { color: #fca5a5 !important; }
+:root[data-theme-mode="dark"] .text-amber-700, :root[data-theme-mode="dark"] .text-yellow-700 { color: #fcd34d !important; }
+:root[data-theme-mode="dark"] .text-purple-700, :root[data-theme-mode="dark"] .text-violet-700 { color: #d8b4fe !important; }
+
+/* ── Teintes claires hors palette Tailwind (couleurs maison) ──────────── */
+/* #f0f0ff, #f8f9ff, #fafbfc, #eef2ff (lignes de tableaux RH, chips) */
+:root[data-theme-mode="dark"] [style*="background: rgb(240, 240, 255)"],
+:root[data-theme-mode="dark"] [style*="background: rgb(248, 249, 255)"],
+:root[data-theme-mode="dark"] [style*="background: rgb(250, 251, 252)"],
+:root[data-theme-mode="dark"] [style*="background-color: rgb(240, 240, 255)"],
+:root[data-theme-mode="dark"] [style*="background-color: rgb(248, 249, 255)"] {
+  background: var(--crg-bg-accent-soft) !important;
+  color: var(--crg-text) !important;
+}
+/* #fff5f5 (relances), #fdf2e6 / #f0f4f8 (chips CRM) */
+:root[data-theme-mode="dark"] [style*="background: rgb(255, 245, 245)"],
+:root[data-theme-mode="dark"] [style*="background-color: rgb(255, 245, 245)"] { background: rgba(239, 68, 68, 0.16) !important; }
+:root[data-theme-mode="dark"] [style*="background: rgb(253, 242, 230)"],
+:root[data-theme-mode="dark"] [style*="background-color: rgb(253, 242, 230)"] { background: rgba(245, 158, 11, 0.18) !important; }
+:root[data-theme-mode="dark"] [style*="background: rgb(240, 244, 248)"],
+:root[data-theme-mode="dark"] [style*="background-color: rgb(240, 244, 248)"] { background: var(--crg-bg-surface-alt) !important; }
+
+/* ── Blancs translucides à faible opacité (0.3 à 0.6) ─────────────────── */
+:root[data-theme-mode="dark"] [style*="background: rgba(255, 255, 255, 0.3"]:not(.crg-keep-light),
+:root[data-theme-mode="dark"] [style*="background: rgba(255, 255, 255, 0.4"]:not(.crg-keep-light),
+:root[data-theme-mode="dark"] [style*="background: rgba(255, 255, 255, 0.5"]:not(.crg-keep-light) {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: var(--crg-text) !important;
+}
+
 /* ── Translucent white surfaces (glass panels, rgba ≥ 0.6) ────────────── */
 :root[data-theme-mode="dark"] [style*="background: rgba(255, 255, 255, 0.6"]:not(.crg-keep-light),
 :root[data-theme-mode="dark"] [style*="background: rgba(255, 255, 255, 0.7"]:not(.crg-keep-light),
@@ -255,6 +303,12 @@
 :root[data-theme-mode="dark"] [style*="linear-gradient"][style*="rgb(238, 242, 255)"],
 :root[data-theme-mode="dark"] [style*="linear-gradient"][style*="rgb(224, 231, 255)"] {
   background: var(--crg-bg-accent-soft) !important;
+}
+/* sky-100 → blanc (cartes de tarifs abonnement / facturation) */
+:root[data-theme-mode="dark"] [style*="linear-gradient"][style*="rgb(224, 242, 254)"],
+:root[data-theme-mode="dark"] [style*="linear-gradient"][style*="rgb(186, 230, 253)"] {
+  background: rgba(14, 165, 233, 0.16) !important;
+  color: var(--crg-text) !important;
 }
 
 /* Pastel borders that framed light gradient panels */

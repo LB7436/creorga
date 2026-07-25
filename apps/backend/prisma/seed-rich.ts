@@ -22,6 +22,17 @@ function pick<T>(arr: T[]): T {
 function randInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
+/**
+ * TVA luxembourgeoise — taux normal 17 % (le plus bas de l'UE).
+ * Taux réduits : 14 % (intermédiaire), 8 % (réduit), 3 % (super-réduit,
+ * applicable à la restauration hors boissons alcoolisées).
+ *
+ * Convention du code : Product.taxRate et OrderItem.taxRate stockent un
+ * POURCENTAGE (17), pas une fraction — cf. routes/orders.ts qui calcule
+ * `lineTotal * (product.taxRate / 100)`.
+ */
+const LUX_VAT_STANDARD_PCT = 17
+const LUX_VAT_STANDARD = LUX_VAT_STANDARD_PCT / 100
 function randFloat(min: number, max: number, decimals = 2) {
   return Number((Math.random() * (max - min) + min).toFixed(decimals))
 }
@@ -38,11 +49,21 @@ function daysFromNow(n: number, hour = 19, minute = 0) {
   return d
 }
 
+/** Échecs rencontrés pendant le seed — le script sort en erreur s'il y en a. */
+const seedFailures: string[] = []
+
 async function safe<T>(label: string, fn: () => Promise<T>): Promise<T | null> {
   try {
     return await fn()
   } catch (e) {
-    console.warn(`  ⚠ ${label} — ignoré : ${(e as Error).message.split('\n')[0]}`)
+    // Les erreurs Prisma commencent par un saut de ligne puis un extrait de
+    // code : prendre la 1re ligne brute affichait un message vide. On isole la
+    // cause réelle (Unknown argument / Argument manquant / contrainte).
+    const raw = String((e as Error).message).replace(/\s+/g, ' ').trim()
+    const cause = raw.match(/(Unknown argument[^.]*\.|Argument `[^`]+` is missing\.|Invalid value[^.]*\.|Unique constraint failed[^.]*\.|Foreign key constraint[^.]*\.)/)
+    const msg = (cause?.[1] ?? raw).slice(0, 200)
+    console.warn(`  ⚠ ${label} — ignoré : ${msg}`)
+    seedFailures.push(`${label}: ${msg}`)
     return null
   }
 }
@@ -213,9 +234,57 @@ const USERS = [
 
 // ─── Main ─────────────────────────────────────────────────────────────────
 
+const SEED_COMPANY_ID = 'seed-rich-company'
+
+/**
+ * Purge les données de la société de démo avant de re-seeder.
+ * Sans ça, chaque exécution empilait un jeu de données supplémentaire
+ * (produits, clients, commandes en double à chaque `db:seed:rich`).
+ * Ordre imposé par les clés étrangères : enfants avant parents.
+ */
+async function purgeSeedCompany() {
+  const where = { companyId: SEED_COMPANY_ID }
+  const scoped = { company: { id: SEED_COMPANY_ID } }
+
+  await prisma.orderItem.deleteMany({ where: { order: scoped } })
+  await prisma.invoiceItem.deleteMany({ where: { invoice: scoped } })
+  await prisma.quoteItem.deleteMany({ where: { quote: scoped } })
+  await prisma.eventQuoteItem.deleteMany({ where: { eventQuote: scoped } })
+  await prisma.purchaseOrderItem.deleteMany({ where: { purchaseOrder: scoped } })
+  await prisma.recipe.deleteMany({ where: { product: scoped } })
+  await prisma.loyaltyTransaction.deleteMany({ where: { customer: scoped } })
+
+  await prisma.order.deleteMany({ where })
+  await prisma.invoice.deleteMany({ where })
+  await prisma.quote.deleteMany({ where })
+  await prisma.eventQuote.deleteMany({ where })
+  await prisma.purchaseOrder.deleteMany({ where })
+  await prisma.review.deleteMany({ where })
+  await prisma.reservation.deleteMany({ where })
+  await prisma.shift.deleteMany({ where })
+  await prisma.timePunch.deleteMany({ where })
+  await prisma.leaveRequest.deleteMany({ where })
+  await prisma.haccpLog.deleteMany({ where })
+  await prisma.haccpTask.deleteMany({ where })
+  await prisma.campaign.deleteMany({ where })
+  await prisma.discountCode.deleteMany({ where })
+  await prisma.cashDrawer.deleteMany({ where })
+  await prisma.expense.deleteMany({ where })
+  await prisma.giftCard.deleteMany({ where })
+  await prisma.ingredient.deleteMany({ where })
+  await prisma.supplier.deleteMany({ where })
+  await prisma.customer.deleteMany({ where })
+  await prisma.product.deleteMany({ where })
+  await prisma.category.deleteMany({ where })
+  await prisma.table.deleteMany({ where })
+}
+
 async function main() {
   console.log('\n🌱 Seed riche — Café um Rond-Point Rumelange')
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
+
+  console.log('▸ Purge des données de démo existantes')
+  await purgeSeedCompany()
 
   // COMPANY
   console.log('▸ Création de la société')
@@ -289,9 +358,9 @@ async function main() {
 
   // TABLES
   console.log('▸ Création de 12 tables')
-  let posY = 50
+  const createdTables: any[] = []
   for (const [i, t] of TABLES.entries()) {
-    await safe(`Table ${t.name}`, () =>
+    const created = await safe(`Table ${t.name}`, () =>
       prisma.table.create({
         data: {
           companyId: company.id,
@@ -303,7 +372,7 @@ async function main() {
         } as any,
       })
     )
-    posY += 0
+    if (created) createdTables.push(created)
   }
 
   // CATEGORIES + PRODUCTS
@@ -358,8 +427,14 @@ async function main() {
           lastName: last,
           email: luxEmail(first, last),
           phone: luxPhone(),
-          loyaltyPoints: randInt(0, 500),
-        } as any,
+          // Schéma : `points` (pas loyaltyPoints), + solde portefeuille.
+          points: randInt(0, 500),
+          walletBalance: i % 5 === 0 ? randInt(5, 80) : 0,
+          // GET /crm/customers filtre isGuest:true par défaut et POST
+          // /crm/customers force isGuest:true — sans ça les clients seedés
+          // n'apparaissent nulle part dans l'UI CRM.
+          isGuest: true,
+        },
       })
     )
     if (c) customerIds.push((c as any).id)
@@ -395,22 +470,29 @@ async function main() {
       prisma.order.create({
         data: {
           companyId: company.id,
+          // Schéma : orderNumber et userId obligatoires, taxAmount (pas tax).
+          orderNumber: i + 1,
+          userId: pick(createdUsers).id,
+          tableId: Math.random() < 0.8 ? pick(createdTables)?.id ?? null : null,
           status: 'PAID',
           total: Number(total.toFixed(2)),
-          subtotal: Number((total / 1.17).toFixed(2)),
-          tax: Number((total - total / 1.17).toFixed(2)),
+          subtotal: Number((total / (1 + LUX_VAT_STANDARD)).toFixed(2)),
+          taxAmount: Number((total - total / (1 + LUX_VAT_STANDARD)).toFixed(2)),
+          paymentMethod: pick(['CARD', 'CASH', 'CARD', 'MOBILE']),
           createdAt: date,
           paidAt: date,
-          customerId: Math.random() < 0.4 ? pick(customerIds) : null,
+          customerId: customerIds.length && Math.random() < 0.4 ? pick(customerIds) : null,
           items: {
+            // OrderItem : unitPrice + taxRate (pas price/name).
             create: items.map((it) => ({
               productId: it.productId,
               quantity: it.quantity,
-              price: it.price,
-              name: it.name,
+              unitPrice: it.price,
+              taxRate: LUX_VAT_STANDARD_PCT,
+              status: 'SERVED',
             })),
-          } as any,
-        } as any,
+          },
+        },
       })
     )
   }
@@ -426,13 +508,14 @@ async function main() {
           number: `FAC-2026-${String(1000 + i).padStart(4, '0')}`,
           status: pick(['PAID', 'PAID', 'PAID', 'SENT', 'DRAFT']),
           total: amount,
-          subtotal: Number((amount / 1.17).toFixed(2)),
-          tax: Number((amount - amount / 1.17).toFixed(2)),
-          issuedAt: daysAgo(randInt(0, 60)),
-          dueAt: daysAgo(randInt(-30, 30)),
-          clientName: `${pick(LUX_FIRST_NAMES)} ${pick(LUX_LAST_NAMES)}`,
-          clientEmail: luxEmail('client', String(i)),
-        } as any,
+          // Schéma : taxAmount (pas tax), dueDate (pas dueAt), pas de champ
+          // issuedAt/clientName/clientEmail — le client passe par customerId.
+          subtotal: Number((amount / (1 + LUX_VAT_STANDARD)).toFixed(2)),
+          taxAmount: Number((amount - amount / (1 + LUX_VAT_STANDARD)).toFixed(2)),
+          customerId: customerIds.length ? pick(customerIds) : null,
+          dueDate: daysFromNow(randInt(-30, 30)),
+          createdAt: daysAgo(randInt(0, 60)),
+        },
       })
     )
   }
@@ -451,15 +534,15 @@ async function main() {
         data: {
           companyId: company.id,
           number: `DEV-2026-${String(500 + i).padStart(4, '0')}`,
-          status: pick(['DRAFT', 'SENT', 'ACCEPTED', 'ACCEPTED', 'DECLINED']),
+          // Schéma Quote : total, validUntil, notes, customerId — pas de
+          // subtotal/tax/issuedAt/clientName. Statut REJECTED (pas DECLINED).
+          status: pick(['DRAFT', 'SENT', 'ACCEPTED', 'ACCEPTED', 'REJECTED']),
           total: amount,
-          subtotal: Number((amount / 1.17).toFixed(2)),
-          tax: Number((amount - amount / 1.17).toFixed(2)),
-          issuedAt: daysAgo(randInt(0, 45)),
+          customerId: customerIds.length ? pick(customerIds) : null,
           validUntil: daysFromNow(randInt(5, 30)),
-          clientName: `Entreprise ${pick(['Arcelor', 'POST', 'Banque BIL', 'Goodyear', 'PwC', 'KPMG', 'Deloitte'])} ${pick(LUX_LAST_NAMES)}`,
-          notes: pick(EVENT_TYPES),
-        } as any,
+          createdAt: daysAgo(randInt(0, 45)),
+          notes: `${pick(EVENT_TYPES)} — Entreprise ${pick(['Arcelor', 'POST', 'Banque BIL', 'Goodyear', 'PwC', 'KPMG', 'Deloitte'])}`,
+        },
       })
     )
   }
@@ -473,11 +556,13 @@ async function main() {
       prisma.reservation.create({
         data: {
           companyId: company.id,
-          customerName: `${first} ${last}`,
-          customerPhone: luxPhone(),
-          customerEmail: luxEmail(first, last),
+          // Schéma : guestName/guestPhone/guestEmail et `date` (pas
+          // customerName/customerPhone/customerEmail/reservedAt).
+          guestName: `${first} ${last}`,
+          guestPhone: luxPhone(),
+          guestEmail: luxEmail(first, last),
           partySize: randInt(2, 10),
-          reservedAt: daysFromNow(randInt(1, 21), pick([12, 13, 19, 20, 21]), pick([0, 15, 30, 45])),
+          date: daysFromNow(randInt(1, 21), pick([12, 13, 19, 20, 21]), pick([0, 15, 30, 45])),
           status: 'CONFIRMED',
           notes: Math.random() < 0.3 ? pick(['Anniversaire', 'Allergie gluten', 'Table terrasse svp', 'Végétarien']) : null,
         } as any,
@@ -498,10 +583,13 @@ async function main() {
         data: {
           companyId: company.id,
           userId: user.id,
-          startAt: start,
-          endAt: end,
+          // Schéma : startTime/endTime (pas startAt/endAt).
+          startTime: start,
+          endTime: end,
+          breakMinutes: pick([0, 30, 30, 45]),
+          status: 'PLANNED',
           role: pick(['Service', 'Cuisine', 'Bar', 'Caisse']),
-        } as any,
+        },
       })
     )
   }
@@ -515,12 +603,13 @@ async function main() {
         data: {
           companyId: company.id,
           userId: user.id,
-          startAt: daysFromNow(randInt(10, 60)),
-          endAt: daysFromNow(randInt(61, 75)),
+          // Schéma : startDate/endDate (pas startAt/endAt), notes (pas reason).
+          startDate: daysFromNow(randInt(10, 60)),
+          endDate: daysFromNow(randInt(61, 75)),
           type: pick(['VACATION', 'SICK', 'PERSONAL']),
           status: pick(['PENDING', 'APPROVED', 'APPROVED']),
-          reason: pick(['Vacances été', 'Mariage d\'un proche', 'Rendez-vous médical', 'Déménagement', 'Raisons personnelles']),
-        } as any,
+          notes: pick(['Vacances été', 'Mariage d\'un proche', 'Rendez-vous médical', 'Déménagement', 'Raisons personnelles']),
+        },
       })
     )
   }
@@ -533,22 +622,27 @@ async function main() {
         data: {
           companyId: company.id,
           type: pick(['TEMPERATURE', 'CLEANING', 'RECEPTION', 'COOLING']),
-          location: pick(['Frigo cuisine', 'Frigo bar', 'Congélateur', 'Chambre froide', 'Zone préparation', 'Plan de travail']),
           value: randFloat(-20, 8),
-          unit: '°C',
-          recordedAt: daysAgo(randInt(0, 29), randInt(7, 22)),
-          notes: Math.random() < 0.15 ? 'Action corrective : nettoyage complet' : null,
-        } as any,
+          // Schéma : loggedAt/loggedBy/isCompliant — pas de location ni unit,
+          // l'emplacement est porté par les notes.
+          loggedAt: daysAgo(randInt(0, 29), randInt(7, 22)),
+          loggedBy: pick(createdUsers).id,
+          isCompliant: Math.random() > 0.15,
+          notes: `${pick(['Frigo cuisine', 'Frigo bar', 'Congélateur', 'Chambre froide', 'Zone préparation', 'Plan de travail'])} (°C)`
+            + (Math.random() < 0.15 ? ' — action corrective : nettoyage complet' : ''),
+        },
       })
     )
   }
 
   // SUPPLIERS (3)
   console.log('▸ Création de 3 fournisseurs')
+  // Le modèle Supplier n'a pas de champ `address` : l'adresse va dans `notes`,
+  // et `contactName` porte l'interlocuteur commercial.
   const SUPPLIERS = [
-    { name: 'Metro Luxembourg', email: 'pro@metro.lu', phone: '+352 42 44 44', address: 'Route d\'Arlon, L-8009 Strassen' },
-    { name: 'Brasserie Bofferding', email: 'commandes@bofferding.lu', phone: '+352 23 63 66 22', address: 'Bascharage' },
-    { name: 'Cactus Marché', email: 'btoc@cactus.lu', phone: '+352 43 60 61', address: 'Howald' },
+    { name: 'Metro Luxembourg', email: 'pro@metro.lu', phone: '+352 42 44 44', contactName: 'Service pro', notes: 'Route d\'Arlon, L-8009 Strassen' },
+    { name: 'Brasserie Bofferding', email: 'commandes@bofferding.lu', phone: '+352 23 63 66 22', contactName: 'Commandes', notes: 'Bascharage' },
+    { name: 'Cactus Marché', email: 'btoc@cactus.lu', phone: '+352 43 60 61', contactName: 'B2B', notes: 'Howald' },
   ]
   const supplierIds: string[] = []
   for (const s of SUPPLIERS) {
@@ -560,6 +654,53 @@ async function main() {
     if (sp) supplierIds.push((sp as any).id)
   }
 
+  // INGREDIENTS (24) — le module Inventaire s'appuie dessus (stock, seuils,
+  // alertes de réappro). Aucun n'était créé : la page Stock restait vide.
+  console.log('▸ Création de 24 ingrédients')
+  const INGREDIENTS: [string, string, number, number, number][] = [
+    // nom, unité, coût/unité, stock actuel, seuil mini
+    ['Café en grains Arabica', 'kg', 18.5, 12, 5],
+    ['Lait entier', 'L', 1.15, 48, 20],
+    ['Farine T55', 'kg', 0.95, 25, 10],
+    ['Beurre doux', 'kg', 8.4, 9, 4],
+    ['Œufs plein air', 'pièce', 0.32, 180, 60],
+    ['Pommes de terre', 'kg', 1.1, 60, 25],
+    ['Entrecôte de bœuf', 'kg', 27.9, 14, 6],
+    ['Filet de saumon', 'kg', 24.5, 7, 3],
+    ['Poulet fermier', 'kg', 11.2, 18, 8],
+    ['Jambon de Parme', 'kg', 32.0, 3, 2],
+    ['Mozzarella di bufala', 'kg', 14.8, 6, 3],
+    ['Gruyère râpé', 'kg', 12.3, 8, 4],
+    ['Tomates grappe', 'kg', 3.4, 22, 10],
+    ['Salade mêlée', 'kg', 6.2, 5, 3],
+    ['Oignons', 'kg', 1.35, 30, 12],
+    ['Ail', 'kg', 5.8, 4, 2],
+    ['Huile d\'olive extra vierge', 'L', 9.6, 15, 6],
+    ['Vin blanc Riesling Moselle', 'bouteille', 8.9, 36, 12],
+    ['Vin rouge Pinot Noir', 'bouteille', 11.4, 42, 12],
+    ['Bière Bofferding fût', 'L', 2.65, 100, 40],
+    ['Eau plate Rosport', 'bouteille', 0.55, 120, 48],
+    ['Sucre semoule', 'kg', 1.05, 18, 8],
+    ['Chocolat noir 70%', 'kg', 13.7, 6, 3],
+    ['Crème fraîche épaisse', 'L', 3.9, 14, 6],
+  ]
+  for (const [name, unit, cost, stock, minLevel] of INGREDIENTS) {
+    await safe(`Ingredient ${name}`, () =>
+      prisma.ingredient.create({
+        data: {
+          companyId: company.id,
+          name,
+          unit,
+          costPerUnit: cost,
+          // ~1 sur 6 sous le seuil : de quoi peupler les alertes de réappro.
+          currentStock: Math.random() < 0.17 ? Number((minLevel * 0.6).toFixed(2)) : stock,
+          minStockLevel: minLevel,
+          supplierId: supplierIds.length ? pick(supplierIds) : null,
+        },
+      })
+    )
+  }
+
   // STOCK MOVEMENTS (20) — via purchaseOrder ou ingredient si dispo
   console.log('▸ Création de 20 mouvements de stock')
   for (let i = 0; i < 20; i++) {
@@ -567,12 +708,14 @@ async function main() {
       prisma.purchaseOrder.create({
         data: {
           companyId: company.id,
-          supplierId: supplierIds.length ? pick(supplierIds) : undefined,
-          number: `CMD-${String(100 + i).padStart(4, '0')}`,
+          supplierId: pick(supplierIds),
+          // Schéma : ni `number` ni `orderedAt` — la référence va dans notes,
+          // la date de commande est createdAt.
           status: pick(['RECEIVED', 'RECEIVED', 'ORDERED', 'DRAFT']),
           total: randFloat(150, 2500),
-          orderedAt: daysAgo(randInt(1, 30)),
-        } as any,
+          notes: `CMD-${String(100 + i).padStart(4, '0')}`,
+          createdAt: daysAgo(randInt(1, 30)),
+        },
       })
     )
   }
@@ -602,11 +745,14 @@ async function main() {
         data: {
           companyId: company.id,
           rating: randInt(3, 5),
-          comment: REVIEW_TEXTS[i],
-          author: `${pick(LUX_FIRST_NAMES)} ${pick(LUX_LAST_NAMES).charAt(0)}.`,
-          source: pick(['GOOGLE', 'TRIPADVISOR', 'FACEBOOK', 'INTERNAL']),
+          // Le modèle Review n'a pas de champ `author` : le nom du client est
+          // porté par la relation customer, la signature reste dans le texte.
+          comment: `${REVIEW_TEXTS[i]} — ${pick(LUX_FIRST_NAMES)} ${pick(LUX_LAST_NAMES).charAt(0)}.`,
+          platform: pick(['GOOGLE', 'TRIPADVISOR', 'FACEBOOK', 'INTERNAL']),
+          replied: i % 3 === 0,
+          replyText: i % 3 === 0 ? 'Merci beaucoup pour votre retour, à très bientôt !' : null,
           createdAt: daysAgo(randInt(0, 90)),
-        } as any,
+        },
       })
     )
   }
@@ -631,16 +777,37 @@ async function main() {
         data: {
           companyId: company.id,
           name: CAMPAIGNS[i],
-          channel: pick(['EMAIL', 'SMS', 'PUSH']),
+          // Schéma : type (pas channel), scheduledFor (pas scheduledAt),
+          // content obligatoire, audience limitée à ALL|LOYAL|INACTIVE|BIRTHDAY.
+          type: pick(['EMAIL', 'SMS', 'PUSH']),
+          audience: pick(['ALL', 'LOYAL', 'INACTIVE', 'BIRTHDAY']),
+          subject: CAMPAIGNS[i],
+          content: `${CAMPAIGNS[i]} — Rendez-vous au Café um Rond-Point, 12 Rond-Point, L-3730 Rumelange. Réservation au +352 26 12 34 56.`,
           status: pick(['DRAFT', 'SCHEDULED', 'SENT', 'SENT']),
-          scheduledAt: daysFromNow(randInt(-30, 30)),
-          audience: pick(['ALL', 'LOYAL', 'NEW', 'INACTIVE']),
-        } as any,
+          scheduledFor: daysFromNow(randInt(-30, 30)),
+        },
       })
     )
   }
 
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  if (seedFailures.length > 0) {
+    // Un seed partiellement échoué annonçait « ✅ terminé » : les données
+    // manquantes ne se voyaient qu'à l'usage, dans l'app.
+    console.error(`❌ Seed incomplet — ${seedFailures.length} création(s) en échec :`)
+    // Regroupé par cause : 200 lignes identiques n'apprennent rien de plus.
+    const byCause = new Map<string, number>()
+    for (const f of seedFailures) {
+      const cause = f.slice(f.indexOf(': ') + 2)
+      byCause.set(cause, (byCause.get(cause) ?? 0) + 1)
+    }
+    for (const [cause, count] of [...byCause].sort((a, b) => b[1] - a[1])) {
+      console.error(`   • ${count}× ${cause}`)
+    }
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
+    process.exitCode = 1
+    return
+  }
   console.log('✅ Seed riche terminé')
   console.log('   Login : bryan@cafe-rondpoint.lu / Demo1234!')
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')

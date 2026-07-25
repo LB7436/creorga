@@ -119,10 +119,14 @@ export default function RoomDesignerPage() {
           preserveAspectRatio="xMidYMid meet"
           style={{
             width: '100%', height: 'calc(100% - 40px)', minHeight: 600,
+            // Plan de travail du concepteur de salle : fond sombre accordé au
+            // thème, quadrillage en blanc très transparent pour rester lisible
+            // (il était blanc plein avec une grille grise, seul îlot clair de
+            // l'application).
             background: `
-              linear-gradient(#e2e8f0 1px, transparent 1px) 0 0/40px 40px,
-              linear-gradient(90deg, #e2e8f0 1px, transparent 1px) 0 0/40px 40px,
-              #fff
+              linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px) 0 0/40px 40px,
+              linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px) 0 0/40px 40px,
+              #14141f
             `,
             borderRadius: 8, cursor: tool === 'select' ? 'default' : 'crosshair',
           }}

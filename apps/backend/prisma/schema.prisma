@@ -197,6 +197,11 @@ model Order {
   user     User       @relation(fields: [userId], references: [id])
   customer Customer?  @relation("CustomerOrders", fields: [customerId], references: [id])
   items    OrderItem[]
+
+  // Deux commandes ne peuvent pas porter le même numéro dans une société :
+  // la numérotation applicative (lecture du max + 1) ne suffit pas sous
+  // charge, c'est la base qui doit trancher.
+  @@unique([companyId, orderNumber])
 }
 
 model OrderItem {
@@ -308,6 +313,8 @@ model Invoice {
   customer Customer?     @relation(fields: [customerId], references: [id])
   items    InvoiceItem[]
 
+  // Numérotation séquentielle unique : obligation légale de facturation.
+  @@unique([companyId, number])
   @@index([companyId, status])
 }
 
@@ -340,6 +347,7 @@ model Quote {
   customer Customer?   @relation(fields: [customerId], references: [id])
   items    QuoteItem[]
 
+  @@unique([companyId, number])
   @@index([companyId, status])
 }
 

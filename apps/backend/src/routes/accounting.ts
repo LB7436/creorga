@@ -23,11 +23,36 @@ router.get('/cash-drawers', async (req: any, res: Response) => {
 router.post('/cash-drawers/open', async (req: any, res: Response) => {
   try {
     const { openAmount, notes } = req.body
+
+    // req.user expose `userId` (payload JWT), pas `id` : `req.user.id` était
+    // undefined et faisait échouer la clé étrangère — l'ouverture de caisse
+    // renvoyait systématiquement 500.
+    const userId = req.user?.userId ?? req.user?.id
+    if (!userId) {
+      res.status(401).json({ message: 'Utilisateur non identifié' })
+      return
+    }
+
+    const fond = Number(openAmount)
+    if (!Number.isFinite(fond) || fond < 0) {
+      res.status(400).json({ message: 'openAmount doit être un nombre positif ou nul' })
+      return
+    }
+
+    // Deux caisses ouvertes en même temps rendent la clôture ininterprétable.
+    const déjàOuverte = await prisma.cashDrawer.findFirst({
+      where: { companyId: req.companyId, closedAt: null },
+    })
+    if (déjàOuverte) {
+      res.status(409).json({ message: 'Une caisse est déjà ouverte' })
+      return
+    }
+
     const drawer = await prisma.cashDrawer.create({
       data: {
         companyId: req.companyId,
-        userId: req.user.id,
-        openAmount: parseFloat(openAmount),
+        userId,
+        openAmount: Math.round(fond * 100) / 100,
         notes: notes || null,
       },
       include: { user: { select: { id: true, firstName: true, lastName: true } } },
@@ -88,12 +113,33 @@ router.get('/expenses', async (req: any, res: Response) => {
 router.post('/expenses', async (req: any, res: Response) => {
   try {
     const { category, amount, taxRate, description, receiptUrl, date } = req.body
+
+    // Sans validation, un montant non numérique ou un champ obligatoire absent
+    // faisait planter Prisma et remontait en 500 « erreur serveur ».
+    const montant = Number(amount)
+    if (!Number.isFinite(montant) || montant <= 0) {
+      // Un remboursement se saisit comme un avoir, pas comme une dépense négative.
+      res.status(400).json({ message: 'amount doit être un nombre strictement positif' })
+      return
+    }
+    if (!category || !description) {
+      res.status(400).json({ message: 'category et description sont requis' })
+      return
+    }
+    // req.user expose `userId` (payload JWT), pas `id` : `req.user.id` était
+    // undefined et violait la clé étrangère Expense.userId.
+    const userId = req.user?.userId ?? req.user?.id
+    if (!userId) {
+      res.status(401).json({ message: 'Utilisateur non identifié' })
+      return
+    }
+
     const expense = await prisma.expense.create({
       data: {
         companyId: req.companyId,
-        userId: req.user.id,
+        userId,
         category,
-        amount: parseFloat(amount),
+        amount: Math.round(montant * 100) / 100,
         taxRate: taxRate ?? 17,
         description,
         receiptUrl: receiptUrl || null,

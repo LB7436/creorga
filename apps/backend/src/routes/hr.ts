@@ -31,13 +31,43 @@ router.get('/shifts', async (req: any, res: Response) => {
 router.post('/shifts', async (req: any, res: Response) => {
   try {
     const { userId, role, startTime, endTime, breakMinutes, notes } = req.body
+
+    // Champs obligatoires côté schéma : sans ces contrôles, une requête
+    // incomplète faisait planter Prisma et remontait en 500.
+    if (!userId || !role) {
+      res.status(400).json({ message: 'userId et role sont requis' })
+      return
+    }
+    const début = new Date(startTime)
+    const fin = new Date(endTime)
+    if (Number.isNaN(début.getTime()) || Number.isNaN(fin.getTime())) {
+      res.status(400).json({ message: 'startTime et endTime doivent être des dates valides' })
+      return
+    }
+    if (fin <= début) {
+      res.status(400).json({ message: 'La fin du shift doit être postérieure à son début' })
+      return
+    }
+
+    // Employé inconnu ou d'une autre société : violation de clé étrangère
+    // remontée en 500. À noter : GET /hr/team renvoie des adhésions
+    // (UserCompany), dont le champ `id` n'est PAS l'identifiant utilisateur —
+    // c'est `userId` qu'il faut passer ici.
+    const membre = await prisma.userCompany.findFirst({
+      where: { userId, companyId: req.companyId, isActive: true },
+    })
+    if (!membre) {
+      res.status(400).json({ message: `Aucun employé actif ${userId} dans cette société` })
+      return
+    }
+
     const shift = await prisma.shift.create({
       data: {
         companyId: req.companyId,
         userId,
         role,
-        startTime: new Date(startTime),
-        endTime: new Date(endTime),
+        startTime: début,
+        endTime: fin,
         breakMinutes: breakMinutes || 0,
         notes: notes || null,
       },
