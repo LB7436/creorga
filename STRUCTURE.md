@@ -121,14 +121,16 @@ Tout est relatif à `process.cwd()` du backend, donc `apps/backend/data/` en dev
 | `data/` (audit) | `middleware/audit-log.ts` | Journal d'audit |
 | `data/` (ads, agent, assistant, ocr, owner, feedback) | routes homonymes | Uploads et états applicatifs |
 
-**PDF** : aucune génération PDF côté serveur. Le seul export PDF est côté client dans `apps/web/src/pages/haccp/HistoriquePage.tsx` (impression navigateur). `pdf-parse` est une dépendance backend utilisée en **lecture** (OCR/import de factures fournisseurs), pas en écriture.
+**PDF** : aucune génération PDF côté serveur (`GET /api/invoices/:id/pdf` renvoie du JSON malgré son nom — voir `RAPPORT-AUDIT.md` §5.2). Le seul export PDF est côté client dans `apps/web/src/pages/haccp/HistoriquePage.tsx` (impression navigateur). `pdf-parse` est une dépendance backend utilisée en **lecture** (OCR/import de factures fournisseurs), pas en écriture.
 
 ## 6. Scripts de sauvegarde présents
 
 - `jobs/backup-worker.ts` — `runFullBackup()` (ZIP `archiver`), `listFullBackups()`, `pruneOldBackups()` (rétention).
 - `routes/backup.ts` — `GET /api/backup/full` (liste), `POST /api/backup/full` (déclenche), `GET /api/backup/full/:filename/download`, restauration via `adm-zip`. Le nom de fichier est validé par `^creorga-full-[\d-]+\.zip$` (protection path traversal), testé dans `routes/backup.test.ts`.
 
-Pas de script `pg_dump` : **la sauvegarde couvre `data/` (JSON), pas la base PostgreSQL.** Point relevé dans le rapport d'audit.
+Pas de script `pg_dump` : **la sauvegarde couvre `data/` (JSON), pas la base PostgreSQL.**
+Commandes, factures, clients, employés et relevés HACCP ne sont donc dans aucune archive —
+voir `RAPPORT-AUDIT.md` §5.1.
 
 ## 7. Variables d'environnement
 
@@ -147,7 +149,7 @@ Modèle : `apps/backend/.env.example`. Le backend s'auto-bootstrap (copie `.env.
 | PostgreSQL 16 | ✅ | **Pas via Docker** — le démon Docker n'est pas disponible dans le conteneur. Cluster système `pg_ctlcluster 16 main start`, port **5432** (le compose vise 5433). |
 | `docker compose -f docker-compose.dev.yml up` | ❌ | Démon indisponible. Contournement documenté en §9. |
 | Redis | ❌ | Non démarré. Aucun code backend n'en dépend au démarrage. |
-| Migrations Prisma | ✅ | `prisma migrate deploy` (1 migration `20260331200244_init`). |
+| Migrations Prisma | ✅ | `prisma migrate deploy` — 3 migrations, 36 tables (l'`init` seule n'en créait que 10, cf. `RAPPORT-AUDIT.md` §2.1). |
 | Seed | ✅ | `db:seed` et `db:seed:rich`. |
 | Backend (3002) | ✅ | Démarre, `/api/health` répond, jobs actifs (backup 6 h, scheduler 60 s, proactive 10 min, janitor 30 min, doublons 24 h). |
 | Frontend Vite (5174) | ✅ | Démarre en ~250 ms. |
