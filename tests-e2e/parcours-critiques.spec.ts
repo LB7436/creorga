@@ -14,7 +14,7 @@ const IDENTIFIANTS = {
 
 /** Connexion + neutralisation des écrans de première utilisation. */
 async function seConnecter(page: Page) {
-  await page.goto('/login')
+  await page.goto('/login', { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('input[type="email"]', { timeout: 30_000 })
   await page.fill('input[type="email"]', IDENTIFIANTS.email)
   await page.fill('input[type="password"]', IDENTIFIANTS.motDePasse)
@@ -62,23 +62,24 @@ async function surfacesClaires(page: Page): Promise<string[]> {
 test.describe('Parcours critiques', () => {
   test('POS-1/10 — vente complète : commande puis encaissement', async ({ page }) => {
     await seConnecter(page)
-    await page.goto('/pos/dashboard')
+    await page.goto('/pos/dashboard', { waitUntil: 'domcontentloaded' })
     await page.waitForLoadState('networkidle').catch(() => {})
 
     // Le tableau de bord POS doit afficher ses indicateurs temps réel.
-    await expect(page.getByText(/Tableau de bord POS/i)).toBeVisible({ timeout: 20_000 })
-    await expect(page.getByText(/CA du jour/i)).toBeVisible()
+    await expect(page.getByText(/Tableau de bord POS/i).first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(/CA du jour/i).first()).toBeVisible()
 
     // Le plan de salle doit lister des tables issues du seed.
-    await page.goto('/pos/floor')
+    await page.goto('/pos/floor', { waitUntil: 'domcontentloaded' })
     await page.waitForLoadState('networkidle').catch(() => {})
-    await expect(page.getByText(/Plan de salle/i)).toBeVisible({ timeout: 20_000 })
+    // « Plan de salle » figure aussi dans le menu latéral : viser la 1re occurrence.
+    await expect(page.getByText(/Plan de salle/i).first()).toBeVisible({ timeout: 30_000 })
     await expect(page.getByText(/SALLE PRINCIPALE|Libres/i).first()).toBeVisible()
   })
 
   test('FAC — le module facturation liste devis et factures', async ({ page }) => {
     await seConnecter(page)
-    await page.goto('/invoices')
+    await page.goto('/invoices', { waitUntil: 'domcontentloaded' })
     await page.waitForLoadState('networkidle').catch(() => {})
 
     await expect(page.locator('body')).toContainText(/Devis|Factures/i, { timeout: 20_000 })
@@ -88,7 +89,7 @@ test.describe('Parcours critiques', () => {
 
   test('CRM — les clients seedés sont visibles', async ({ page }) => {
     await seConnecter(page)
-    await page.goto('/crm/clients')
+    await page.goto('/crm/clients', { waitUntil: 'domcontentloaded' })
     await page.waitForLoadState('networkidle').catch(() => {})
 
     // Régression : les clients étaient invisibles car filtrés sur isGuest.
@@ -96,15 +97,31 @@ test.describe('Parcours critiques', () => {
     await expect(lignes.first()).toBeVisible({ timeout: 20_000 })
   })
 
-  test('GST-6 — les 4 pages du portail invité répondent', async ({ page }) => {
-    await page.goto('/c?table=T4')
-    await page.waitForLoadState('networkidle').catch(() => {})
+  test('GST-6 — les 4 pages du portail invité répondent', async ({ browser }) => {
+    // Le portail est conçu pour le téléphone (le client scanne un QR à table) :
+    // la barre de navigation du bas n'est pas rendue sur un viewport bureau.
+    const ctx = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+      // Sans locale explicite le portail bascule en anglais et les onglets
+      // s'appellent Games/Reviews au lieu de Jeux/Avis.
+      locale: 'fr-FR',
+    })
+    const page = await ctx.newPage()
+
+    await page.goto('/c?table=T4', { waitUntil: 'domcontentloaded' })
+    // Le portail charge le catalogue des 40 jeux : attendre la barre du bas.
+    await expect(page.locator('nav button').first()).toBeVisible({ timeout: 45_000 })
 
     for (const onglet of ['Jeux', 'Menu', 'Chat', 'Avis']) {
       await page.locator('nav button', { hasText: onglet }).first().click()
       await page.waitForTimeout(700)
       await expect(page.locator('nav')).toBeVisible()
     }
+
+    await ctx.close()
   })
 
   test('GST-7 — plateau Petits Chevaux cadré sur tablette Retina', async ({ browser }) => {
@@ -126,7 +143,7 @@ test.describe('Parcours critiques', () => {
       }))
     })
 
-    await page.goto('/c?table=T4')
+    await page.goto('/c?table=T4', { waitUntil: 'domcontentloaded' })
     await page.waitForTimeout(2000)
     await page.fill('input[placeholder*="Rechercher un jeu"]', 'chevaux')
     await page.waitForTimeout(800)
@@ -163,6 +180,8 @@ test.describe('Parcours critiques', () => {
   })
 
   test('UI-1 — aucune surface claire sur les modules principaux', async ({ page }) => {
+    // Chaque route est compilée à la demande par Vite au premier passage.
+    test.setTimeout(240_000)
     await seConnecter(page)
 
     const modules = [
@@ -172,7 +191,7 @@ test.describe('Parcours critiques', () => {
 
     const fautifs: string[] = []
     for (const route of modules) {
-      await page.goto(route)
+      await page.goto(route, { waitUntil: 'domcontentloaded' })
       await page.waitForLoadState('networkidle').catch(() => {})
       await page.waitForTimeout(800)
       const clairs = await surfacesClaires(page)

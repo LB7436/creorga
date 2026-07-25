@@ -25,6 +25,10 @@ export default defineConfig({
     ...(process.env.PLAYWRIGHT_CHROMIUM_PATH
       ? { launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH, args: ['--no-sandbox'] } }
       : {}),
+    // Le serveur de dev Vite compile les routes à la demande : la première
+    // visite d'un module lourd (graphiques, 3D) dépasse le défaut de 30 s.
+    navigationTimeout: 60_000,
+    actionTimeout: 20_000,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
