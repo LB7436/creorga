@@ -12,7 +12,8 @@
     "db:seed:rich": "tsx prisma/seed-rich.ts",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset --force",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:api": "vitest run --config vitest.api.config.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.15.0",

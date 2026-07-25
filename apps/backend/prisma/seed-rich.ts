@@ -430,6 +430,10 @@ async function main() {
           // Schéma : `points` (pas loyaltyPoints), + solde portefeuille.
           points: randInt(0, 500),
           walletBalance: i % 5 === 0 ? randInt(5, 80) : 0,
+          // GET /crm/customers filtre isGuest:true par défaut et POST
+          // /crm/customers force isGuest:true — sans ça les clients seedés
+          // n'apparaissent nulle part dans l'UI CRM.
+          isGuest: true,
         },
       })
     )

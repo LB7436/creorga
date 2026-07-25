@@ -9,6 +9,22 @@ import logger from '../lib/logger'
 const router = Router()
 router.use(authenticate)
 
+/**
+ * Arrondi monétaire au centime.
+ * Les totaux étaient stockés bruts : une commande de 3 × 2,50 € à 17 % donnait
+ * taxAmount = 1.275 et total = 8.775, soit un ticket et une caisse impossibles
+ * à faire tomber juste au centime.
+ */
+const cents = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100
+
+/** Erreur métier → réponse 4xx explicite (au lieu d'un 500 générique). */
+class OrderInputError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'OrderInputError'
+  }
+}
+
 // ─── GET /api/orders ───────────────────────────────────
 
 router.get('/', async (req: AuthRequest, res: Response) => {
@@ -89,29 +105,23 @@ router.post('/', validate(createOrderSchema), async (req: AuthRequest, res: Resp
 
     const { tableId, items, notes } = req.body
 
-    // Générer le numéro de commande séquentiel
-    const lastOrder = await prisma.order.findFirst({
-      where: { companyId },
-      orderBy: { orderNumber: 'desc' },
-      select: { orderNumber: true },
-    })
-    const orderNumber = (lastOrder?.orderNumber ?? 0) + 1
-
-    // Récupérer les prix des produits
+    // Récupérer les prix des produits — restreint à la société : un produit
+    // d'une autre société ne doit pas pouvoir être commandé ici.
     const productIds = items.map((i: { productId: string }) => i.productId)
     const products = await prisma.product.findMany({
-      where: { id: { in: productIds } },
+      where: { id: { in: productIds }, companyId },
     })
 
     const productMap = new Map(products.map((p) => [p.id, p]))
 
-    // Calculer les totaux
+    // Calculer les totaux — TVA ligne par ligne (les produits peuvent avoir
+    // des taux différents : 17 % standard, 3 % restauration, etc.).
     let subtotal = 0
     let taxAmount = 0
 
     const orderItems = items.map((item: { productId: string; quantity: number; notes?: string | null }) => {
       const product = productMap.get(item.productId)
-      if (!product) throw new Error(`Produit ${item.productId} non trouvé`)
+      if (!product) throw new OrderInputError(`Produit ${item.productId} introuvable`)
 
       const lineTotal = product.price * item.quantity
       const lineTax = lineTotal * (product.taxRate / 100)
@@ -127,32 +137,68 @@ router.post('/', validate(createOrderSchema), async (req: AuthRequest, res: Resp
       }
     })
 
-    const total = subtotal + taxAmount
+    // Arrondi au centime avant écriture (cf. `cents`).
+    subtotal = cents(subtotal)
+    taxAmount = cents(taxAmount)
+    const total = cents(subtotal + taxAmount)
 
-    const order = await prisma.order.create({
-      data: {
-        companyId,
-        tableId: tableId || null,
-        userId: req.user!.userId,
-        orderNumber,
-        notes: notes || null,
-        subtotal,
-        taxAmount,
-        total,
-        items: { create: orderItems },
-      },
-      include: {
-        items: { include: { product: true } },
-        table: true,
-      },
-    })
+    // Numéro séquentiel : `findFirst` + 1 n'est pas atomique — sous charge,
+    // huit commandes simultanées repartaient toutes du même dernier numéro.
+    // On sérialise lecture et écriture dans une transaction, et on réessaie
+    // si une autre transaction a pris le numéro entre-temps (P2002).
+    const MAX_TENTATIVES = 5
+    let order: any = null
+    let derniereErreur: unknown = null
+
+    for (let tentative = 0; tentative < MAX_TENTATIVES; tentative++) {
+      try {
+        order = await prisma.$transaction(async (tx) => {
+          const lastOrder = await tx.order.findFirst({
+            where: { companyId },
+            orderBy: { orderNumber: 'desc' },
+            select: { orderNumber: true },
+          })
+          const orderNumber = (lastOrder?.orderNumber ?? 0) + 1
+
+          return tx.order.create({
+            data: {
+              companyId,
+              tableId: tableId || null,
+              userId: req.user!.userId,
+              orderNumber,
+              notes: notes || null,
+              subtotal,
+              taxAmount,
+              total,
+              items: { create: orderItems },
+            },
+            include: {
+              items: { include: { product: true } },
+              table: true,
+            },
+          })
+        })
+        break
+      } catch (e: any) {
+        // P2002 = violation d'unicité sur (companyId, orderNumber)
+        if (e?.code !== 'P2002') throw e
+        derniereErreur = e
+      }
+    }
+
+    if (!order) throw derniereErreur ?? new Error('Numérotation de commande impossible')
 
     // Notifier en temps réel
     io.emit('order:new', order)
 
-    logger.info(`Nouvelle commande #${orderNumber} créée`)
+    logger.info(`Nouvelle commande #${order.orderNumber} créée`)
     res.status(201).json(order)
   } catch (error) {
+    // Produit inconnu ou hors société : faute du client, pas du serveur.
+    if (error instanceof OrderInputError) {
+      res.status(400).json({ message: error.message })
+      return
+    }
     logger.error('Erreur POST /orders:', error)
     res.status(500).json({ message: 'Erreur serveur' })
   }
@@ -200,8 +246,27 @@ router.post('/:id/checkout', validate(checkoutSchema), async (req: AuthRequest, 
       return
     }
 
+    // Une commande déjà réglée ne doit pas pouvoir l'être une seconde fois :
+    // le second encaissement écrasait paidAt et comptait le montant deux fois
+    // dans le chiffre d'affaires du jour.
+    if (existing.status === 'PAID') {
+      res.status(409).json({ message: 'Commande déjà encaissée' })
+      return
+    }
+    if (existing.status === 'CANCELLED') {
+      res.status(409).json({ message: 'Commande annulée : encaissement impossible' })
+      return
+    }
+
+    if (paymentMethod === 'CASH' && cashReceived != null && cashReceived < existing.total) {
+      res.status(400).json({
+        message: `Montant reçu insuffisant (${cashReceived} € pour ${existing.total} €)`,
+      })
+      return
+    }
+
     const cashChange = paymentMethod === 'CASH' && cashReceived
-      ? cashReceived - existing.total
+      ? cents(cashReceived - existing.total)
       : null
 
     const order = await prisma.order.update({
@@ -267,7 +332,7 @@ router.post('/:id/items', validate(addItemSchema), async (req: AuthRequest, res:
 
     const order = await prisma.order.update({
       where: { id: req.params.id },
-      data: { subtotal, taxAmount, total: subtotal + taxAmount },
+      data: { subtotal: cents(subtotal), taxAmount: cents(taxAmount), total: cents(subtotal + taxAmount) },
       include: { items: { include: { product: true } }, table: true },
     })
 
@@ -300,7 +365,7 @@ router.put('/:id/items/:itemId', async (req: AuthRequest, res: Response) => {
 
     const order = await prisma.order.update({
       where: { id: req.params.id },
-      data: { subtotal, taxAmount, total: subtotal + taxAmount },
+      data: { subtotal: cents(subtotal), taxAmount: cents(taxAmount), total: cents(subtotal + taxAmount) },
       include: { items: { include: { product: true } }, table: true },
     })
 
@@ -329,7 +394,7 @@ router.delete('/:id/items/:itemId', async (req: AuthRequest, res: Response) => {
 
     const order = await prisma.order.update({
       where: { id: req.params.id },
-      data: { subtotal, taxAmount, total: subtotal + taxAmount },
+      data: { subtotal: cents(subtotal), taxAmount: cents(taxAmount), total: cents(subtotal + taxAmount) },
       include: { items: { include: { product: true } }, table: true },
     })
 
