@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import prisma from '../lib/prisma'
+import { isProduction } from '../lib/security'
+import logger from '../lib/logger'
 
 const FALLBACK_COMPANY = {
   id: 'fallback-company',
@@ -54,7 +56,23 @@ export async function requireCompany(req: Request, res: Response, next: NextFunc
     ;(req as any).role = membership.role
     next()
   } catch (error: any) {
-    // DB unreachable → bascule sur la société fallback
+    // Base injoignable.
+    //
+    // En production, NE JAMAIS basculer sur la société de repli : cela accordait
+    // le rôle OWNER à n'importe quel porteur d'un jeton valide dès que la base
+    // tombait. Une grande partie de l'état applicatif (plan de salle, config des
+    // modules, stock, régie pub, agent) vit dans data/*.json et reste servie sans
+    // base — l'élévation de privilèges était donc réellement exploitable.
+    // Une panne de base doit se traduire par un 503, pas par une promotion.
+    if (isProduction()) {
+      logger.error(`[requireCompany] base injoignable, accès refusé: ${error?.message || error}`)
+      res.status(503).json({ error: 'Service temporairement indisponible (base de données)' })
+      return
+    }
+
+    // Hors production uniquement : mode dégradé volontaire, pour pouvoir
+    // travailler sans Docker/Postgres sur une machine de développement.
+    logger.warn(`[requireCompany] base injoignable, repli dev sur la société fallback: ${error?.message || error}`)
     ;(req as any).companyId = FALLBACK_COMPANY.id
     ;(req as any).company = FALLBACK_COMPANY
     ;(req as any).role = 'OWNER'
