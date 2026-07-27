@@ -1,6 +1,8 @@
 import fs from 'fs'
 import path from 'path'
 import { ZipArchive } from 'archiver'
+import logger from '../lib/logger'
+import { runPgDump } from './pg-dump'
 
 /**
  * v4.7 — Sauvegarde ZIP complète de data/ (hors data/backups/) toutes les 6h.
@@ -27,10 +29,25 @@ function timestamp(): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`
 }
 
-export function runFullBackup(): Promise<string> {
+export async function runFullBackup(): Promise<string> {
   ensureDir()
   const filename = `creorga-full-${timestamp()}.zip`
   const outPath = path.join(FULL_BACKUP_DIR, filename)
+
+  // Dump PostgreSQL AVANT le ZIP, pour l'y inclure (RAPPORT-AUDIT.md §5.1).
+  // Un echec ne doit pas priver l'exploitant de la sauvegarde des fichiers,
+  // mais il doit etre bruyant : c'est toute la comptabilite qui n'est pas
+  // sauvegardee. Jamais de `catch {}` silencieux ici.
+  let dumpPath: string | null = null
+  try {
+    const dump = await runPgDump()
+    dumpPath = dump.path
+  } catch (err: any) {
+    logger.error(
+      `[backup] ECHEC du dump PostgreSQL : ${err?.message || err} — ` +
+        "l'archive ne contiendra QUE les fichiers data/, pas la base."
+    )
+  }
 
   return new Promise((resolve, reject) => {
     const output = fs.createWriteStream(outPath)
@@ -51,6 +68,12 @@ export function runFullBackup(): Promise<string> {
       const stat = fs.statSync(full)
       if (stat.isDirectory()) archive.directory(full, entry)
       else archive.file(full, { name: entry })
+    }
+
+    // Le dump vit sous data/backups/db/, exclu du parcours ci-dessus :
+    // on l'ajoute explicitement dans database/ a l'interieur de l'archive.
+    if (dumpPath && fs.existsSync(dumpPath)) {
+      archive.file(dumpPath, { name: `database/${path.basename(dumpPath)}` })
     }
 
     archive.finalize()
