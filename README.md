@@ -35,10 +35,21 @@ npm run dev
 
 ## Acces
 
-- Frontend : http://localhost:5173
-- API : http://localhost:3001
+Ports reels, verifies dans les `vite.config.*` et `apps/backend/src/index.ts` :
+
+| Application | Port | Role |
+|---|---|---|
+| web | http://localhost:5174 | back-office |
+| pos | http://localhost:5175 | caisse |
+| marketing | http://localhost:5176 | site vitrine |
+| superadmin | http://localhost:5177 | administration |
+| guest | http://localhost:5178 | portail client |
+| backend | http://localhost:3002 | API |
+| PostgreSQL | 5433 | base (Docker) |
+| Redis | 6380 | cache (Docker) |
+
 - Prisma Studio : `npm run db:studio`
-- Depuis tablette (meme WiFi) : http://[IP-DU-PC]:5173
+- Depuis tablette (meme WiFi) : http://[IP-DU-PC]:5174
 
 ## Compte par defaut
 

@@ -21,6 +21,7 @@ import {
   LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid
 } from 'recharts'
 import AIActionMenu from '@/components/AIActionMenu'
+import { downloadCsv } from '@/lib/csv'
 
 /* ── helpers ───────────────────────────────────────────────── */
 const fmt = (v: number) =>
@@ -398,18 +399,16 @@ export default function ClientsPage() {
   }
 
   function handleExportCSV() {
-    const header = 'Prénom,Nom,Email,Téléphone,Points,Tier,Solde,Total,Visites,CLV,NPS,Churn'
-    const rows = filtered.map(c =>
-      `${c.firstName},${c.lastName},${c.email},${c.phone},${c.loyaltyPoints},${c.loyaltyTier},${c.walletBalance},${c.totalSpent},${c.visitCount},${c.clv},${c.nps || ''},${c.churnRisk}`
+    // Les champs étaient interpolés bruts : un client « Dupont, Jean »
+    // décalait toute la ligne. downloadCsv échappe et encode pour Excel FR.
+    downloadCsv(
+      `clients_creorga_${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Prénom', 'Nom', 'Email', 'Téléphone', 'Points', 'Tier', 'Solde', 'Total', 'Visites', 'CLV', 'NPS', 'Churn'],
+      filtered.map(c => [
+        c.firstName, c.lastName, c.email, c.phone, c.loyaltyPoints, c.loyaltyTier,
+        c.walletBalance, c.totalSpent, c.visitCount, c.clv, c.nps ?? '', c.churnRisk,
+      ]),
     )
-    const csv = [header, ...rows].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `clients_creorga_${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
     toast.success('Export CSV téléchargé')
   }
 

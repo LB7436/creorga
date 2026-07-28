@@ -14,7 +14,7 @@ creorga/
 ├─ apps/
 │  ├─ web        (Vite + React + React Router)   → port 5174   [back-office]
 │  ├─ pos        (Vite + React + Zustand)        → port 5175   [POS standalone]
-│  ├─ marketing  (Vite + React)                  → port 5173   [site vitrine]
+│  ├─ marketing  (Vite + React)                  → port 5176   [site vitrine]
 │  ├─ superadmin (Vite + React)                  → port 5176   [founder panel]
 │  ├─ guest      (Vite + React)                  → port 5177   [portail client]
 │  └─ backend    (Express + Prisma + PostgreSQL) → port 3002   [API]

@@ -405,10 +405,16 @@ router.get('/audit/:date/export.csv', (req, res) => {
   const file = path.join(DATA_DIR, 'audit', `${req.params.date}.json`)
   if (!fs.existsSync(file)) return res.status(404).send('not found')
   const log = JSON.parse(fs.readFileSync(file, 'utf8')) as AuditEntry[]
-  const csv = [
-    'iso,userId,action,intent,success,text',
-    ...log.map((e) => `"${e.iso}","${e.userId}","${e.action}","${e.intent || ''}","${e.success}","${(e.text || '').replace(/"/g, '""')}"`),
-  ].join('\n')
+  // Export réglementaire CNPD : il doit s'ouvrir tel quel dans Excel FR.
+  // Sans BOM, Excel lit en CP1252 malgré l'en-tête HTTP (ignoré une fois le
+  // fichier sur disque) ; avec des virgules, tout atterrit en colonne A.
+  const champ = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const csv =
+    '﻿' +
+    [
+      ['iso', 'userId', 'action', 'intent', 'success', 'text'].join(';'),
+      ...log.map((e) => [e.iso, e.userId, e.action, e.intent, e.success, e.text].map(champ).join(';')),
+    ].join('\r\n')
   res.setHeader('Content-Type', 'text/csv; charset=utf-8')
   res.setHeader('Content-Disposition', `attachment; filename="audit-${req.params.date}.csv"`)
   res.send(csv)

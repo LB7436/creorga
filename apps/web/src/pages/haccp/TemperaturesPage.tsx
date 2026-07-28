@@ -7,6 +7,7 @@ import {
   Thermometer, AlertTriangle, CheckCircle2, Plus, X, Download, Mail, Camera,
   Clock, Filter, FileText, Bell, Snowflake, Refrigerator, Package,
 } from 'lucide-react';
+import { downloadCsv } from '@/lib/csv';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -249,14 +250,9 @@ export default function TemperaturesPage() {
       ['N°', 'Équipement', 'Valeur', 'Date', 'Opérateur', 'Conforme', 'Notes'],
       ...historyMock.map(r => [r.id, r.equipmentName, String(r.value), r.timestamp, r.user, r.conform ? 'Oui' : 'Non', r.notes ?? '']),
     ];
-    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'temperatures.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+    // Relevés HACCP : document sanitaire opposable. Sans BOM ni séparateur
+    // FR, « Équipement » et « Opérateur » arrivaient illisibles dans Excel.
+    downloadCsv('temperatures.csv', rows[0] as string[], rows.slice(1));
   };
 
   return (

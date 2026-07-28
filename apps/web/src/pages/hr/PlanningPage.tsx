@@ -16,6 +16,7 @@ import { createPortal } from 'react-dom'
 import PlanningAssistant from '@/components/PlanningAssistant'
 import PlanningOCRImport from '@/components/PlanningOCRImport'
 import { useAuthStore } from '@/stores/authStore'
+import { downloadCsv } from '@/lib/csv'
 
 const C = {
   bg: '#f8fafc',
@@ -374,20 +375,29 @@ export default function PlanningPage() {
   }, [shifts, weekDays])
 
   const handleExportCSV = () => {
-    const header = 'Employé,Date,Début,Fin,Pause (min),Heures travaillées,Taux horaire,Coût\n'
-    const rows = shifts.map(s => {
+    // Export de paie : les colonnes chiffrées DOIVENT rester sommables dans
+    // Excel FR. `toFixed()` produisait « 15.00 » — lu comme du texte, total
+    // impossible. downloadCsv passe les nombres bruts et met la virgule.
+    const lignes = shifts.map(s => {
       // v3.18.1 fix H9 : minute term ADDED (not subtracted) — cohérent avec ligne 332/345
       const hrs = s.endHour - s.startHour + (s.endMin - s.startMin) / 60 - (s.hasBreak ? 0.5 : 0)
       const cost = hrs * s.hourlyRate
-      return `${s.employeeName},${format(s.date, 'dd/MM/yyyy')},${String(s.startHour).padStart(2, '0')}:${String(s.startMin).padStart(2, '0')},${String(s.endHour).padStart(2, '0')}:${String(s.endMin).padStart(2, '0')},${s.hasBreak ? 30 : 0},${hrs.toFixed(1)},${s.hourlyRate.toFixed(2)},${cost.toFixed(2)}`
-    }).join('\n')
-    const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `payroll_export_${format(new Date(), 'yyyy-MM-dd')}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+      return [
+        s.employeeName,
+        format(s.date, 'dd/MM/yyyy'),
+        `${String(s.startHour).padStart(2, '0')}:${String(s.startMin).padStart(2, '0')}`,
+        `${String(s.endHour).padStart(2, '0')}:${String(s.endMin).padStart(2, '0')}`,
+        s.hasBreak ? 30 : 0,
+        Number(hrs.toFixed(1)),
+        Number(s.hourlyRate.toFixed(2)),
+        Number(cost.toFixed(2)),
+      ]
+    })
+    downloadCsv(
+      `payroll_export_${format(new Date(), 'yyyy-MM-dd')}.csv`,
+      ['Employé', 'Date', 'Début', 'Fin', 'Pause (min)', 'Heures travaillées', 'Taux horaire', 'Coût'],
+      lignes,
+    )
     showToast('Export payroll généré')
   }
 
