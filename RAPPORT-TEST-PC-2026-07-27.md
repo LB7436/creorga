@@ -909,6 +909,136 @@ AUTH-1..9.** Un GO ne pourra être prononcé sans elles.
 
 ---
 
+# PHASE 5 — CARTE / MENU 🔴 LE DÉFAUT LE PLUS GRAVE DE LA SESSION
+
+## 5.1 Constat : quatre catalogues indépendants
+
+Un changement de prix en back-office n'atteignait **aucune** surface client.
+Chaque surface portait sa propre carte codée en dur :
+
+| Surface | Source réelle avant correctif |
+|---|---|
+| Back-office | base PostgreSQL — 181 produits |
+| Portail client | `apps/guest/.../MenuPage.tsx:5` — 16 produits en dur |
+| Carte QR | `apps/web/.../QrMenuPage.tsx:87` — mock étiqueté « Menu Mock Data » |
+| Caisse POS | `apps/pos/.../SeatPanel.tsx:17` — 8 prix en dur |
+
+### Écarts mesurés sur ta base réelle
+| Produit | Base | Surface client | Écart |
+|---|---|---|---|
+| Mojito | 10,50 € | portail **12,00 €** | **+1,50 €** surfacturé |
+| Burger maison | 18,50 € | portail **17,00 €** | −1,50 € |
+| **Burger** | **16,00 €** | **caisse POS 4,50 €** | **−11,50 € par vente** |
+| Espresso | 2,50 € | portail 3,00 € | +0,50 € |
+
+Le portail **surfacture**, la caisse **sous-facture**. Au Luxembourg le prix
+affiché engage le commerçant : ce n'est pas un défaut d'affichage, c'est une
+exposition juridique doublée d'une perte sèche à l'encaissement.
+
+## 5.2 🔴 Cause racine : fuite entre enseignes
+
+`portalConfig.ts:70` servait la carte ainsi :
+
+```ts
+const company = await prisma.company.findFirst({ orderBy: { createdAt: 'asc' } })
+```
+
+**La plus ancienne société de toute la base**, quelle que soit l'enseigne dont
+on scanne le QR. Sur ta machine :
+
+| Société | Créée le |
+|---|---|
+| `cmnf1nipe…` — « Ma Société » | 2026-03-31 ← **servie à tout le monde** |
+| `cmo3ytcyh…` — « Ma Société » | 2026-04-18 |
+| `seed-rich-company` — « Café um Rond-Point » | 2026-07-27 |
+
+En exploitation multi-enseignes, **les 10 restaurants afficheraient la carte du
+premier**. Le code le savait : commentaire ligne 67, *« In prod, scope this by a
+signed venue/table token »* — une dette connue partie en production.
+
+Preuve : prix passé à 10,27 € en back-office, carte publique toujours à 2,50 €.
+
+## 5.3 Correctif — `25376a2`
+
+`GET /api/portal-config/menu` accepte désormais `companyId` (paramètre ou
+en-tête), renvoie `404` sur enseigne inconnue, et journalise en `warn` le repli
+historique (conservé pour ne pas invalider les QR déjà imprimés).
+
+Les trois fronts consomment cette carte. **Choix assumé** : en cas d'échec
+réseau, aucun ne retombe sur des prix locaux — le portail affiche « la carte n'a
+pas pu être chargée », la caisse refuse le raccourci. Afficher ou encaisser un
+tarif non confirmé est pire que ne rien afficher.
+
+### Preuve — `scripts/menu-propagation.ts`
+```
+OK    S1 back-office reflete le nouveau prix — 10.47 EUR
+OK    S2 endpoint public /portal-config/menu propage — 10.47 EUR
+OK    S3 portail client consomme la carte serveur
+OK    S4 carte QR consomme la carte serveur
+OK    S5 POS (caisse) consomme la carte serveur
+OK    S6 prix restaure a sa valeur initiale — 2.7 EUR
+ECHEC S7 aucun catalogue de prix résiduel — 2 reste(s)
+```
+
+**S7 est laissé en échec volontairement.** Un contrôle qui reflète la réalité
+vaut mieux qu'un vert obtenu en ajustant le seuil. Les deux restes :
+
+| Fichier | Nature | Gravité |
+|---|---|---|
+| `apps/pos/.../ConfigPage.tsx:18` | `INITIAL_MENU` en dur (« Burger maison 14,50 € » vs 16,00 €) **et** édition non persistée : la page laisse croire qu'on gère la carte | 🟠 |
+| `apps/pos/.../KioskPage.tsx:36` | `MODIFIERS` — suppléments facturés (« Extra fromage 1,50 € ») hors back-office | 🟡 |
+
+## Non fait en Phase 5
+CRUD complet des catégories, options/variantes/menus, et le parcours de commande
+complet rejouant les correctifs d'audit (double paiement 409, espèces < total,
+arrondis, second tiroir-caisse) : **non exécutés, écrits comme non testés.**
+
+---
+
+# PHASE 6 — MULTI-APPLICATIONS, TEMPS RÉEL, SÉCURITÉ
+
+## 6.1 Les 5 applications tournent simultanément ✅
+| Port | Application | Réponse |
+|---|---|---|
+| 5174 | web (back-office) | **200** |
+| 5175 | pos | **200** |
+| 5176 | marketing | **200** |
+| 5177 | superadmin | **200** |
+| 5178 | guest | **200** |
+| 3002 | backend | **200** sur `/api/health` |
+
+Aucune collision de port. Les `node_modules` de `marketing` et `superadmin` sont
+présents — mais **par installation antérieure**, pas grâce à `npm install`
+racine : ils restent absents de `workspaces`.
+
+## 6.2 Socket.IO ✅
+```
+GET /socket.io/?EIO=4&transport=polling -> 200
+{"sid":"daxWotAttw3o1ATZAAAA","upgrades":["websocket"],"pingInterval":25000,…}
+```
+Poignée de main correcte, montée en WebSocket annoncée.
+
+## 6.3 AUTH-7 — limite de débit ✅ **enfin mesurée**
+Toute la session tournait avec `RATE_LIMIT_DISABLED=true`. J'ai lancé une
+**seconde instance sur 3003 sans le drapeau** pour la mesurer réellement :
+
+```
+1:401 2:401 3:401 4:401 5:401 6:401 7:401 8:401 9:401 10:401 11:429 12:429 …
+```
+
+**Exactement 10 tentatives, puis 429.** Conforme à la documentation (10 / 5 min).
+
+## 6.4 AUTH-1 à AUTH-9
+Couverts par `src/__audit__/auth.api-test.ts`, **50/50 au vert** — dont la
+non-énumération des comptes (message identique sur email connu et inconnu) et
+le rejet des jetons malformés en 401 plutôt qu'en 500.
+
+## Non fait en Phase 6
+Plan de salle et parcours temps réel de bout en bout (deux clients simultanés) :
+**non testés**.
+
+---
+
 # CHECKLIST DE PRÉ-LANCEMENT — 20 POINTS
 
 Chaque ligne est vérifiable. Ne cocher que sur preuve.
