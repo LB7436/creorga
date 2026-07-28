@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest'
-import { api, auth, login, assertServerUp, money } from './helpers'
+import { api, auth, login, assertServerUp, money, firstProduct } from './helpers'
 
 /**
  * Non-régression : un test par défaut corrigé pendant l'audit.
@@ -49,6 +49,24 @@ describe('RÉGRESSIONS — défauts corrigés pendant l\'audit', () => {
 
     const numéros = lot.filter((r) => r.status === 201).map((r) => (r.body.invoice ?? r.body).number)
     // Numérotation séquentielle unique : obligation légale de facturation.
+    expect(numéros.length).toBe(8)
+    expect(new Set(numéros).size).toBe(8)
+  })
+
+  it('commandes : 8 créations concurrentes → 8 numéros distincts, aucun 500', async () => {
+    const produit = await firstProduct(token)
+    const corps = { items: [{ productId: produit.id, quantity: 1 }] }
+    const lot = await Promise.all(
+      Array.from({ length: 8 }, () => auth(api().post('/api/orders'), token).send(corps)),
+    )
+
+    // Avant correctif : 2 requêtes sur 8 épuisaient leurs réessais sans
+    // attente et retombaient en 500, commande perdue. Le doublon n'a jamais
+    // eu lieu (contrainte d'unicité en base) — c'était la perte qui menaçait.
+    const echecs = lot.filter((r) => r.status >= 500)
+    expect(echecs.map((r) => r.status)).toEqual([])
+
+    const numéros = lot.filter((r) => r.status === 201).map((r) => (r.body.order ?? r.body).orderNumber)
     expect(numéros.length).toBe(8)
     expect(new Set(numéros).size).toBe(8)
   })

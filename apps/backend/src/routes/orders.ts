@@ -146,7 +146,13 @@ router.post('/', validate(createOrderSchema), async (req: AuthRequest, res: Resp
     // huit commandes simultanées repartaient toutes du même dernier numéro.
     // On sérialise lecture et écriture dans une transaction, et on réessaie
     // si une autre transaction a pris le numéro entre-temps (P2002).
-    const MAX_TENTATIVES = 5
+    //
+    // Le réessai seul ne suffit pas : sans attente entre deux tours, les
+    // requêtes concurrentes se resynchronisent et rejouent la même collision.
+    // Mesuré sur PC le 27/07/2026 : 8 commandes simultanées -> 2 échecs en
+    // 500. Le délai aléatoire croissant les désynchronise, exactement comme
+    // dans `createAvecNumero` (routes/invoices.ts).
+    const MAX_TENTATIVES = 10
     let order: any = null
     let derniereErreur: unknown = null
 
@@ -183,10 +189,19 @@ router.post('/', validate(createOrderSchema), async (req: AuthRequest, res: Resp
         // P2002 = violation d'unicité sur (companyId, orderNumber)
         if (e?.code !== 'P2002') throw e
         derniereErreur = e
+        const attente = 5 + Math.floor(Math.random() * 20) * (tentative + 1)
+        await new Promise((r) => setTimeout(r, attente))
       }
     }
 
-    if (!order) throw derniereErreur ?? new Error('Numérotation de commande impossible')
+    // Numérotation saturée : c'est une indisponibilité temporaire, pas une
+    // faute du client ni un bug applicatif. Un 500 opaque empêchait le POS de
+    // distinguer « réessaie » de « la commande est perdue ».
+    if (!order) {
+      logger.error(`Numérotation de commande saturée après ${MAX_TENTATIVES} tentatives`, derniereErreur)
+      res.status(503).json({ message: 'Numérotation de commande momentanément indisponible' })
+      return
+    }
 
     // Notifier en temps réel
     io.emit('order:new', order)
