@@ -8,6 +8,7 @@ import {
   Mic, MicOff,
 } from 'lucide-react'
 import { getHelpForPath, HELP_CONTENT, type AgentCommand, type DemoStep, type ModuleHelp } from '@/lib/help-content'
+import api from '@/lib/api'
 import InteractiveTutorial from './InteractiveTutorial'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
@@ -144,11 +145,11 @@ export default function HelpChatbot() {
     setMessages((m) => [...m, { role: 'user', text: `▶ ${cmd.label}`, ts: Date.now() }])
     setPendingCommand(null); setPendingInput('')
     try {
-      const r = await fetch(`${BACKEND}/api/agent/execute`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ commandId: cmd.id, input }),
-      })
-      const data = await r.json()
+      // `/api/agent` exige un jeton : le fetch brut prenait un 401 et le
+      // chatbot répondait `undefined` sur chaque commande. `api` attache le
+      // jeton par intercepteur (lib/api.ts).
+      const r = await api.post('/agent/execute', { commandId: cmd.id, input })
+      const data = r.data
       setMessages((m) => [...m, { role: 'bot', text: data?.text, ui: data?.ui, ts: Date.now() }])
     } catch {
       setMessages((m) => [...m, { role: 'bot', text: '⚠️ Erreur serveur agent.', ts: Date.now() }])

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Cake, X, Send } from 'lucide-react'
+import api from '@/lib/api'
+import { useAuthStore } from '@/stores/authStore'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -20,20 +22,28 @@ export default function BirthdayCelebrate() {
   const [birthdays, setBirthdays] = useState<Birthday[]>([])
   const [dismissed, setDismissed] = useState(false)
   const [confetti, setConfetti] = useState(false)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
 
   useEffect(() => {
+    // Ce composant est monté globalement (App.tsx), y compris sur /login.
+    // Sans ce garde, l'appel part sans jeton, prend un 401, et
+    // l'intercepteur de lib/api.ts fait `window.location.href = '/login'`
+    // après l'échec du refresh : la page se recharge, le composant se
+    // remonte, et la boucle ne s'arrête plus.
+    if (!isAuthenticated) return
+
     const dismissedToday = localStorage.getItem('creorga.birthday.dismissed')
     const today = new Date().toISOString().slice(0, 10)
     if (dismissedToday === today) { setDismissed(true); return }
 
     const fetchToday = async () => {
       try {
-        const r = await fetch(`${BACKEND}/api/agent/execute`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ commandId: 'crm.birthdays' }),
-        })
-        const data = await r.json()
-        const items = (data?.ui?.items || []) as Birthday[]
+        // `/api/agent` est derrière `authenticate` : un fetch brut partait
+        // sans jeton et prenait un 401 à chaque page. Le 401 était avalé par
+        // `|| []`, donc l'anniversaire ne s'affichait jamais, en silence.
+        // `api` (lib/api.ts) attache le jeton par intercepteur.
+        const r = await api.post('/agent/execute', { commandId: 'crm.birthdays' })
+        const items = (r.data?.ui?.items || []) as Birthday[]
         // Filter only TODAY (not whole month)
         const todayDay = new Date().getDate()
         const todayMonth = new Date().getMonth() + 1
@@ -52,7 +62,7 @@ export default function BirthdayCelebrate() {
     fetchToday()
     const id = setInterval(fetchToday, 6 * 3600_000)
     return () => clearInterval(id)
-  }, [])
+  }, [isAuthenticated])
 
   const dismiss = () => {
     setDismissed(true)
