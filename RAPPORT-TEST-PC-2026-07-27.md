@@ -906,6 +906,40 @@ et c'est le seul qui demande un vrai travail d'inventaire.
 Les phases 5 et 6 n'ayant pas été exécutées, **aucun jugement n'est porté sur
 le module Carte/Menu, la propagation des prix, le temps réel ni la sécurité
 AUTH-1..9.** Un GO ne pourra être prononcé sans elles.
+
+---
+
+# CHECKLIST DE PRÉ-LANCEMENT — 20 POINTS
+
+Chaque ligne est vérifiable. Ne cocher que sur preuve.
+
+### Bloquants (issus de cette session)
+1. [ ] `RobiOperator` : l'authentification SSE est tranchée et la connexion fonctionne.
+2. [ ] Les 32 appels `fetch` bruts sont confrontés aux routes protégées de `index.ts` ; chaque appel authentifié manquant est corrigé.
+3. [ ] L'intercepteur `api.ts` ne redirige plus vers `/login` quand on y est déjà (fin de la boucle de rechargement).
+4. [ ] Le seed produit des factures **avec lignes** ; le compteur d'échecs du seed existe et affiche 0.
+5. [ ] `/api/marketplace` affiche du contenu, ou la route est retirée de `App.tsx`.
+
+### Exploitation
+6. [ ] PostgreSQL tourne en service géré, **pas sur Docker Desktop** (arrêt spontané constaté).
+7. [ ] Une restauration complète a été rejouée **sur l'environnement de production** : dump → restore → comptage table par table identique.
+8. [ ] Les ZIP de sauvegarde partent ailleurs que sur le disque de l'application (hors site).
+9. [ ] Un second tir du planificateur à **H+6** a été observé en horloge réelle.
+10. [ ] `pg_dump` est disponible sur l'hôte de production, ou la stratégie Docker y est vérifiée.
+11. [ ] Une alerte remonte si un dump échoue — le `logger.error` ne suffit pas si personne ne lit les journaux.
+12. [ ] `NODE_ENV=production` est effectif : `requireCompany` renvoie bien 503 base coupée, et l'admin de repli est refusé au démarrage.
+
+### Conformité
+13. [ ] La numérotation des factures est rejouée sous charge **sur le matériel de production** : aucun doublon, aucune perte.
+14. [ ] Une facture réelle est vérifiée conforme LU : mentions légales, n° TVA, taux 17/14/8/3 %, numéro séquentiel, coordonnées.
+15. [ ] Les exports CSV (clients, HACCP, paie, audit CNPD) sont ouverts **dans Excel FR** : accents intacts, colonnes séparées, montants sommables.
+16. [ ] L'export d'audit CNPD est produit et relu sur une vraie période.
+
+### Robustesse
+17. [ ] Les 5 applications démarrent ensemble sur 5174-5178 + 3002, sans collision de port.
+18. [ ] `npm install` est fait dans `apps/marketing` et `apps/superadmin` (absents des `workspaces`).
+19. [ ] La sécurité AUTH-1 à AUTH-9 et la limite de débit sont rejouées **sans** `RATE_LIMIT_DISABLED`.
+20. [ ] Le module Carte/Menu est validé de bout en bout : un changement de prix se propage back-office → POS → carte QR → portail client. **Toute désynchronisation est un P0.**
 - [ ] Phase 2 — les 3 arbitrages ouverts (pg_dump / PDF / élévation de privilèges)
 - [ ] Phase 3 — persistance (fichiers, ZIP + cron 6 h, PostgreSQL, navigateur)
 - [ ] Phase 4 — balayage UI clic par clic
