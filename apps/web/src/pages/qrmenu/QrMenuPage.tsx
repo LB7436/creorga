@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAuthStore } from '@/stores/authStore'
 import {
   QrCode, Upload, Link2, Palette, Download, Printer, FileText,
   Image as ImageIcon, Eye, BarChart3, Globe, ShoppingCart,
@@ -76,17 +77,23 @@ function QrSvg({
   )
 }
 
-/* ───────────────────────── Menu Mock Data ──────────────────────── */
-const MENU_CATEGORIES = [
+/* ─────────────────── Carte : repli de mise en page ──────────────────
+ * Ces tableaux servaient de VRAIE carte : la prévisualisation QR affichait
+ * « Entrecôte grillée 28,00 € » quels que soient les produits réellement
+ * saisis en back-office. Ils ne servent plus qu'à dessiner la maquette tant
+ * que la carte réelle n'est pas chargée ; dès qu'elle l'est, elle les
+ * remplace (cf. `carteReelle` plus bas).
+ */
+const MENU_CATEGORIES_MAQUETTE = [
   { id: 'entrees', label: 'Entrées', emoji: '🥗' },
   { id: 'plats', label: 'Plats', emoji: '🍽️' },
   { id: 'desserts', label: 'Desserts', emoji: '🍰' },
   { id: 'boissons', label: 'Boissons', emoji: '🥂' },
 ]
 
-const MENU_ITEMS: Record<string, Array<{
-  name: string; price: number; emoji: string; allergens: string[]
-}>> = {
+type PlatCarte = { name: string; price: number; emoji: string; allergens: string[] }
+
+const MENU_ITEMS_MAQUETTE: Record<string, Array<PlatCarte>> = {
   entrees: [
     { name: 'Salade du chef', price: 12.5, emoji: '🥗', allergens: ['G', 'L'] },
     { name: 'Tartare de saumon', price: 16.0, emoji: '🐟', allergens: ['P'] },
@@ -157,6 +164,51 @@ export default function QrMenuPage() {
   // QR
   const [qrSize, setQrSize] = useState<'S' | 'M' | 'L'>('M')
   const [activeCategory, setActiveCategory] = useState('entrees')
+
+  // Carte réelle, chargée depuis la même source que le back-office. Tant
+  // qu'elle n'est pas arrivée on garde la maquette pour dessiner l'aperçu,
+  // mais dès qu'elle est là c'est elle qui fait foi : la prévisualisation
+  // doit montrer ce que le client verra, pas des plats de démonstration.
+  const [carteReelle, setCarteReelle] = useState<{
+    categories: Array<{ id: string; label: string; emoji: string }>
+    items: Record<string, PlatCarte[]>
+  } | null>(null)
+
+  useEffect(() => {
+    let annule = false
+    // `companyId` est la société active choisie par l'utilisateur : c'est
+    // elle qu'il faut prévisualiser, pas la première de la liste.
+    const companyId = useAuthStore.getState().companyId || ''
+
+    fetch(`/api/portal-config/menu${companyId ? `?companyId=${encodeURIComponent(companyId)}` : ''}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((data) => {
+        if (annule) return
+        const cats = (data.categories || []).filter((c: any) => (c.products || []).length > 0)
+        if (!cats.length) return
+
+        const categories = cats.map((c: any) => ({ id: c.id, label: c.name, emoji: '🍽️' }))
+        const items: Record<string, PlatCarte[]> = {}
+        for (const c of cats) {
+          items[c.id] = (c.products || [])
+            .filter((p: any) => p.isActive !== false)
+            .map((p: any) => ({
+              name: p.name,
+              price: Number(p.price),
+              emoji: '🍽️',
+              allergens: [] as string[],
+            }))
+        }
+        setCarteReelle({ categories, items })
+        setActiveCategory(categories[0].id)
+      })
+      .catch(() => { /* aperçu en maquette : l'aperçu n'est pas la carte client */ })
+
+    return () => { annule = true }
+  }, [])
+
+  const MENU_CATEGORIES = carteReelle?.categories ?? MENU_CATEGORIES_MAQUETTE
+  const MENU_ITEMS = carteReelle?.items ?? MENU_ITEMS_MAQUETTE
 
   const qrPixelSize = qrSize === 'S' ? 100 : qrSize === 'M' ? 200 : 400
   const fullUrl = `${customSlug}.creorga.lu/menu`

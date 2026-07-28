@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useSeats, seatTotal, type Seat } from '../store/seatStore'
 import { usePOS } from '../store/posStore'
@@ -13,16 +13,65 @@ interface Props {
   onClose: () => void
 }
 
-const QUICK_MENU = [
-  { name: 'Café',     price: 2.80 },
-  { name: 'Espresso', price: 2.50 },
-  { name: 'Bière',    price: 3.20 },
-  { name: 'Vin',      price: 4.40 },
-  { name: 'Crémant',  price: 6.70 },
-  { name: 'Burger',   price: 4.50 },
-  { name: 'Frites',   price: 4.50 },
-  { name: 'Plancha',  price: 25.50 },
-]
+const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
+
+/**
+ * Menu rapide de la caisse.
+ *
+ * Ces huit lignes étaient CODÉES EN DUR et servaient à facturer. Mesuré le
+ * 27/07/2026 sur la base réelle : « Burger » y était à 4,50 € quand le
+ * back-office affichait 16,00 € pour « Burger maison » — soit 11,50 € de
+ * manque à gagner par burger encaissé. La caisse doit facturer les prix du
+ * back-office, jamais une copie locale.
+ *
+ * Les libellés ci-dessous ne servent plus qu'à choisir, parmi la carte
+ * réelle, les produits mis en avant. Les PRIX viennent toujours du serveur.
+ */
+const RACCOURCIS = ['Café', 'Espresso', 'Bière', 'Vin', 'Crémant', 'Burger', 'Frites', 'Plancha']
+
+interface ProduitCaisse { name: string; price: number }
+
+function useCarteCaisse(): { produits: ProduitCaisse[]; pret: boolean } {
+  const [produits, setProduits] = useState<ProduitCaisse[]>([])
+  const [pret, setPret] = useState(false)
+
+  useEffect(() => {
+    let annule = false
+    const companyId = (import.meta as any).env?.VITE_COMPANY_ID || ''
+
+    fetch(`${BACKEND}/api/portal-config/menu${companyId ? `?companyId=${encodeURIComponent(companyId)}` : ''}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((data) => {
+        if (annule) return
+        const tous: ProduitCaisse[] = (data.products || [])
+          .filter((p: any) => p.isActive !== false)
+          .map((p: any) => ({ name: p.name, price: Number(p.price) }))
+
+        // On met en avant les raccourcis quand ils existent dans la carte,
+        // puis on complète avec le reste : aucun produit n'est inventé.
+        const parNom = new Map(tous.map((p) => [p.name.toLowerCase(), p]))
+        const avant: ProduitCaisse[] = []
+        for (const libelle of RACCOURCIS) {
+          const trouve =
+            parNom.get(libelle.toLowerCase()) ||
+            tous.find((p) => p.name.toLowerCase().startsWith(libelle.toLowerCase()))
+          if (trouve && !avant.includes(trouve)) avant.push(trouve)
+        }
+        const reste = tous.filter((p) => !avant.includes(p))
+        setProduits([...avant, ...reste].slice(0, 24))
+        setPret(true)
+      })
+      .catch(() => {
+        // Aucun repli sur des prix locaux : encaisser un tarif non confirmé
+        // est pire que ne pas proposer le raccourci.
+        if (!annule) { setProduits([]); setPret(true) }
+      })
+
+    return () => { annule = true }
+  }, [])
+
+  return { produits, pret }
+}
 
 export default function SeatPanel({ seatId, onClose }: Props) {
   const seat = useSeats((s) => s.seats.find((x) => x.id === seatId))
@@ -33,6 +82,7 @@ export default function SeatPanel({ seatId, onClose }: Props) {
   } = useSeats()
 
   const [showTransfer, setShowTransfer] = useState(false)
+  const carte = useCarteCaisse()
 
   if (!seat) return null
 
@@ -166,8 +216,13 @@ export default function SeatPanel({ seatId, onClose }: Props) {
         <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', letterSpacing: 1, marginBottom: 8 }}>
           + AJOUTER
         </div>
+        {carte.pret && carte.produits.length === 0 && (
+          <div style={{ fontSize: 11, color: '#f87171', marginBottom: 8 }}>
+            Carte indisponible — impossible d'encaisser à un tarif non confirmé.
+          </div>
+        )}
         <div style={{ display: 'grid', gap: 4, gridTemplateColumns: 'repeat(4, 1fr)' }}>
-          {QUICK_MENU.map((m) => (
+          {carte.produits.map((m) => (
             <button key={m.name}
               onClick={() => addItem(seat.id, { menuItemId: m.name, name: m.name, price: m.price, qty: 1, note: '' })}
               style={{

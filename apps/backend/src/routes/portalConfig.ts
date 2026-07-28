@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma'
 import { loadStock, stockStatusFor } from '../lib/stockStore'
+import logger from '../lib/logger'
 
 /**
  * Portal config — shared between the admin "/clients" (5174) page and the
@@ -64,10 +65,38 @@ router.get('/', (_req, res) => {
   res.json(current)
 })
 
-// Public guest portal data. In prod, scope this by a signed venue/table token.
-router.get('/menu', async (_req, res) => {
+/**
+ * Carte publique du portail client (QR).
+ *
+ * Cette route servait `findFirst({ orderBy: { createdAt: 'asc' } })` : la
+ * PLUS ANCIENNE société de toute la base, quelle que soit l'enseigne dont on
+ * scanne le QR. Deux conséquences mesurées le 27/07/2026 :
+ *   - toutes les enseignes affichaient la carte de la première — fuite d'une
+ *     société à l'autre dans un produit multi-locataires ;
+ *   - un changement de prix en back-office n'atteignait jamais la carte
+ *     publique (mesuré : back-office 10,27 € / carte publique 2,50 €).
+ *
+ * La carte est publique par nature : la porter par `companyId` n'expose rien
+ * de plus que le QR affiché en salle. Le repli historique est conservé pour
+ * ne pas casser les QR déjà imprimés, mais il est journalisé.
+ */
+router.get('/menu', async (req, res) => {
   try {
-    const company = await prisma.company.findFirst({ orderBy: { createdAt: 'asc' } })
+    const demande = (req.query.companyId as string) || (req.headers['x-company-id'] as string) || ''
+    const company = demande
+      ? await prisma.company.findUnique({ where: { id: demande } })
+      : await prisma.company.findFirst({ orderBy: { createdAt: 'asc' } })
+
+    if (demande && !company) {
+      res.status(404).json({ message: 'Enseigne inconnue' })
+      return
+    }
+    if (!demande) {
+      logger.warn(
+        '[portal-config] /menu appelé sans companyId : repli sur la plus ancienne société. ' +
+          'Un QR multi-enseignes DOIT porter son companyId.'
+      )
+    }
     if (!company) {
       res.json({ companyId: null, categories: [], products: [] })
       return
