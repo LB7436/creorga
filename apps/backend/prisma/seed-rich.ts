@@ -49,10 +49,44 @@ function daysFromNow(n: number, hour = 19, minute = 0) {
   return d
 }
 
+const arrondi = (n: number) => Number(n.toFixed(2))
+
+/**
+ * Construit des lignes de document et en déduit les totaux.
+ *
+ * Le seed écrivait auparavant un total tiré au hasard sans aucune ligne :
+ * 20 factures, 15 devis et 20 commandes fournisseur portaient un montant alors
+ * que `InvoiceItem`, `QuoteItem` et `PurchaseOrderItem` restaient à 0 ligne.
+ * Une facture ouverte dans l'UI affichait donc un total sans le moindre détail,
+ * et un PDF de facture n'aurait rien eu à imprimer.
+ *
+ * Les totaux se calculent désormais à partir des lignes, comme le fait
+ * `POST /api/invoices`. `taxRate` est un pourcentage (17), jamais une fraction.
+ */
+function construireLignes(produits: any[], nbLignes: number) {
+  const lignes = Array.from({ length: nbLignes }, () => {
+    const produit = pick(produits)
+    return {
+      description: produit.name as string,
+      quantity: randInt(1, 4),
+      unitPrice: produit.price as number,
+      taxRate: (produit.taxRate as number) ?? LUX_VAT_STANDARD_PCT,
+    }
+  })
+  const subtotal = arrondi(lignes.reduce((s, l) => s + l.quantity * l.unitPrice, 0))
+  const taxAmount = arrondi(
+    lignes.reduce((s, l) => s + (l.quantity * l.unitPrice * l.taxRate) / 100, 0),
+  )
+  return { lignes, subtotal, taxAmount, total: arrondi(subtotal + taxAmount) }
+}
+
 /** Échecs rencontrés pendant le seed — le script sort en erreur s'il y en a. */
 const seedFailures: string[] = []
+/** Créations tentées : sans dénominateur, « 0 échec » ne veut rien dire. */
+let seedAttempts = 0
 
 async function safe<T>(label: string, fn: () => Promise<T>): Promise<T | null> {
+  seedAttempts++
   try {
     return await fn()
   } catch (e) {
@@ -500,18 +534,19 @@ async function main() {
   // INVOICES (20)
   console.log('▸ Création de 20 factures')
   for (let i = 0; i < 20; i++) {
-    const amount = randFloat(80, 1200)
+    const { lignes, subtotal, taxAmount, total } = construireLignes(allProducts, randInt(2, 6))
     await safe(`Invoice ${i + 1}`, () =>
       prisma.invoice.create({
         data: {
           companyId: company.id,
           number: `FAC-2026-${String(1000 + i).padStart(4, '0')}`,
           status: pick(['PAID', 'PAID', 'PAID', 'SENT', 'DRAFT']),
-          total: amount,
           // Schéma : taxAmount (pas tax), dueDate (pas dueAt), pas de champ
           // issuedAt/clientName/clientEmail — le client passe par customerId.
-          subtotal: Number((amount / (1 + LUX_VAT_STANDARD)).toFixed(2)),
-          taxAmount: Number((amount - amount / (1 + LUX_VAT_STANDARD)).toFixed(2)),
+          subtotal,
+          taxAmount,
+          total,
+          items: { create: lignes },
           customerId: customerIds.length ? pick(customerIds) : null,
           dueDate: daysFromNow(randInt(-30, 30)),
           createdAt: daysAgo(randInt(0, 60)),
@@ -528,7 +563,8 @@ async function main() {
     'Repas de famille', 'Pot de départ', 'Fête de noël entreprise',
   ]
   for (let i = 0; i < 15; i++) {
-    const amount = randFloat(450, 5800)
+    // Un devis événement compte plus de postes qu'une addition : 4 à 10.
+    const { lignes, total } = construireLignes(allProducts, randInt(4, 10))
     await safe(`Quote ${i + 1}`, () =>
       prisma.quote.create({
         data: {
@@ -537,7 +573,8 @@ async function main() {
           // Schéma Quote : total, validUntil, notes, customerId — pas de
           // subtotal/tax/issuedAt/clientName. Statut REJECTED (pas DECLINED).
           status: pick(['DRAFT', 'SENT', 'ACCEPTED', 'ACCEPTED', 'REJECTED']),
-          total: amount,
+          total,
+          items: { create: lignes },
           customerId: customerIds.length ? pick(customerIds) : null,
           validUntil: daysFromNow(randInt(5, 30)),
           createdAt: daysAgo(randInt(0, 45)),
@@ -684,8 +721,10 @@ async function main() {
     ['Chocolat noir 70%', 'kg', 13.7, 6, 3],
     ['Crème fraîche épaisse', 'L', 3.9, 14, 6],
   ]
+  // Collectés pour alimenter les lignes des commandes fournisseur plus bas.
+  const ingredients: { id: string; costPerUnit: number }[] = []
   for (const [name, unit, cost, stock, minLevel] of INGREDIENTS) {
-    await safe(`Ingredient ${name}`, () =>
+    const ing = await safe(`Ingredient ${name}`, () =>
       prisma.ingredient.create({
         data: {
           companyId: company.id,
@@ -699,11 +738,23 @@ async function main() {
         },
       })
     )
+    if (ing) ingredients.push({ id: (ing as any).id, costPerUnit: cost })
   }
 
   // STOCK MOVEMENTS (20) — via purchaseOrder ou ingredient si dispo
   console.log('▸ Création de 20 mouvements de stock')
   for (let i = 0; i < 20; i++) {
+    // Lignes réelles : une commande fournisseur sans ligne laissait la page
+    // Commandes afficher un montant sans savoir ce qui avait été commandé.
+    const lignes = Array.from({ length: randInt(2, 5) }, () => {
+      const ingredient = pick(ingredients)
+      return {
+        ingredientId: ingredient.id,
+        quantity: randInt(1, 20),
+        unitCost: ingredient.costPerUnit,
+      }
+    })
+    const total = arrondi(lignes.reduce((s, l) => s + l.quantity * l.unitCost, 0))
     await safe(`PurchaseOrder ${i + 1}`, () =>
       prisma.purchaseOrder.create({
         data: {
@@ -712,7 +763,8 @@ async function main() {
           // Schéma : ni `number` ni `orderedAt` — la référence va dans notes,
           // la date de commande est createdAt.
           status: pick(['RECEIVED', 'RECEIVED', 'ORDERED', 'DRAFT']),
-          total: randFloat(150, 2500),
+          total,
+          items: { create: lignes },
           notes: `CMD-${String(100 + i).padStart(4, '0')}`,
           createdAt: daysAgo(randInt(1, 30)),
         },
@@ -808,7 +860,10 @@ async function main() {
     process.exitCode = 1
     return
   }
-  console.log('✅ Seed riche terminé')
+  // Le compteur s'affiche aussi quand tout passe : « 0 échec » est un résultat
+  // mesuré, alors qu'un simple « ✅ terminé » ne prouvait rien — c'est
+  // exactement ce silence qui masquait 273 échecs sur 288 avant l'audit.
+  console.log('✅ Seed riche terminé — 0 échec sur ' + seedAttempts + ' créations')
   console.log('   Login : bryan@cafe-rondpoint.lu / Demo1234!')
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
 }
