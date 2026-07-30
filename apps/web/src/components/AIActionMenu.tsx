@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Loader2, X } from 'lucide-react'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -34,7 +35,7 @@ export default function AIActionMenu({ module, context, label, inline }: Props) 
   const [result, setResult] = useState<{ action: AIAction; text?: string; data?: any } | null>(null)
 
   useEffect(() => {
-    fetch(`${BACKEND}/api/ai/catalogue`)
+    fetchAuth(`${BACKEND}/api/ai/catalogue`)
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (data?.actions) setActions(data.actions.filter((a: AIAction) => a.module === module))
@@ -47,7 +48,7 @@ export default function AIActionMenu({ module, context, label, inline }: Props) 
     setBusy(action.id)
     setResult({ action })
     try {
-      const r = await fetch(`${BACKEND}/api/ai/run-action`, {
+      const r = await fetchAuth(`${BACKEND}/api/ai/run-action`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ actionId: action.id, context }),
       })

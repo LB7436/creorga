@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Check, AlertTriangle, MousePointer2, Type as TypeIcon, ArrowRight } from 'lucide-react'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 /**
  * v3.19 F4 — Operator mode listener.
@@ -36,7 +37,7 @@ interface OperatorAction {
 
 async function ackAction(actionId: string, status: 'done' | 'cancelled' | 'error', result?: any) {
   try {
-    await fetch(`${getBackend()}/api/agent/operator/ack`, {
+    await fetchAuth(`${getBackend()}/api/agent/operator/ack`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ actionId, status, result }),
     })

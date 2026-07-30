@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import AssistantMascot from '@/components/AssistantMascot'
 import { useAssistant } from '@/stores/assistantStore'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 /**
  * v3.17 — Le Briefing du Matin / Soir
@@ -72,7 +73,7 @@ export default function MobileBriefing() {
   const fetchBriefing = async () => {
     setLoading(true)
     try {
-      const r = await fetch(`${getBackend()}/api/agent/daily-briefing`, {
+      const r = await fetchAuth(`${getBackend()}/api/agent/daily-briefing`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ period }),
       })
@@ -120,7 +121,7 @@ export default function MobileBriefing() {
     }
     if (p.action.type === 'command' && p.action.commandId) {
       try {
-        const r = await fetch(`${getBackend()}/api/agent/execute`, {
+        const r = await fetchAuth(`${getBackend()}/api/agent/execute`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ commandId: p.action.commandId, input: {} }),
         })

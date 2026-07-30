@@ -10,6 +10,7 @@ import {
 import { getHelpForPath, HELP_CONTENT, type AgentCommand, type DemoStep, type ModuleHelp } from '@/lib/help-content'
 import api from '@/lib/api'
 import InteractiveTutorial from './InteractiveTutorial'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -94,7 +95,7 @@ export default function HelpChatbot() {
     setMessages((m) => [...m, { role: 'user', text, ts: Date.now() }])
     setInput('')
     try {
-      const r = await fetch(`${BACKEND}/api/agent/smart-query`, {
+      const r = await fetchAuth(`${BACKEND}/api/agent/smart-query`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: text, currentPath: location.pathname }),
       })

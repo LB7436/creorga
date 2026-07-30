@@ -37,6 +37,7 @@ import { lockPos } from '@/components/PosLockScreen'
 import { Lock } from 'lucide-react'
 import { useOfflineStatus, startOfflineSync } from '@/lib/offlineQueue'
 import { io } from 'socket.io-client'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 function OfflineQueueBadge() {
   const { online, pendingCount } = useOfflineStatus()
@@ -87,7 +88,7 @@ function LiveCustomerCount() {
     let alive = true
     const load = async () => {
       try {
-        const res = await fetch('/api/floor-state')
+        const res = await fetchAuth('/api/floor-state')
         if (!res.ok) return
         const data = await res.json()
         const tables = Array.isArray(data.tables) ? data.tables : Array.isArray(data) ? data : []

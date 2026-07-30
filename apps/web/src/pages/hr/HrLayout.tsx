@@ -2,6 +2,7 @@ import { CalendarRange, Clock, Umbrella, Users, Settings2, GraduationCap, Eye, E
 import { useState, useEffect } from 'react'
 import ModuleLayout from '@/components/layout/ModuleLayout'
 import { useAuthStore } from '@/stores/authStore'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 const items = [
   { label: 'Planning', path: '/hr/planning', icon: CalendarRange },
@@ -30,7 +31,7 @@ export default function HrLayout() {
   const [pickerOpen, setPickerOpen] = useState(false)
 
   useEffect(() => {
-    fetch(`${getBackend()}/api/hr/team`)
+    fetchAuth(`${getBackend()}/api/hr/team`)
       .then((r) => r.ok ? r.json() : [])
       .then((data: any) => {
         const list = Array.isArray(data) ? data : data?.team || []

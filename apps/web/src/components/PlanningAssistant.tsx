@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import AIActionMenu from './AIActionMenu'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -158,7 +159,7 @@ function OCRImport({ onClose }: any) {
 
       // Send to Gemma to parse as planning
       setPhase('ai')
-      const r = await fetch(`${BACKEND}/api/ai/run-action`, {
+      const r = await fetchAuth(`${BACKEND}/api/ai/run-action`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           actionId: 'hr.optimize-shifts', // Reuse the HR action for parsing

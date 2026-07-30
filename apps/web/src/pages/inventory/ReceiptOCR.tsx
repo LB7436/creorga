@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 /**
  * OCR receipt scanner.
@@ -121,7 +122,7 @@ export default function ReceiptOCR() {
       setPhaseLabel('Analyse Gemma 2B en cours…')
       setProgress(0)
 
-      const res = await fetch(`${BACKEND}/api/inventory-ocr/ai-parse-receipt`, {
+      const res = await fetchAuth(`${BACKEND}/api/inventory-ocr/ai-parse-receipt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rawText: text }),
@@ -162,7 +163,7 @@ export default function ReceiptOCR() {
     setPhase('ai')
     setPhaseLabel('Ajout au stock…')
     try {
-      const res = await fetch(`${BACKEND}/api/inventory-ocr/stock/bulk`, {
+      const res = await fetchAuth(`${BACKEND}/api/inventory-ocr/stock/bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items: parsed.items, supplier: parsed.supplier }),

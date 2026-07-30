@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { fileToDataUrl } from '@/stores/brandStore'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -31,7 +32,7 @@ export default function AdsAdminPage() {
 
   const fetchAds = async () => {
     try {
-      const r = await fetch(`${BACKEND}/api/ads`)
+      const r = await fetchAuth(`${BACKEND}/api/ads`)
       const data = await r.json()
       setAds(data.ads || [])
     } catch { /* offline */ }
@@ -40,12 +41,12 @@ export default function AdsAdminPage() {
 
   const save = async (ad: Partial<Ad>) => {
     if (editing) {
-      await fetch(`${BACKEND}/api/ads/${editing.id}`, {
+      await fetchAuth(`${BACKEND}/api/ads/${editing.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ad),
       })
     } else {
-      await fetch(`${BACKEND}/api/ads`, {
+      await fetchAuth(`${BACKEND}/api/ads`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ad),
       })
@@ -54,11 +55,11 @@ export default function AdsAdminPage() {
   }
   const remove = async (id: string) => {
     if (!confirm('Supprimer cette pub ?')) return
-    await fetch(`${BACKEND}/api/ads/${id}`, { method: 'DELETE' })
+    await fetchAuth(`${BACKEND}/api/ads/${id}`, { method: 'DELETE' })
     fetchAds()
   }
   const toggleLive = async (id: string) => {
-    await fetch(`${BACKEND}/api/ads/${id}/toggle-live`, { method: 'POST' })
+    await fetchAuth(`${BACKEND}/api/ads/${id}/toggle-live`, { method: 'POST' })
     fetchAds()
   }
 
@@ -180,7 +181,7 @@ function AdForm({ ad, onSave, onClose, aiBusy, setAiBusy }: any) {
     if (!title) { alert('Renseignez un titre / produit pour que l\'IA s\'inspire'); return }
     setAiBusy(true)
     try {
-      const r = await fetch(`${BACKEND}/api/ads/ai-generate-text`, {
+      const r = await fetchAuth(`${BACKEND}/api/ads/ai-generate-text`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product: title, price, vibe: subtitle, language: 'fr' }),
       })

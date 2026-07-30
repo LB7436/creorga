@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Sparkles, X, Check } from 'lucide-react'
 import api from '@/lib/api'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 type Suggestion = {
   id?: string
@@ -61,7 +62,7 @@ export default function RobiSuggestionBanner() {
 
   const confirm = async () => {
     if (suggestion.cta?.intent) {
-      await fetch('/api/agent/intent', {
+      await fetchAuth('/api/agent/intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: suggestion.cta.intent }),

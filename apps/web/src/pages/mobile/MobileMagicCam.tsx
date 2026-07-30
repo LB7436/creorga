@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { fetchAuth } from '@/lib/fetchAuth'
 import {
   Camera, Sparkles, Loader2, ArrowLeft, Check, X, RotateCcw,
   Receipt, Refrigerator, Wrench, MessageSquare, Image as ImageIcon, ChefHat,
@@ -72,7 +73,7 @@ export default function MobileMagicCam() {
       const b64 = await imageToBase64(file)
       setStage('thinking')
 
-      const r = await fetch(`${getBackend()}/api/agent/photo-magic`, {
+      const r = await fetchAuth(`${getBackend()}/api/agent/photo-magic`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: b64 }),
         signal: AbortSignal.timeout(180_000),
@@ -81,7 +82,7 @@ export default function MobileMagicCam() {
       if (!r.ok) {
         // Fallback : si endpoint magique pas dispo, on essaie l'OCR receipt classique
         if (r.status === 404) {
-          const fb = await fetch(`${getBackend()}/api/inventory-ocr/vision-parse-receipt`, {
+          const fb = await fetchAuth(`${getBackend()}/api/inventory-ocr/vision-parse-receipt`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ imageBase64: b64 }),
           })

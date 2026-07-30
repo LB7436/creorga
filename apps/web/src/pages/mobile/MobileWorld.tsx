@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Globe, Wifi, Server, AlertCircle, CheckCircle2, Copy, ExternalLink } from 'lucide-react'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 const BACKEND_DEFAULT = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -26,7 +27,7 @@ export default function MobileWorld() {
       setStatus('checking')
       const start = Date.now()
       try {
-        const r = await fetch(`${backend}/api/agent/commands`, { signal: AbortSignal.timeout(8000) })
+        const r = await fetchAuth(`${backend}/api/agent/commands`, { signal: AbortSignal.timeout(8000) })
         if (!r.ok) throw new Error('not ok')
         const data = await r.json()
         setLatency(Date.now() - start)

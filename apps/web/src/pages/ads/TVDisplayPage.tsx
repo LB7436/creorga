@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -31,7 +32,7 @@ export default function TVDisplayPage() {
   useEffect(() => {
     const fetchLive = async () => {
       try {
-        const r = await fetch(`${BACKEND}/api/ads/live`)
+        const r = await fetchAuth(`${BACKEND}/api/ads/live`)
         const data = await r.json()
         setAds(data.ads || [])
       } catch { /* offline */ }

@@ -21,6 +21,7 @@ import {
   Clock,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 /* ── palette ── */
 const C = {
@@ -143,7 +144,7 @@ function RgpdPage() {
     if (!confirm('Purger définitivement tous les clients inactifs depuis plus de 3 ans ? Action irréversible.')) return
     setPurging(true)
     try {
-      const r = await fetch(`${BACKEND}/api/owner/purge-inactive-customers`, { method: 'POST' })
+      const r = await fetchAuth(`${BACKEND}/api/owner/purge-inactive-customers`, { method: 'POST' })
       const data = await r.json()
       if (r.ok) toast.success(`${data.purged} client(s) inactif(s) purgé(s)`)
       else toast.error('Erreur lors de la purge')

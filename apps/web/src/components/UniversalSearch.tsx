@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { Search, ArrowRight, X, Hash, FileText, Users, Package, BookOpen, Zap, Command } from 'lucide-react'
 import { HELP_CONTENT } from '@/lib/help-content'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -86,7 +87,7 @@ export default function UniversalSearch() {
       if (!rest) return
       const cfg = prefixes[first]
       const t = setTimeout(() => {
-        fetch(`${BACKEND}/api/agent/execute`, {
+        fetchAuth(`${BACKEND}/api/agent/execute`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ commandId: cfg.commandId, input: { [cfg.field]: rest } }),
         })
@@ -115,9 +116,9 @@ export default function UniversalSearch() {
     const timeout = window.setTimeout(async () => {
       try {
         const [customers, invoices, shifts] = await Promise.all([
-          fetch('/api/crm/customers?limit=3&search=' + encodeURIComponent(q)).then((r) => r.ok ? r.json() : null).catch(() => null),
-          fetch('/api/invoices').then((r) => r.ok ? r.json() : null).catch(() => null),
-          fetch('/api/hr/shifts').then((r) => r.ok ? r.json() : null).catch(() => null),
+          fetchAuth('/api/crm/customers?limit=3&search=' + encodeURIComponent(q)).then((r) => r.ok ? r.json() : null).catch(() => null),
+          fetchAuth('/api/invoices').then((r) => r.ok ? r.json() : null).catch(() => null),
+          fetchAuth('/api/hr/shifts').then((r) => r.ok ? r.json() : null).catch(() => null),
         ])
         const customerItems = ((customers?.customers || customers || []) as any[]).slice(0, 3).map((c) => ({
           type: 'customer' as const,

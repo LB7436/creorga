@@ -8,6 +8,7 @@ import {
 import AssistantMascot from '@/components/AssistantMascot'
 import { useAssistant, type AssistantAttachment } from '@/stores/assistantStore'
 import { useTheme } from '@/lib/theme'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 function getBackend() {
   if (typeof window === 'undefined') return 'http://localhost:3002'
@@ -168,7 +169,7 @@ export default function MobileRobi() {
 
     // Sinon : appel Robi standard
     try {
-      const r = await fetch(`${getBackend()}/api/agent/workflow`, {
+      const r = await fetchAuth(`${getBackend()}/api/agent/workflow`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: finalText, currentPath: location.pathname, userId: 'default' }),
       })

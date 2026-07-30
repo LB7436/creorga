@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Clock, Package, Bell, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -16,7 +17,7 @@ interface Alert {
 
 async function runCmd(commandId: string, input?: any) {
   try {
-    const r = await fetch(`${BACKEND}/api/agent/execute`, {
+    const r = await fetchAuth(`${BACKEND}/api/agent/execute`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ commandId, input }),
     })

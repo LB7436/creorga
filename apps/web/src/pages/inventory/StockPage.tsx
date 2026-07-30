@@ -5,6 +5,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Legend, AreaChart, Area,
 } from 'recharts'
+import { fetchAuth } from '@/lib/fetchAuth'
 import {
   Package, Euro, AlertTriangle, XCircle, Search, Plus, ShoppingCart, Truck, X,
   Check, Upload, ClipboardList, Clock, RotateCcw, Download, Timer, CheckCircle2,
@@ -600,7 +601,7 @@ export default function StockPage() {
     let alive = true
     const fetchStock = async () => {
       try {
-        const r = await fetch(`${BACKEND}/api/inventory-ocr/stock`)
+        const r = await fetchAuth(`${BACKEND}/api/inventory-ocr/stock`)
         if (!r.ok) throw new Error('fetch failed')
         const j = await r.json()
         if (!alive) return
@@ -618,14 +619,14 @@ export default function StockPage() {
   // Manual delete one item (persisted)
   const deleteItem = async (id: string) => {
     if (!confirm('Supprimer cet article du stock ?')) return
-    await fetch(`${BACKEND}/api/inventory-ocr/stock/${id}`, { method: 'DELETE' })
+    await fetchAuth(`${BACKEND}/api/inventory-ocr/stock/${id}`, { method: 'DELETE' })
     setData((d) => d.filter((i) => i.id !== id))
   }
 
   // Manual reset all (persisted)
   const resetAll = async () => {
     if (!confirm('⚠ Vider TOUT le stock ? Cette action est irréversible.')) return
-    await fetch(`${BACKEND}/api/inventory-ocr/stock`, { method: 'DELETE' })
+    await fetchAuth(`${BACKEND}/api/inventory-ocr/stock`, { method: 'DELETE' })
     setData([])
   }
 

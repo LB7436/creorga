@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { TrendingUp, Users, Coins, AlertTriangle, ArrowRight, RefreshCw, WifiOff, Sparkles, Sun, Camera } from 'lucide-react'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 /**
  * Mobile patron dashboard — gros KPIs lisibles à distance.
@@ -32,7 +33,7 @@ interface LiveData {
 
 async function runCmd(commandId: string, input?: any) {
   try {
-    const r = await fetch(`${getBackend()}/api/agent/execute`, {
+    const r = await fetchAuth(`${getBackend()}/api/agent/execute`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ commandId, input }),
       signal: AbortSignal.timeout(8000),
@@ -63,7 +64,7 @@ export default function MobileLive() {
   // v3.17 — proactive suggestions (loaded after KPIs, non-blocking)
   const fetchSuggestions = async () => {
     try {
-      const r = await fetch(`${getBackend()}/api/agent/proactive`, {
+      const r = await fetchAuth(`${getBackend()}/api/agent/proactive`, {
         signal: AbortSignal.timeout(6000),
       })
       if (r.ok) {
@@ -77,7 +78,7 @@ export default function MobileLive() {
     if (s.route) { navigate(s.route); return }
     if (s.commandId) {
       try {
-        await fetch(`${getBackend()}/api/agent/execute`, {
+        await fetchAuth(`${getBackend()}/api/agent/execute`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ commandId: s.commandId, input: {} }),
         })

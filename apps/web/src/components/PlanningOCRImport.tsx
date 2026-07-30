@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Camera, Upload, Loader2, X, Check, AlertCircle } from 'lucide-react'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -57,7 +58,7 @@ export default function PlanningOCRImport({ onShifts, trigger }: Props) {
       setStage('parsing')
 
       // Send to backend Gemma to parse
-      const r = await fetch(`${BACKEND}/api/ai/run-action`, {
+      const r = await fetchAuth(`${BACKEND}/api/ai/run-action`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           actionId: 'hr.parse-shifts-ocr',

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Activity, Filter } from 'lucide-react'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 type AuditEntry = {
   id: string
@@ -23,7 +24,7 @@ export default function ActiviteAuditPage() {
     if (user) params.set('user', user)
     if (module) params.set('module', module)
     if (date) params.set('date', date)
-    fetch(`/api/owner/audit?${params.toString()}`)
+    fetchAuth(`/api/owner/audit?${params.toString()}`)
       .then((r) => r.json())
       .then((data) => setItems(data.items || []))
       .catch(() => setItems([]))

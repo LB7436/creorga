@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Database, Download, Upload, Trash2, RefreshCw, Plus, FileArchive, AlertTriangle, ShieldCheck } from 'lucide-react'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -32,12 +33,12 @@ export default function BackupPage() {
 
   const fetchBackups = useCallback(async () => {
     try {
-      const r = await fetch(`${BACKEND}/api/inventory-ocr/backups`)
+      const r = await fetchAuth(`${BACKEND}/api/inventory-ocr/backups`)
       const data = await r.json()
       setBackups(data.backups || [])
     } catch { /* offline */ }
     try {
-      const r = await fetch(`${BACKEND}/api/inventory-ocr/stock`)
+      const r = await fetchAuth(`${BACKEND}/api/inventory-ocr/stock`)
       const data = await r.json()
       setStockSize(data.total || 0)
     } catch { /* offline */ }
@@ -46,7 +47,7 @@ export default function BackupPage() {
 
   const fetchFullBackups = useCallback(async () => {
     try {
-      const r = await fetch(`${BACKEND}/api/backup/full`)
+      const r = await fetchAuth(`${BACKEND}/api/backup/full`)
       const data = await r.json()
       setFullBackups(data.backups || [])
     } catch { /* offline */ }
@@ -59,7 +60,7 @@ export default function BackupPage() {
   const createFullBackup = async () => {
     setFullBusy('create')
     try {
-      const r = await fetch(`${BACKEND}/api/backup/full`, { method: 'POST' })
+      const r = await fetchAuth(`${BACKEND}/api/backup/full`, { method: 'POST' })
       if (r.ok) {
         const data = await r.json()
         flash(`✓ Sauvegarde complète créée : ${data.filename}`)
@@ -72,7 +73,7 @@ export default function BackupPage() {
     if (!confirm(`Restaurer TOUT le programme depuis "${filename}" ? Toutes les données actuelles (clients, factures, RH, stock, HACCP…) seront remplacées.`)) return
     setFullBusy(filename)
     try {
-      const r = await fetch(`${BACKEND}/api/backup/full/${filename}/restore`, { method: 'POST' })
+      const r = await fetchAuth(`${BACKEND}/api/backup/full/${filename}/restore`, { method: 'POST' })
       if (r.ok) {
         flash('✓ Restauration complète réussie')
         fetchFullBackups()
@@ -85,7 +86,7 @@ export default function BackupPage() {
     if (!confirm(`Supprimer la sauvegarde complète "${filename}" ?`)) return
     setFullBusy(filename)
     try {
-      await fetch(`${BACKEND}/api/backup/full/${filename}`, { method: 'DELETE' })
+      await fetchAuth(`${BACKEND}/api/backup/full/${filename}`, { method: 'DELETE' })
       flash('✓ Sauvegarde supprimée')
       fetchFullBackups()
     } finally { setFullBusy(null) }
@@ -98,7 +99,7 @@ export default function BackupPage() {
   const createBackup = async () => {
     setBusy('create')
     try {
-      const r = await fetch(`${BACKEND}/api/inventory-ocr/backups`, { method: 'POST' })
+      const r = await fetchAuth(`${BACKEND}/api/inventory-ocr/backups`, { method: 'POST' })
       if (r.ok) {
         const data = await r.json()
         flash(`✓ Backup créé : ${data.filename} (${data.items} articles)`)
@@ -111,7 +112,7 @@ export default function BackupPage() {
     if (!confirm(`Restaurer "${filename}" ? Le stock actuel sera remplacé.`)) return
     setBusy(filename)
     try {
-      const r = await fetch(`${BACKEND}/api/inventory-ocr/restore/${filename}`, { method: 'POST' })
+      const r = await fetchAuth(`${BACKEND}/api/inventory-ocr/restore/${filename}`, { method: 'POST' })
       if (r.ok) {
         const data = await r.json()
         flash(`✓ Restauration réussie — ${data.restored} articles`)
@@ -124,7 +125,7 @@ export default function BackupPage() {
     if (!confirm(`Supprimer le backup "${filename}" ?`)) return
     setBusy(filename)
     try {
-      await fetch(`${BACKEND}/api/inventory-ocr/backups/${filename}`, { method: 'DELETE' })
+      await fetchAuth(`${BACKEND}/api/inventory-ocr/backups/${filename}`, { method: 'DELETE' })
       flash('✓ Backup supprimé')
       fetchBackups()
     } finally { setBusy(null) }

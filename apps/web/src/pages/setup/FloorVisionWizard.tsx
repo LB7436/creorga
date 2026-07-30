@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Camera, Upload, Loader2, X, Check, Sparkles, ArrowRight, AlertCircle } from 'lucide-react'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -72,7 +73,7 @@ export default function FloorVisionWizard() {
     setStage('analyzing')
     setError(null)
     try {
-      const r = await fetch(`${BACKEND}/api/agent/analyze-photos`, {
+      const r = await fetchAuth(`${BACKEND}/api/agent/analyze-photos`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ photos: photos.map((p) => p.preview) }),
       })
@@ -90,7 +91,7 @@ export default function FloorVisionWizard() {
     if (!result) return
     setStage('saving')
     try {
-      const r = await fetch(`${BACKEND}/api/floor-state`, {
+      const r = await fetchAuth(`${BACKEND}/api/floor-state`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tables: result.proposal.tables,

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Search, Bot, Boxes, Receipt, Users, CalendarDays, Camera, Megaphone, PackageSearch } from 'lucide-react'
 import { useModuleStore } from '@/stores/moduleStore'
 import { useAssistant } from '@/stores/assistantStore'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 type Action = {
   label: string
@@ -21,7 +22,7 @@ export default function QuickActionsFAB() {
   const actions = useMemo<Action[]>(() => {
     const path = location.pathname
     const askAgent = async (text: string) => {
-      await fetch('/api/agent/intent', {
+      await fetchAuth('/api/agent/intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),

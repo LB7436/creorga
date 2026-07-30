@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MapPin, Check, X } from 'lucide-react'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 /**
  * v3.19 H4 — Pointage géoloc auto.
@@ -70,7 +71,7 @@ export default function GeolocPunchIn() {
   const punchIn = async () => {
     setWorking(true)
     try {
-      await fetch(`${getBackend()}/api/agent/intent`, {
+      await fetchAuth(`${getBackend()}/api/agent/intent`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: 'je commence', currentPath: '/m', userId: 'default' }),
       })

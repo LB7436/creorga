@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Camera, Upload, ArrowLeft, Loader2, Check, Eye, FileText } from 'lucide-react'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 // v3.16 — backend URL dynamique (localStorage > env > localhost)
 function getBackend(): string {
@@ -55,7 +56,7 @@ export default function MobileCamera() {
       setStage('parsing')
       setPipeline('vision')
       const b64 = await imageToBase64(file)
-      const visionRes = await fetch(`${BACKEND}/api/inventory-ocr/vision-parse-receipt`, {
+      const visionRes = await fetchAuth(`${BACKEND}/api/inventory-ocr/vision-parse-receipt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: b64 }),
@@ -88,7 +89,7 @@ export default function MobileCamera() {
       const rawText = data.text
       setStage('parsing')
 
-      const r = await fetch(`${BACKEND}/api/inventory-ocr/ai-parse-receipt`, {
+      const r = await fetchAuth(`${BACKEND}/api/inventory-ocr/ai-parse-receipt`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rawText, source: 'tesseract+gemma' }),
         signal: AbortSignal.timeout(60_000),
@@ -107,7 +108,7 @@ export default function MobileCamera() {
     if (!parsed?.items?.length) return
     const BACKEND = getBackend()
     try {
-      const r = await fetch(`${BACKEND}/api/inventory-ocr/stock/bulk`, {
+      const r = await fetchAuth(`${BACKEND}/api/inventory-ocr/stock/bulk`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items: parsed.items, supplier: parsed.supplier }),
       })
