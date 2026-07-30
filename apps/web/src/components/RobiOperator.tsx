@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Check, AlertTriangle, MousePointer2, Type as TypeIcon, ArrowRight } from 'lucide-react'
 import { fetchAuth } from '@/lib/fetchAuth'
+import { ouvrirFluxAuthentifie } from '@/lib/sseAuth'
 
 /**
  * v3.19 F4 — Operator mode listener.
@@ -110,30 +111,30 @@ export default function RobiOperator() {
     if (typeof window === 'undefined') return
     const userId = 'default'  // future : real userId
     const url = `${getBackend()}/api/agent/operator/stream?userId=${userId}`
-    let es: EventSource | null = null
-    try {
-      es = new EventSource(url)
-    } catch { return }
 
-    es.onopen = () => setConnected(true)
-    es.onerror = () => setConnected(false)
-    es.onmessage = (ev) => {
-      try {
-        const action = JSON.parse(ev.data) as OperatorAction
-        if (action.type === 'connected') { setConnected(true); return }
-        if (action.critical) {
-          // Bloque exec → demande confirmation
-          setPending(action)
-        } else {
-          // Non-critique : exécute direct (avec petit délai pour visibilité)
-          const result = execAction(action)
-          setHistory((h) => [action, ...h.slice(0, 9)])
-          ackAction(action.id, result.ok ? 'done' : 'error', result.result)
-        }
-      } catch { /* ignore parse errors */ }
-    }
+    // `EventSource` ne porte pas d'en-tête : le flux est monté derrière
+    // `authenticate` et partait donc en 401. Cf. lib/sseAuth.ts.
+    const fermer = ouvrirFluxAuthentifie(url, {
+      onOuvert: () => setConnected(true),
+      onFerme: () => setConnected(false),
+      onMessage: (donnees) => {
+        try {
+          const action = JSON.parse(donnees) as OperatorAction
+          if (action.type === 'connected') { setConnected(true); return }
+          if (action.critical) {
+            // Bloque exec → demande confirmation
+            setPending(action)
+          } else {
+            // Non-critique : exécute direct (avec petit délai pour visibilité)
+            const result = execAction(action)
+            setHistory((h) => [action, ...h.slice(0, 9)])
+            ackAction(action.id, result.ok ? 'done' : 'error', result.result)
+          }
+        } catch { /* ignore parse errors */ }
+      },
+    })
 
-    return () => { try { es?.close() } catch { /* */ } }
+    return fermer
   }, [])
 
   const confirmPending = () => {
