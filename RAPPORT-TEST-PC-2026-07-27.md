@@ -1043,12 +1043,44 @@ Plan de salle et parcours temps réel de bout en bout (deux clients simultanés)
 
 Chaque ligne est vérifiable. Ne cocher que sur preuve.
 
-### Bloquants (issus de cette session)
-1. [ ] `RobiOperator` : l'authentification SSE est tranchée et la connexion fonctionne.
-2. [ ] Les 32 appels `fetch` bruts sont confrontés aux routes protégées de `index.ts` ; chaque appel authentifié manquant est corrigé.
-3. [ ] L'intercepteur `api.ts` ne redirige plus vers `/login` quand on y est déjà (fin de la boucle de rechargement).
-4. [ ] Le seed produit des factures **avec lignes** ; le compteur d'échecs du seed existe et affiche 0.
-5. [ ] `/api/marketplace` affiche du contenu, ou la route est retirée de `App.tsx`.
+### Bloquants (issus de cette session) — ✅ LES 5 TRAITÉS LE 2026-07-30
+
+1. [x] `RobiOperator` : l'authentification SSE est tranchée et la connexion fonctionne.
+   → `258ff40`. Le jeton en paramètre d'URL est **écarté** (fuite dans les
+   journaux d'accès, l'historique et le `Referer`) ; le flux passe par `fetch`,
+   qui accepte les en-têtes — `lib/sseAuth.ts`. Reconnexion explicite à délai
+   croissant, `EventSource` la faisait seul. 2 tests.
+2. [x] Les appels `fetch` bruts sont confrontés aux routes protégées de `index.ts` ; chaque appel authentifié manquant est corrigé.
+   → `9a8b637`. Confrontation **automatisée** : `scripts/audit-appels-http.mjs`
+   croise les préfixes montés et les appels du front, et sort en code 1 s'il en
+   reste un. Le compte réel est de **56 appels sur 27 fichiers**, pas 32 ;
+   aucun ne portait d'en-tête. Bascule sur `lib/fetchAuth.ts`, qui garde la
+   sémantique de `Response` et journalise un 401 non récupérable.
+   ⚠️ Au passage : **`/api/ads` est monté derrière `authenticate`** — l'affichage
+   TV (`/api/ads/live`) n'était donc pas public comme supposé, il était mort.
+3. [x] L'intercepteur `api.ts` ne redirige plus vers `/login` quand on y est déjà (fin de la boucle de rechargement).
+   → `ed21c6d`. Traité dans l'intercepteur, pas composant par composant. Le
+   test compte les **affectations** de `location.href`, pas sa valeur finale :
+   sinon il passerait aussi sur le code d'avant, qui réaffectait `/login`.
+4. [x] Le seed produit des factures **avec lignes** ; le compteur d'échecs du seed existe et affiche 0.
+   → `409e95b`. `InvoiceItem` 0 → **77**, `QuoteItem` 0 → **98**,
+   `PurchaseOrderItem` 0 → **74**, vérifiés en base. `total = subtotal +
+   taxAmount` et `subtotal = somme des lignes` : 0 écart. Le compteur s'affiche
+   désormais aussi au succès, avec son dénominateur — « 0 échec sur 492
+   créations ». Débloque la génération de PDF (phase 2.2).
+5. [x] `/api/marketplace` affiche du contenu, ou la route est retirée de `App.tsx`.
+   → `977fd0d`. Le diagnostic « page non implémentée » était **faux** : la page
+   a du contenu. C'est le chemin qui était inutilisable — `vite.config.ts`
+   proxifie `'/api/'` vers le backend, qui répondait 404 avant que le routeur
+   React ne voie l'URL (vérifié : la réponse portait les en-têtes helmet
+   d'Express). Route déplacée en `/integrations/marketplace`.
+
+> Rendu complet de la page Marketplace **une fois authentifié** : non rejoué
+> dans le navigateur, à couvrir au prochain balayage UI.
+>
+> Les 5 apps front ont désormais **un lanceur de tests sur `apps/web`**
+> (vitest, 5 tests) — le constat 3.6 « aucun test sur le front » n'est plus
+> total, mais `pos`, `marketing`, `superadmin` et `guest` restent sans.
 
 ### Exploitation
 6. [ ] PostgreSQL tourne en service géré, **pas sur Docker Desktop** (arrêt spontané constaté).
