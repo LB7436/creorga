@@ -9,12 +9,34 @@ const api = axios.create({
   withCredentials: true,
 })
 
+export const LOGIN_PATH = '/login'
+
 const isDemoSession = () => {
   if (typeof window === 'undefined') return false
   return (
     window.localStorage.getItem('creorga-demo-mode') === 'true' ||
     window.localStorage.getItem('creorga-demo-state')?.includes('"active":true') === true
   )
+}
+
+/**
+ * Déconnecte puis renvoie vers /login — sauf si on y est déjà.
+ *
+ * Sans ce garde, tout composant monté globalement qui appelle `api` avant
+ * authentification déclenche une boucle : 401 → refresh KO → `location.href`
+ * → rechargement complet → le composant se remonte → 401… Playwright le voyait
+ * comme « element was detached from the DOM, retrying » sur la page de login.
+ *
+ * La déconnexion reste faite dans tous les cas : purger un jeton mort ne
+ * recharge pas la page.
+ */
+export const traiterSessionExpiree = () => {
+  if (isDemoSession()) return false
+  useAuthStore.getState().logout()
+  if (typeof window === 'undefined') return false
+  if (window.location.pathname === LOGIN_PATH) return false
+  window.location.href = LOGIN_PATH
+  return true
 }
 
 // Ajouter le token aux requêtes
@@ -71,10 +93,7 @@ api.interceptors.response.use(
         return api(originalRequest)
       } catch (refreshError) {
         processQueue(refreshError, null)
-        if (!isDemoSession()) {
-          useAuthStore.getState().logout()
-          window.location.href = '/login'
-        }
+        traiterSessionExpiree()
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false
