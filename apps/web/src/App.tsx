@@ -396,7 +396,10 @@ function App() {
 
         {/* API & Intégrations Module */}
         <Route path="/api" element={<ApiPage />} />
-        <Route path="/api/marketplace" element={<MarketplacePage />} />
+        {/* Hors de /api/ : le proxy Vite (vite.config.ts) capte tout /api/… et
+            le renvoie au backend, qui repond 404 — la page n'etait jamais
+            rendue. Cf. rapport de test §4.4, « ecran blanc ». */}
+        <Route path="/integrations/marketplace" element={<MarketplacePage />} />
 
         {/* Assistant IA — v3.18 fusion : page unique avec sélecteur de provider local/cloud/auto */}
         {/* /ai/local et /ai/settings deviennent alias vers /ai */}

@@ -31,7 +31,7 @@ const ROUTES = [
   '/ai', '/ai/local', '/ai/settings',
   '/owner', '/sites', '/licences', '/referral', '/community', '/formation',
   '/sustainability', '/backup', '/rgpd', '/changelog',
-  '/admin', '/api', '/api/marketplace',
+  '/admin', '/api', '/integrations/marketplace',
   '/settings/modules', '/settings/theme', '/settings/language', '/settings/env-mode',
   '/setup', '/setup/assistant', '/setup/floor-vision',
   '/standalone/calendar', '/standalone/floor', '/standalone/planning', '/standalone/stock',
