@@ -324,11 +324,24 @@ function getSectionForPoint(rooms: Room[], x: number, y: number): string {
 
 function screenToSVG(svgEl: SVGSVGElement, clientX: number, clientY: number): { x: number; y: number } {
   const rect = svgEl.getBoundingClientRect()
-  const scaleX = VW / rect.width
-  const scaleY = VH / rect.height
+  if (!rect.width || !rect.height) return { x: 0, y: 0 }
+
+  // Le SVG est rendu en `preserveAspectRatio="xMidYMid meet"` : le contenu est
+  // mis à l'échelle UNIFORMÉMENT (le plus petit des deux facteurs) puis CENTRÉ,
+  // ce qui laisse des bandes vides sur un côté dès que les proportions du cadre
+  // diffèrent de celles du viewBox.
+  //
+  // L'ancien calcul appliquait deux facteurs indépendants et ignorait ces
+  // bandes : le point logique renvoyé était décalé, d'autant plus que l'écran
+  // s'éloignait du ratio du viewBox. Concrètement, une table posée ou déplacée
+  // n'atterrissait pas sous le curseur, et l'écart grandissait vers les bords.
+  const echelle = Math.min(rect.width / VW, rect.height / VH)
+  const bandeX = (rect.width - VW * echelle) / 2
+  const bandeY = (rect.height - VH * echelle) / 2
+
   return {
-    x: (clientX - rect.left) * scaleX,
-    y: (clientY - rect.top) * scaleY,
+    x: (clientX - rect.left - bandeX) / echelle,
+    y: (clientY - rect.top - bandeY) / echelle,
   }
 }
 
