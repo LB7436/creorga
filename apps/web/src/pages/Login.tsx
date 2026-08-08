@@ -60,7 +60,10 @@ export default function Login() {
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: 'admin@creorga.local', password: 'Admin1234!' },
+    // admin@creorga.local est le compte de repli du mode développement : il est
+    // DÉSACTIVÉ en production, donc le pré-remplissage échouait dès la mise en
+    // ligne. On pré-remplit le compte de démonstration créé par seed-rich.
+    defaultValues: { email: 'bryan@cafe-rondpoint.lu', password: 'Demo1234!' },
   })
 
   const onSubmit = async (data: LoginForm) => {

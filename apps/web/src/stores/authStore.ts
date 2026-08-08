@@ -52,8 +52,15 @@ export const useAuthStore = create<AuthState>()(
 
       setAuth: ({ accessToken, user, companies }) => {
         const activeCompany = companies[0]?.company ?? null
-        // Détecte le rôle depuis user (admin email = 'owner')
-        const userRole = (user as any)?.role || ((user as any)?.email === 'admin@creorga.local' ? 'owner' : 'employee')
+        // Le rôle est porté par l'adhésion UserCompany, jamais par User (cf. CLAUDE.md) :
+        // l'API ne renvoie AUCUN user.role. L'ancien repli — « owner seulement si
+        // l'e-mail est admin@creorga.local » — classait donc tous les autres comptes
+        // en « employee », propriétaires compris, à qui 6 modules étaient masqués
+        // (owner, sites, rgpd, backup, api, maintenance). Et ce compte de repli est
+        // désactivé en production : plus personne n'était patron.
+        const roleAdhesion = String(companies[0]?.role ?? '').toUpperCase()
+        const userRole: 'owner' | 'manager' | 'employee' =
+          roleAdhesion === 'OWNER' ? 'owner' : roleAdhesion === 'MANAGER' ? 'manager' : 'employee'
         set({
           accessToken,
           user,

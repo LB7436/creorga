@@ -19,8 +19,10 @@ import { useAuthStore } from '@/stores/authStore'
  * Pour la prod, remplacer par un vrai login.
  */
 
-const DEMO_EMAIL    = 'admin@creorga.local'
-const DEMO_PASSWORD = 'Admin1234!'
+// admin@creorga.local est le compte de repli du mode développement, DÉSACTIVÉ en
+// production : la démo mobile échouait donc en ligne. Compte créé par seed-rich.
+const DEMO_EMAIL    = 'bryan@cafe-rondpoint.lu'
+const DEMO_PASSWORD = 'Demo1234!'
 
 const ENV_BACKEND = (import.meta as any).env?.VITE_REMOTE_BACKEND
                  || (import.meta as any).env?.VITE_BACKEND_URL
