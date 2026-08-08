@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toastSuccess, toastError } from '../../lib/toast';
 import {
   BarChart,
   Bar,
@@ -595,6 +596,14 @@ export default function CampagnesPage() {
                   {rule.nextRun}
                 </span>
                 <button
+                  onClick={() => {
+                    const nouveau = window.prompt(`Modèle du message pour « ${rule.label} »`, rule.template);
+                    if (nouveau === null) return;
+                    const propre = nouveau.trim();
+                    if (!propre) { toastError('Le modèle ne peut pas être vide.'); return; }
+                    setAutoRules(l => l.map(r => r.id === rule.id ? { ...r, template: propre } : r));
+                    toastSuccess('Modèle mis à jour.');
+                  }}
                   style={{
                     background: 'transparent',
                     color: '#6366f1',
@@ -1094,8 +1103,13 @@ export default function CampagnesPage() {
                               <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>
                                 {wizBody || '(votre message apparaîtra ici)'}
                               </p>
-                              <button
+                              {/* Aperçu du bouton que verra le destinataire : ce n'est pas
+                                  une commande de l'application. Rendu en <span> pour qu'il
+                                  ne soit ni cliquable ni focusable au clavier. */}
+                              <span
+                                aria-hidden="true"
                                 style={{
+                                  display: 'inline-block',
                                   marginTop: 16,
                                   background: '#6366f1',
                                   color: '#fff',
@@ -1107,7 +1121,7 @@ export default function CampagnesPage() {
                                 }}
                               >
                                 En profiter
-                              </button>
+                              </span>
                             </div>
                           </div>
                         ) : wizType === 'SMS' ? (

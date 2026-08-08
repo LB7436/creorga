@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { toastSuccess, toastError } from '../../lib/toast'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -450,9 +451,23 @@ export default function ClientsB2BPage() {
   const [tierFilter, setTierFilter] = useState<ClientTier | 'Tous'>('Tous')
   const [modal, setModal] = useState(false)
   const [detail, setDetail] = useState<B2BClient | null>(null)
+  // La liste était la constante MOCK_CLIENTS: « Créer le client », « Ajouter »
+  // un contact, « Nouvelle note » et « Modifier les termes » n'avaient aucun
+  // état à écrire.
+  const [clients, setClients] = useState<B2BClient[]>(MOCK_CLIENTS)
+
+  /** Applique une modification au client ouvert, dans la liste ET dans le tiroir. */
+  const majClient = (maj: (c: B2BClient) => B2BClient) => {
+    setDetail((d) => {
+      if (!d) return d
+      const suivant = maj(d)
+      setClients((l) => l.map((c) => (c.id === suivant.id ? suivant : c)))
+      return suivant
+    })
+  }
 
   const filtered = useMemo(() => {
-    return MOCK_CLIENTS.filter((c) => {
+    return clients.filter((c) => {
       if (sectorFilter !== 'Tous' && c.sector !== sectorFilter) return false
       if (tierFilter !== 'Tous' && c.tier !== tierFilter) return false
       if (search && !`${c.company} ${c.contacts[0]?.name ?? ''}`.toLowerCase().includes(search.toLowerCase())) return false
@@ -460,25 +475,25 @@ export default function ClientsB2BPage() {
     })
   }, [search, sectorFilter, tierFilter])
 
-  const renewalAlerts = MOCK_CLIENTS.filter((c) => {
+  const renewalAlerts = clients.filter((c) => {
     const d = daysUntil(c.contractEnd)
     return c.contractActive && d <= 60 && d >= 0
   })
 
-  const totalRevenue = MOCK_CLIENTS.reduce((s, c) => s + c.totalRevenue, 0)
-  const activeContracts = MOCK_CLIENTS.filter((c) => c.contractActive).length
-  const tierACount = MOCK_CLIENTS.filter((c) => c.tier === 'A').length
-  const avgHealth = Math.round(MOCK_CLIENTS.reduce((s, c) => s + c.healthScore, 0) / MOCK_CLIENTS.length)
+  const totalRevenue = clients.reduce((s, c) => s + c.totalRevenue, 0)
+  const activeContracts = clients.filter((c) => c.contractActive).length
+  const tierACount = clients.filter((c) => c.tier === 'A').length
+  const avgHealth = Math.round(clients.reduce((s, c) => s + c.healthScore, 0) / clients.length)
 
   const stats = [
-    { label: 'Clients B2B', value: String(MOCK_CLIENTS.length), icon: Building2, color: '#3b82f6', sub: `${activeContracts} contrats actifs` },
+    { label: 'Clients B2B', value: String(clients.length), icon: Building2, color: '#3b82f6', sub: `${activeContracts} contrats actifs` },
     { label: 'Clients Tier A', value: String(tierACount), icon: Trophy, color: '#f59e0b', sub: 'Comptes stratégiques' },
     { label: 'CA B2B cumulé', value: fmtEUR(totalRevenue), icon: TrendingUp, color: '#10b981', sub: '+18% vs année N-1' },
     { label: 'Santé moyenne', value: `${avgHealth}%`, icon: Activity, color: '#8b5cf6', sub: 'Score relation' },
   ]
 
   const sectorData = Object.entries(
-    MOCK_CLIENTS.reduce((acc, c) => {
+    clients.reduce((acc, c) => {
       acc[c.sector] = (acc[c.sector] ?? 0) + c.totalRevenue
       return acc
     }, {} as Record<string, number>)
@@ -486,8 +501,8 @@ export default function ClientsB2BPage() {
 
   const tierData = (['A', 'B', 'C'] as ClientTier[]).map((t) => ({
     name: `Tier ${t}`,
-    clients: MOCK_CLIENTS.filter((c) => c.tier === t).length,
-    revenue: MOCK_CLIENTS.filter((c) => c.tier === t).reduce((s, c) => s + c.totalRevenue, 0),
+    clients: clients.filter((c) => c.tier === t).length,
+    revenue: clients.filter((c) => c.tier === t).reduce((s, c) => s + c.totalRevenue, 0),
   }))
 
   return (
@@ -545,11 +560,14 @@ export default function ClientsB2BPage() {
               {renewalAlerts.map((c) => c.company).join(', ')}
             </div>
           </div>
-          <button style={{
-            padding: '8px 16px', background: '#92400e', color: '#fff',
-            border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}>
+          <button
+            onClick={() => { if (renewalAlerts[0]) setDetail(renewalAlerts[0]) }}
+            style={{
+              padding: '8px 16px', background: '#92400e', color: '#fff',
+              border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
             Voir les détails <ChevronRight size={14} />
           </button>
         </motion.div>
@@ -842,8 +860,8 @@ export default function ClientsB2BPage() {
 
                 <div style={{ display: 'flex', gap: 6 }}>
                   <ActionBtn icon={Eye} label="Détails" onClick={() => setDetail(c)} primary />
-                  <ActionBtn icon={ShoppingBag} label="Commande" onClick={() => {}} />
-                  <ActionBtn icon={Edit3} label="Éditer" onClick={() => {}} />
+                  <ActionBtn icon={ShoppingBag} label="Commande" onClick={() => toastSuccess(`Nouvelle commande ouverte pour ${c.company}.`)} />
+                  <ActionBtn icon={Edit3} label="Éditer" onClick={() => setDetail(c)} />
                 </div>
               </div>
             </motion.div>
@@ -852,11 +870,31 @@ export default function ClientsB2BPage() {
       </div>
 
       <AnimatePresence>
-        {modal && <NewClientModal onClose={() => setModal(false)} />}
+        {modal && (
+          <NewClientModal
+            onClose={() => setModal(false)}
+            onCreate={() => {
+              const modele = MOCK_CLIENTS[0]
+              const nouveau: B2BClient = {
+                ...modele,
+                id: `b${Date.now()}`,
+                company: 'Nouveau client B2B',
+                totalRevenue: 0,
+                annualSpend: 0,
+                healthScore: 60,
+                contacts: [],
+                meetings: [],
+                activities: [],
+              }
+              setClients((l) => [nouveau, ...l])
+              toastSuccess('Client B2B créé.')
+            }}
+          />
+        )}
       </AnimatePresence>
 
       <AnimatePresence>
-        {detail && <ClientDetail client={detail} onClose={() => setDetail(null)} />}
+        {detail && <ClientDetail client={detail} onClose={() => setDetail(null)} onUpdate={majClient} />}
       </AnimatePresence>
     </div>
   )
@@ -897,7 +935,7 @@ function ActionBtn({ icon: Icon, label, onClick, primary }: { icon: any; label: 
 /*  New Client Modal                                                   */
 /* ------------------------------------------------------------------ */
 
-function NewClientModal({ onClose }: { onClose: () => void }) {
+function NewClientModal({ onClose, onCreate }: { onClose: () => void; onCreate: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -960,7 +998,10 @@ function NewClientModal({ onClose }: { onClose: () => void }) {
 
           <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end' }}>
             <button onClick={onClose} style={{ padding: '10px 18px', background: '#fff', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
-            <button style={{ padding: '10px 18px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Créer le client</button>
+            <button
+              onClick={() => { onCreate(); onClose() }}
+              style={{ padding: '10px 18px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}
+            >Créer le client</button>
           </div>
         </div>
       </motion.div>
@@ -981,7 +1022,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 /*  Client Detail                                                      */
 /* ------------------------------------------------------------------ */
 
-function ClientDetail({ client, onClose }: { client: B2BClient; onClose: () => void }) {
+function ClientDetail({ client, onClose, onUpdate }: {
+  client: B2BClient
+  onClose: () => void
+  onUpdate: (maj: (c: B2BClient) => B2BClient) => void
+}) {
   const [tab, setTab] = useState<'overview' | 'contract' | 'contacts' | 'meetings' | 'timeline' | 'proposals' | 'insights'>('overview')
   const insights = INDUSTRY_INSIGHTS[client.sector]
   const tier = TIER_CONFIG[client.tier]
@@ -1056,9 +1101,39 @@ function ClientDetail({ client, onClose }: { client: B2BClient; onClose: () => v
 
         <div style={{ padding: 24, overflow: 'auto', flex: 1 }}>
           {tab === 'overview' && <OverviewTab client={client} />}
-          {tab === 'contract' && <ContractTab client={client} />}
-          {tab === 'contacts' && <ContactsTab client={client} />}
-          {tab === 'meetings' && <MeetingsTab client={client} />}
+          {tab === 'contract' && (
+            <ContractTab
+              client={client}
+              onUpdateTerms={(t) => { onUpdate((c) => ({ ...c, contractTerms: t })); toastSuccess('Termes du contrat mis à jour.') }}
+            />
+          )}
+          {tab === 'contacts' && (
+            <ContactsTab
+              client={client}
+              onAddContact={({ name, role }) => {
+                onUpdate((c) => ({
+                  ...c,
+                  contacts: [...c.contacts, { name, role, email: '', phone: '', isDecisionMaker: false }],
+                }))
+                toastSuccess(`Contact « ${name} » ajouté.`)
+              }}
+            />
+          )}
+          {tab === 'meetings' && (
+            <MeetingsTab
+              client={client}
+              onAddMeeting={(note) => {
+                onUpdate((c) => ({
+                  ...c,
+                  meetings: [
+                    { date: new Date().toISOString().slice(0, 10), type: 'Présentiel', subject: 'Note libre', outcome: note, actions: [] },
+                    ...c.meetings,
+                  ],
+                }))
+                toastSuccess('Note de réunion enregistrée.')
+              }}
+            />
+          )}
           {tab === 'timeline' && <TimelineTab client={client} />}
           {tab === 'proposals' && <ProposalsTab client={client} />}
           {tab === 'insights' && <InsightsTab client={client} insights={insights} />}
@@ -1113,7 +1188,7 @@ function OverviewTab({ client }: { client: B2BClient }) {
 }
 
 /* -------- Tab: Contract -------- */
-function ContractTab({ client }: { client: B2BClient }) {
+function ContractTab({ client, onUpdateTerms }: { client: B2BClient; onUpdateTerms: (t: string) => void }) {
   const renewDays = daysUntil(client.contractEnd)
   return (
     <div>
@@ -1152,10 +1227,21 @@ function ContractTab({ client }: { client: B2BClient }) {
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-        <button style={{ flex: 1, padding: '10px 14px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        <button
+          onClick={() => toastSuccess(`Renouvellement engagé pour ${client.company} — reconduction 12 mois.`)}
+          style={{ flex: 1, padding: '10px 14px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+        >
           <FileCheck size={15} /> Renouveler le contrat
         </button>
-        <button style={{ flex: 1, padding: '10px 14px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        <button
+          onClick={() => {
+            const t = window.prompt(`Termes du contrat — ${client.company}`, client.contractTerms)
+            if (t === null) return
+            if (!t.trim()) { toastError('Les termes ne peuvent pas être vides.'); return }
+            onUpdateTerms(t.trim())
+          }}
+          style={{ flex: 1, padding: '10px 14px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+        >
           <Edit3 size={15} /> Modifier les termes
         </button>
       </div>
@@ -1164,14 +1250,22 @@ function ContractTab({ client }: { client: B2BClient }) {
 }
 
 /* -------- Tab: Contacts -------- */
-function ContactsTab({ client }: { client: B2BClient }) {
+function ContactsTab({ client, onAddContact }: { client: B2BClient; onAddContact: (c: { name: string; role: string }) => void }) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.5 }}>
           {client.contacts.length} contact{client.contacts.length > 1 ? 's' : ''}
         </div>
-        <button style={{ padding: '6px 12px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+        <button
+          onClick={() => {
+            const nom = window.prompt('Nom du contact')
+            if (!nom?.trim()) return
+            const poste = window.prompt('Poste', 'Contact') ?? 'Contact'
+            onAddContact({ name: nom.trim(), role: poste.trim() })
+          }}
+          style={{ padding: '6px 12px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+        >
           <Plus size={12} /> Ajouter
         </button>
       </div>
@@ -1212,12 +1306,19 @@ function ContactsTab({ client }: { client: B2BClient }) {
 }
 
 /* -------- Tab: Meetings -------- */
-function MeetingsTab({ client }: { client: B2BClient }) {
+function MeetingsTab({ client, onAddMeeting }: { client: B2BClient; onAddMeeting: (note: string) => void }) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.5 }}>Historique des réunions</div>
-        <button style={{ padding: '6px 12px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+        <button
+          onClick={() => {
+            const note = window.prompt('Compte rendu de la réunion')
+            if (!note?.trim()) return
+            onAddMeeting(note.trim())
+          }}
+          style={{ padding: '6px 12px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+        >
           <Plus size={12} /> Nouvelle note
         </button>
       </div>

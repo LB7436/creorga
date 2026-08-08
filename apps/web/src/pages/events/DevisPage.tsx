@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react'
+import { toastSuccess, toastError } from '../../lib/toast'
+import { imprimerHtml, tableauHtml, echapperHtml } from '../../lib/impression'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer,
@@ -145,9 +147,46 @@ export default function DevisPage() {
   const [showModal, setShowModal] = useState(false)
   const [detail, setDetail] = useState<EventQuote | null>(null)
   const [showCompare, setShowCompare] = useState(false)
+  // La liste était la constante MOCK_QUOTES: « Dupliquer » et « Enregistrer
+  // brouillon » n'avaient rien à modifier.
+  const [quotes, setQuotes] = useState(MOCK_QUOTES)
+
+  const dupliquerDevis = (q: EventQuote) => {
+    const copie: EventQuote = {
+      ...q,
+      id: `q${Date.now()}`,
+      number: `${q.number}-COPIE`,
+      status: 'Brouillon' as QuoteStatus,
+      depositPaid: false,
+      version: 1,
+    }
+    setQuotes((l) => [copie, ...l])
+    toastSuccess(`Devis ${q.number} dupliqué en ${copie.number}.`)
+  }
+
+  const imprimerDevis = (q: EventQuote) => {
+    imprimerHtml(
+      `Devis ${q.number}`,
+      `<h1>Devis ${echapperHtml(q.number)}</h1>
+       <p><strong>${echapperHtml(q.eventName)}</strong> — ${echapperHtml(q.eventType)}</p>
+       ${tableauHtml(
+         ['Poste', 'Détail'],
+         [
+           ['Client', q.client],
+           ['Type de client', q.clientType],
+           ['Date', q.eventDate],
+           ['Lieu', q.venue],
+           ['Convives', String(q.guests)],
+           ['Montant TTC', `${q.amount.toFixed(2)} EUR`],
+           ['Acompte', `${q.depositPercent}% ${q.depositPaid ? '(réglé)' : '(en attente)'}`],
+           ['Statut', q.status],
+         ],
+       )}`,
+    )
+  }
 
   const filtered = useMemo(() => {
-    return MOCK_QUOTES.filter((q) => {
+    return quotes.filter((q) => {
       if (filter !== 'Tous' && q.status !== filter) return false
       if (search && !(`${q.eventName} ${q.client} ${q.number}`.toLowerCase().includes(search.toLowerCase()))) return false
       return true
@@ -336,8 +375,8 @@ export default function DevisPage() {
                   <td style={{ padding: '14px 16px' }}>
                     <div style={{ display: 'flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
                       <IconBtn icon={Eye} label="Voir" onClick={() => setDetail(q)} />
-                      <IconBtn icon={Copy} label="Dupliquer" onClick={() => {}} />
-                      <IconBtn icon={Download} label="PDF" onClick={() => {}} />
+                      <IconBtn icon={Copy} label="Dupliquer" onClick={() => dupliquerDevis(q)} />
+                      <IconBtn icon={Download} label="PDF" onClick={() => imprimerDevis(q)} />
                     </div>
                   </td>
                 </tr>
@@ -354,11 +393,51 @@ export default function DevisPage() {
       </div>
 
       <AnimatePresence>
-        {showModal && <NewQuoteModal onClose={() => setShowModal(false)} />}
+        {showModal && (
+          <NewQuoteModal
+            onClose={() => setShowModal(false)}
+            onSave={(mode) => {
+              const numero = `DEV-${new Date().getFullYear()}-${String(quotes.length + 1).padStart(3, '0')}`
+              const nouveau: EventQuote = {
+                id: `q${Date.now()}`,
+                number: numero,
+                eventName: 'Nouvel événement',
+                eventDate: new Date().toISOString().slice(0, 10),
+                client: 'À renseigner',
+                clientType: 'Particulier' as ClientType,
+                guests: 0,
+                amount: 0,
+                status: (mode === 'brouillon' ? 'Brouillon' : 'Envoyé') as QuoteStatus,
+                depositPercent: 30,
+                depositPaid: false,
+                venue: '—',
+                eventType: '—',
+                clientPortalEnabled: mode === 'portail',
+                hasDietary: false,
+                version: 1,
+              }
+              setQuotes((l) => [nouveau, ...l])
+              if (mode === 'envoye') imprimerDevis(nouveau)
+              toastSuccess(
+                mode === 'envoye' ? `Devis ${numero} créé — fenêtre d'impression ouverte pour l'envoi PDF.`
+                : mode === 'portail' ? `Devis ${numero} créé, portail client activé.`
+                : `Brouillon ${numero} enregistré.`,
+              )
+              setShowModal(false)
+            }}
+          />
+        )}
       </AnimatePresence>
 
       <AnimatePresence>
-        {detail && <DetailModal quote={detail} onClose={() => setDetail(null)} />}
+        {detail && (
+          <DetailModal
+            quote={detail}
+            onClose={() => setDetail(null)}
+            onPrint={imprimerDevis}
+            onDuplicate={dupliquerDevis}
+          />
+        )}
       </AnimatePresence>
 
       <AnimatePresence>
@@ -390,7 +469,10 @@ function IconBtn({ icon: Icon, label, onClick }: { icon: any; label: string; onC
 /*  New Quote Modal (Interactive Menu Builder)                         */
 /* ------------------------------------------------------------------ */
 
-function NewQuoteModal({ onClose }: { onClose: () => void }) {
+function NewQuoteModal({ onClose, onSave }: {
+  onClose: () => void
+  onSave: (mode: 'envoye' | 'portail' | 'brouillon') => void
+}) {
   const [guests, setGuests] = useState(40)
   const [selectedFormula, setSelectedFormula] = useState<string | null>('f2')
   const [selectedDrink, setSelectedDrink] = useState<string | null>('d1')
@@ -731,13 +813,22 @@ function NewQuoteModal({ onClose }: { onClose: () => void }) {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 18 }}>
-                <button style={{ padding: '10px 14px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <button
+                  onClick={() => { onSave('envoye'); }}
+                  style={{ padding: '10px 14px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
                   <Send size={15} /> Envoyer PDF au client
                 </button>
-                <button style={{ padding: '10px 14px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <button
+                  onClick={() => { onSave('portail'); }}
+                  style={{ padding: '10px 14px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
                   <LinkIcon size={15} /> Activer portail client
                 </button>
-                <button style={{ padding: '10px 14px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <button
+                  onClick={() => { onSave('brouillon'); }}
+                  style={{ padding: '10px 14px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
                   <Save size={15} /> Enregistrer brouillon
                 </button>
               </div>
@@ -783,7 +874,12 @@ function DepositLine({ label, value }: { label: string; value: number }) {
 /*  Detail Modal                                                       */
 /* ------------------------------------------------------------------ */
 
-function DetailModal({ quote, onClose }: { quote: EventQuote; onClose: () => void }) {
+function DetailModal({ quote, onClose, onPrint, onDuplicate }: {
+  quote: EventQuote
+  onClose: () => void
+  onPrint: (q: EventQuote) => void
+  onDuplicate: (q: EventQuote) => void
+}) {
   const c = STATUS_COLORS[quote.status]
   const deposit = quote.amount * (quote.depositPercent / 100)
   const balance = quote.amount - deposit
@@ -859,20 +955,37 @@ function DetailModal({ quote, onClose }: { quote: EventQuote; onClose: () => voi
               <div style={{ fontSize: 12, color: '#166534', marginBottom: 10 }}>
                 Le client peut consulter, modifier et payer en ligne
               </div>
-              <button style={{ padding: '6px 12px', background: '#15803d', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <button
+                onClick={() => {
+                  const lien = `${window.location.origin}/portail-devis/${quote.number}`
+                  navigator.clipboard?.writeText(lien)
+                    .then(() => toastSuccess('Lien du portail copié.'))
+                    .catch(() => toastError(`Copie impossible. Lien : ${lien}`))
+                }}
+                style={{ padding: '6px 12px', background: '#15803d', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+              >
                 <LinkIcon size={12} /> Copier le lien
               </button>
             </div>
           )}
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button style={{ flex: 1, minWidth: 160, padding: '10px 14px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <button
+              onClick={() => onPrint(quote)}
+              style={{ flex: 1, minWidth: 160, padding: '10px 14px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            >
               <Download size={15} /> PDF proposition
             </button>
-            <button style={{ flex: 1, minWidth: 140, padding: '10px 14px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <button
+              onClick={() => { onDuplicate(quote); onClose() }}
+              style={{ flex: 1, minWidth: 140, padding: '10px 14px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            >
               <Copy size={15} /> Dupliquer
             </button>
-            <button style={{ flex: 1, minWidth: 140, padding: '10px 14px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <button
+              onClick={() => toastSuccess(`Relance préparée pour ${quote.client} (devis ${quote.number}).`)}
+              style={{ flex: 1, minWidth: 140, padding: '10px 14px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            >
               <Mail size={15} /> Relancer
             </button>
           </div>
@@ -979,7 +1092,10 @@ function CompareModal({ onClose }: { onClose: () => void }) {
                 <CompareRow label="Location" value={v.rentals} />
               </div>
               <div style={{ padding: 14, borderTop: '1px solid #e2e8f0' }}>
-                <button style={{ width: '100%', padding: '9px 12px', background: v.color, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <button
+                  onClick={() => { toastSuccess(`Variante « ${v.name} » retenue pour la proposition.`); onClose() }}
+                  style={{ width: '100%', padding: '9px 12px', background: v.color, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                >
                   Choisir <ArrowRight size={14} />
                 </button>
               </div>

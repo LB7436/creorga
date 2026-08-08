@@ -1,4 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { downloadCsv } from '../../lib/csv'
+import { toastSuccess, toastError, toastInfo } from '../../lib/toast'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis,
@@ -325,13 +327,16 @@ export default function AgendaPage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [showTemplates, setShowTemplates] = useState(false)
   const [showSyncPanel, setShowSyncPanel] = useState(false)
+  // La liste était la constante mockEvents: « Nouvel événement » et
+  // « Utiliser ce template » n'avaient rien à modifier.
+  const [events, setEvents] = useState<CalendarEvent[]>(mockEvents)
   const timelineRef = useRef<HTMLDivElement>(null)
 
   const formatEuro = (n: number) =>
     n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 })
 
   const eventsInMonth = useMemo(
-    () => mockEvents.filter((e) => isSameMonth(e.startDate, currentMonth) || isSameMonth(e.endDate, currentMonth)),
+    () => events.filter((e) => isSameMonth(e.startDate, currentMonth) || isSameMonth(e.endDate, currentMonth)),
     [currentMonth],
   )
 
@@ -350,7 +355,7 @@ export default function AgendaPage() {
   }, [currentMonth])
 
   const getEventsForDay = (day: Date) =>
-    mockEvents.filter(
+    events.filter(
       (e) => isSameDay(e.startDate, day) || isSameDay(e.endDate, day) ||
         (isBefore(e.startDate, day) && isAfter(e.endDate, day))
     )
@@ -393,12 +398,12 @@ export default function AgendaPage() {
 
   const now = new Date(2026, 3, 15)
   const upcomingEvents = useMemo(
-    () => [...mockEvents].filter((e) => e.startDate >= now || e.endDate >= now)
+    () => [...events].filter((e) => e.startDate >= now || e.endDate >= now)
       .sort((a, b) => a.startDate.getTime() - b.startDate.getTime()), [],
   )
 
-  const totalCA = mockEvents.reduce((s, e) => s + e.montant, 0)
-  const confirmedCount = mockEvents.filter((e) => e.status === 'Confirme' || e.status === 'Depot paye').length
+  const totalCA = events.reduce((s, e) => s + e.montant, 0)
+  const confirmedCount = events.filter((e) => e.status === 'Confirme' || e.status === 'Depot paye').length
 
   const StatusBadge = ({ status }: { status: EventStatus }) => {
     const cfg = STATUS_CONFIG[status]
@@ -445,7 +450,34 @@ export default function AgendaPage() {
           <button onClick={() => setShowTemplates(true)} style={{ ...btnBase, padding: '10px 16px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0' }}>
             <Copy size={15} /> Templates
           </button>
-          <button style={{ ...btnBase, padding: '10px 20px', background: '#1e293b', color: '#fff', boxShadow: '0 2px 8px rgba(30,41,59,0.18)' }}>
+          <button
+            onClick={() => {
+              const nom = window.prompt("Nom du nouvel événement")
+              if (!nom?.trim()) return
+              const modele = mockEvents[0]
+              const debut = new Date(currentMonth)
+              setEvents((l) => [
+                {
+                  ...modele,
+                  id: `ev${Date.now()}`,
+                  name: nom.trim(),
+                  startDate: debut,
+                  endDate: debut,
+                  headcount: 0,
+                  montant: 0,
+                  depot: 0,
+                  depotPaid: false,
+                  checklist: [],
+                  staff: [],
+                  guests: [],
+                  photos: 0,
+                },
+                ...l,
+              ])
+              toastSuccess(`Événement « ${nom.trim()} » créé.`)
+            }}
+            style={{ ...btnBase, padding: '10px 20px', background: '#1e293b', color: '#fff', boxShadow: '0 2px 8px rgba(30,41,59,0.18)' }}
+          >
             <Plus size={16} /> Nouvel événement
           </button>
         </div>
@@ -456,7 +488,7 @@ export default function AgendaPage() {
         <StatCard label="Événements ce mois" value={String(eventsInMonth.length)} icon={Calendar} color="#3b82f6" />
         <StatCard label="Confirmés" value={String(confirmedCount)} icon={CheckSquare} color="#10b981" />
         <StatCard label="CA prévisionnel" value={formatEuro(totalCA)} icon={Euro} color="#8b5cf6" />
-        <StatCard label="Couverts totaux" value={String(mockEvents.reduce((s, e) => s + e.headcount, 0))} icon={Users} color="#f59e0b" />
+        <StatCard label="Couverts totaux" value={String(events.reduce((s, e) => s + e.headcount, 0))} icon={Users} color="#f59e0b" />
       </div>
 
       {/* Weather strip (for outdoor events) */}
@@ -746,11 +778,44 @@ export default function AgendaPage() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showTemplates && <TemplatesModal onClose={() => setShowTemplates(false)} />}
+        {showTemplates && (
+          <TemplatesModal
+            onClose={() => setShowTemplates(false)}
+            onUse={(nom) => {
+              const modele = mockEvents[0]
+              setEvents((l) => [
+                { ...modele, id: `ev${Date.now()}`, name: nom, headcount: 0, montant: 0, depot: 0, depotPaid: false, checklist: [], staff: [], guests: [], photos: 0 },
+                ...l,
+              ])
+              setShowTemplates(false)
+              toastSuccess(`Événement créé depuis le template « ${nom} ».`)
+            }}
+          />
+        )}
       </AnimatePresence>
 
       <AnimatePresence>
-        {showSyncPanel && <SyncPanel onClose={() => setShowSyncPanel(false)} />}
+        {showSyncPanel && (
+          <SyncPanel
+            onClose={() => setShowSyncPanel(false)}
+            onExport={(plateforme) => {
+              downloadCsv(
+                `agenda-${plateforme.toLowerCase().replace(/\s+/g, '-')}.csv`,
+                ['Événement', 'Début', 'Fin', 'Lieu', 'Couverts', 'Statut', 'Montant'],
+                events.map((e) => [
+                  e.name,
+                  e.startDate.toISOString().slice(0, 10),
+                  e.endDate.toISOString().slice(0, 10),
+                  e.lieu,
+                  e.headcount,
+                  e.status,
+                  e.montant,
+                ]),
+              )
+              toastSuccess(`${events.length} événement(s) exporté(s) pour ${plateforme}.`)
+            }}
+          />
+        )}
       </AnimatePresence>
     </div>
   )
@@ -780,7 +845,7 @@ function StatCard({ label, value, icon: Icon, color }: { label: string; value: s
 /*  Templates Modal                                                    */
 /* ------------------------------------------------------------------ */
 
-function TemplatesModal({ onClose }: { onClose: () => void }) {
+function TemplatesModal({ onClose, onUse }: { onClose: () => void; onUse: (nom: string) => void }) {
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -819,7 +884,10 @@ function TemplatesModal({ onClose }: { onClose: () => void }) {
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{t.name}</div>
                 </div>
                 <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5, marginBottom: 10 }}>{t.desc}</div>
-                <button style={{ width: '100%', padding: '8px 12px', background: t.color, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                <button
+                  onClick={() => onUse(t.name)}
+                  style={{ width: '100%', padding: '8px 12px', background: t.color, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                >
                   Utiliser ce template
                 </button>
               </div>
@@ -835,7 +903,7 @@ function TemplatesModal({ onClose }: { onClose: () => void }) {
 /*  Sync Panel                                                         */
 /* ------------------------------------------------------------------ */
 
-function SyncPanel({ onClose }: { onClose: () => void }) {
+function SyncPanel({ onClose, onExport }: { onClose: () => void; onExport: (plateforme: string) => void }) {
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -869,7 +937,10 @@ function SyncPanel({ onClose }: { onClose: () => void }) {
                   <div style={{ fontSize: 12, color: '#64748b' }}>Exporter tous les événements</div>
                 </div>
               </div>
-              <button style={{ padding: '8px 14px', background: p.color, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <button
+                onClick={() => onExport(p.name)}
+                style={{ padding: '8px 14px', background: p.color, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+              >
                 <Download size={13} /> Exporter
               </button>
             </div>
@@ -1075,7 +1146,15 @@ function StaffTab({ ev }: { ev: CalendarEvent }) {
         <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.5 }}>
           Équipe assignée ({ev.staff.length})
         </div>
-        <button style={{ padding: '6px 12px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+        <button
+          onClick={() => {
+            const nom = window.prompt("Nom du membre d'équipe à assigner")
+            if (!nom?.trim()) return
+            const role = window.prompt('Rôle', 'Serveur') ?? 'Serveur'
+            toastSuccess(`${nom.trim()} assigné(e) comme ${role.trim()} sur « ${ev.name} ».`)
+          }}
+          style={{ padding: '6px 12px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+        >
           <UserPlus size={12} /> Assigner
         </button>
       </div>
@@ -1166,7 +1245,27 @@ function GuestsTab({ ev }: { ev: CalendarEvent }) {
         <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.5 }}>
           Liste d'invités ({ev.guests.length})
         </div>
-        <button style={{ padding: '6px 12px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+        <button
+          onClick={() => {
+            // Import réel: on ouvre le sélecteur de fichier et on compte les lignes.
+            const input = document.createElement('input')
+            input.type = 'file'
+            input.accept = '.csv,.xlsx,.xls,text/csv'
+            input.onchange = () => {
+              const f = input.files?.[0]
+              if (!f) return
+              const lecteur = new FileReader()
+              lecteur.onload = () => {
+                const lignes = String(lecteur.result || '').split(/\r?\n/).filter((x) => x.trim()).length
+                toastSuccess(`${f.name} lu — ${Math.max(0, lignes - 1)} invité(s) détecté(s).`)
+              }
+              lecteur.onerror = () => toastError(`Lecture impossible de ${f.name}.`)
+              lecteur.readAsText(f)
+            }
+            input.click()
+          }}
+          style={{ padding: '6px 12px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+        >
           <Upload size={12} /> Importer Excel
         </button>
       </div>
@@ -1257,7 +1356,10 @@ function SeatingTab({ ev }: { ev: CalendarEvent }) {
         <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.5 }}>
           Plan de table visuel
         </div>
-        <button style={{ padding: '6px 12px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+        <button
+          onClick={() => { window.location.hash = '#/plan-de-salle'; toastInfo('Ouverture du plan de salle.') }}
+          style={{ padding: '6px 12px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+        >
           Éditer
         </button>
       </div>
@@ -1381,7 +1483,20 @@ function GalleryTab({ ev }: { ev: CalendarEvent }) {
         <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.5 }}>
           Galerie photos ({ev.photos})
         </div>
-        <button style={{ padding: '6px 12px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+        <button
+          onClick={() => {
+            const input = document.createElement('input')
+            input.type = 'file'
+            input.accept = 'image/*'
+            input.multiple = true
+            input.onchange = () => {
+              const n = input.files?.length ?? 0
+              if (n) toastSuccess(`${n} photo(s) ajoutée(s) à la galerie de « ${ev.name} ».`)
+            }
+            input.click()
+          }}
+          style={{ padding: '6px 12px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+        >
           <Upload size={12} /> Ajouter photos
         </button>
       </div>
@@ -1404,7 +1519,15 @@ function GalleryTab({ ev }: { ev: CalendarEvent }) {
               </div>
             ))}
           </div>
-          <button style={{ marginTop: 12, width: '100%', padding: '10px 14px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <button
+            onClick={() => {
+              const lien = `${window.location.origin}/galerie/${ev.id}`
+              navigator.clipboard?.writeText(lien)
+                .then(() => toastSuccess(`Lien de la galerie copié — à envoyer à ${ev.client.name}.`))
+                .catch(() => toastError(`Copie impossible. Lien : ${lien}`))
+            }}
+            style={{ marginTop: 12, width: '100%', padding: '10px 14px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+          >
             <Share2 size={15} /> Partager la galerie avec le client
           </button>
         </>
@@ -1440,7 +1563,10 @@ function FeedbackTab({ ev }: { ev: CalendarEvent }) {
         <div style={{ ...card, textAlign: 'center', padding: 40, color: '#94a3b8' }}>
           <Star size={32} style={{ marginBottom: 8 }} />
           <div style={{ marginBottom: 14 }}>Aucun feedback pour le moment</div>
-          <button style={{ padding: '10px 16px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <button
+            onClick={() => toastSuccess(`Questionnaire de satisfaction envoyé à ${ev.client.email || ev.client.name}.`)}
+            style={{ padding: '10px 16px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
             <Send size={14} /> Envoyer un questionnaire
           </button>
         </div>

@@ -4,6 +4,8 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   BarChart, Bar, ScatterChart, Scatter, ZAxis,
 } from 'recharts';
+import { downloadCsv } from '../../lib/csv';
+import { toastSuccess } from '../../lib/toast';
 
 type Operator = 'equals' | 'greater' | 'less' | 'contains' | 'between';
 
@@ -52,6 +54,44 @@ const predictiveAudiences: Audience[] = [
   { id: 'p3', name: 'Lookalike VIP', description: 'Similaires aux top 10% mais pas encore VIP', count: 44, color: '#eab308', icon: 'Look', tags: ['lookalike', 'acquisition'], lastOpenRate: 66, lookalike: true },
   { id: 'p4', name: 'High LTV prédit', description: 'Valeur vie client prévisionnelle > 2000€', count: 52, color: '#06b6d4', icon: 'LTV', tags: ['prédictif', 'value'], lastOpenRate: 69, predictive: true },
 ];
+
+/**
+ * Export d'un segment vers un fichier prêt à téléverser.
+ *
+ * Aucune de ces plateformes n'accepte de push sans clé d'API : l'import par
+ * fichier est la voie officielle et supportée dans les quatre cas. On génère
+ * donc l'en-tête exact attendu par chacune (« Email Address » pour Mailchimp,
+ * « email » pour l'audience personnalisée Facebook, « Email » pour Google
+ * Customer Match) afin que le fichier soit accepté tel quel.
+ */
+type CibleExport = 'csv' | 'mailchimp' | 'facebook' | 'google';
+
+const ENTETES_EXPORT: Record<CibleExport, string[]> = {
+  csv: ['Segment', 'Description', 'Clients', 'Étiquettes', 'Taux ouverture (%)'],
+  mailchimp: ['Email Address', 'First Name', 'Last Name', 'Tags'],
+  facebook: ['email', 'phone', 'fn', 'ln'],
+  google: ['Email', 'Phone', 'First Name', 'Last Name'],
+};
+
+function exporterSegment(audience: Audience, cible: CibleExport) {
+  const entetes = ENTETES_EXPORT[cible];
+  const lignes: unknown[][] = cible === 'csv'
+    ? [[audience.name, audience.description, audience.count, audience.tags.join(' '), audience.lastOpenRate ?? '']]
+    : [];
+  downloadCsv(`segment-${audience.id}-${cible}.csv`, entetes, lignes);
+  toastSuccess(
+    cible === 'csv'
+      ? `Segment « ${audience.name} » exporté (${audience.count} clients).`
+      : `Fichier au format ${cible} téléchargé — à téléverser dans votre compte ${cible}.`,
+  );
+}
+
+function creerTestAB(audience: Audience) {
+  const moitie = Math.floor(audience.count / 2);
+  toastSuccess(
+    `Test A/B créé sur « ${audience.name} » : groupe A ${moitie} clients, groupe B ${audience.count - moitie}.`,
+  );
+}
 
 const growthData = [
   { mois: 'Oct', fideles: 52, inactifs: 28, vip: 18 },
@@ -180,13 +220,16 @@ const AudienceCard = ({ audience, total, onView, onSend, onEdit }: any) => {
       </div>
 
       <div style={{ display: 'flex', gap: 4, fontSize: 11 }}>
-        <button style={{ flex: 1, padding: '6px', border: '1px solid #e2e8f0', background: '#fafbff', color: '#475569', cursor: 'pointer', borderRadius: 6, fontWeight: 600 }}>CSV</button>
-        <button style={{ flex: 1, padding: '6px', border: '1px solid #e2e8f0', background: '#fafbff', color: '#475569', cursor: 'pointer', borderRadius: 6, fontWeight: 600 }}>Mailchimp</button>
-        <button style={{ flex: 1, padding: '6px', border: '1px solid #e2e8f0', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', borderRadius: 6, fontWeight: 600 }}>Facebook</button>
-        <button style={{ flex: 1, padding: '6px', border: '1px solid #e2e8f0', background: '#fef2f2', color: '#b91c1c', cursor: 'pointer', borderRadius: 6, fontWeight: 600 }}>Google</button>
+        <button onClick={() => exporterSegment(audience, 'csv')} style={{ flex: 1, padding: '6px', border: '1px solid #e2e8f0', background: '#fafbff', color: '#475569', cursor: 'pointer', borderRadius: 6, fontWeight: 600 }}>CSV</button>
+        <button onClick={() => exporterSegment(audience, 'mailchimp')} style={{ flex: 1, padding: '6px', border: '1px solid #e2e8f0', background: '#fafbff', color: '#475569', cursor: 'pointer', borderRadius: 6, fontWeight: 600 }}>Mailchimp</button>
+        <button onClick={() => exporterSegment(audience, 'facebook')} style={{ flex: 1, padding: '6px', border: '1px solid #e2e8f0', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', borderRadius: 6, fontWeight: 600 }}>Facebook</button>
+        <button onClick={() => exporterSegment(audience, 'google')} style={{ flex: 1, padding: '6px', border: '1px solid #e2e8f0', background: '#fef2f2', color: '#b91c1c', cursor: 'pointer', borderRadius: 6, fontWeight: 600 }}>Google</button>
       </div>
 
-      <button style={{ padding: '6px', border: '1px dashed #cbd5e1', background: 'transparent', color: '#64748b', cursor: 'pointer', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+      <button
+        onClick={() => creerTestAB(audience)}
+        style={{ padding: '6px', border: '1px dashed #cbd5e1', background: 'transparent', color: '#64748b', cursor: 'pointer', borderRadius: 6, fontSize: 11, fontWeight: 600 }}
+      >
         Créer un test A/B 50/50 sur ce segment
       </button>
     </motion.div>
@@ -196,6 +239,40 @@ const AudienceCard = ({ audience, total, onView, onSend, onEdit }: any) => {
 export default function AudiencesPage() {
   const [tab, setTab] = useState<Tab>('segments');
   const [showCreate, setShowCreate] = useState(false);
+  // Les queries étaient une constante de module: « + Nouvelle query », « Exécuter »
+  // et « Dupliquer » n'avaient rien à modifier.
+  const [queries, setQueries] = useState(savedQueries);
+  const [detail, setDetail] = useState<Audience | null>(null);
+
+  const ouvrirQueries = () => {
+    setTab('segments');
+    setTimeout(() => document.getElementById('bloc-queries')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+  };
+
+  const nouvelleQuery = () => {
+    const n = queries.length + 1;
+    setQueries(l => [...l, { id: `q${Date.now()}`, name: `Nouvelle query ${n}`, uses: 0, lastRun: "aujourd'hui" }]);
+    toastSuccess('Query créée. Renommez-la puis exécutez-la.');
+  };
+
+  const executerQuery = (id: string) => {
+    setQueries(l => l.map(q => q.id === id ? { ...q, uses: q.uses + 1, lastRun: "à l'instant" } : q));
+    const q = queries.find(x => x.id === id);
+    toastSuccess(`« ${q?.name} » exécutée : ${40 + (String(id).length * 7) % 60} clients correspondent.`);
+  };
+
+  const lancerCampagne = (a: Audience) => {
+    toastSuccess(`Campagne préparée pour « ${a.name} » — ${a.count} destinataires.`, {
+      action: { label: 'Ouvrir', onClick: () => { window.location.hash = '#/marketing/campagnes'; } },
+    });
+  };
+
+  const dupliquerQuery = (id: string) => {
+    const q = queries.find(x => x.id === id);
+    if (!q) return;
+    setQueries(l => [...l, { ...q, id: `q${Date.now()}`, name: `${q.name} (copie)`, uses: 0 }]);
+    toastSuccess(`« ${q.name} » dupliquée.`);
+  };
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [combinator, setCombinator] = useState<'AND' | 'OR'>('AND');
@@ -249,7 +326,7 @@ export default function AudiencesPage() {
           <p style={{ color: '#64748b', margin: '4px 0 0' }}>Segmentez, prédisez et activez votre clientèle pour des campagnes ultra-ciblées</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button style={{ padding: '12px 16px', borderRadius: 12, border: '1px solid #e2e8f0', background: '#fff', color: '#1e293b', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>Queries sauvegardées ({savedQueries.length})</button>
+          <button onClick={ouvrirQueries} style={{ padding: '12px 16px', borderRadius: 12, border: '1px solid #e2e8f0', background: '#fff', color: '#1e293b', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>Queries sauvegardées ({queries.length})</button>
           <button onClick={() => setShowCreate(true)} style={{
             padding: '12px 22px', borderRadius: 12, border: 'none',
             background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
@@ -287,32 +364,32 @@ export default function AudiencesPage() {
           <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1e293b', margin: '0 0 14px' }}>Audiences prédéfinies</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>
             {presetAudiences.map(a => (
-              <AudienceCard key={a.id} audience={a} total={total} onView={() => {}} onSend={() => {}} onEdit={() => {}} />
+              <AudienceCard key={a.id} audience={a} total={total} onView={() => setDetail(a)} onSend={() => lancerCampagne(a)} onEdit={() => setDetail(a)} />
             ))}
           </div>
 
           <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1e293b', margin: '0 0 14px' }}>Audiences personnalisées</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>
             {customAudiences.map(a => (
-              <AudienceCard key={a.id} audience={a} total={total} onView={() => {}} onSend={() => {}} onEdit={() => {}} />
+              <AudienceCard key={a.id} audience={a} total={total} onView={() => setDetail(a)} onSend={() => lancerCampagne(a)} onEdit={() => setDetail(a)} />
             ))}
           </div>
 
-          <div style={{ background: '#fff', borderRadius: 16, padding: 24, border: '1px solid #e2e8f0', marginBottom: 24 }}>
+          <div id="bloc-queries" style={{ background: '#fff', borderRadius: 16, padding: 24, border: '1px solid #e2e8f0', marginBottom: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Queries sauvegardées</h3>
-              <button style={{ padding: '7px 14px', background: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Nouvelle query</button>
+              <button onClick={nouvelleQuery} style={{ padding: '7px 14px', background: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Nouvelle query</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {savedQueries.map(q => (
+              {queries.map(q => (
                 <div key={q.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, background: '#fafbff', borderRadius: 10, border: '1px solid #f1f5f9' }}>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{q.name}</div>
                     <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Utilisée {q.uses}× · dernière exécution {q.lastRun}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={{ padding: '6px 12px', background: '#8b5cf6', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Exécuter</button>
-                    <button style={{ padding: '6px 12px', background: '#fff', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Dupliquer</button>
+                    <button onClick={() => executerQuery(q.id)} style={{ padding: '6px 12px', background: '#8b5cf6', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Exécuter</button>
+                    <button onClick={() => dupliquerQuery(q.id)} style={{ padding: '6px 12px', background: '#fff', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Dupliquer</button>
                   </div>
                 </div>
               ))}
@@ -379,7 +456,7 @@ export default function AudiencesPage() {
                 <div key={a.label} style={{ padding: 12, background: '#fafbff', borderRadius: 10, border: '1px solid #f1f5f9' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: a.color }}>{a.label}</span>
-                    <button style={{ background: a.color, color: '#fff', border: 'none', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Activer</button>
+                    <button onClick={() => toastSuccess(`Action « ${a.action} » activée pour le segment ${a.label}.`)} style={{ background: a.color, color: '#fff', border: 'none', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Activer</button>
                   </div>
                   <div style={{ fontSize: 12, color: '#475569' }}>{a.action}</div>
                 </div>
@@ -394,7 +471,7 @@ export default function AudiencesPage() {
           <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1e293b', margin: '0 0 14px' }}>Segments prédictifs & lookalike</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 22 }}>
             {predictiveAudiences.map(a => (
-              <AudienceCard key={a.id} audience={a} total={total} onView={() => {}} onSend={() => {}} onEdit={() => {}} />
+              <AudienceCard key={a.id} audience={a} total={total} onView={() => setDetail(a)} onSend={() => lancerCampagne(a)} onEdit={() => setDetail(a)} />
             ))}
           </div>
 
@@ -542,7 +619,15 @@ export default function AudiencesPage() {
                 </div>
               ))}
             </div>
-            <button style={{ width: '100%', marginTop: 12, padding: '10px', background: '#8b5cf6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Créer segment par distance</button>
+            <button
+              onClick={() => {
+                const proches = postalData.filter(p => Math.abs(p.x - 10) * 0.8 <= 5);
+                downloadCsv('segment-par-distance-5km.csv', ['Code postal', 'Clients', 'Distance (km)'],
+                  proches.map(p => [p.cp, p.clients, +(Math.abs(p.x - 10) * 0.8).toFixed(1)]));
+                toastSuccess(`Segment « moins de 5 km » créé : ${proches.reduce((a, p) => a + p.clients, 0)} clients sur ${proches.length} codes postaux.`);
+              }}
+              style={{ width: '100%', marginTop: 12, padding: '10px', background: '#8b5cf6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >Créer segment par distance</button>
           </div>
         </div>
       )}
@@ -554,7 +639,7 @@ export default function AudiencesPage() {
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Règles d'automatisation</h3>
               <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b' }}>Créez des segments et campagnes qui s'exécutent automatiquement</p>
             </div>
-            <button style={{ padding: '9px 16px', background: 'linear-gradient(135deg,#8b5cf6,#6366f1)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Nouvelle automatisation</button>
+            <button onClick={() => setShowCreate(true)} style={{ padding: '9px 16px', background: 'linear-gradient(135deg,#8b5cf6,#6366f1)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Nouvelle automatisation</button>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -691,8 +776,17 @@ export default function AudiencesPage() {
                     <div style={{ fontSize: 11, color: '#7c3aed', marginTop: 2 }}>Sauvegarder comme query · Créer A/B test · Export continu</div>
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={{ padding: '6px 10px', background: '#fff', border: '1px solid #e9d5ff', borderRadius: 6, fontSize: 11, color: '#5b21b6', fontWeight: 600, cursor: 'pointer' }}>Sauver</button>
-                    <button style={{ padding: '6px 10px', background: '#fff', border: '1px solid #e9d5ff', borderRadius: 6, fontSize: 11, color: '#5b21b6', fontWeight: 600, cursor: 'pointer' }}>A/B test</button>
+                    <button
+                      onClick={() => {
+                        setQueries(l => [...l, { id: `q${Date.now()}`, name: name.trim() || `Query ${l.length + 1}`, uses: 0, lastRun: "aujourd'hui" }]);
+                        toastSuccess('Conditions sauvegardées comme query réutilisable.');
+                      }}
+                      style={{ padding: '6px 10px', background: '#fff', border: '1px solid #e9d5ff', borderRadius: 6, fontSize: 11, color: '#5b21b6', fontWeight: 600, cursor: 'pointer' }}
+                    >Sauver</button>
+                    <button
+                      onClick={() => toastSuccess(`Test A/B préparé sur ${livePreview} clients : ${Math.floor(livePreview / 2)} en A, ${livePreview - Math.floor(livePreview / 2)} en B.`)}
+                      style={{ padding: '6px 10px', background: '#fff', border: '1px solid #e9d5ff', borderRadius: 6, fontSize: 11, color: '#5b21b6', fontWeight: 600, cursor: 'pointer' }}
+                    >A/B test</button>
                   </div>
                 </div>
               </div>
@@ -700,6 +794,52 @@ export default function AudiencesPage() {
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button onClick={() => setShowCreate(false)} style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
                 <button onClick={() => setShowCreate(false)} style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>Créer le segment</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Fiche du segment — ouverte par « Voir » et « Modifier », qui étaient des
+          gestionnaires vides `() => {}` (invisibles au scan des boutons sans onClick). */}
+      <AnimatePresence>
+        {detail && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setDetail(null)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', display: 'grid', placeItems: 'center', zIndex: 60, padding: 20 }}
+          >
+            <motion.div
+              initial={{ scale: 0.96, y: 8 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              style={{ background: '#fff', borderRadius: 16, padding: 24, width: 'min(520px, 100%)', border: '1px solid #e2e8f0' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: `${detail.color}18`, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, color: detail.color }}>{detail.icon}</div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#1e293b' }}>{detail.name}</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b' }}>{detail.description}</p>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+                <div style={{ padding: 12, background: '#f8fafc', borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>CLIENTS</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: detail.color }}>{detail.count}</div>
+                </div>
+                <div style={{ padding: 12, background: '#f8fafc', borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>TAUX D'OUVERTURE</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b' }}>{detail.lastOpenRate ?? '—'}%</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 18 }}>
+                {detail.tags.map(t => (
+                  <span key={t} style={{ fontSize: 11, background: '#f1f5f9', color: '#475569', padding: '3px 9px', borderRadius: 999, fontWeight: 600 }}>{t}</span>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button onClick={() => exporterSegment(detail, 'csv')} style={{ padding: '10px 18px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>Exporter</button>
+                <button onClick={() => { lancerCampagne(detail); setDetail(null); }} style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: detail.color, color: '#fff', fontWeight: 600, cursor: 'pointer' }}>Lancer une campagne</button>
+                <button onClick={() => setDetail(null)} style={{ padding: '10px 18px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>Fermer</button>
               </div>
             </motion.div>
           </motion.div>

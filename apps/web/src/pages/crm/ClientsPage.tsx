@@ -1021,6 +1021,10 @@ export default function ClientsPage() {
                           const color = DIETARY_COLORS[d] || '#64748b'
                           return (
                             <button key={d}
+                              onClick={() => setSelected(c => c && ({
+                                ...c,
+                                dietary: c.dietary.includes(d) ? c.dietary.filter(x => x !== d) : [...c.dietary, d],
+                              }))}
                               style={{
                                 padding: '6px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600,
                                 border: active ? `1.5px solid ${color}` : '1px solid #e2e8f0',
@@ -1044,6 +1048,10 @@ export default function ClientsPage() {
                           const active = selected.allergens.includes(a)
                           return (
                             <button key={a}
+                              onClick={() => setSelected(c => c && ({
+                                ...c,
+                                allergens: c.allergens.includes(a) ? c.allergens.filter(x => x !== a) : [...c.allergens, a],
+                              }))}
                               style={{
                                 padding: '6px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600,
                                 border: active ? '1.5px solid #dc2626' : '1px solid #e2e8f0',
@@ -1094,6 +1102,10 @@ export default function ClientsPage() {
                           const tc = TAG_COLORS[t] || { bg: '#F1F5F9', text: '#475569' }
                           return (
                             <button key={t}
+                              onClick={() => setSelected(c => c && ({
+                                ...c,
+                                tags: c.tags.includes(t) ? c.tags.filter(x => x !== t) : [...c.tags, t],
+                              }))}
                               style={{
                                 padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600,
                                 border: active ? `1.5px solid ${tc.text}` : '1px solid #e2e8f0',

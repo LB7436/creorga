@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { toastSuccess } from '../../lib/toast'
+import { telechargerFichier } from '../../lib/impression'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell, Legend, LineChart, Line,
@@ -195,7 +197,20 @@ function QRModal({ member, onClose }: { member: Member; onClose: () => void }) {
         <div style={{ padding: 12, background: '#f8fafc', borderRadius: 10, fontSize: 12, color: '#475569', textAlign: 'center' }}>
           Scannez à la caisse pour cumuler ou dépenser les points
         </div>
-        <button style={{ marginTop: 14, width: '100%', padding: '10px 14px', borderRadius: 10, border: 'none', background: '#4338ca', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+        <button
+          onClick={() => {
+            // Le QR est dessiné en divs, pas en <img>: on le reconstruit en SVG,
+            // seul format qui reste net à l'impression comme à l'agrandissement.
+            const cote = Math.round(Math.sqrt(cells.length))
+            const rects = cells
+              .map((on, i) => (on ? `<rect x="${i % cote}" y="${Math.floor(i / cote)}" width="1" height="1" fill="#0f172a"/>` : ''))
+              .join('')
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${cote} ${cote}" width="512" height="512" shape-rendering="crispEdges"><rect width="${cote}" height="${cote}" fill="#fff"/>${rects}</svg>`
+            telechargerFichier(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, 'qr-fidelite.svg')
+            toastSuccess('QR de fidélité téléchargé (SVG).')
+          }}
+          style={{ marginTop: 14, width: '100%', padding: '10px 14px', borderRadius: 10, border: 'none', background: '#4338ca', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+        >
           Télécharger le QR
         </button>
       </motion.div>

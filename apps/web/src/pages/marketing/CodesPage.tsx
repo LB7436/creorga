@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { downloadCsv } from '../../lib/csv'
+import { toastSuccess, toastError, toastInfo } from '../../lib/toast'
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
 } from 'recharts'
@@ -147,10 +149,23 @@ export default function CodesPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#fff', border: '1px solid #e2e8f0', color: '#475569', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          <button
+            onClick={() => downloadCsv('codes-promo.csv',
+              ['Code', 'Type', 'Valeur', 'Utilisations', 'Limite', 'Début', 'Fin', 'Statut'],
+              codes.map(c => [c.code, c.type, c.value, c.uses, c.limit, c.startDate, c.endDate, c.status]))}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#fff', border: '1px solid #e2e8f0', color: '#475569', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+          >
             <Download size={14} /> Exporter codes
           </button>
-          <button style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#fff', border: '1px solid #e2e8f0', color: '#475569', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          <button
+            onClick={() => {
+              const actifs = codes.filter(c => c.active).length
+              if (!actifs) { toastInfo('Aucun code actif à désactiver.'); return }
+              setCodes(l => l.map(c => c.active ? { ...c, active: false, status: 'Suspendu' } : c))
+              toastSuccess(`${actifs} code(s) suspendu(s).`)
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#fff', border: '1px solid #e2e8f0', color: '#475569', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+          >
             <Power size={14} /> Désactiver en masse
           </button>
           <motion.button
@@ -307,7 +322,7 @@ export default function CodesPage() {
       </div>
 
       <AnimatePresence>
-        {modal && <NewCodeModal onClose={() => setModal(false)} />}
+        {modal && <NewCodeModal onClose={() => setModal(false)} onCreate={c => setCodes(l => [c, ...l])} />}
       </AnimatePresence>
     </div>
   )
@@ -341,7 +356,7 @@ function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
 /*  New Code Modal                                                     */
 /* ------------------------------------------------------------------ */
 
-function NewCodeModal({ onClose }: { onClose: () => void }) {
+function NewCodeModal({ onClose, onCreate }: { onClose: () => void; onCreate: (c: PromoCode) => void }) {
   const [code, setCode] = useState('')
   const [type, setType] = useState<CodeType>('Pourcentage')
   const [value, setValue] = useState(10)
@@ -564,7 +579,27 @@ function NewCodeModal({ onClose }: { onClose: () => void }) {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
-                <button style={{ padding: '10px 14px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>
+                <button
+                  onClick={() => {
+                    const nom = code.trim().toUpperCase()
+                    if (!nom) { toastError('Saisissez d\'abord un code.'); return }
+                    onCreate({
+                      id: `p${Date.now()}`,
+                      code: nom,
+                      type,
+                      value: Number(value) || 0,
+                      uses: 0,
+                      limit: Number(totalLimit) || 0,
+                      startDate: startDate || new Date().toISOString().slice(0, 10),
+                      endDate: endDate || '',
+                      status: 'Actif',
+                      active: true,
+                    })
+                    toastSuccess(`Code « ${nom} » créé.`)
+                    onClose()
+                  }}
+                  style={{ padding: '10px 14px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}
+                >
                   Créer le code
                 </button>
                 <button onClick={onClose} style={{ padding: '10px 14px', background: '#fff', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>

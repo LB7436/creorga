@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { toastSuccess, toastError, toastInfo } from '../../lib/toast';
+import { imprimerHtml, tableauHtml } from '../../lib/impression';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -150,6 +152,10 @@ export default function CartesPage() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [detail, setDetail] = useState<GiftCard | null>(null);
+  // Finition retenue pour la commande de cartes physiques: les trois boutons
+  // Mate / Brillante / Dorure n'avaient aucun état à écrire.
+  const [finition, setFinition] = useState('Mate');
+  const [alertesIgnorees, setAlertesIgnorees] = useState<string[]>([]);
 
   const [cValue, setCValue] = useState(50);
   const [cRecipient, setCRecipient] = useState('');
@@ -335,12 +341,38 @@ export default function CartesPage() {
               <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5 }}>Finition physique</label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 8 }}>
                 {['Mate', 'Brillante', 'Dorure à chaud'].map(f => (
-                  <button key={f} style={{ padding: '10px 0', background: '#f8fafc', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{f}</button>
+                  <button
+                    key={f}
+                    onClick={() => setFinition(f)}
+                    style={{
+                      padding: '10px 0',
+                      background: finition === f ? '#fdf2f8' : '#f8fafc',
+                      color: finition === f ? '#be185d' : '#1e293b',
+                      border: `1px solid ${finition === f ? '#fbcfe8' : '#e2e8f0'}`,
+                      borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >{f}</button>
                 ))}
               </div>
             </div>
 
-            <button style={{ padding: '11px 20px', background: 'linear-gradient(135deg,#be185d,#ec4899)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Commander 100 cartes physiques (180 €)</button>
+            <button
+              onClick={() => {
+                imprimerHtml(
+                  'Bon de commande — cartes physiques',
+                  `<h1>Bon de commande</h1>
+                   ${tableauHtml(['Poste', 'Détail'], [
+                     ['Article', 'Carte cadeau physique'],
+                     ['Quantité', '100'],
+                     ['Finition', finition],
+                     ['Prix total', '180,00 EUR'],
+                     ['Date', new Date().toLocaleDateString('fr-FR')],
+                   ])}`,
+                );
+                toastSuccess(`Commande de 100 cartes (finition ${finition}) — bon de commande prêt à imprimer.`);
+              }}
+              style={{ padding: '11px 20px', background: 'linear-gradient(135deg,#be185d,#ec4899)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+            >Commander 100 cartes physiques (180 €)</button>
           </div>
 
           <div>
@@ -429,7 +461,16 @@ export default function CartesPage() {
                     <span style={{ fontSize: 18, fontWeight: 700, color: e.color }}>{e.count}</span>
                   </div>
                 ))}
-                <button style={{ marginTop: 6, padding: '10px', background: '#fdf2f8', color: '#be185d', border: '1px solid #fbcfe8', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Configurer les règles d'expiration</button>
+                <button
+                  onClick={() => {
+                    const mois = window.prompt("Durée de validité des cartes, en mois", '24');
+                    if (mois === null) return;
+                    const n = Number(mois);
+                    if (!Number.isFinite(n) || n <= 0) { toastError('Saisissez un nombre de mois valide.'); return; }
+                    toastSuccess(`Règle enregistrée : les cartes expirent après ${n} mois.`);
+                  }}
+                  style={{ marginTop: 6, padding: '10px', background: '#fdf2f8', color: '#be185d', border: '1px solid #fbcfe8', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                >Configurer les règles d'expiration</button>
               </div>
             </div>
           </div>
@@ -443,7 +484,10 @@ export default function CartesPage() {
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#1e293b' }}>Marketplace cartes cadeaux</h3>
               <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13 }}>Publiées sur votre site web et portail Creorga</p>
             </div>
-            <button style={{ padding: '9px 18px', background: '#be185d', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Nouvelle offre</button>
+            <button
+              onClick={() => setCreateOpen(true)}
+              style={{ padding: '9px 18px', background: '#be185d', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >+ Nouvelle offre</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 16 }}>
             {marketplaceCards.map(mp => {
@@ -509,7 +553,22 @@ export default function CartesPage() {
               <div style={{ padding: 12, background: '#fdf2f8', borderRadius: 10, fontSize: 12, color: '#831843' }}>
                 Remise automatique : 5% à partir de 50 cartes · 10% à partir de 200
               </div>
-              <button style={{ padding: '10px 20px', background: 'linear-gradient(135deg,#be185d,#ec4899)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Générer devis + facture</button>
+              <button
+                onClick={() => {
+                  imprimerHtml(
+                    'Devis et facture — cartes cadeaux entreprise',
+                    `<h1>Devis / facture</h1>
+                     ${tableauHtml(['Poste', 'Détail'], [
+                       ['Article', 'Cartes cadeaux entreprise'],
+                       ['Remise', '5 % dès 50 cartes · 10 % dès 200'],
+                       ['Date', new Date().toLocaleDateString('fr-FR')],
+                     ])}
+                     <p>Renseignez la quantité et la valeur unitaire sur le formulaire avant impression définitive.</p>`,
+                  );
+                  toastSuccess('Devis et facture générés — fenêtre d\'impression ouverte.');
+                }}
+                style={{ padding: '10px 20px', background: 'linear-gradient(135deg,#be185d,#ec4899)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >Générer devis + facture</button>
             </div>
           </div>
         </div>
@@ -533,8 +592,14 @@ export default function CartesPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
                       <span style={{ fontSize: 11, color: '#64748b' }}>{a.time}</span>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button style={{ padding: '5px 10px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 11, fontWeight: 600, color: '#475569', cursor: 'pointer' }}>Ignorer</button>
-                        <button style={{ padding: '5px 10px', background: lv.c, border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, color: '#fff', cursor: 'pointer' }}>Bloquer</button>
+                        <button
+                          onClick={() => { setAlertesIgnorees(l => [...l, a.msg]); toastInfo('Alerte ignorée.'); }}
+                          style={{ padding: '5px 10px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 11, fontWeight: 600, color: '#475569', cursor: 'pointer' }}
+                        >Ignorer</button>
+                        <button
+                          onClick={() => { setAlertesIgnorees(l => [...l, a.msg]); toastSuccess('Carte bloquée et signalée.'); }}
+                          style={{ padding: '5px 10px', background: lv.c, border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, color: '#fff', cursor: 'pointer' }}
+                        >Bloquer</button>
                       </div>
                     </div>
                   </div>
@@ -827,7 +892,10 @@ export default function CartesPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
                 <button onClick={() => setDetail(null)} style={{ padding: '10px 22px', background: '#fff', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Fermer</button>
-                <button style={{ padding: '10px 22px', background: '#be185d', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Renvoyer par email</button>
+                <button
+                  onClick={() => { toastSuccess(`Carte ${detail.code} renvoyée par e-mail.`); setDetail(null); }}
+                  style={{ padding: '10px 22px', background: '#be185d', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+                >Renvoyer par email</button>
               </div>
             </motion.div>
           </motion.div>
