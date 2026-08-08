@@ -6,6 +6,7 @@ import {
   CartesianGrid, Legend, AreaChart, Area,
 } from 'recharts'
 import { fetchAuth } from '@/lib/fetchAuth'
+import InventaireModal from './InventaireModal'
 import {
   Package, Euro, AlertTriangle, XCircle, Search, Plus, ShoppingCart, Truck, X,
   Check, Upload, ClipboardList, Clock, RotateCcw, Download, Timer, CheckCircle2,
@@ -640,7 +641,42 @@ export default function StockPage() {
   const [showWaste, setShowWaste] = useState(false)
   const [showMovements, setShowMovements] = useState(false)
   const [showBulk, setShowBulk] = useState(false)
+  const [showInventaire, setShowInventaire] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+
+  /**
+   * Validation d'un inventaire physique : on aligne le stock système sur le
+   * comptage, article par article.
+   *
+   * Deux points volontaires :
+   *  - `Promise.all` sur des PATCH indépendants, mais on relit ensuite l'état
+   *    réel du serveur plutôt que de supposer le résultat : si un PATCH échoue,
+   *    l'écran doit montrer ce qui est vraiment en base, pas ce qu'on espérait.
+   *  - toute erreur est propagée (`throw`) pour que la modale garde le comptage
+   *    saisi à l'écran. Avaler l'erreur ici ferait perdre le travail de comptage.
+   */
+  const validerInventaire = async (ecarts: { id: string; compte: number }[]) => {
+    const reponses = await Promise.all(
+      ecarts.map((e) =>
+        fetchAuth(`${BACKEND}/api/inventory-ocr/stock/${e.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quantity: e.compte }),
+        }).catch(() => null),
+      ),
+    )
+    const echecs = reponses.filter((r) => !r || !r.ok).length
+    // Relecture: la boucle de synchronisation à 3 s le ferait aussi, mais on ne
+    // veut pas laisser l'écran mentir pendant ces 3 secondes.
+    try {
+      const r = await fetchAuth(`${BACKEND}/api/inventory-ocr/stock`)
+      if (r.ok) {
+        const j = await r.json()
+        setData((j.stock || []).map(backendToIngredient))
+      }
+    } catch { /* la synchro périodique rattrapera */ }
+    if (echecs) throw new Error(`${echecs} ajustement(s) non enregistré(s)`)
+  }
 
   const showToast = (m: string) => {
     setToast(m)
@@ -721,6 +757,12 @@ export default function StockPage() {
                 🗑 Vider tout
               </button>
             )}
+            <button
+              onClick={() => data.length ? setShowInventaire(true) : showToast('Le stock est vide — rien à inventorier.')}
+              style={{ ...smallBtnStyle, background: '#92400E', color: '#fff', border: 'none' }}
+            >
+              <ClipboardList size={13} /> Inventaire
+            </button>
             <button onClick={() => setShowScanner(true)} style={{ ...smallBtnStyle, background: '#4338ca', color: '#fff', border: 'none' }}>
               <ScanLine size={13} /> Scanner
             </button>
@@ -968,6 +1010,14 @@ export default function StockPage() {
         {showWaste && <WasteModal onClose={() => setShowWaste(false)} onToast={showToast} />}
         {showMovements && <MovementsModal onClose={() => setShowMovements(false)} />}
         {showBulk && <BulkPriceModal onClose={() => setShowBulk(false)} onToast={showToast} />}
+        {showInventaire && (
+          <InventaireModal
+            articles={data}
+            onClose={() => setShowInventaire(false)}
+            onToast={showToast}
+            onValider={validerInventaire}
+          />
+        )}
         {toast && <Toast message={toast} onClose={() => setToast(null)} />}
       </AnimatePresence>
     </>

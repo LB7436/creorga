@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -1088,7 +1089,7 @@ function SwapsModal({ isOpen, onClose, shifts, onApprove }: {
                   <button onClick={onApprove} style={{ ...btnBase, fontSize: 11, padding: '6px 12px', background: C.green, color: '#fff' }}>
                     <CheckCircle2 size={11} /> Approuver
                   </button>
-                  <button style={{ ...btnBase, fontSize: 11, padding: '6px 12px', background: C.card, color: C.red, border: `1px solid ${C.red}44` }}>
+                  <button onClick={() => toastSuccess('Demande refusée.')} style={{ ...btnBase, fontSize: 11, padding: '6px 12px', background: C.card, color: C.red, border: `1px solid ${C.red}44` }}>
                     Refuser
                   </button>
                 </div>

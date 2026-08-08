@@ -1,3 +1,5 @@
+import { imprimerHtml, tableauHtml } from '@/lib/impression'
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -174,6 +176,7 @@ const Sparkline = ({ values, conform }: { values: number[]; conform: boolean }) 
 
 export default function TemperaturesPage() {
   const [showModal, setShowModal] = useState(false);
+  const [alerts, setAlerts] = useState(alertsMock);
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>(equipments[0].id);
   const [valueInput, setValueInput] = useState<string>('');
   const [notes, setNotes] = useState('');
@@ -203,7 +206,7 @@ export default function TemperaturesPage() {
   const stats = {
     equipements: equipments.length,
     mesuresToday: historyMock.filter(r => r.timestamp.startsWith('17/04')).length,
-    alertes: alertsMock.filter(a => !a.acknowledged).length,
+    alertes: alerts.filter(a => !a.acknowledged).length,
     conformite: 98,
   };
 
@@ -269,7 +272,7 @@ export default function TemperaturesPage() {
           <button onClick={exportCsv} style={btnGhost}>
             <Download size={16} /> Export CSV
           </button>
-          <button style={btnGhost}>
+          <button onClick={() => { imprimerHtml('Relevé HACCP', `<h1>Relevé de températures HACCP</h1><p>Édité le ${new Date().toLocaleDateString('fr-FR')}.</p>`); }} style={btnGhost}>
             <Mail size={16} /> Envoyer HACCP
           </button>
           <button onClick={() => setShowModal(true)} style={btnPrimary}>
@@ -404,11 +407,11 @@ export default function TemperaturesPage() {
       <div style={{ ...cardStyle, marginTop: 20 }}>
         <h2 style={h2Style}><Bell size={18} /> Alertes actives</h2>
         <div style={{ marginTop: 12 }}>
-          {alertsMock.length === 0 ? (
+          {alerts.length === 0 ? (
             <div style={{ color: '#64748b', fontSize: 13 }}>Aucune alerte active.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {alertsMock.map(a => (
+              {alerts.map(a => (
                 <div
                   key={a.id}
                   style={{
@@ -429,7 +432,7 @@ export default function TemperaturesPage() {
                       </div>
                     </div>
                   </div>
-                  <button style={{ ...btnGhost, fontSize: 12 }}>
+                  <button disabled={a.acknowledged} onClick={() => setAlerts(l => l.map(x => x.id === a.id ? { ...x, acknowledged: true } : x))} style={{ ...btnGhost, fontSize: 12, opacity: a.acknowledged ? 0.5 : 1 }}>
                     {a.acknowledged ? 'Acquitté' : 'Acquitter'}
                   </button>
                 </div>

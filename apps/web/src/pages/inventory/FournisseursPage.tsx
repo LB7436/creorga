@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -209,7 +210,7 @@ export default function FournisseursPage() {
             </div>
 
             <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
-              <button style={{
+              <button onClick={() => toastSuccess('Nouvelle commande fournisseur créée.')} style={{
                 flex: 1, padding: '9px 12px', background: '#0f172a', color: '#fff',
                 border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 600,
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,

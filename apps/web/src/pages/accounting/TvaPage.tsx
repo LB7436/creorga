@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -191,7 +192,7 @@ export default function TvaPage() {
             <button onClick={() => alert('PDF déclaration généré')} style={{ flex: 1, padding: 11, background: palette.primary, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               Générer la déclaration
             </button>
-            <button style={{ padding: 11, background: '#fff', border: `1px solid ${palette.border}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', color: palette.text }}>
+            <button onClick={() => window.open('https://eTVA.pwc.lu', '_blank', 'noopener,noreferrer')} style={{ padding: 11, background: '#fff', border: `1px solid ${palette.border}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', color: palette.text }}>
               eTVA
             </button>
           </div>

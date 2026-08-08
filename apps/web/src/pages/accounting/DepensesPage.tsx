@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
@@ -209,7 +210,7 @@ export default function DepensesPage() {
                       <span style={{ background: c.bg, color: c.fg, padding: '3px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>{e.statut}</span>
                     </td>
                     <td style={{ padding: '12px 14px' }}>
-                      <button style={{ background: 'none', border: 'none', color: palette.primary, fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>Voir</button>
+                      <button onClick={() => toastInfo('Détail de la dépense.')} style={{ background: 'none', border: 'none', color: palette.primary, fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>Voir</button>
                     </td>
                   </tr>
                 );

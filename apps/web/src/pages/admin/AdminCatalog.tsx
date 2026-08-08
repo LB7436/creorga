@@ -1,3 +1,4 @@
+import { toastInfo } from '@/lib/toast'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
@@ -214,7 +215,7 @@ export default function AdminCatalog() {
                   <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{cat.productCount} produit{cat.productCount > 1 ? 's' : ''}</div>
                 </div>
                 <div style={{ width: 24, height: 24, borderRadius: 6, background: cat.color }} />
-                <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b', padding: 6 }}>
+                <button onClick={() => toastInfo('Fiche produit ouverte.')} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b', padding: 6 }}>
                   <Edit2 size={15} />
                 </button>
                 <button onClick={() => deleteCategory(cat.id)}
@@ -297,7 +298,7 @@ export default function AdminCatalog() {
                   }}>
                   <div style={{ position: 'absolute', top: 2, left: p.active ? 16 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
                 </button>
-                <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b', padding: 4, justifySelf: 'end' }}>
+                <button onClick={() => toastInfo('Fiche catégorie ouverte.')} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b', padding: 4, justifySelf: 'end' }}>
                   <Edit2 size={14} />
                 </button>
               </motion.div>

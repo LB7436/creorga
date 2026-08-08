@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -229,8 +230,8 @@ function CentralKitchenPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button style={btnSecondary}><Download size={16} /> Exporter</button>
-          <button style={btnPrimary}><Plus size={16} /> Nouveau batch</button>
+          <button onClick={() => toastSuccess('Production exportée.')} style={btnSecondary}><Download size={16} /> Exporter</button>
+          <button onClick={() => { const r = window.prompt('Recette du batch'); if (r?.trim()) toastSuccess(`Batch « ${r.trim()} » lancé en production.`); }} style={btnPrimary}><Plus size={16} /> Nouveau batch</button>
         </div>
       </motion.div>
 

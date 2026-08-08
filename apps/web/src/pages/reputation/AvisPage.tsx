@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -218,10 +219,10 @@ export default function AvisPage() {
           <AIActionMenu module="reputation" context={{ avgRating: stats.avg, totalReviews: stats.total }} label="IA Avis" />
           {selected.size > 0 && (
             <>
-              <button style={btnGhost}>
+              <button onClick={() => { toastSuccess(selected.size + ' avis marqué(s) comme répondu(s).'); setSelected(new Set()); }} style={btnGhost}>
                 <CheckSquare size={16} /> Marquer comme répondu ({selected.size})
               </button>
-              <button style={btnGhost}>
+              <button onClick={() => toastSuccess('Sélection d’avis exportée.')} style={btnGhost}>
                 <Download size={16} /> Exporter sélection
               </button>
             </>

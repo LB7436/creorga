@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -503,7 +504,7 @@ export default function ListePage() {
         >
           Réinitialiser
         </button>
-        <button
+        <button onClick={() => toastInfo('Formulaire de nouvelle réservation.')}
           style={{
             padding: '10px 16px',
             borderRadius: 8,

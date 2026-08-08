@@ -750,10 +750,6 @@ export default function ModuleSelector() {
                 </div>
               )
             })}
-            {/* legacy render slot replaced by above block */}
-            {false && filteredModules.map((mod) => (
-              <ModuleCard key={mod.id} mod={mod} onClick={() => handleModule(mod)} pinned={false} onTogglePin={() => undefined} />
-            ))}
 
             {filteredModules.length === 0 && (
               <motion.div

@@ -1,3 +1,6 @@
+import { telechargerFichier, imprimerHtml, tableauHtml } from '@/lib/impression'
+import { downloadCsv } from '@/lib/csv'
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createPortal } from 'react-dom'
@@ -256,6 +259,64 @@ function DemandesTab({ onNew }: { onNew: () => void }) {
 }
 
 // ── Calendar tab ─────────────────────────────────────────────────────────
+/**
+ * Export iCalendar — Google Calendar, Outlook et Apple Calendar importent tous
+ * ce format. C'est la seule voie sans clé d'API OAuth côté client.
+ * Les dates sont en VALUE=DATE (journée entière) : un congé n'a pas d'heure.
+ */
+function exporterIcs() {
+  const jour = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '')
+  const lignes = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Creorga//Conges//FR', 'CALSCALE:GREGORIAN',
+    ...REQUESTS.filter((r) => r.status !== 'Refusée').flatMap((r) => {
+      // DTEND est exclusif en iCalendar : sans le +1 jour, le dernier jour de
+      // congé n'apparaîtrait pas dans l'agenda.
+      const fin = new Date(r.endDate)
+      fin.setDate(fin.getDate() + 1)
+      return [
+        'BEGIN:VEVENT',
+        `UID:conge-${r.id}@creorga`,
+        `SUMMARY:${r.type} — ${r.employeeName}`,
+        `DTSTART;VALUE=DATE:${jour(r.startDate)}`,
+        `DTEND;VALUE=DATE:${jour(fin)}`,
+        `DESCRIPTION:${(r.reason || '').replace(/\r?\n/g, ' ')}`,
+        'END:VEVENT',
+      ]
+    }),
+    'END:VCALENDAR',
+  ]
+  telechargerFichier(
+    `data:text/calendar;charset=utf-8,${encodeURIComponent(lignes.join('\r\n'))}`,
+    'conges-creorga.ics',
+  )
+  toastSuccess('Fichier .ics téléchargé — importez-le dans Google Calendar.')
+}
+
+/** Attestation de solde de congés, une page par employé. */
+function genererAttestations() {
+  const corps = BALANCES.map((b) => {
+    return `<div style="page-break-after:always">
+      <h1>Attestation de solde de congés</h1>
+      <p>Établie le ${new Date().toLocaleDateString('fr-FR')} pour <strong>${b.employeeName}</strong>.</p>
+      ${tableauHtml(
+        ['Poste', 'Jours'],
+        [
+          ['Droit acquis', b.acquired],
+          ['Jours pris', b.taken],
+          ['Solde restant', b.remaining],
+          ['Dont vacances', b.vacances],
+          ['Dont RTT', b.rtt],
+          ['Dont formation', b.formation],
+        ],
+        [1],
+      )}
+      <p style="margin-top:28px">Signature de l'employeur : ______________________</p>
+    </div>`
+  }).join('')
+  imprimerHtml('Attestations de congés', corps)
+  toastSuccess(`${BALANCES.length} attestation(s) prête(s) à imprimer.`)
+}
+
 function CalendrierTab() {
   const [month, setMonth] = useState(new Date(2026, 3, 1))
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
@@ -371,7 +432,7 @@ function CalendrierTab() {
           )}
         </div>
 
-        <button style={{ ...primaryBtn, justifyContent: 'center' }}>
+        <button onClick={exporterIcs} style={{ ...primaryBtn, justifyContent: 'center' }}>
           <Calendar size={14} /> Exporter vers Google Calendar
         </button>
       </div>
@@ -399,7 +460,7 @@ function SoldesTab() {
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
-        <button style={primaryBtn}>
+        <button onClick={genererAttestations} style={primaryBtn}>
           <FileText size={14} /> Générer attestations
         </button>
       </div>

@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
@@ -113,7 +114,7 @@ export default function AdminModules() {
                   <TrendingUp size={11} /> {m.usage}
                 </div>
                 {m.active && (
-                  <button style={{ fontSize: 11, color: m.color, background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <button onClick={() => toastInfo('Configuration du module ' + m.name + '.')} style={{ fontSize: 11, color: m.color, background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                     <SettingsIcon size={11} /> Configurer
                   </button>
                 )}

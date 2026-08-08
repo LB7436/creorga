@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -463,7 +464,7 @@ export default function OrderPage() {
             }}>
               <Send size={15} /> {sending ? 'Envoi…' : 'Envoyer en cuisine'}{allergies.length > 0 ? ` ⚠️ (${allergies.length} allergies)` : ''}
             </button>
-            <button style={{ ...btnAccent, width: '100%', justifyContent: 'center', padding: '11px 14px' }}>
+            <button onClick={() => toastInfo('Ajoutez au moins un article avant de payer.')} style={{ ...btnAccent, width: '100%', justifyContent: 'center', padding: '11px 14px' }}>
               <CreditCard size={15} /> Aller au paiement
             </button>
             <div style={{ fontSize: 10, color: '#94a3b8', textAlign: 'center', marginTop: 2 }}>

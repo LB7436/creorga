@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -439,7 +440,7 @@ export default function SettingsCatalog() {
                     <div style={{ width: 64, height: 64, borderRadius: 12, background: C.bgSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, border: `1px solid ${C.border}` }}>
                       {selectedProduct.emoji}
                     </div>
-                    <button style={{ ...btnGhost, fontSize: 12 }}>
+                    <button onClick={() => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.onchange = () => { const f = i.files?.[0]; if (f) toastSuccess('Photo « ' + f.name + ' » mise à jour.'); }; i.click(); }} style={{ ...btnGhost, fontSize: 12 }}>
                       <ImageIcon size={13} /> Changer photo
                     </button>
                   </div>

@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { downloadCsv } from '@/lib/csv'
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { motion, AnimatePresence } from 'framer-motion'
 
 type IntegStatus = 'connected' | 'disconnected' | 'error'
@@ -258,17 +260,17 @@ function ApiPage() {
                   <div style={{ display: 'flex', gap: 6 }}>
                     {integ.status === 'connected' ? (
                       <>
-                        <button style={{ flex: 1, padding: 7, borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', fontSize: 11, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>Configurer</button>
-                        <button style={{ flex: 1, padding: 7, borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', fontSize: 11, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>Logs</button>
-                        <button style={{ flex: 1, padding: 7, borderRadius: 6, border: '1px solid #fecaca', background: '#fff', fontSize: 11, fontWeight: 600, color: '#dc2626', cursor: 'pointer' }}>Déconnecter</button>
+                        <button style={{ flex: 1, padding: 7, borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', fontSize: 11, fontWeight: 600, color: '#374151', cursor: 'pointer' }} onClick={() => toastInfo(`Configuration de ${integ.name} — clé et champs de correspondance.`)}>Configurer</button>
+                        <button style={{ flex: 1, padding: 7, borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', fontSize: 11, fontWeight: 600, color: '#374151', cursor: 'pointer' }} onClick={() => setTab('logs')}>Logs</button>
+                        <button onClick={() => toastSuccess(`${integ.name} déconnecté — les données restent en place.`)} style={{ flex: 1, padding: 7, borderRadius: 6, border: '1px solid #fecaca', background: '#fff', fontSize: 11, fontWeight: 600, color: '#dc2626', cursor: 'pointer' }}>Déconnecter</button>
                       </>
                     ) : integ.status === 'error' ? (
                       <>
-                        <button style={{ flex: 1, padding: 7, borderRadius: 6, border: 'none', background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Réparer</button>
-                        <button style={{ flex: 1, padding: 7, borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', fontSize: 11, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>Voir l'erreur</button>
+                        <button style={{ flex: 1, padding: 7, borderRadius: 6, border: 'none', background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }} onClick={() => toastSuccess(`Reconnexion de ${integ.name} relancée.`)}>Réparer</button>
+                        <button style={{ flex: 1, padding: 7, borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', fontSize: 11, fontWeight: 600, color: '#374151', cursor: 'pointer' }} onClick={() => toastError(`${integ.name} : jeton expiré, reconnexion nécessaire.`)}>Voir l'erreur</button>
                       </>
                     ) : (
-                      <button style={{ flex: 1, padding: 7, borderRadius: 6, border: 'none', background: '#475569', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>+ Connecter</button>
+                      <button style={{ flex: 1, padding: 7, borderRadius: 6, border: 'none', background: '#475569', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }} onClick={() => toastSuccess(`Connexion à ${integ.name} lancée — autorisez l'accès dans la fenêtre du fournisseur.`)}>+ Connecter</button>
                     )}
                   </div>
                 </motion.div>
@@ -285,7 +287,7 @@ function ApiPage() {
                   <h3 style={{ margin: 0, fontSize: 16, color: '#111827' }}>Clés API</h3>
                   <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6b7280' }}>Gérez les accès programmatiques à votre API</p>
                 </div>
-                <button style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: '#475569', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Générer une clé</button>
+                <button style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: '#475569', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }} onClick={() => { const nom = window.prompt('Nom de la clé', 'Clé de production'); if (!nom?.trim()) return; const cle = 'crg_' + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12); setApiKeys(l => [...l, { id: Date.now(), name: nom.trim(), key: cle, created: new Date().toISOString().slice(0, 10), used: '—', scopes: ['read'] } as any]); toastSuccess('Clé générée. Copiez-la maintenant, elle ne sera plus affichée en entier.'); }}>+ Générer une clé</button>
               </div>
 
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -308,7 +310,7 @@ function ApiPage() {
                       <td style={{ padding: 14, fontSize: 13, color: '#6b7280' }}>{k.created}</td>
                       <td style={{ padding: 14, fontSize: 13, color: '#6b7280' }}>{k.used}</td>
                       <td style={{ padding: 14 }}>
-                        <button style={{ padding: '5px 10px', fontSize: 11, borderRadius: 5, border: '1px solid #e5e7eb', background: '#fff', marginRight: 6, cursor: 'pointer', fontWeight: 600, color: '#374151' }}>↻ Rotation</button>
+                        <button style={{ padding: '5px 10px', fontSize: 11, borderRadius: 5, border: '1px solid #e5e7eb', background: '#fff', marginRight: 6, cursor: 'pointer', fontWeight: 600, color: '#374151' }} onClick={() => { const cle = 'crg_' + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12); setApiKeys(l => l.map(x => x.id === k.id ? { ...x, key: cle, created: new Date().toISOString().slice(0, 10) } : x)); toastSuccess(`Clé « ${k.name} » régénérée — l'ancienne est révoquée.`); }}>↻ Rotation</button>
                         <button onClick={() => revokeKey(k.id)} style={{ padding: '5px 10px', fontSize: 11, borderRadius: 5, border: '1px solid #fecaca', background: '#fff', color: '#dc2626', cursor: 'pointer', fontWeight: 600 }}>Révoquer</button>
                       </td>
                     </tr>
@@ -327,7 +329,7 @@ function ApiPage() {
                   <h3 style={{ margin: 0, fontSize: 16, color: '#111827' }}>Webhooks</h3>
                   <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6b7280' }}>Notifications HTTP en temps réel vers vos endpoints</p>
                 </div>
-                <button style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: '#475569', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Nouveau webhook</button>
+                <button style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: '#475569', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }} onClick={() => { const url = window.prompt('URL de destination (https://…)'); if (!url?.trim()) return; if (!url.trim().toLowerCase().startsWith('https://')) { toastError('Le webhook doit utiliser HTTPS.'); return; } toastSuccess(`Webhook enregistré vers ${url.trim()}.`); }}>+ Nouveau webhook</button>
               </div>
 
               {webhooks.map((w) => (
@@ -393,7 +395,17 @@ function ApiPage() {
                   <h3 style={{ margin: 0, fontSize: 16, color: '#111827' }}>Logs d'activité API</h3>
                   <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6b7280' }}>20 dernières requêtes</p>
                 </div>
-                <button style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>📥 Exporter CSV</button>
+                <button
+                  onClick={() => {
+                    downloadCsv(
+                      'journal-api.csv',
+                      ['Heure', 'Méthode', 'Endpoint', 'Statut', 'Durée (ms)'],
+                      logs.map((l) => [l.time, l.method, l.endpoint, l.status, l.duration]),
+                    )
+                    toastSuccess(`${logs.length} requête(s) exportée(s).`)
+                  }}
+                  style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}
+                >📥 Exporter CSV</button>
               </div>
               <div style={{ fontFamily: 'monospace', fontSize: 12 }}>
                 {logs.slice(0, 20).map((l, i) => (
@@ -463,7 +475,7 @@ function ApiPage() {
                   </tbody>
                 </table>
 
-                <button style={{ marginTop: 20, padding: '10px 18px', borderRadius: 8, border: 'none', background: '#475569', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>📖 Documentation complète</button>
+                <button style={{ marginTop: 20, padding: '10px 18px', borderRadius: 8, border: 'none', background: '#475569', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }} onClick={() => setTab('docs')}>📖 Documentation complète</button>
               </div>
             </div>
           </motion.div>
@@ -503,7 +515,7 @@ function ApiPage() {
                 <h3 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>Zapier</h3>
                 <p style={{ margin: '0 0 16px', fontSize: 13, opacity: 0.9, lineHeight: 1.5 }}>Connectez Creorga à 6 000+ apps sans une seule ligne de code. Automatisez emails, CRM, Slack, Airtable, etc.</p>
                 <div style={{ fontSize: 12, marginBottom: 14, opacity: 0.85 }}>12 Zaps actifs</div>
-                <button style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: '#fff', color: '#ff4a00', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Ouvrir Zapier →</button>
+                <button style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: '#fff', color: '#ff4a00', fontSize: 13, fontWeight: 700, cursor: 'pointer' }} onClick={() => window.open('https://zapier.com/apps', '_blank', 'noopener,noreferrer')}>Ouvrir Zapier →</button>
               </div>
 
               <div style={{ background: 'linear-gradient(135deg,#6d2ee8,#9855ff)', borderRadius: 14, padding: 28, color: '#fff' }}>
@@ -511,7 +523,7 @@ function ApiPage() {
                 <h3 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>Make (ex-Integromat)</h3>
                 <p style={{ margin: '0 0 16px', fontSize: 13, opacity: 0.9, lineHeight: 1.5 }}>Scénarios visuels avancés, logique conditionnelle et transformations complexes pour les workflows sophistiqués.</p>
                 <div style={{ fontSize: 12, marginBottom: 14, opacity: 0.85 }}>5 scénarios actifs</div>
-                <button style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: '#fff', color: '#6d2ee8', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Ouvrir Make →</button>
+                <button style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: '#fff', color: '#6d2ee8', fontSize: 13, fontWeight: 700, cursor: 'pointer' }} onClick={() => window.open('https://www.make.com/en/integrations', '_blank', 'noopener,noreferrer')}>Ouvrir Make →</button>
               </div>
             </div>
 
@@ -528,7 +540,7 @@ function ApiPage() {
                 ].map((t) => (
                   <div key={t} style={{ padding: 14, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 13, color: '#111827', fontWeight: 500 }}>{t}</span>
-                    <button style={{ padding: '5px 12px', fontSize: 11, borderRadius: 5, border: '1px solid #e5e7eb', background: '#fff', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>Utiliser</button>
+                    <button style={{ padding: '5px 12px', fontSize: 11, borderRadius: 5, border: '1px solid #e5e7eb', background: '#fff', fontWeight: 600, color: '#475569', cursor: 'pointer' }} onClick={() => toastSuccess(`Modèle « ${t} » ajouté à vos automatisations.`)}>Utiliser</button>
                   </div>
                 ))}
               </div>

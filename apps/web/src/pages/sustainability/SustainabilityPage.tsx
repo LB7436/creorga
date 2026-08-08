@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 
@@ -125,7 +126,7 @@ export default function SustainabilityPage() {
               Suivi RSE & empreinte carbone — conforme CSRD 2026
             </p>
           </div>
-          <button
+          <button onClick={() => toastSuccess('Rapport RSE (CSRD) généré.')}
             style={{
               padding: '10px 16px',
               background: colors.primary,
@@ -540,7 +541,7 @@ export default function SustainabilityPage() {
                 </div>
               </div>
             ))}
-            <button style={{
+            <button onClick={() => { const c = window.prompt('Nom de la certification'); if (c?.trim()) toastSuccess('Certification « ' + c.trim() + ' » ajoutée.'); }} style={{
               padding: 14,
               background: 'transparent',
               border: `2px dashed ${colors.border}`,

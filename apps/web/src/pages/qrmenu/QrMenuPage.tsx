@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/stores/authStore'
@@ -958,7 +959,7 @@ export default function QrMenuPage() {
                           </div>
                         </div>
                         {allowOrdering && (
-                          <button style={{
+                          <button onClick={() => toastInfo('Article ajouté à la commande.')} style={{
                             width: 22, height: 22, borderRadius: 6,
                             background: accentColor, color: '#fff',
                             border: 'none', cursor: 'pointer',
@@ -978,7 +979,7 @@ export default function QrMenuPage() {
                   padding: 8, borderTop: '1px solid #f1f5f9',
                   position: 'relative', zIndex: 1, background: '#fff',
                 }}>
-                  <button style={{
+                  <button onClick={() => toastInfo('Panier vide — ajoutez un article avant de commander.')} style={{
                     width: '100%', padding: '8px', borderRadius: 8,
                     background: accentColor, color: '#fff', border: 'none',
                     fontSize: 10, fontWeight: 700, cursor: 'pointer',

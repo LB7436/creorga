@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -412,7 +413,7 @@ function CateringPage() {
                     </div>
                   )}
                 </div>
-                <button style={{ ...btnPrimary, justifyContent: 'center' }}>
+                <button onClick={() => toastSuccess('Devis traiteur envoyé au client.')} style={{ ...btnPrimary, justifyContent: 'center' }}>
                   <Send size={16} /> Envoyer le devis
                 </button>
               </div>
@@ -482,7 +483,7 @@ function CateringPage() {
                         <td style={td}>{o.menu}</td>
                         <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: C.purple }}>{o.amount.toLocaleString('fr-FR')} €</td>
                         <td style={td}><StatusBadge status={o.status} /></td>
-                        <td style={td}><button style={iconBtn}><ArrowRight size={14} /></button></td>
+                        <td style={td}><button aria-label="Voir le détail" onClick={() => toastInfo('Détail de la commande traiteur.')} style={iconBtn}><ArrowRight size={14} /></button></td>
                       </tr>
                     ))}
                   </tbody>

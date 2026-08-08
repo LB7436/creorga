@@ -116,6 +116,8 @@ export default function TachesPage() {
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'Tous'>('Tous');
   const [filterCategory, setFilterCategory] = useState<Category | 'Toutes'>('Toutes');
   const [addOpen, setAddOpen] = useState(false);
+  const [moisOffset, setMoisOffset] = useState(0);
+  const [recurrence, setRecurrence] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const freqMap: Record<TabKey, Frequency | 'ALL'> = {
@@ -644,10 +646,12 @@ export default function TachesPage() {
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-            <h2 style={{ fontSize: 17, fontWeight: 600, color: '#1e293b', margin: 0 }}>Avril 2026</h2>
+            <h2 style={{ fontSize: 17, fontWeight: 600, color: '#1e293b', margin: 0 }}>
+              {new Date(2026, 3 + moisOffset, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+            </h2>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button style={{ padding: '6px 12px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#64748b' }}>←</button>
-              <button style={{ padding: '6px 12px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#64748b' }}>→</button>
+              <button style={{ padding: '6px 12px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#64748b' }} onClick={() => setMoisOffset(v => v - 1)} aria-label="Mois précédent">←</button>
+              <button style={{ padding: '6px 12px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#64748b' }} onClick={() => setMoisOffset(v => v + 1)} aria-label="Mois suivant">→</button>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 10 }}>
@@ -906,6 +910,8 @@ export default function TachesPage() {
                   </label>
                   <input
                     placeholder="Ex : Tous les jours à 09:00, Chaque lundi"
+                    value={recurrence}
+                    onChange={(e) => setRecurrence(e.target.value)}
                     style={{
                       width: '100%',
                       padding: '11px 14px',
@@ -922,6 +928,7 @@ export default function TachesPage() {
                     {['Tous les jours à 09:00', 'Chaque lundi', 'Le 1er du mois', 'Après chaque service'].map((s) => (
                       <button
                         key={s}
+                        onClick={() => setRecurrence(s)}
                         style={{
                           padding: '5px 10px',
                           fontSize: 11.5,

@@ -138,7 +138,7 @@ export default function Checkout() {
     <div style={{ background: '#f8fafc', minHeight: '100%', padding: 24, color: '#0f172a' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
-          <button style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '8px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>← Retour</button>
+          <button onClick={() => window.history.back()} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '8px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>← Retour</button>
           <div>
             <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>Encaissement — Table 12</h1>
             <p style={{ margin: '3px 0 0', color: '#64748b', fontSize: 13 }}>{mockItems.reduce((a, i) => a + i.qty, 0)} articles · 4 couverts</p>

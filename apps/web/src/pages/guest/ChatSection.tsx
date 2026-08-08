@@ -557,7 +557,7 @@ export default function ChatSection({ onBack }: { onBack?: () => void }) {
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {channel === 'cafe' && (
-            <button style={iconBtn} aria-label="Partager une photo">
+            <button onClick={() => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.onchange = () => { if (i.files?.[0]) alert('Photo envoyée : ' + i.files[0].name); }; i.click(); }} style={iconBtn} aria-label="Partager une photo">
               <Paperclip size={18} />
             </button>
           )}

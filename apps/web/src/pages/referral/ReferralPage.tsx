@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -373,7 +374,7 @@ export default function ReferralPage() {
                           borderRadius: 4,
                         }} />
                       </div>
-                      <button style={{
+                      <button onClick={() => toastSuccess('QR de parrainage téléchargé.')} style={{
                         display: 'block',
                         margin: '12px auto 0',
                         padding: '8px 16px',

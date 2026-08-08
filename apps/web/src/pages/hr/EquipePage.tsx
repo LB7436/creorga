@@ -1,3 +1,4 @@
+import { toastInfo } from '@/lib/toast'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createPortal } from 'react-dom'
@@ -551,7 +552,7 @@ export default function EquipePage() {
                           <div style={{ fontSize: 11, color: '#94a3b8' }}>{doc.date}</div>
                         </div>
                       </div>
-                      <button style={{
+                      <button onClick={() => toastInfo('Fiche employé ouverte.')} style={{
                         background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', padding: 4,
                       }}>
                         <Download size={14} />

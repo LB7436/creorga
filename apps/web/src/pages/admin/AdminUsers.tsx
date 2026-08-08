@@ -1,3 +1,4 @@
+import { toastInfo } from '@/lib/toast'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
@@ -172,7 +173,7 @@ export default function AdminUsers() {
                     {sb.icon} {sb.label}
                   </span>
                 </div>
-                <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8', padding: 6 }}>
+                <button onClick={() => toastInfo('Fiche utilisateur ouverte.')} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8', padding: 6 }}>
                   <MoreVertical size={16} />
                 </button>
               </motion.div>

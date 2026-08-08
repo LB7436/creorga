@@ -1,3 +1,4 @@
+import { toastInfo } from '@/lib/toast'
 import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -347,7 +348,7 @@ export default function SettingsUsers() {
                         </span>
                       </td>
                       <td style={{ ...td, textAlign: 'right' }}>
-                        <button style={{ ...btnTiny, marginRight: 4 }}>
+                        <button onClick={() => toastInfo('Modification de l’utilisateur.')} style={{ ...btnTiny, marginRight: 4 }}>
                           <Edit3 size={13} />
                         </button>
                         <button

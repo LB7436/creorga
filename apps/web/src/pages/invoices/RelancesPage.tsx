@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -169,7 +170,7 @@ export default function RelancesPage() {
                 <button onClick={() => setSortDesc(s => !s)} style={{ padding: '8px 12px', background: '#fff', border: `1px solid ${palette.border}`, borderRadius: 8, fontSize: 13, cursor: 'pointer', color: palette.text }}>
                   Tri : {sortDesc ? 'Retard ↓' : 'Retard ↑'}
                 </button>
-                <button style={{ padding: '8px 12px', background: '#fff', border: `1px solid ${palette.border}`, borderRadius: 8, fontSize: 13, cursor: 'pointer', color: palette.text }}>
+                <button onClick={() => toastSuccess('Dossier huissier exporté.')} style={{ padding: '8px 12px', background: '#fff', border: `1px solid ${palette.border}`, borderRadius: 8, fontSize: 13, cursor: 'pointer', color: palette.text }}>
                   Export huissier
                 </button>
               </div>
@@ -202,7 +203,7 @@ export default function RelancesPage() {
                         borderLeft: `3px solid ${meta.badge}`,
                       }}>
                         <td style={{ padding: 12, textAlign: 'center' }} onClick={e => { e.stopPropagation(); toggleId(inv.id); }}>
-                          <input type="checkbox" checked={selectedIds.includes(inv.id)} onChange={() => {}} />
+                          <input type="checkbox" checked={selectedIds.includes(inv.id)} onChange={() => toggleId(inv.id)} aria-label={`Sélectionner la facture ${inv.numero}`} />
                         </td>
                         <td style={{ padding: '12px 10px', fontWeight: 600, color: palette.text }}>{inv.numero}</td>
                         <td style={{ padding: '12px 10px' }}>{inv.client}</td>

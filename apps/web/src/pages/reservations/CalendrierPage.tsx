@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createPortal } from 'react-dom'
@@ -750,7 +751,7 @@ function ReservationDetail({ reservation, onClose, onConfirm, onSendReminder }: 
                     <span style={{ color: C.text, fontWeight: 600 }}>Acompte : {r.depositAmount}€</span>
                   </div>
                   {!r.depositPaid && (
-                    <button style={{ ...btnBase, padding: '4px 10px', fontSize: 11, background: C.red, color: '#fff' }}>
+                    <button onClick={() => toastInfo('Encaissement de la réservation.')} style={{ ...btnBase, padding: '4px 10px', fontSize: 11, background: C.red, color: '#fff' }}>
                       Encaisser
                     </button>
                   )}

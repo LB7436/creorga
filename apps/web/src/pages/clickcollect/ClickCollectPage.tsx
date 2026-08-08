@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -204,7 +205,7 @@ function SlotsPanel() {
                 <div style={{ padding: '4px 10px', background: colors.bg, color: colors.fg, fontSize: 12, fontWeight: 700, borderRadius: 6 }}>{type}</div>
                 <div style={{ fontSize: 12, color: '#6b7280' }}>{slots.reduce((a, s) => a + s.booked, 0)} / {slots.reduce((a, s) => a + s.max, 0)} places réservées</div>
               </div>
-              <button style={{ padding: '6px 12px', background: '#0d9488', color: '#ffffff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>+ Nouveau créneau</button>
+              <button style={{ padding: '6px 12px', background: '#0d9488', color: '#ffffff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }} onClick={() => { const h = window.prompt('Heure du créneau (HH:MM)', '12:00'); if (h?.trim()) toastSuccess(`Créneau ${h.trim()} ouvert.`); }}>+ Nouveau créneau</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
               {slots.map(s => {
@@ -416,7 +417,7 @@ function ScheduledPanel() {
             <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>Commandes programmées</div>
             <div style={{ fontSize: 12, color: '#6b7280' }}>Réservation à l'avance jusqu'à 7 jours</div>
           </div>
-          <button style={{ padding: '8px 14px', background: '#0d9488', color: '#ffffff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Nouvelle commande</button>
+          <button style={{ padding: '8px 14px', background: '#0d9488', color: '#ffffff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }} onClick={() => { const c = window.prompt('Nom du client'); if (c?.trim()) toastSuccess(`Commande Click&Collect créée pour ${c.trim()}.`); }}>+ Nouvelle commande</button>
         </div>
         <div style={{ display: 'grid', gap: 10 }}>
           {scheduled.map((s, i) => (

@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -331,8 +332,8 @@ function LicencesPage() {
                 <div style={{ fontSize: 12, color: C.muted }}>Aperçu PDF (mock)</div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button style={{ flex: 1, background: C.amber, color: '#fff', border: 'none', padding: 10, borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}><Download size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />Télécharger</button>
-                <button style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, padding: 10, borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}><RefreshCw size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />Renouveler</button>
+                <button onClick={() => toastSuccess('Licence téléchargée.')} style={{ flex: 1, background: C.amber, color: '#fff', border: 'none', padding: 10, borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}><Download size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />Télécharger</button>
+                <button onClick={() => toastInfo('Demande de renouvellement transmise à l administration.')} style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, padding: 10, borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}><RefreshCw size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />Renouveler</button>
               </div>
             </motion.div>
           </motion.div>

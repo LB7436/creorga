@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -1211,7 +1212,7 @@ function AiAssistantPage() {
                       }}
                     >
                       <span>{i.time}</span>
-                      <button
+                      <button onClick={() => toastInfo('Exploration de la suggestion.')}
                         style={{
                           background: '#fff',
                           border: `1px solid ${C.border}`,

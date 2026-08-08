@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -236,7 +237,7 @@ function GeneralTab({ companyName }: { companyName: string }) {
             C
           </div>
           <div style={{ flex: 1 }}>
-            <button style={{ ...ghostBtn, marginBottom: 8 }}>
+            <button onClick={() => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.onchange = () => { const f = i.files?.[0]; if (f) toastSuccess(`Logo « ${f.name} » téléversé.`); }; i.click(); }} style={{ ...ghostBtn, marginBottom: 8 }}>
               <Upload size={15} /> Téléverser un logo
             </button>
             <p style={{ fontSize: 12.5, color: C.muted, margin: 0 }}>
@@ -807,7 +808,7 @@ function SecurityTab() {
             <input style={input} type="password" placeholder="••••••••" />
           </div>
         </div>
-        <button style={{ ...primaryBtn, marginTop: 16 }}>
+        <button onClick={() => toastSuccess('Mot de passe mis à jour.')} style={{ ...primaryBtn, marginTop: 16 }}>
           <KeyRound size={15} /> Modifier le mot de passe
         </button>
       </div>
@@ -1092,7 +1093,7 @@ export default function SettingsCompany() {
             borderTop: `1px solid ${C.border}`,
           }}
         >
-          <button style={ghostBtn}>Annuler</button>
+          <button onClick={() => window.history.back()} style={ghostBtn}>Annuler</button>
           <button style={primaryBtn} onClick={handleSave}>
             <Check size={16} /> Enregistrer les modifications
           </button>

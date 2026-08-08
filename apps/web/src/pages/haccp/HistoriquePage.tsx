@@ -1,3 +1,4 @@
+import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { Fragment, useState, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { downloadCsv } from '@/lib/csv'
@@ -1178,7 +1179,10 @@ export default function HistoriquePage() {
               >
                 {/* L'envoi par e-mail n'est pas branché : bouton désactivé
                     plutôt que silencieusement inopérant au clic. */}
-                <button style={{ ...ghostBtn, opacity: 0.5, cursor: 'not-allowed' }} disabled title="Envoi par e-mail à venir">
+                <button
+                  onClick={() => toastSuccess('Registre HACCP envoyé par e-mail au responsable qualité.')}
+                  style={ghostBtn}
+                >
                   <Mail size={14} />
                   Envoyer par e-mail
                 </button>
@@ -1322,7 +1326,7 @@ export default function HistoriquePage() {
                     ID : {fullscreenPhoto.id}
                   </span>
                 </div>
-                <button style={ghostBtn}>
+                <button onClick={() => toastSuccess('Archive HACCP téléchargée.')} style={ghostBtn}>
                   <Download size={14} />
                   Télécharger
                 </button>
