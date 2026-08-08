@@ -1,9 +1,16 @@
 import { Router } from 'express'
+import { safeReadJson, safeWriteJson } from '../lib/safe-json'
+import { dataPath } from '../middleware/audit-log'
+import logger from '../lib/logger'
 
 /**
  * Shared floor state — used by both 5174 (/pos/floor) and 5175 (POS standalone).
  * Single source of truth: tables + chairs + per-chair orders.
  * Both apps poll and PATCH the same endpoint.
+ *
+ * L'état vit sur DISQUE. Avant ce correctif il n'existait qu'en mémoire : le plan
+ * de salle déplacé, les chaises créées et surtout LES ADDITIONS EN COURS étaient
+ * perdus à chaque redémarrage du service.
  */
 
 export type TableStatus = 'LIBRE' | 'OCCUPEE' | 'RESERVEE' | 'NETTOYAGE'
@@ -97,7 +104,27 @@ const DEFAULT_STATE: FloorState = {
   updatedAt: Date.now(),
 }
 
-let state: FloorState = JSON.parse(JSON.stringify(DEFAULT_STATE))
+const FICHIER = 'floor-state.json'
+
+/** Relu au démarrage : on repart du plan de salle laissé par la dernière session. */
+let state: FloorState = safeReadJson<FloorState>(
+  dataPath(FICHIER),
+  JSON.parse(JSON.stringify(DEFAULT_STATE)),
+)
+
+/**
+ * Écrit l'état sur disque (atomique, avec .bak — cf. safe-json).
+ * Appelée après chaque mutation HTTP, et par les travaux de fond qui modifient
+ * l'état sans passer par le routeur (closeStaleFloorSessions).
+ * Un échec est journalisé, jamais avalé : une sauvegarde muette est un défaut.
+ */
+export function sauvegarderPlanDeSalle(): void {
+  try {
+    safeWriteJson(dataPath(FICHIER), state)
+  } catch (err) {
+    logger.error(`[floor-state] échec de la sauvegarde de ${FICHIER}`, err)
+  }
+}
 
 const router = Router()
 
@@ -107,6 +134,9 @@ const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 router.use((req, res, next) => {
   if (MUTATING.has(req.method)) {
     res.on('finish', () => {
+      // Persistance d'abord : la diffusion temps réel peut échouer sans
+      // conséquence, la perte du plan de salle non.
+      sauvegarderPlanDeSalle()
       try {
         const broadcast = (globalThis as any).liveBroadcast
         if (typeof broadcast === 'function') broadcast('floor', 'floor-updated', { updatedAt: state.updatedAt })

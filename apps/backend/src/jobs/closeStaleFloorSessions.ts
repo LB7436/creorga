@@ -15,7 +15,7 @@
 
 import fs from 'fs'
 import path from 'path'
-import { getFloorState } from '../routes/floorState'
+import { getFloorState, sauvegarderPlanDeSalle } from '../routes/floorState'
 
 const MAX_HOURS = Number(process.env.STALE_TABLE_MAX_HOURS) || 8
 const TICK_MS = 30 * 60 * 1000 // 30 min
@@ -70,6 +70,9 @@ export function startStaleSessionJanitor() {
         }
       }
       if (closedCount > 0) {
+        // Ce travail modifie l'état hors du routeur : il doit persister lui-même,
+        // sinon les fermetures automatiques seraient perdues au redémarrage.
+        sauvegarderPlanDeSalle()
         // eslint-disable-next-line no-console
         console.log(`[janitor] auto-closed ${closedCount} stale table session(s) (> ${MAX_HOURS}h)`)
       }
