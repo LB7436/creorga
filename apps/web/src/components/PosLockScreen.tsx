@@ -3,11 +3,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Lock, Delete } from 'lucide-react'
 
 /**
- * v4.7 — Verrouillage PIN du POS.
+ * v4.8 — Verrouillage PIN du POS, désormais OPT-IN.
  *
  * PIN hashé (SHA-256) stocké dans localStorage — jamais en clair.
- * Premier lancement : définition du PIN. Auto-lock après 5 min d'inactivité
- * sur les routes /pos uniquement (contrôlé par le parent via `active`).
+ * v4.7 imposait la définition d'un PIN au premier accès (fenêtre impossible à
+ * fermer) et verrouillait après 5 min d'inactivité : en démonstration, cinq
+ * minutes de discussion suffisaient à verrouiller l'écran. Décision Bryan du
+ * 8 août : AUCUN PIN par défaut. Tant qu'aucun PIN n'existe, rien ne s'affiche
+ * et rien ne se verrouille ; si un PIN a été défini un jour (via le bouton de
+ * verrouillage manuel), le comportement d'origine reprend.
  */
 
 const PIN_KEY = 'creorga.pos.pin'
@@ -28,6 +32,11 @@ export function usePosAutoLock(active: boolean) {
     const rearm = () => {
       window.clearTimeout(timer)
       timer = window.setTimeout(() => {
+        // Sans PIN défini, aucun auto-verrouillage : verrouiller sans moyen
+        // de déverrouiller reviendrait à imposer la création d'un PIN.
+        let hasPin = false
+        try { hasPin = !!localStorage.getItem(PIN_KEY) } catch { /* */ }
+        if (!hasPin) return
         try { localStorage.setItem(LOCK_KEY, '1') } catch { /* */ }
         window.dispatchEvent(new Event('creorga:pos-lock'))
       }, AUTO_LOCK_MS)
@@ -111,8 +120,11 @@ export default function PosLockScreen({ active }: { active: boolean }) {
     }
   }, [entry, hasPin])
 
+  // Tant que rien n'est verrouillé, rien ne s'affiche — y compris au premier
+  // lancement : l'écran « Définir un PIN » ne s'impose plus jamais tout seul.
+  // Il n'apparaît que si l'utilisateur clique lui-même le cadenas (lockPos).
   if (!active || hasPin === null) return null
-  if (!locked && hasPin) return null
+  if (!locked) return null
 
   const digit = (d: string) => {
     if (!hasPin) {
@@ -171,6 +183,21 @@ export default function PosLockScreen({ active }: { active: boolean }) {
             <button onClick={() => digit('0')} style={keyStyle}>0</button>
             <button onClick={backspace} style={keyStyle}><Delete size={18} /></button>
           </div>
+          {!hasPin && (
+            <button
+              onClick={() => {
+                try { localStorage.removeItem(LOCK_KEY) } catch { /* */ }
+                setSetupEntry('')
+                setLocked(false)
+              }}
+              style={{
+                marginTop: 16, width: '100%', padding: '10px 0', borderRadius: 12,
+                border: '1px solid rgba(148,163,184,0.25)', background: 'transparent',
+                color: '#94a3b8', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              }}>
+              Continuer sans PIN
+            </button>
+          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>

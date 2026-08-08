@@ -282,6 +282,7 @@ export default function ModuleSelector() {
   const usageStats = useModuleUXStore((s) => s.usageStats)
   const pinnedModules = useModuleUXStore((s) => s.pinnedModules)
   const viewMode = useModuleUXStore((s) => s.viewMode)
+  const setViewMode = useModuleUXStore((s) => s.setViewMode)
   const recordModuleOpen = useModuleUXStore((s) => s.recordModuleOpen)
   const togglePin = useModuleUXStore((s) => s.togglePin)
 
@@ -654,6 +655,46 @@ export default function ModuleSelector() {
           )
         })}
       </motion.div>
+
+      {/* ── bannière de filtre actif ──
+          Le mode « Vue Service » ne montre que 5 modules et le mode « Vue
+          Admin » 6 : sans indication, on croit que les autres ont disparu
+          (vécu le 8 août — « il ne montre que 5 modules maintenant »). Tant
+          qu'une vue ou un masquage réduit la liste, on l'affiche noir sur
+          blanc avec le moyen d'en sortir. */}
+      {(viewMode !== 'all' || MODULES.some((m) => moduleConfig[m.id]?.displayMode === 'hidden')) && (
+        <div
+          style={{
+            maxWidth: 960, margin: '0 auto 18px', padding: '12px 18px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 12, flexWrap: 'wrap', borderRadius: 14,
+            border: '1px solid rgba(245,158,11,0.45)',
+            background: 'rgba(245,158,11,0.10)', color: '#fcd34d',
+            position: 'relative', zIndex: 10, fontSize: 13, fontWeight: 600,
+          }}
+        >
+          <span>
+            {viewMode !== 'all'
+              ? `Vue « ${viewMode === 'service' ? 'Service' : 'Admin'} » active — ${MODULES.length - filteredModules.length} module(s) masqué(s) par cette vue.`
+              : `${MODULES.filter((m) => moduleConfig[m.id]?.displayMode === 'hidden').length} module(s) masqué(s) dans les réglages.`}
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {viewMode !== 'all' && (
+              <button
+                onClick={() => setViewMode('all')}
+                style={{
+                  padding: '7px 16px', borderRadius: 10, cursor: 'pointer',
+                  border: '1px solid rgba(245,158,11,0.6)',
+                  background: 'rgba(245,158,11,0.2)', color: '#fde68a',
+                  fontSize: 13, fontWeight: 700,
+                }}
+              >
+                Tout afficher
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── module grid ── */}
       <div

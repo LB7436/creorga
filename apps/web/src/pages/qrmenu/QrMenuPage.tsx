@@ -213,6 +213,111 @@ export default function QrMenuPage() {
   const qrPixelSize = qrSize === 'S' ? 100 : qrSize === 'M' ? 200 : 400
   const fullUrl = `${customSlug}.creorga.lu/menu`
 
+  // ── Export du QR et impression du poster ──
+  // v4.8 : ces quatre boutons (PNG / SVG / PDF / Imprimer poster A4) n'avaient
+  // AUCUN onClick — décoratifs. Tout se fait côté navigateur, sans dépendance :
+  // le QR est un SVG, on le sérialise pour le SVG, on le peint sur un canvas
+  // pour le PNG, et on imprime un poster HTML pour le PDF (« Enregistrer au
+  // format PDF » dans la boîte d'impression du navigateur).
+  const qrBoxRef = useRef<HTMLDivElement>(null)
+
+  const svgDuQr = (): string | null => {
+    const svg = qrBoxRef.current?.querySelector('svg')
+    if (!svg) return null
+    const clone = svg.cloneNode(true) as SVGElement
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    return new XMLSerializer().serializeToString(clone)
+  }
+
+  const telecharger = (href: string, nomFichier: string) => {
+    const a = document.createElement('a')
+    a.href = href
+    a.download = nomFichier
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  }
+
+  const exporterSvg = () => {
+    const svg = svgDuQr()
+    if (!svg) { alert("QR indisponible pour l'export."); return }
+    const blob = new Blob([svg], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(blob)
+    telecharger(url, `qr-${customSlug}.svg`)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  const exporterPng = () => {
+    const svg = svgDuQr()
+    if (!svg) { alert("QR indisponible pour l'export."); return }
+    const cote = qrPixelSize < 400 ? 800 : qrPixelSize // toujours net à l'impression
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = cote; canvas.height = cote
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cote, cote)
+      ctx.drawImage(img, 0, 0, cote, cote)
+      telecharger(canvas.toDataURL('image/png'), `qr-${customSlug}.png`)
+    }
+    img.onerror = () => alert('Conversion PNG impossible.')
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)))
+  }
+
+  const echapper = (s: string) =>
+    s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
+
+  // Poster A4 = QR géant + nom + adresse + la vraie carte. Rendu dans une iframe
+  // cachée via srcdoc (jamais document.write) ; le navigateur imprime l'iframe,
+  // où « Enregistrer au format PDF » est proposé.
+  const imprimerPoster = () => {
+    const svg = svgDuQr()
+    if (!svg) { alert('QR indisponible.'); return }
+    const svgUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)))
+    const carte = MENU_CATEGORIES.map((c) => {
+      const plats = (MENU_ITEMS[c.id] || [])
+        .map((p) => `<tr><td>${echapper(p.name)}</td><td class="px">${p.price.toFixed(2)} &euro;</td></tr>`)
+        .join('')
+      return `<div class="cat"><h3>${echapper(c.emoji + ' ' + c.label)}</h3><table>${plats}</table></div>`
+    }).join('')
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Poster ${echapper(restaurantName)}</title>
+      <style>
+        @page { size: A4; margin: 14mm; }
+        * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+        body { color: #0f172a; margin: 0; }
+        .entete { text-align: center; margin-bottom: 20px; }
+        .entete h1 { font-size: 30px; margin: 0 0 4px; color: ${accentColor}; }
+        .entete p { font-size: 14px; color: #64748b; margin: 0; }
+        .qr { display: block; margin: 10px auto 6px; width: 300px; height: 300px; border: 6px solid ${accentColor}; border-radius: 18px; padding: 10px; }
+        .url { text-align: center; font-size: 16px; font-weight: 700; color: ${accentColor}; margin-bottom: 18px; }
+        .cat { break-inside: avoid; margin-bottom: 14px; }
+        .cat h3 { font-size: 16px; border-bottom: 2px solid ${accentColor}; padding-bottom: 4px; margin: 0 0 6px; }
+        table { width: 100%; border-collapse: collapse; }
+        td { font-size: 13px; padding: 3px 0; border-bottom: 1px dotted #e2e8f0; }
+        .px { text-align: right; font-weight: 700; white-space: nowrap; }
+      </style></head><body>
+      <div class="entete"><h1>${echapper(restaurantName)}</h1><p>Scannez pour d&eacute;couvrir notre carte</p></div>
+      <img class="qr" src="${svgUrl}" alt="QR menu" />
+      <div class="url">${echapper(fullUrl)}</div>
+      ${carte}
+      </body></html>`
+
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('aria-hidden', 'true')
+    Object.assign(iframe.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0' })
+    iframe.srcdoc = html
+    iframe.onload = () => {
+      const win = iframe.contentWindow
+      if (!win) return
+      win.focus()
+      win.print()
+      setTimeout(() => iframe.remove(), 1500)
+    }
+    document.body.appendChild(iframe)
+  }
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -578,11 +683,13 @@ export default function QrMenuPage() {
               boxShadow: `0 12px 40px ${accentColor}33`,
             }}
           >
-            <QrSvg
-              seed={fullUrl + accentColor}
-              size={Math.min(qrPixelSize, 260)}
-              fg={accentColor}
-            />
+            <div ref={qrBoxRef}>
+              <QrSvg
+                seed={fullUrl + accentColor}
+                size={Math.min(qrPixelSize, 260)}
+                fg={accentColor}
+              />
+            </div>
           </motion.div>
 
           {/* Size selector */}
@@ -619,6 +726,7 @@ export default function QrMenuPage() {
                   key={fmt}
                   whileHover={{ y: -1 }}
                   whileTap={{ scale: 0.97 }}
+                  onClick={fmt === 'PNG' ? exporterPng : fmt === 'SVG' ? exporterSvg : imprimerPoster}
                   style={{
                     padding: '10px 8px', borderRadius: 10,
                     background: '#f8fafc', border: '1px solid #e2e8f0',
@@ -643,6 +751,7 @@ export default function QrMenuPage() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 boxShadow: `0 6px 16px ${accentColor}4d`,
               }}
+              onClick={imprimerPoster}
             >
               <Printer size={15} />
               Imprimer poster A4
