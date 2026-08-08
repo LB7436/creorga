@@ -114,9 +114,13 @@ function gameMiniatureKind(game: GuestGameDef) {
 }
 
 function loadPlayMode(): PlayMode {
-  if (typeof window === 'undefined') return 'ensemble'
+  // Défaut « solo » et non « ensemble » : un client qui vient de scanner le QR
+  // tombait sur le mode à plusieurs, qui exige une inscription, et voyait donc
+  // « S'inscrire et jouer » au lieu de pouvoir lancer la partie tout de suite.
+  // Son choix reste mémorisé s'il en fait un.
+  if (typeof window === 'undefined') return 'solo'
   const saved = window.localStorage.getItem(PLAY_MODE_KEY)
-  return PLAY_MODES.some((item) => item.id === saved) ? saved as PlayMode : 'ensemble'
+  return PLAY_MODES.some((item) => item.id === saved) ? saved as PlayMode : 'solo'
 }
 
 function savePlayMode(mode: PlayMode) {
@@ -135,8 +139,17 @@ function savePlayDifficulty(value: GameDifficulty) {
   return value
 }
 
-function gameRequiresProfile(game: GuestGameDef, mode: PlayMode) {
-  return mode !== 'solo' || game.categories.includes('multi') || game.categories.includes('casino') || game.hot || game.new
+function gameRequiresProfile(_game: GuestGameDef, mode: PlayMode) {
+  // Seuls les modes à plusieurs exigent une identité — c'est exactement ce que
+  // l'écran annonce : « inscription requise pour les records, tournois,
+  // invitations et succès ». En SOLO, un client qui vient de scanner le QR
+  // doit pouvoir jouer immédiatement.
+  //
+  // L'ancienne règle ajoutait `game.hot || game.new` et les catégories
+  // `multi`/`casino` : un jeu simplement marqué « nouveau » devenait
+  // injouable sans compte. Mesuré le 8 août : 25 des 43 jeux du catalogue
+  // étaient bloqués en solo, dont « Petits Chevaux 3D » (marqué `new`).
+  return mode !== 'solo'
 }
 
 /** lazy + .preload branché : le préchargement au clic fonctionne pour tous les jeux. */
