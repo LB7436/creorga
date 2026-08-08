@@ -4,6 +4,8 @@ import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
+import { downloadCsv } from '../../lib/csv';
+import { imprimerHtml, tableauHtml, echapperHtml } from '../../lib/impression';
 
 type Period = '7j' | '30j' | '90j' | '1an';
 
@@ -112,6 +114,45 @@ export default function StatsPage() {
 
   const maxHeat = Math.max(...heatmap.flatMap(r => r.hours));
 
+  // Un seul fichier récapitulatif plutôt que quatre exports séparés : les blocs
+  // sont empilés et séparés par une ligne vide, ce qu'Excel affiche sans broncher.
+  const lignesRapport = (): Array<Array<string | number>> => [
+    ['Note moyenne par mois', '', ''],
+    ['Mois', 'Note', 'Tendance'],
+    ...monthlyRating.map(m => [m.mois, m.note, m.trend]),
+    ['', '', ''],
+    ['Volume d\'avis par mois', '', ''],
+    ['Mois', 'Avis', ''],
+    ...monthlyVolume.map(m => [m.mois, m.avis, '']),
+    ['', '', ''],
+    ['Répartition par plateforme', '', ''],
+    ['Plateforme', 'Avis', ''],
+    ...platforms.map(p => [p.name, p.value, '']),
+    ['', '', ''],
+    ['Répartition par note', '', ''],
+    ['Étoiles', 'Nombre', ''],
+    ...ratingBars.map(r => [r.stars, r.count, '']),
+    ['', '', ''],
+    ['Concurrents', '', ''],
+    ['Établissement', 'Note', 'Avis'],
+    ...competitors.map(c => [c.nom, c.note, c.avis]),
+  ];
+
+  const exporterCsv = () => {
+    downloadCsv(`e-reputation-${period}.csv`, ['Libellé', 'Valeur', 'Complément'], lignesRapport());
+  };
+
+  const exporterPdf = () => {
+    // Pas de bibliothèque PDF embarquée : on ouvre la boîte d'impression du
+    // navigateur, dont « Enregistrer au format PDF » produit le fichier.
+    imprimerHtml(
+      `Statistiques e-réputation — ${period}`,
+      `<h1>Statistiques e-réputation</h1>
+       <p>Période analysée : ${echapperHtml(period)}</p>
+       ${tableauHtml(['Libellé', 'Valeur', 'Complément'], lignesRapport(), [1, 2])}`,
+    );
+  };
+
   return (
     <div style={{ padding: 32, background: '#f8fafc', minHeight: '100vh' }}>
       <motion.div
@@ -127,14 +168,20 @@ export default function StatsPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button style={{
-            padding: '10px 16px', borderRadius: 10, border: '1px solid #e2e8f0',
-            background: '#fff', color: '#1e293b', fontWeight: 500, cursor: 'pointer',
-          }}>Export CSV</button>
-          <button style={{
-            padding: '10px 16px', borderRadius: 10, border: 'none',
-            background: '#1e293b', color: '#fff', fontWeight: 500, cursor: 'pointer',
-          }}>Export PDF</button>
+          <button
+            onClick={exporterCsv}
+            style={{
+              padding: '10px 16px', borderRadius: 10, border: '1px solid #e2e8f0',
+              background: '#fff', color: '#1e293b', fontWeight: 500, cursor: 'pointer',
+            }}
+          >Export CSV</button>
+          <button
+            onClick={exporterPdf}
+            style={{
+              padding: '10px 16px', borderRadius: 10, border: 'none',
+              background: '#1e293b', color: '#fff', fontWeight: 500, cursor: 'pointer',
+            }}
+          >Export PDF</button>
         </div>
       </motion.div>
 

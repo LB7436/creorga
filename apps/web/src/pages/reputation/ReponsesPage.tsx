@@ -172,6 +172,9 @@ export default function ReponsesPage() {
   const [comments, setComments] = useState<Record<number, string[]>>({});
   const [newComment, setNewComment] = useState<Record<number, string>>({});
   const [generatingId, setGeneratingId] = useState<number | null>(null);
+  // Décision du manager sur les réponses soumises à validation. Les trois
+  // boutons (Approuver / Renvoyer / Refuser) n'avaient aucun état à écrire.
+  const [approbations, setApprobations] = useState<Record<number, 'approuve' | 'renvoye' | 'refuse'>>({});
 
   const totalPending = useMemo(() => pendingReviews.filter(r => !handled[r.id]).length, [handled]);
 
@@ -575,14 +578,31 @@ export default function ReponsesPage() {
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{r.author} · {renderStars(r.stars)}</div>
                         <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{r.platform} · {r.date}</div>
                       </div>
-                      <span style={{ fontSize: 11, fontWeight: 700, background: '#b45309', color: '#fff', padding: '3px 8px', borderRadius: 6 }}>À valider</span>
+                      {(() => {
+                        const d = approbations[r.id];
+                        const badge = d === 'approuve' ? { t: 'Approuvée', bg: '#047857' }
+                          : d === 'renvoye' ? { t: 'Renvoyée à l\'auteur', bg: '#1d4ed8' }
+                          : d === 'refuse' ? { t: 'Refusée', bg: '#b91c1c' }
+                          : { t: 'À valider', bg: '#b45309' };
+                        return <span style={{ fontSize: 11, fontWeight: 700, background: badge.bg, color: '#fff', padding: '3px 8px', borderRadius: 6 }}>{badge.t}</span>;
+                      })()}
                     </div>
                     <p style={{ fontSize: 12, color: '#78350f', margin: '8px 0 0', lineHeight: 1.4 }}>{r.comment.slice(0, 120)}...</p>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                      <button style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Approuver</button>
-                      <button style={{ flex: 1, background: '#fff', color: '#475569', border: '1px solid #cbd5e1', padding: '7px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Renvoyer</button>
-                      <button style={{ background: 'transparent', color: '#b91c1c', border: 'none', padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Refuser</button>
-                    </div>
+                    {approbations[r.id] ? (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
+                        <span style={{ fontSize: 12, color: '#78350f' }}>Décision enregistrée.</span>
+                        <button
+                          onClick={() => setApprobations(a => { const s = { ...a }; delete s[r.id]; return s; })}
+                          style={{ background: 'transparent', color: '#78350f', border: '1px solid #fde68a', padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                        >Annuler</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                        <button onClick={() => setApprobations(a => ({ ...a, [r.id]: 'approuve' }))} style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Approuver</button>
+                        <button onClick={() => setApprobations(a => ({ ...a, [r.id]: 'renvoye' }))} style={{ flex: 1, background: '#fff', color: '#475569', border: '1px solid #cbd5e1', padding: '7px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Renvoyer</button>
+                        <button onClick={() => setApprobations(a => ({ ...a, [r.id]: 'refuse' }))} style={{ background: 'transparent', color: '#b91c1c', border: 'none', padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Refuser</button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -604,7 +624,7 @@ export default function ReponsesPage() {
                         <div style={{ fontSize: 14, fontWeight: 700, color: sev.c }}>{p.issue}</div>
                         <div style={{ fontSize: 12, color: sev.c, marginTop: 4 }}>Mentionné <strong>{p.count} fois</strong> dans les 30 derniers jours · Tendance {p.trend}</div>
                       </div>
-                      <button style={{ background: sev.c, color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Voir les avis concernés</button>
+                      <button onClick={() => setTab('inbox')} style={{ background: sev.c, color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Voir les avis concernés</button>
                     </div>
                     <div style={{ marginTop: 10, padding: 10, background: '#fff', borderRadius: 8, fontSize: 12, color: '#334155', lineHeight: 1.5, fontStyle: 'italic' }}>
                       Auto-excuse suggérée : "Nous comprenons votre frustration concernant {p.issue.toLowerCase()}. C'est un point que nous travaillons activement — travaux en cours, partenariat en place..."

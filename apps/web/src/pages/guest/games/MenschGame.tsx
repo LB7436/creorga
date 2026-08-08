@@ -443,16 +443,34 @@ export default function MenschGame() {
             <div style={{ minWidth: 0 }}>
               <strong style={{ color: TEXT, display: 'block', fontSize: 13 }}>{state.message}</strong>
               <span style={{ color: MUTED, fontSize: 11 }}>
-                Appuyez sur le de 3D, puis touchez un pion lumineux quand un mouvement est possible.
+                Appuyez sur le de 3D, puis touchez un pion lumineux — ou utilisez les boutons ci-dessous.
               </span>
             </div>
           </div>
 
-          <div style={hiddenActionsStyle} aria-hidden={false}>
-            {current.pieces.map((piece, index) => canMove(state, piece, state.current) && (
-              <button key={piece.id} aria-label={`Jouer le pion ${index + 1}`} onClick={() => move(index)} />
-            ))}
-          </div>
+          {/*
+            Repli indispensable, pas un confort : une fois le de lance, il se
+            desactive jusqu'au deplacement, et le seul autre moyen d'agir etait de
+            toucher un pion en 3D (raycast sur un modele d'environ 24 px de large).
+            Si le doigt rate sur tablette, la partie restait bloquee sans issue.
+            Ces boutons existaient deja mais en style « hiddenActions »: invisibles
+            et sans libelle, donc inutilisables par le client.
+          */}
+          {state.rolled && !botTurn && state.winner === null && (
+            <div style={pieceFallbackStyle}>
+              {current.pieces.map((piece, index) => canMove(state, piece, state.current) && (
+                <button
+                  key={piece.id}
+                  type="button"
+                  aria-label={`Jouer le pion ${index + 1}`}
+                  onClick={() => move(index)}
+                  style={pieceFallbackButtonStyle}
+                >
+                  Pion {index + 1}
+                </button>
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
@@ -1374,13 +1392,30 @@ const rulesBoxStyle: CSSProperties = {
   lineHeight: 1.3,
 }
 
-const hiddenActionsStyle: CSSProperties = {
+// Remplace l'ancien « hiddenActionsStyle » (hors ecran, sans libelle): le repli
+// clavier/tactile doit etre visible, sinon il ne depanne personne.
+const pieceFallbackStyle: CSSProperties = {
   position: 'absolute',
-  width: 1,
-  height: 1,
-  overflow: 'hidden',
-  left: -10000,
-  top: 'auto',
+  left: 16,
+  bottom: 'max(152px, calc(env(safe-area-inset-bottom) + 76px))',
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 8,
+  zIndex: 6,
+  maxWidth: 'min(620px, calc(100% - 116px))',
+}
+
+const pieceFallbackButtonStyle: CSSProperties = {
+  padding: '8px 14px',
+  borderRadius: 12,
+  border: '1px solid rgba(255,255,255,0.22)',
+  background: 'rgba(15,23,42,0.72)',
+  backdropFilter: 'blur(12px)',
+  color: TEXT,
+  fontSize: 12,
+  fontWeight: 800,
+  cursor: 'pointer',
+  minHeight: 40,
 }
 
 const responsiveStyle = `

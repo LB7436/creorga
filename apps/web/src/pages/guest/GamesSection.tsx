@@ -139,17 +139,24 @@ function savePlayDifficulty(value: GameDifficulty) {
   return value
 }
 
-function gameRequiresProfile(_game: GuestGameDef, mode: PlayMode) {
-  // Seuls les modes à plusieurs exigent une identité — c'est exactement ce que
-  // l'écran annonce : « inscription requise pour les records, tournois,
-  // invitations et succès ». En SOLO, un client qui vient de scanner le QR
-  // doit pouvoir jouer immédiatement.
-  //
-  // L'ancienne règle ajoutait `game.hot || game.new` et les catégories
-  // `multi`/`casino` : un jeu simplement marqué « nouveau » devenait
-  // injouable sans compte. Mesuré le 8 août : 25 des 43 jeux du catalogue
-  // étaient bloqués en solo, dont « Petits Chevaux 3D » (marqué `new`).
-  return mode !== 'solo'
+/**
+ * L'inscription n'est JAMAIS bloquante : elle est seulement conseillée quand le
+ * mode choisi produit des records nominatifs.
+ *
+ * Historique du défaut — corrigé en deux temps :
+ *  1. L'ancienne règle bloquait aussi les catégories `multi`/`casino` et les
+ *     jeux marqués `hot`/`new` : 25 des 43 jeux étaient injouables sans compte.
+ *  2. Il restait un mur sur tous les modes autres que « solo ». Or la carte
+ *     annonce « 2 joueurs » pour Petits Chevaux : le client choisit
+ *     naturellement « Ensemble », et le bouton devenait « S'inscrire et jouer »
+ *     — la partie ne démarrait jamais. Vérifié le 8 août sur la production.
+ *
+ * « Ensemble » se joue à plusieurs sur la MÊME tablette : aucune identité n'est
+ * nécessaire. Pour « Individuel » et « Tournoi », le profil sert à nommer les
+ * scores — on le propose, on ne l'impose pas.
+ */
+function profileRecommande(mode: PlayMode) {
+  return mode === 'individuel' || mode === 'tournoi'
 }
 
 /** lazy + .preload branché : le préchargement au clic fonctionne pour tous les jeux. */
@@ -911,8 +918,7 @@ function GameLaunchDialog({
   onNeedProfile: () => void
 }) {
   if (!game) return null
-  const requiresProfile = gameRequiresProfile(game, mode)
-  const canStart = !requiresProfile || Boolean(profile)
+  const inscriptionConseillee = profileRecommande(mode) && !profile
   return (
     <AnimatePresence>
       <motion.div
@@ -1015,28 +1021,38 @@ function GameLaunchDialog({
               Joueur: {profile ? guestDisplayName(profile) : 'non inscrit'}
             </p>
             <p className="text-[10px] mt-1" style={{ color: ui.muted }}>
-              {requiresProfile
-                ? 'Inscription requise pour les records, tournois, invitations et succes.'
+              {inscriptionConseillee
+                ? 'Jouable sans compte. Un profil sert seulement a nommer les scores du classement.'
                 : 'Ce jeu peut se lancer sans compte. Le profil garde quand meme vos records.'}
             </p>
           </div>
 
           <button
             disabled={starting}
-            onClick={canStart ? onStart : onNeedProfile}
+            onClick={onStart}
             className="w-full rounded-xl py-3 text-sm font-black"
             style={{
               border: 'none',
-              background: starting
-                ? 'linear-gradient(135deg, #475569, #334155)'
-                : canStart ? ui.accent : 'linear-gradient(135deg, #06b6d4, #2563eb)',
+              background: starting ? 'linear-gradient(135deg, #475569, #334155)' : ui.accent,
               color: '#fff',
               boxShadow: `0 12px 28px ${ui.accent}33`,
               opacity: starting ? 0.78 : 1,
             }}
           >
-            {starting ? 'Preparation du jeu...' : canStart ? 'Lancer la partie' : "S'inscrire et jouer"}
+            {starting ? 'Preparation du jeu...' : 'Lancer la partie'}
           </button>
+
+          {/* L'inscription reste accessible, mais elle ne barre plus le passage. */}
+          {inscriptionConseillee && (
+            <button
+              disabled={starting}
+              onClick={onNeedProfile}
+              className="w-full rounded-xl py-2 text-[11px] font-bold mt-2"
+              style={{ background: 'transparent', border: `1px solid ${ui.border}`, color: ui.muted }}
+            >
+              S'inscrire pour apparaitre au classement
+            </button>
+          )}
         </div>
       </motion.div>
     </AnimatePresence>
@@ -1213,10 +1229,6 @@ export default function GamesSection() {
   const confirmLaunch = async (profile: GuestClientProfile | null = guestClient) => {
     if (!launchGame) return
     const game = launchGame
-    if (gameRequiresProfile(game, launchMode) && !profile) {
-      setRegistrationOpen(true)
-      return
-    }
     setLaunchingGameId(game.id)
     try {
       await GAME_COMPONENTS[game.id]?.preload?.()
@@ -1237,7 +1249,13 @@ export default function GamesSection() {
 
   const toggleFavorite = (gameId: string) => setProgress(toggleGameFavorite(gameId))
 
-  const active = activeGame ? visibleGames.find((game) => game.id === activeGame) : null
+  // Résolu sur le catalogue complet, pas sur `visibleGames` : la config du
+  // portail est re-sondée toutes les 2,5 s, et si l'exploitant restreint la
+  // liste des jeux pendant qu'un client joue, `visibleGames` rétrécit — la
+  // partie en cours disparaissait alors sans message, renvoyant au catalogue.
+  // Une partie lancée doit aller à son terme ; le filtrage ne concerne que
+  // l'accès au catalogue.
+  const active = activeGame ? GUEST_GAMES.find((game) => game.id === activeGame) : null
   if (active && sessionStartedAt) {
     return (
       <ActiveGameView

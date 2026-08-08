@@ -6,6 +6,7 @@ import {
   AlertTriangle, TrendingUp, CheckCircle2, XCircle, Calendar,
   MapPin, Camera, Plus, ChevronLeft, ChevronRight, FileDown, X,
 } from 'lucide-react'
+import { downloadCsv } from '../../lib/csv'
 
 // ── Types ────────────────────────────────────────────────────────────────
 type PointageStatus = 'pointe' | 'non_pointe' | 'pause'
@@ -104,7 +105,11 @@ function Avatar({ initials, color, size = 40 }: { initials: string; color: strin
 }
 
 // ── En cours tab ─────────────────────────────────────────────────────────
-function EnCoursTab({ employees, tick }: { employees: Employee[]; tick: number }) {
+function EnCoursTab({ employees, tick, onPointer }: {
+  employees: Employee[]
+  tick: number
+  onPointer: (id: string, action: 'entree' | 'pause' | 'sortie' | 'reprendre') => void
+}) {
   function elapsedFrom(time: string | null): string {
     if (!time) return '—'
     const [h, m] = time.split(':').map(Number)
@@ -182,16 +187,16 @@ function EnCoursTab({ employees, tick }: { employees: Employee[]; tick: number }
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
             {e.status === 'non_pointe' && (
-              <button style={actionBtn('#16a34a', true)}><LogIn size={13} /> Entrée</button>
+              <button onClick={() => onPointer(e.id, 'entree')} style={actionBtn('#16a34a', true)}><LogIn size={13} /> Entrée</button>
             )}
             {e.status === 'pointe' && (
               <>
-                <button style={actionBtn('#f59e0b')}><Coffee size={13} /> Pause</button>
-                <button style={actionBtn('#dc2626')}><LogOut size={13} /> Sortie</button>
+                <button onClick={() => onPointer(e.id, 'pause')} style={actionBtn('#f59e0b')}><Coffee size={13} /> Pause</button>
+                <button onClick={() => onPointer(e.id, 'sortie')} style={actionBtn('#dc2626')}><LogOut size={13} /> Sortie</button>
               </>
             )}
             {e.status === 'pause' && (
-              <button style={actionBtn('#16a34a', true)}><Play size={13} /> Reprendre</button>
+              <button onClick={() => onPointer(e.id, 'reprendre')} style={actionBtn('#16a34a', true)}><Play size={13} /> Reprendre</button>
             )}
           </div>
         </motion.div>
@@ -236,12 +241,19 @@ function HistoriqueTab({ onSelect }: { onSelect: (h: HistoryEntry) => void }) {
           <div style={labelStyle}>Recherche</div>
           <input placeholder="Nom d'employé" value={filter} onChange={e => setFilter(e.target.value)} style={inputStyle} />
         </div>
-        <button style={{
-          display: 'inline-flex', alignItems: 'center', gap: 7,
-          padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
-          border: '1px solid #991B1B40', background: '#991B1B12', color: '#991B1B',
-          fontSize: 13, fontWeight: 700,
-        }}>
+        <button
+          onClick={() => downloadCsv(
+            `pointages-${from}-au-${to}.csv`,
+            ['Date', 'Employé', 'Arrivée', 'Sortie', 'Pause (min)', 'Heures travaillées', 'Heures supp.', 'Validé par', 'Lieu'],
+            filtered.map(h => [h.date, h.employeeName, h.clockIn, h.clockOut, h.pauseMinutes, h.workedHours, h.overtimeHours, h.validatedBy, h.location]),
+          )}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
+            border: '1px solid #991B1B40', background: '#991B1B12', color: '#991B1B',
+            fontSize: 13, fontWeight: 700,
+          }}
+        >
           <Download size={14} /> Export CSV
         </button>
       </div>
@@ -314,12 +326,24 @@ function ResumeHebdoTab() {
         </div>
         <button onClick={() => setWeekOffset(v => v + 1)} style={navBtn}><ChevronRight size={16} /></button>
         <div style={{ flex: 1 }} />
-        <button style={{
-          display: 'inline-flex', alignItems: 'center', gap: 7,
-          padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
-          border: '1px solid #991B1B40', background: '#991B1B12', color: '#991B1B',
-          fontSize: 13, fontWeight: 700,
-        }}>
+        <button
+          onClick={() => downloadCsv(
+            `fiduciaire-semaine${weekOffset === 0 ? '-courante' : weekOffset > 0 ? `+${weekOffset}` : weekOffset}.csv`,
+            ['Employé', 'Rôle', ...days, 'Total semaine'],
+            data.map(e => [
+              e.name,
+              e.role,
+              ...e.daily,
+              +e.daily.reduce((a: number, v: number) => a + v, 0).toFixed(2),
+            ]),
+          )}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
+            border: '1px solid #991B1B40', background: '#991B1B12', color: '#991B1B',
+            fontSize: 13, fontWeight: 700,
+          }}
+        >
           <FileDown size={14} /> Export FIDUCIAIRE
         </button>
       </div>
@@ -485,19 +509,56 @@ const navBtn: React.CSSProperties = {
 // ── Main page ────────────────────────────────────────────────────────────
 type Tab = 'en_cours' | 'historique' | 'resume'
 
+/** Heure courante au format « HH:MM », celui utilisé par les champs de pointage. */
+function heureCourante(): string {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+/** Heures écoulées depuis une heure « HH:MM » du jour, en décimal. */
+function heuresDepuis(debut: string | null): number {
+  if (!debut) return 0
+  const [h, m] = debut.split(':').map(Number)
+  const start = new Date()
+  start.setHours(h, m, 0, 0)
+  return Math.max(0, (Date.now() - start.getTime()) / 3600000)
+}
+
 export default function PointagesPage() {
   const [tab, setTab] = useState<Tab>('en_cours')
   const [tick, setTick] = useState(0)
   const [selected, setSelected] = useState<HistoryEntry | null>(null)
   const [showManual, setShowManual] = useState(false)
+  // La liste était une constante figée: les boutons Entrée/Pause/Sortie/Reprendre
+  // n'avaient aucun état à modifier et restaient donc sans effet.
+  const [employees, setEmployees] = useState<Employee[]>(EMPLOYEES)
+
+  const pointer = (id: string, action: 'entree' | 'pause' | 'sortie' | 'reprendre') => {
+    setEmployees(liste => liste.map(e => {
+      if (e.id !== id) return e
+      const maintenant = heureCourante()
+      if (action === 'entree') return { ...e, status: 'pointe', clockIn: maintenant, clockOut: null, pauseStart: null }
+      if (action === 'pause') return { ...e, status: 'pause', pauseStart: maintenant }
+      if (action === 'reprendre') return { ...e, status: 'pointe', pauseStart: null }
+      // Sortie: on crédite le temps passé depuis l'arrivée avant de remettre à zéro.
+      return {
+        ...e,
+        status: 'non_pointe',
+        clockOut: maintenant,
+        pauseStart: null,
+        todayHours: +(e.todayHours + heuresDepuis(e.clockIn)).toFixed(2),
+        clockIn: null,
+      }
+    }))
+  }
 
   useEffect(() => {
     const id = setInterval(() => setTick(v => v + 1), 1000)
     return () => clearInterval(id)
   }, [])
 
-  const pointedCount = EMPLOYEES.filter(e => e.status !== 'non_pointe').length
-  const todayHours = EMPLOYEES.reduce((a, e) => a + e.todayHours, 0)
+  const pointedCount = employees.filter(e => e.status !== 'non_pointe').length
+  const todayHours = employees.reduce((a, e) => a + e.todayHours, 0)
   const retards = 2
   const heuresSupp = 3.75
 
@@ -557,7 +618,7 @@ export default function PointagesPage() {
 
       <AnimatePresence mode="wait">
         <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-          {tab === 'en_cours'   && <EnCoursTab employees={EMPLOYEES} tick={tick} />}
+          {tab === 'en_cours'   && <EnCoursTab employees={employees} tick={tick} onPointer={pointer} />}
           {tab === 'historique' && <HistoriqueTab onSelect={setSelected} />}
           {tab === 'resume'     && <ResumeHebdoTab />}
         </motion.div>
