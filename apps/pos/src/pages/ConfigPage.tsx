@@ -6,7 +6,28 @@ import {
   AlertTriangle, Wifi, TestTube2, Save, Power,
 } from 'lucide-react'
 
-interface Props { onBack?: () => void }
+interface Props {
+  onBack?: () => void
+  /** Bascule vers la vue « editor » d'App.tsx. Sans ce rappel, le bouton
+   *  « Ouvrir l'éditeur de plan » n'avait aucun moyen de changer de vue. */
+  onOpenEditor?: () => void
+}
+
+/**
+ * Export CSV local — apps/pos n'a pas accès au `lib/csv.ts` d'apps/web.
+ * Mêmes contraintes Excel FR : BOM UTF-8, séparateur `;`, décimale virgule.
+ */
+function telechargerCsv(nom: string, entetes: string[], lignes: unknown[][]) {
+  const champ = (v: unknown) =>
+    typeof v === 'number' ? String(v).replace('.', ',') : `"${String(v ?? '').replace(/"/g, '""')}"`
+  const contenu = '﻿' + [entetes.map(champ).join(';'), ...lignes.map(l => l.map(champ).join(';'))].join('\r\n')
+  const url = URL.createObjectURL(new Blob([contenu], { type: 'text/csv;charset=utf-8;' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nom
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 type ConfigTab = 'menu' | 'tables' | 'employees' | 'settings' | 'printers' | 'taxes'
 
@@ -111,7 +132,23 @@ function MenuTab() {
 
   return (
     <Panel title="Catalogue produits"
-      action={<button style={primaryBtn}><Plus size={13} /> Nouveau produit</button>}>
+      action={
+        <button
+          onClick={() => {
+            const name = window.prompt('Nom du produit')
+            if (!name?.trim()) return
+            const prixTexte = window.prompt('Prix en euros', '0.00')
+            const price = Number(String(prixTexte ?? '').replace(',', '.'))
+            if (!Number.isFinite(price) || price < 0) { window.alert('Prix invalide.'); return }
+            const category = window.prompt('Catégorie', 'Plats')?.trim() || 'Plats'
+            setItems(v => [
+              { id: `m${Date.now()}`, emoji: '🍽️', name: name.trim(), category, price, active: true },
+              ...v,
+            ])
+          }}
+          style={primaryBtn}
+        ><Plus size={13} /> Nouveau produit</button>
+      }>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
@@ -140,7 +177,17 @@ function MenuTab() {
                 <td style={td}><Toggle value={it.active} onChange={() => toggle(it.id)} /></td>
                 <td style={td}>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={iconBtn('#94a3b8')}><Edit3 size={12} /></button>
+                    <button
+                      onClick={() => {
+                        const name = window.prompt('Nom du produit', it.name)
+                        if (!name?.trim()) return
+                        const prixTexte = window.prompt('Prix en euros', it.price.toFixed(2))
+                        const price = Number(String(prixTexte ?? '').replace(',', '.'))
+                        if (!Number.isFinite(price) || price < 0) { window.alert('Prix invalide.'); return }
+                        setItems(v => v.map(x => x.id === it.id ? { ...x, name: name.trim(), price } : x))
+                      }}
+                      style={iconBtn('#94a3b8')}
+                    ><Edit3 size={12} /></button>
                     <button onClick={() => remove(it.id)} style={iconBtn('#f43f5e')}><Trash2 size={12} /></button>
                   </div>
                 </td>
@@ -154,7 +201,7 @@ function MenuTab() {
 }
 
 // ── Tables tab ───────────────────────────────────────────────────────────
-function TablesTab() {
+function TablesTab({ onOpenEditor }: { onOpenEditor?: () => void }) {
   return (
     <Panel title="Plan des tables">
       <div style={{
@@ -167,11 +214,13 @@ function TablesTab() {
         <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 18, maxWidth: 380, margin: '0 auto 18px' }}>
           Organisez vos tables, sections et disposition par glisser-déposer dans l'éditeur dédié.
         </div>
-        <button style={{
-          padding: '11px 22px', borderRadius: 11, cursor: 'pointer',
-          border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.2)',
-          color: '#a5b4fc', fontSize: 13, fontWeight: 700,
-        }}>
+        <button
+          onClick={onOpenEditor}
+          style={{
+            padding: '11px 22px', borderRadius: 11, cursor: 'pointer',
+            border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.2)',
+            color: '#a5b4fc', fontSize: 13, fontWeight: 700,
+          }}>
           Ouvrir l'éditeur de plan →
         </button>
       </div>
@@ -211,7 +260,17 @@ function EmployeesTab() {
         <button onClick={() => setShowPins(v => !v)} style={{
           ...primaryBtn, background: 'rgba(255,255,255,0.04)', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.08)',
         }}>{showPins ? 'Masquer PINs' : 'Afficher PINs'}</button>
-        <button style={primaryBtn}><Plus size={13} /> Ajouter employé</button>
+        <button
+          onClick={() => {
+            const name = window.prompt("Nom de l'employé")
+            if (!name?.trim()) return
+            const role = window.prompt('Rôle', 'Serveur')?.trim() || 'Serveur'
+            const pin = window.prompt('Code PIN à 4 chiffres', '0000')?.trim() || '0000'
+            if (!/^\d{4}$/.test(pin)) { window.alert('Le PIN doit contenir 4 chiffres.'); return }
+            setStaff(v => [...v, { id: `s${Date.now()}`, name: name.trim(), role, pin }])
+          }}
+          style={primaryBtn}
+        ><Plus size={13} /> Ajouter employé</button>
       </div>}>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -237,7 +296,17 @@ function EmployeesTab() {
                 </td>
                 <td style={td}>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={iconBtn('#94a3b8')}><Edit3 size={12} /></button>
+                    <button
+                      onClick={() => {
+                        const name = window.prompt("Nom de l'employé", s.name)
+                        if (!name?.trim()) return
+                        const role = window.prompt('Rôle', s.role)?.trim() || s.role
+                        const pin = window.prompt('Code PIN à 4 chiffres', s.pin)?.trim() || s.pin
+                        if (!/^\d{4}$/.test(pin)) { window.alert('Le PIN doit contenir 4 chiffres.'); return }
+                        setStaff(v => v.map(x => x.id === s.id ? { ...x, name: name.trim(), role, pin } : x))
+                      }}
+                      style={iconBtn('#94a3b8')}
+                    ><Edit3 size={12} /></button>
                     <button onClick={() => remove(s.id)} style={iconBtn('#f43f5e')}><Trash2 size={12} /></button>
                   </div>
                 </td>
@@ -479,7 +548,7 @@ const TABS = [
   { id: 'taxes' as const,     label: 'Taxes',      icon: Percent },
 ]
 
-export default function ConfigPage({ onBack }: Props) {
+export default function ConfigPage({ onBack, onOpenEditor }: Props) {
   const [tab, setTab] = useState<ConfigTab>('menu')
   const [showReset, setShowReset] = useState(false)
 
@@ -510,13 +579,41 @@ export default function ConfigPage({ onBack }: Props) {
             border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)',
             color: '#94a3b8', fontSize: 12, fontWeight: 700,
             display: 'inline-flex', alignItems: 'center', gap: 7,
-          }}><Download size={13} /> Exporter</button>
+            }}
+            onClick={() => telechargerCsv(
+              'configuration-caisse.csv',
+              ['Section', 'Élément', 'Détail', 'Valeur'],
+              [
+                ...INITIAL_MENU.map(m => ['Catalogue', m.name, m.category, m.price]),
+                ...INITIAL_STAFF.map(s => ['Employés', s.name, s.role, '']),
+                ...INITIAL_TAXES.map(t => ['TVA', t.label, t.description, t.rate]),
+              ],
+            )}
+          ><Download size={13} /> Exporter</button>
           <button style={{
             padding: '8px 14px', borderRadius: 10, cursor: 'pointer',
             border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)',
             color: '#94a3b8', fontSize: 12, fontWeight: 700,
             display: 'inline-flex', alignItems: 'center', gap: 7,
-          }}><Upload size={13} /> Importer</button>
+            }}
+            onClick={() => {
+              const input = document.createElement('input')
+              input.type = 'file'
+              input.accept = '.csv,text/csv'
+              input.onchange = () => {
+                const f = input.files?.[0]
+                if (!f) return
+                const lecteur = new FileReader()
+                lecteur.onload = () => {
+                  const lignes = String(lecteur.result || '').split(/\r?\n/).filter(l => l.trim())
+                  window.alert(`${f.name} : ${Math.max(0, lignes.length - 1)} ligne(s) de configuration lue(s).`)
+                }
+                lecteur.onerror = () => window.alert(`Lecture impossible de ${f.name}.`)
+                lecteur.readAsText(f)
+              }
+              input.click()
+            }}
+          ><Upload size={13} /> Importer</button>
           <button onClick={() => setShowReset(true)} style={{
             padding: '8px 14px', borderRadius: 10, cursor: 'pointer',
             border: '1px solid rgba(244,63,94,0.3)', background: 'rgba(244,63,94,0.1)',
@@ -559,7 +656,7 @@ export default function ConfigPage({ onBack }: Props) {
             initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}>
             {tab === 'menu'      && <MenuTab />}
-            {tab === 'tables'    && <TablesTab />}
+            {tab === 'tables'    && <TablesTab onOpenEditor={onOpenEditor} />}
             {tab === 'employees' && <EmployeesTab />}
             {tab === 'settings'  && <SettingsTab />}
             {tab === 'printers'  && <PrintersTab />}

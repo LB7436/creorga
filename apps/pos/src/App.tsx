@@ -282,7 +282,7 @@ export default function App() {
 
         {view === 'config' && (
           <div style={{ position: 'absolute', inset: 0 }}>
-            <ConfigPage onBack={() => setView('floor')} />
+            <ConfigPage onBack={() => setView('floor')} onOpenEditor={() => setView('editor')} />
           </div>
         )}
 
