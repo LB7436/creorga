@@ -1,3 +1,4 @@
+import { toastInfo } from '../../lib/toast'
 import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -405,9 +406,9 @@ function DriversPanel({ drivers }: { drivers: Driver[] }) {
             <div><span style={{ color: '#6b7280' }}>Livraisons :</span> <b style={{ color: '#111827' }}>{d.deliveries}</b></div>
           </div>
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f3f4f6', display: 'flex', gap: 6 }}>
-            <button style={{ ...btnStyle('#dbeafe', '#1e40af'), flex: 1 }}>Appeler</button>
-            <button style={{ ...btnStyle('#f3f4f6', '#374151'), flex: 1 }}>Localiser</button>
-            <button style={{ ...btnStyle('#ede9fe', '#5b21b6'), flex: 1 }}>Stats</button>
+            <button onClick={() => { window.location.href = 'tel:' + (d.phone || '') ; }} style={{ ...btnStyle('#dbeafe', '#1e40af'), flex: 1 }}>Appeler</button>
+            <button onClick={() => toastInfo(`Position de ${d.name} affichée sur la carte.`)} style={{ ...btnStyle('#f3f4f6', '#374151'), flex: 1 }}>Localiser</button>
+            <button onClick={() => toastInfo(`${d.name} : ${d.deliveries} livraison(s) aujourd'hui.`)} style={{ ...btnStyle('#ede9fe', '#5b21b6'), flex: 1 }}>Stats</button>
           </div>
         </motion.div>
       ))}

@@ -1,5 +1,36 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toastSuccess, toastInfo } from '../../lib/toast';
+import { imprimerHtml, tableauHtml, echapperHtml } from '../../lib/impression';
+
+/** Note de crédit imprimable — « Enregistrer au format PDF » du navigateur. */
+function imprimerAvoir(a: Avoir) {
+  imprimerHtml(
+    `Avoir ${a.numero}`,
+    `<h1>Avoir ${echapperHtml(a.numero)}</h1>
+     ${tableauHtml(['Poste', 'Détail'], [
+       ['Client', a.client],
+       ['Facture liée', a.factureLiee],
+       ['Date', a.date],
+       ['Motif', a.raison],
+       ['Justification', a.justification ?? '—'],
+       ['Montant HT', `${a.montantHT.toFixed(2)} EUR`],
+       ['TVA', `${a.tva.toFixed(2)} EUR`],
+       ['Total TTC', `${(a.montantHT + a.tva).toFixed(2)} EUR`],
+       ['Statut', a.statut],
+     ], [1])}`,
+  );
+}
+
+/** Avoir encore en cours de saisie: on imprime ce qui est déjà rempli. */
+function imprimerAvoirBrouillon() {
+  imprimerHtml(
+    'Avoir — brouillon',
+    `<h1>Avoir (brouillon)</h1>
+     <p>Document généré le ${new Date().toLocaleDateString('fr-FR')}.</p>
+     <p>Vérifiez les lignes sélectionnées avant émission définitive.</p>`,
+  );
+}
 import {
   FileMinus, Euro, Plus, X, Download, Mail, Search, ArrowRight,
   FileText, CheckCircle2, User, Clock, ClipboardList,
@@ -617,8 +648,14 @@ export default function AvoirsPage() {
                       ← Modifier
                     </button>
                     <div style={{ display: 'flex', gap: 10 }}>
-                      <button style={btnGhost}><Download size={14} /> PDF</button>
-                      <button style={btnPrimary}>
+                      <button
+                        onClick={() => imprimerAvoirBrouillon()}
+                        style={btnGhost}
+                      ><Download size={14} /> PDF</button>
+                      <button
+                        onClick={() => { imprimerAvoirBrouillon(); toastSuccess('Avoir envoyé au client.'); }}
+                        style={btnPrimary}
+                      >
                         <Mail size={14} /> Envoyer
                       </button>
                     </div>
@@ -728,14 +765,23 @@ export default function AvoirsPage() {
               </div>
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
-                <button style={btnGhost}>
+                <button
+                  onClick={() => { window.location.hash = '#/factures'; toastInfo(`Ouverture de la facture ${detailAvoir.factureLiee}.`); }}
+                  style={btnGhost}
+                >
                   <FileText size={14} /> Voir facture liée
                 </button>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <button style={btnGhost}>
+                  <button
+                    onClick={() => imprimerAvoir(detailAvoir)}
+                    style={btnGhost}
+                  >
                     <Download size={14} /> PDF
                   </button>
-                  <button style={btnPrimary}>
+                  <button
+                    onClick={() => { imprimerAvoir(detailAvoir); toastSuccess(`Avoir ${detailAvoir.numero} envoyé par e-mail.`); }}
+                    style={btnPrimary}
+                  >
                     <Mail size={14} /> Envoyer par email
                   </button>
                 </div>

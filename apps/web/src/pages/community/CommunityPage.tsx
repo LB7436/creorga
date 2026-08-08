@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { toastSuccess, toastError, toastInfo } from '../../lib/toast'
 
 interface Post {
   id: string
@@ -378,10 +379,26 @@ export default function CommunityPage() {
                       >
                         {p.liked ? '♥' : '♡'} {p.likes}
                       </button>
-                      <button style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: colors.textMuted, fontSize: 13 }}>
+                      <button
+                        onClick={() => {
+                          const texte = window.prompt('Votre commentaire')
+                          if (!texte?.trim()) return
+                          setPosts(l => l.map(x => x.id === p.id ? { ...x, commentaires: x.commentaires + 1 } : x))
+                          toastSuccess('Commentaire publié.')
+                        }}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: colors.textMuted, fontSize: 13 }}
+                      >
                         Commenter ({p.commentaires})
                       </button>
-                      <button style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: colors.textMuted, fontSize: 13 }}>
+                      <button
+                        onClick={() => {
+                          const lien = `${window.location.origin}/communaute/post/${p.id}`
+                          navigator.clipboard?.writeText(lien)
+                            .then(() => toastSuccess('Lien de la publication copié.'))
+                            .catch(() => toastError(`Copie impossible. Lien : ${lien}`))
+                        }}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: colors.textMuted, fontSize: 13 }}
+                      >
                         Partager
                       </button>
                     </div>
@@ -568,7 +585,9 @@ export default function CommunityPage() {
                     }}>{e.type}</div>
                   </div>
                 </div>
-                <button style={{
+                <button
+                  onClick={() => toastSuccess(`Inscription enregistrée pour « ${e.titre} ».`)}
+                  style={{
                   padding: '10px 18px',
                   background: colors.primary,
                   color: '#fff',
@@ -620,7 +639,9 @@ export default function CommunityPage() {
                 <div style={{ fontSize: 13, color: colors.textMuted, marginBottom: 8 }}>{m.description}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: colors.textMuted }}>
                   <span>Par {m.auteur} • {m.date}</span>
-                  <button style={{
+                  <button
+                    onClick={() => toastSuccess(`Message envoyé à ${m.auteur} au sujet de « ${m.titre} ».`)}
+                    style={{
                     padding: '6px 12px',
                     background: colors.primary,
                     color: '#fff',
@@ -664,7 +685,9 @@ export default function CommunityPage() {
                     </div>
                   </div>
                 </div>
-                <button style={{
+                <button
+                  onClick={() => toastSuccess(`Demande de rendez-vous envoyée à ${e.nom}.`)}
+                  style={{
                   width: '100%',
                   marginTop: 14,
                   padding: 10,
@@ -716,7 +739,9 @@ export default function CommunityPage() {
                     {s.metric}
                   </div>
                 </div>
-                <button style={{
+                <button
+                  onClick={() => toastInfo(`Étude de cas « ${s.titre} » ouverte.`)}
+                  style={{
                   marginTop: 14,
                   padding: '8px 14px',
                   background: '#fff',

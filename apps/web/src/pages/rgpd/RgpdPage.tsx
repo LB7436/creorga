@@ -1,3 +1,5 @@
+import { imprimerHtml, tableauHtml } from '../../lib/impression'
+import { toastSuccess, toastInfo } from '../../lib/toast'
 import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -319,7 +321,7 @@ function RgpdPage() {
                       </td>
                       <td style={{ padding: 12, fontSize: 12 }}><Clock size={12} style={{ display: 'inline', marginRight: 4 }} />{r.deadline}</td>
                       <td style={{ padding: 12 }}>
-                        <button style={{ background: C.bg, border: `1px solid ${C.border}`, padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Ouvrir</button>
+                        <button onClick={() => toastInfo(`Demande ${r.type} de ${r.requester} — échéance ${r.deadline}.`)} style={{ background: C.bg, border: `1px solid ${C.border}`, padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Ouvrir</button>
                       </td>
                     </tr>
                   ))}
@@ -431,7 +433,7 @@ function RgpdPage() {
                     <div style={{ fontWeight: 600 }}>{a.type}</div>
                     <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{a.auditor} — {a.date}</div>
                   </div>
-                  <button style={{ background: C.bg, border: `1px solid ${C.border}`, padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  <button onClick={() => imprimerHtml(`Rapport d audit — ${a.type}`, `<h1>Rapport d audit</h1>${tableauHtml(['Poste','Détail'],[['Type',a.type],['Auditeur',a.auditor],['Date',a.date]])}`)} style={{ background: C.bg, border: `1px solid ${C.border}`, padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                     <FileText size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} /> Rapport
                   </button>
                 </div>
@@ -497,10 +499,10 @@ function RgpdPage() {
                   </div>
                   <p style={{ margin: '0 0 12px', fontSize: 13, color: C.muted }}>{p.desc}</p>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, padding: 8, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    <button onClick={() => imprimerHtml(p.title, `<h1>${p.title}</h1><p>${p.desc}</p>`)} style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, padding: 8, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                       <Eye size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} /> Consulter
                     </button>
-                    <button style={{ flex: 1, background: C.green, color: '#fff', border: 'none', padding: 8, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    <button onClick={() => toastInfo(`Édition de « ${p.title} » — document versionné.`)} style={{ flex: 1, background: C.green, color: '#fff', border: 'none', padding: 8, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                       Éditer
                     </button>
                   </div>

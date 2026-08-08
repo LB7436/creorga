@@ -1,3 +1,4 @@
+import { toastSuccess, toastInfo } from '../../lib/toast'
 import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -593,8 +594,8 @@ export default function FloorPlan() {
               }}>
                 {selected.status === 'OCCUPEE' && (
                   <>
-                    <button style={btnPrimary}><Eye size={14} /> Voir commande</button>
-                    <button style={btnAccent}><CreditCard size={14} /> Encaisser</button>
+                    <button style={btnPrimary} onClick={() => { window.location.hash = '#/pos/commande/' + selected.id; toastInfo('Ouverture de la commande de la table ' + selected.name + '.') }}><Eye size={14} /> Voir commande</button>
+                    <button style={btnAccent} onClick={() => { window.location.hash = '#/pos/paiement/' + selected.id; toastInfo('Encaissement de la table ' + selected.name + '.') }}><CreditCard size={14} /> Encaisser</button>
                     <button style={btnSecondary} onClick={() => handleClose(selected.id)}>
                       Fermer table
                     </button>
@@ -606,12 +607,12 @@ export default function FloorPlan() {
                   </button>
                 )}
                 {selected.status === 'LIBRE' && (
-                  <button style={btnPrimary}><Eye size={14} /> Ouvrir commande</button>
+                  <button style={btnPrimary} onClick={() => { window.location.hash = '#/pos/commande/' + selected.id; toastInfo('Nouvelle commande sur la table ' + selected.name + '.') }}><Eye size={14} /> Ouvrir commande</button>
                 )}
                 {selected.status === 'RESERVEE' && (
                   <>
-                    <button style={btnPrimary}><Eye size={14} /> Ouvrir commande</button>
-                    <button style={btnSecondary}>Annuler réservation</button>
+                    <button style={btnPrimary} onClick={() => { window.location.hash = '#/pos/commande/' + selected.id; toastInfo('Nouvelle commande sur la table ' + selected.name + '.') }}><Eye size={14} /> Ouvrir commande</button>
+                    <button style={btnSecondary} onClick={() => { handleClose(selected.id); toastSuccess('Réservation annulée, table ' + selected.name + ' libérée.') }}>Annuler réservation</button>
                   </>
                 )}
                 <button style={{ ...btnGhost, marginLeft: 'auto' }} onClick={() => setSelected(null)}>

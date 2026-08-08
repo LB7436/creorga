@@ -1,3 +1,4 @@
+import { toastSuccess, toastInfo } from '../../lib/toast';
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -380,7 +381,7 @@ export default function ReponsesPage() {
                         <button onClick={() => applyTemplate(r.id, r.author)} style={{ background: '#fff', color: '#4f46e5', border: '1px solid #c7d2fe', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                           Template entreprise
                         </button>
-                        <button style={{ background: '#fff', color: '#475569', border: '1px solid #cbd5e1', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                        <button onClick={() => { const m = window.prompt('Assigner cet avis à quel membre ?', 'Sophie Martin'); if (m?.trim()) toastSuccess(`Avis assigné à ${m.trim()}.`); }} style={{ background: '#fff', color: '#475569', border: '1px solid #cbd5e1', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                           Assigner à un membre
                         </button>
                       </div>
@@ -427,7 +428,14 @@ export default function ReponsesPage() {
                 <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Bibliothèque de templates</h2>
                 <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13 }}>Variables supportées : {'{prénom}'}, {'{restaurant}'}, {'{date}'}, {'{table}'}. Classées par efficacité mesurée.</p>
               </div>
-              <button style={{ background: '#4f46e5', color: '#fff', border: 'none', padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Nouveau template</button>
+              <button onClick={() => {
+                const titre = window.prompt('Titre du template', 'Nouveau template');
+                if (!titre?.trim()) return;
+                const corps = window.prompt('Texte du template (variables : {prénom}, {restaurant})');
+                if (!corps?.trim()) return;
+                setTemplates(l => [...l, { id: Date.now(), title: titre.trim(), body: corps.trim(), stars: '5', usage: 0, avgResponseScore: 0 }]);
+                toastSuccess(`Template « ${titre.trim()} » ajouté.`);
+              }} style={{ background: '#4f46e5', color: '#fff', border: 'none', padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Nouveau template</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 }}>
               {templates.map(t => (
@@ -671,7 +679,7 @@ export default function ReponsesPage() {
                           </div>
                           <div style={{ color: '#475569', fontSize: 13, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.preview}</div>
                         </div>
-                        <button style={{ background: 'transparent', border: '1px solid #e5e7eb', color: '#475569', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Voir</button>
+                        <button onClick={() => toastInfo(s.preview)} style={{ background: 'transparent', border: '1px solid #e5e7eb', color: '#475569', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Voir</button>
                       </div>
                     );
                   })}

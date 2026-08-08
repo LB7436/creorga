@@ -1,3 +1,4 @@
+import { toastSuccess, toastInfo } from '../../lib/toast'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -337,7 +338,7 @@ function SitesPage() {
                   <input type="number" value={transferQty} onChange={(e) => setTransferQty(Number(e.target.value))} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff', fontSize: 14 }} />
                 </label>
 
-                <button style={{ width: '100%', padding: 12, borderRadius: 8, border: 'none', background: '#db2777', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                <button onClick={() => toastSuccess(`Transfert de ${transferQty} unité(s) programmé.`)} style={{ width: '100%', padding: 12, borderRadius: 8, border: 'none', background: '#db2777', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                   🚚 Programmer le transfert
                 </button>
               </div>
@@ -435,7 +436,7 @@ function SitesPage() {
                   <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>Éléments de menu : <strong style={{ color: '#111827' }}>48</strong></div>
                   <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>Overrides locaux : <strong style={{ color: '#db2777' }}>{s.id === 's3' ? '7' : '0'}</strong></div>
                   <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 14 }}>Dernière sync : <strong style={{ color: '#111827' }}>il y a 12 min</strong></div>
-                  <button style={{ width: '100%', padding: 9, borderRadius: 8, border: '1px solid #fbcfe8', background: '#fdf2f8', color: '#be185d', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Modifier</button>
+                  <button onClick={() => toastInfo(`Ouverture de la carte du site ${s.name}.`)} style={{ width: '100%', padding: 9, borderRadius: 8, border: '1px solid #fbcfe8', background: '#fdf2f8', color: '#be185d', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Modifier</button>
                 </div>
               ))}
             </div>
@@ -486,7 +487,7 @@ function SitesPage() {
                   <input defaultValue={current.manager} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 }} />
                 </div>
               </div>
-              <button style={{ marginTop: 20, padding: '10px 20px', borderRadius: 8, border: 'none', background: '#db2777', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Enregistrer</button>
+              <button onClick={() => toastSuccess('Paramètres du site enregistrés.')} style={{ marginTop: 20, padding: '10px 20px', borderRadius: 8, border: 'none', background: '#db2777', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Enregistrer</button>
             </div>
           </motion.div>
         )}
