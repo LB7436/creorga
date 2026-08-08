@@ -123,9 +123,16 @@ export default function RoomDesignerPage() {
             // thème, quadrillage en blanc très transparent pour rester lisible
             // (il était blanc plein avec une grille grise, seul îlot clair de
             // l'application).
+            // Le passage au thème sombre (274bdb6) avait ramené le quadrillage
+            // à 7 % d'opacité : présent dans le DOM mais invisible à l'écran,
+            // alors que c'est le seul repère pour aligner. Quadrillage à DEUX
+            // niveaux, comme l'éditeur de la caisse : lignes fines tous les
+            // 40 px, trait marqué tous les 200 px pour lire les carrés.
             background: `
-              linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px) 0 0/40px 40px,
-              linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px) 0 0/40px 40px,
+              linear-gradient(rgba(255,255,255,0.30) 1px, transparent 1px) 0 0/200px 200px,
+              linear-gradient(90deg, rgba(255,255,255,0.30) 1px, transparent 1px) 0 0/200px 200px,
+              linear-gradient(rgba(255,255,255,0.13) 1px, transparent 1px) 0 0/40px 40px,
+              linear-gradient(90deg, rgba(255,255,255,0.13) 1px, transparent 1px) 0 0/40px 40px,
               #14141f
             `,
             borderRadius: 8, cursor: tool === 'select' ? 'default' : 'crosshair',

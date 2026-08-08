@@ -23,6 +23,10 @@ import { useTheme, THEMES } from '@/stores/themeStore'
  * This view is for the PATRON. Waiters work on :5175 which is simplified.
  */
 
+/** Adresse de la caisse (apps/pos), qui héberge l'éditeur de plan complet.
+ *  Définie au build par VITE_POS_URL ; en développement, le port 5175. */
+const POS_URL = (import.meta as any).env?.VITE_POS_URL || 'http://localhost:5175'
+
 const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
   LIBRE:     { bg: 'rgba(16,185,129,0.12)',  border: 'rgba(16,185,129,0.55)',  text: '#6ee7b7', dot: '#10b981' },
   OCCUPEE:   { bg: 'rgba(245,158,11,0.18)',  border: 'rgba(245,158,11,0.6)',   text: '#fcd34d', dot: '#f59e0b' },
@@ -310,7 +314,7 @@ export default function UnifiedFloorPlan() {
           </button>
 
           <button
-            onClick={() => window.open('http://localhost:5175/', '_blank')}
+            onClick={() => window.open(POS_URL, '_blank', 'noopener')}
             style={{
               padding: '8px 16px', borderRadius: 10,
               border: '1px solid rgba(255,255,255,0.1)',

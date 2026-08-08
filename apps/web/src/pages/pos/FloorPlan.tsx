@@ -8,6 +8,10 @@ import { useTables, useUpdateTableStatus } from '@/hooks/api/useTables'
 import ChairsOverlay from '@/components/ChairsOverlay'
 import { useTheme, THEMES } from '@/stores/themeStore'
 
+/** Adresse de la caisse (apps/pos), qui héberge l'éditeur de plan complet.
+ *  Définie au build par VITE_POS_URL ; en développement, le port 5175. */
+const POS_URL = (import.meta as any).env?.VITE_POS_URL || 'http://localhost:5175'
+
 // Quick menu for per-chair ordering — pulls from POS default menu if available
 const FLOOR_MENU = [
   { id: 'm1', name: 'Café',           price: 2.80 },
@@ -246,7 +250,7 @@ export default function FloorPlan() {
   if (isEmpty) {
     return (
       <div
-        onClick={() => (window.location.href = '/pos-standalone/floor/editor')}
+        onClick={() => window.open(POS_URL, '_blank', 'noopener')}
         style={{
           padding: 48, textAlign: 'center', cursor: 'pointer',
           border: '2px dashed #cbd5e1', borderRadius: 16,
@@ -306,10 +310,16 @@ export default function FloorPlan() {
           >
             <Maximize2 size={14} /> Mode plein écran
           </button>
+          {/* Ce lien pointait vers /pos-standalone/floor/editor — une route qui
+              n'a jamais existé — et son onClick annulait le clic : le bouton ne
+              faisait donc littéralement rien. Il mène désormais à la caisse, où
+              vit l'éditeur complet (33 objets, grille réglable, aimantation,
+              rotation, annuler/refaire). */}
           <a
-            href="/pos-standalone/floor/editor"
+            href={POS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             style={{ ...btnGhost, textDecoration: 'none' }}
-            onClick={(e) => e.preventDefault()}
           >
             <Edit3 size={14} /> Éditeur de plan (POS)
           </a>
