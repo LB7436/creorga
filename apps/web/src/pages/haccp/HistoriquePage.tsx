@@ -1,5 +1,6 @@
 import { Fragment, useState, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { downloadCsv } from '@/lib/csv'
 import {
   Download,
   Filter,
@@ -250,6 +251,19 @@ export default function HistoriquePage() {
     () => (photoFilter === 'ALL' ? photos : photos.filter((p) => p.category === photoFilter)),
     [photoFilter, photos]
   )
+
+  /* « Exporter CSV » de la piste d'audit n'avait aucun onClick. En contrôle
+     sanitaire, pouvoir sortir la traçabilité est le cœur du module : on
+     exporte ce qui est à l'écran (filtre courant compris). */
+  const exporterAudit = () => {
+    downloadCsv(
+      `haccp-piste-audit-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Date', 'Type', 'Valeur', 'Conforme', 'Opérateur', 'Notes'],
+      filteredEntries.map((e) => [
+        e.date, e.type, e.value, e.conforme ? 'Oui' : 'Non', e.operator, e.notes || '',
+      ]),
+    )
+  }
 
   const conformeCount = mockEntries.filter((e) => e.conforme).length
   const totalCount = mockEntries.length
@@ -679,7 +693,7 @@ export default function HistoriquePage() {
               </div>
               <h2 style={sectionTitle}>Piste d'audit</h2>
             </div>
-            <button style={ghostBtn}>
+            <button onClick={exporterAudit} style={ghostBtn}>
               <Download size={14} />
               Exporter CSV
             </button>

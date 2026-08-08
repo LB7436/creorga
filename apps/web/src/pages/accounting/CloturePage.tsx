@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { imprimerHtml } from '@/lib/impression'
 import {
   Lock,
   Unlock,
@@ -121,6 +122,23 @@ export default function CloturePage() {
   const [cashCounts, setCashCounts] = useState<Record<string, number>>({})
   const [expandedHistory, setExpandedHistory] = useState<number | null>(null)
   const [showZReport, setShowZReport] = useState(false)
+
+  /* « Imprimer le ticket Z » et « Exporter en PDF » n'avaient aucun onClick.
+     On imprime le ticket réellement affiché (ticketZRef) plutôt que de le
+     reconstruire : ce qui sort de l'imprimante est exactement ce que l'écran
+     montre. Les deux boutons mènent à la même boîte d'impression, où
+     « Enregistrer au format PDF » donne le PDF. */
+  const ticketZRef = useRef<HTMLDivElement>(null)
+
+  const imprimerTicketZ = () => {
+    const noeud = ticketZRef.current
+    if (!noeud) { setShowZReport(true); return }
+    imprimerHtml(
+      'Ticket Z',
+      `<div class="ticket">${noeud.innerHTML}</div>`,
+      '.ticket { max-width: 78mm; margin: 0 auto; font-size: 11px; } .ticket * { color: #0f172a !important; }',
+    )
+  }
 
   const fondDeCaisse = 200.0
   const esperees = 987.5
@@ -438,7 +456,7 @@ export default function CloturePage() {
               exit={{ opacity: 0, height: 0 }}
               style={{ overflow: 'hidden' }}
             >
-              <div style={{
+              <div ref={ticketZRef} style={{
                 maxWidth: 420, margin: '0 auto', padding: 32,
                 background: '#fefefe', border: '2px dashed #d1d5db',
                 borderRadius: 12, fontFamily: '"Courier New", Courier, monospace',
@@ -535,6 +553,7 @@ export default function CloturePage() {
                 <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
+                  onClick={imprimerTicketZ}
                   style={{
                     padding: '12px 24px', borderRadius: 12,
                     border: 'none', background: '#1e293b', color: '#fff',
@@ -548,6 +567,7 @@ export default function CloturePage() {
                 <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
+                  onClick={imprimerTicketZ}
                   style={{
                     padding: '12px 24px', borderRadius: 12,
                     border: '1px solid #e2e8f0', background: '#fff', color: '#1e293b',

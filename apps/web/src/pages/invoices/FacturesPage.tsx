@@ -771,6 +771,8 @@ export default function FacturesPage() {
   const [selected, setSelected] = useState<number[]>([])
   const [toast, setToast] = useState<string | null>(null)
   const [actionModal, setActionModal] = useState<null | 'split' | 'credit' | 'proof' | 'portal' | 'reminder'>(null)
+  // Canal choisi pour l'envoi du lien portail client (e-mail par défaut).
+  const [modeEnvoi, setModeEnvoi] = useState<'email' | 'sms'>('email')
   const [actionInvoice, setActionInvoice] = useState<Facture | null>(null)
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
@@ -1195,14 +1197,31 @@ export default function FacturesPage() {
             </div>
             <label style={labelStyle}>Mode d'envoi</label>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              <button style={{ ...smallBtnStyle, flex: 1, padding: '10px', justifyContent: 'center' }}>
+              {/* Ces deux boutons n'avaient aucun onClick : le mode d'envoi
+                  était donc décoratif et « Envoyer l'accès » ne savait pas
+                  par quel canal partir. Ce sont maintenant un vrai choix. */}
+              <button
+                onClick={() => setModeEnvoi('email')}
+                style={{
+                  ...smallBtnStyle, flex: 1, padding: '10px', justifyContent: 'center',
+                  ...(modeEnvoi === 'email'
+                    ? { background: '#15803d', color: '#fff', border: 'none' }
+                    : {}),
+                }}>
                 <Mail size={13} /> Email
               </button>
-              <button style={{ ...smallBtnStyle, flex: 1, padding: '10px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setModeEnvoi('sms')}
+                style={{
+                  ...smallBtnStyle, flex: 1, padding: '10px', justifyContent: 'center',
+                  ...(modeEnvoi === 'sms'
+                    ? { background: '#15803d', color: '#fff', border: 'none' }
+                    : {}),
+                }}>
                 <Send size={13} /> SMS
               </button>
             </div>
-            <button onClick={() => { showToast('Lien envoyé au client'); setActionModal(null) }}
+            <button onClick={() => { showToast(`Lien envoyé au client par ${modeEnvoi === 'email' ? 'e-mail' : 'SMS'}`); setActionModal(null) }}
               style={{ ...smallBtnStyle, width: '100%', padding: '12px 16px', background: '#15803d', color: '#fff', border: 'none', justifyContent: 'center' }}>
               <Link2 size={14} /> Envoyer l'accès
             </button>

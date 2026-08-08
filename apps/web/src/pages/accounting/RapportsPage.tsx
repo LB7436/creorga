@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { downloadCsv } from '@/lib/csv'
+import { imprimerHtml, tableauHtml, echapperHtml } from '@/lib/impression'
 import {
   AreaChart, Area, PieChart, Pie, Cell, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
@@ -175,6 +177,50 @@ function RevenueTooltip({ active, payload, label }: any) {
 /* ------------------------------------------------------------------ */
 export default function RapportsPage() {
   const [period, setPeriod] = useState<Period>('ce_mois')
+
+  /* Exports — ces deux boutons n'avaient aucun onClick (décoratifs).
+     Excel passe par downloadCsv (BOM UTF-8, séparateur « ; », virgule
+     décimale : sans quoi Excel FR casse les accents et ne somme rien).
+     PDF passe par l'impression A4 → « Enregistrer au format PDF ». */
+  const exporterExcel = () => {
+    downloadCsv(
+      `rapport-${period}-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Mois', 'CA', 'Coûts', 'Marge', 'Personnel', 'Résultat'],
+      monthlyData.map((m) => [m.mois, m.ca, m.couts, m.marge, m.personnel, m.resultat]),
+    )
+  }
+
+  const exporterPdf = () => {
+    const corps =
+      `<h1>Rapport comptable</h1>` +
+      `<p class="sous">${echapperHtml(periodLabels[period])} — ${echapperHtml(periodDates[period])}</p>` +
+      `<h3>Évolution mensuelle</h3>` +
+      tableauHtml(
+        ['Mois', 'CA', 'Coûts', 'Marge', 'Personnel', 'Résultat'],
+        monthlyData.map((m) => [
+          m.mois,
+          `${m.ca.toLocaleString('fr-LU')} €`,
+          `${m.couts.toLocaleString('fr-LU')} €`,
+          `${m.marge.toLocaleString('fr-LU')} €`,
+          `${m.personnel.toLocaleString('fr-LU')} €`,
+          `${m.resultat.toLocaleString('fr-LU')} €`,
+        ]),
+        [1, 2, 3, 4, 5],
+      ) +
+      `<h3>Meilleures ventes</h3>` +
+      tableauHtml(
+        ['Produit', 'Montant'],
+        topProducts.map((p) => [p.name, `${p.montant.toLocaleString('fr-LU')} €`]),
+        [1],
+      ) +
+      `<h3>Répartition par catégorie</h3>` +
+      tableauHtml(
+        ['Catégorie', 'Part'],
+        categoryData.map((c) => [c.name, `${c.value} %`]),
+        [1],
+      )
+    imprimerHtml('Rapport comptable', corps)
+  }
   const [compare, setCompare] = useState(true)
   const [periodOpen, setPeriodOpen] = useState(false)
 
@@ -276,7 +322,7 @@ export default function RapportsPage() {
           </button>
 
           {/* Export PDF */}
-          <button style={{
+          <button onClick={exporterPdf} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '9px 14px', borderRadius: 10,
             border: '1px solid #fecaca', background: '#fef2f2',
@@ -288,7 +334,7 @@ export default function RapportsPage() {
           </button>
 
           {/* Export Excel */}
-          <button style={{
+          <button onClick={exporterExcel} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '9px 14px', borderRadius: 10,
             border: '1px solid #bbf7d0', background: '#f0fdf4',
