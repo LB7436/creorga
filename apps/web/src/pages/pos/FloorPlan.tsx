@@ -116,6 +116,26 @@ const statusConfig: Record<TableStatus, { label: string; bg: string; border: str
   NETTOYAGE: { label: 'À nettoyer', bg: '#fee2e2', border: '#ef4444', text: '#b91c1c', dot: '#ef4444' },
 }
 
+/** Apparence d'un statut inconnu ou absent — neutre, jamais un plantage. */
+const STATUT_INCONNU = { label: 'Inconnu', bg: '#f1f5f9', border: '#94a3b8', text: '#475569', dot: '#94a3b8' }
+
+/**
+ * Apparence d'un statut, sans jamais rendre `undefined`.
+ *
+ * `statusConfig[t.status]` était lu directement puis déréférencé (`s.bg`).
+ * Or le statut vient de `/api/floor-state` : si cet appel échoue, les tables
+ * arrivent du repli Prisma, où la colonne `status` N'EXISTE PAS. La lecture
+ * donnait alors `undefined.bg` et la page entière plantait en écran blanc —
+ * constaté sur `/pos/floor-classic` en parcourant les 129 pages.
+ *
+ * Une table au statut inconnu doit s'afficher en gris, pas faire tomber le
+ * plan de salle : en plein service, un hoquet réseau ne doit pas coûter
+ * l'écran.
+ */
+function apparenceStatut(statut: TableStatus | string | undefined | null) {
+  return (statut && statusConfig[statut as TableStatus]) || STATUT_INCONNU
+}
+
 /* ------------------------------------------------------------------ */
 /*  SECTIONS LAYOUT                                                    */
 /* ------------------------------------------------------------------ */
@@ -397,7 +417,7 @@ export default function FloorPlan() {
 
                     {/* tables */}
                     {secTables.map((t) => {
-                      const s = statusConfig[t.status]
+                      const s = apparenceStatut(t.status)
                       const w = t.shape === 'rect' ? 90 : 64
                       const h = t.shape === 'rect' ? 54 : 64
                       const r = t.shape === 'round' ? 32 : 8
@@ -405,7 +425,11 @@ export default function FloorPlan() {
                       return (
                         <g
                           key={t.id}
-                          transform={`translate(${t.x}, ${t.y})`}
+                          // Coordonnées repliées sur 0 : une table servie par le
+                          // repli Prisma n'a ni x ni y, et `translate(undefined,
+                          // undefined)` est un attribut SVG invalide — le
+                          // navigateur refuse alors de dessiner le groupe.
+                          transform={`translate(${t.x ?? 0}, ${t.y ?? 0})`}
                           style={{ cursor: 'pointer' }}
                           onClick={() => setSelected(t)}
                         >
@@ -498,12 +522,12 @@ export default function FloorPlan() {
                     <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', margin: 0 }}>Table {selected.name}</h2>
                     <span style={{
                       fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
-                      background: statusConfig[selected.status].bg,
-                      color: statusConfig[selected.status].text,
-                      border: `1px solid ${statusConfig[selected.status].border}`,
+                      background: apparenceStatut(selected.status).bg,
+                      color: apparenceStatut(selected.status).text,
+                      border: `1px solid ${apparenceStatut(selected.status).border}`,
                     }}>
-                      <Circle size={8} fill={statusConfig[selected.status].dot} style={{ display: 'inline-block', marginRight: 4, verticalAlign: 'middle' }} />
-                      {statusConfig[selected.status].label}
+                      <Circle size={8} fill={apparenceStatut(selected.status).dot} style={{ display: 'inline-block', marginRight: 4, verticalAlign: 'middle' }} />
+                      {apparenceStatut(selected.status).label}
                     </span>
                   </div>
                   <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>

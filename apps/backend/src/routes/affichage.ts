@@ -428,7 +428,20 @@ export function sequenceDuMoment(p: Programmation, maintenant = new Date()) {
 }
 
 /** Ce que l'écran TV doit afficher à cet instant. */
-router.get('/maintenant', (_req: Request, res: Response) => {
+/**
+ * Ce qu'il faut afficher à cet instant.
+ *
+ * PUBLIC, et c'est indispensable : `/ads/tv` est la page qu'on ouvre sur la
+ * télévision de la salle, sans session. Derrière `authenticate`, elle recevait
+ * un 401 et la télé restait désespérément vide — le module d'affichage ne
+ * fonctionnait donc sur aucun écran réel.
+ *
+ * Ce qui sort d'ici : un nom de séquence, des durées, l'heure, et des URL de
+ * médias qui sont DÉJÀ publiques (`/api/media-affichage/:id`, identifiants
+ * tirés au sort sur 128 bits). Aucune donnée personnelle, aucun chiffre
+ * d'affaires. Même niveau de confiance que les médias eux-mêmes.
+ */
+function maintenant(_req: Request, res: Response) {
   const p = lire()
   const { sequence, origine, jour, heure } = sequenceDuMoment(p)
 
@@ -455,6 +468,12 @@ router.get('/maintenant', (_req: Request, res: Response) => {
     heure,
     creneauVide: p.creneauVide,
   })
-})
+}
+
+// Enregistre sur les deux routeurs : le public (pour la television) et
+// l'authentifie (pour l'apercu depuis le back-office).
+export const maintenantPublicRouter = Router()
+maintenantPublicRouter.get('/maintenant', maintenant)
+router.get('/maintenant', maintenant)
 
 export default router

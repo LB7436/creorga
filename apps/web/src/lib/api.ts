@@ -41,9 +41,21 @@ export const traiterSessionExpiree = () => {
 
 // Ajouter le token aux requêtes
 api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+  const { accessToken, companyId } = useAuthStore.getState()
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`
+  }
+  // Société active.
+  //
+  // Plusieurs routes la lisent directement dans l'en-tête et répondent 400
+  // sans elle — `products.ts` le fait dès sa première ligne. Comme `api` ne
+  // l'envoyait pas, `useProducts()` échouait SYSTÉMATIQUEMENT : l'écran
+  // Catalogue n'a jamais pu charger un produit. Mesuré en visitant les
+  // 129 pages : « HTTP 400 /api/products » sur presque chacune.
+  //
+  // Ne pas écraser un en-tête déjà posé : `useStats` le fournit lui-même.
+  if (companyId && !config.headers['x-company-id']) {
+    config.headers['x-company-id'] = companyId
   }
   return config
 })

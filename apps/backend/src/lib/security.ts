@@ -94,10 +94,23 @@ export const authLimiter = rateLimit({
 })
 
 /** Quota IA : les routes agent/IA coûtent des tokens — 60 req / min / IP. */
+/**
+ * Limiteur des routes d'assistant.
+ *
+ * Il était à 60/min, mais CHAQUE page du back-office ouvre deux appels
+ * `/api/agent` (le flux temps réel de l'opérateur, plus une exécution) : le
+ * plafond réel était donc d'une page toutes les deux secondes. Mesuré en
+ * parcourant les 129 pages : le 429 tombe, et l'assistant affiche une erreur
+ * alors que la page, elle, s'affiche correctement. Quelqu'un qui enchaîne les
+ * modules en démonstration l'atteint.
+ *
+ * 240/min laisse de la marge à un humain pressé tout en gardant un garde-fou
+ * contre une boucle qui s'emballerait.
+ */
 export const aiLimiter = rateLimit({
   skip: rateLimitBypass,
   windowMs: 60 * 1000,
-  limit: 60,
+  limit: 240,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Quota IA atteint, réessayez dans une minute.' },

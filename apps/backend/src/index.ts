@@ -72,7 +72,7 @@ import floorStateRoutes from './routes/floorState'
 import moduleConfigRoutes from './routes/moduleConfig'
 import inventoryAIRoutes from './routes/inventory-ai'
 import adsRoutes from './routes/ads'
-import affichageRoutes, { mediasPublicRouter } from './routes/affichage'
+import affichageRoutes, { mediasPublicRouter, maintenantPublicRouter } from './routes/affichage'
 import rhDossierRoutes from './routes/rh-dossier'
 import aiActionsRoutes from './routes/ai-actions'
 import agentRoutes from './routes/agent'
@@ -235,6 +235,10 @@ app.use('/api/module-config', deviceOrUserAuth, moduleConfigRoutes)
 app.use('/api/inventory-ocr', authenticate, inventoryAIRoutes)
 app.use('/api/ads', authenticate, adsRoutes)
 // Programmation de l'affichage TV : médiathèque, séquences, grille horaire.
+// AVANT la version authentifiée : Express résout dans l'ordre d'enregistrement.
+// `/ads/tv` est la page ouverte sur la télévision de la salle, sans session —
+// derrière `authenticate` elle recevait un 401 et l'écran restait vide.
+app.use('/api/affichage', maintenantPublicRouter)
 app.use('/api/affichage', authenticate, affichageRoutes)
 // Service des fichiers médias — volontairement PUBLIC : <img> et <video>
 // n'envoient pas d'en-tête Authorization. L'identifiant de 128 bits tiré au
