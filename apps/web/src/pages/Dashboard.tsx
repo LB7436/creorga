@@ -13,96 +13,36 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useSocketEvent } from '@/hooks/useSocket'
-import { toastInfo, toastSuccess } from '@/lib/toast'
+import { toastInfo, toastSuccess, toastError } from '@/lib/toast'
+import { useTodayStats, useWeekStats, useTopProductsToday } from '@/hooks/api/useStats'
 
-/* ─────────────────────── MOCK DATA ─────────────────────── */
+/* ────────────────── DONNÉES RÉELLES (/api/stats) ────────────────── */
+//
+// Ce tableau de bord était intégralement fictif et statique (constat d'audit
+// vérifié) : chiffre d'affaires, commandes en cours, alertes, équipe, agenda,
+// plan de salle et « insights IA » étaient des valeurs écrites en dur.
+//
+// Désormais : ce que /api/stats fournit réellement est affiché (CA du jour,
+// commandes payées, tables occupées, panier moyen, CA des 7 derniers jours,
+// top 5 produits). Tout le reste est un tableau VIDE — les sections
+// correspondantes n'affichent plus rien plutôt qu'une fausse valeur.
+// « Un écran vide ne ment pas. »
 
-const revenueWeek = [
-  { jour: 'Lun', ca: 1420, prev: 1280 },
-  { jour: 'Mar', ca: 1690, prev: 1450 },
-  { jour: 'Mer', ca: 1350, prev: 1520 },
-  { jour: 'Jeu', ca: 1780, prev: 1390 },
-  { jour: 'Ven', ca: 2210, prev: 1870 },
-  { jour: 'Sam', ca: 2640, prev: 2340 },
-  { jour: 'Dim', ca: 1847, prev: 1650 },
-]
+const JOURS_COURT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
 
-const revenueBreakdown = [
-  { name: 'Boissons', value: 42, color: '#6366f1' },
-  { name: 'Cuisine', value: 35, color: '#f59e0b' },
-  { name: 'Desserts', value: 15, color: '#ec4899' },
-  { name: 'Événements', value: 8, color: '#10b981' },
-]
+function formatEuros(n: number) {
+  return `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+}
 
-const liveOrders = [
-  { id: 1, table: 'Table 3', items: 4, total: 62.50, elapsed: 8, status: 'En préparation' },
-  { id: 2, table: 'Terrasse 2', items: 2, total: 24.00, elapsed: 18, status: 'En préparation' },
-  { id: 3, table: 'Table 7', items: 6, total: 97.80, elapsed: 32, status: 'En préparation' },
-  { id: 4, table: 'Table 1', items: 3, total: 41.50, elapsed: 5, status: 'Prêt' },
-  { id: 5, table: 'Bar 4', items: 1, total: 8.50, elapsed: 2, status: 'Servi' },
-  { id: 6, table: 'Table 12', items: 5, total: 78.00, elapsed: 22, status: 'En préparation' },
-]
-
-const alerts = [
-  { type: 'red' as const, icon: '⚠', text: 'Stock bas : Café en grains (2.5kg restants)' },
-  { type: 'orange' as const, icon: '🕐', text: 'Réservation 19:30 — Famille Braun (6 pers)' },
-  { type: 'blue' as const, icon: '🎂', text: 'Anniversaire client : Marie Weber' },
-  { type: 'green' as const, icon: '✅', text: 'HACCP Journée : 8/14 tâches complétées' },
-  { type: 'yellow' as const, icon: '💳', text: '2 factures en retard' },
-]
-
-const topProducts = [
-  { name: 'Café espresso', qty: 47, revenue: 141 },
-  { name: 'Bière Diekirch', qty: 38, revenue: 190 },
-  { name: 'Croque-monsieur', qty: 24, revenue: 216 },
-  { name: 'Eau minérale', qty: 31, revenue: 77.50 },
-  { name: 'Tarte aux pommes', qty: 19, revenue: 114 },
-]
-
-const staffOnDuty = [
-  { name: 'Marie Dupont', role: 'Serveur', task: 'Service Table 7', since: '08:00', hours: '6h12', color: '#6366f1' },
-  { name: 'Jean Muller', role: 'Cuisinier', task: 'Préparation plats chauds', since: '07:30', hours: '6h42', color: '#f59e0b' },
-  { name: 'Sophie Klein', role: 'Serveur', task: 'Encaissement Terrasse', since: '10:00', hours: '4h12', color: '#ec4899' },
-  { name: 'Luc Bernard', role: 'Barman', task: 'Service bar', since: '11:00', hours: '3h12', color: '#10b981' },
-]
-
-const upcomingEvents = [
-  { when: "Aujourd'hui · 19:30", title: 'Famille Braun', kind: 'reservation', party: '6 pers', color: '#6366f1' },
-  { when: "Aujourd'hui · 20:15", title: 'M. & Mme Schmitz', kind: 'reservation', party: '2 pers', color: '#6366f1' },
-  { when: 'Demain · 12:00', title: 'Déjeuner entreprise', kind: 'evenement', party: '14 pers', color: '#f59e0b' },
-  { when: 'Vendredi · 19:00', title: 'Soirée dégustation vins', kind: 'evenement', party: '22 pers', color: '#ec4899' },
-  { when: 'Samedi · 20:00', title: 'Mariage Rodrigues', kind: 'evenement', party: '45 pers', color: '#10b981' },
-  { when: 'Dimanche · 12:30', title: 'Brunch Fête des Mères', kind: 'evenement', party: '60 pers', color: '#0ea5e9' },
-]
-
-const floorTables = [
-  { id: 'T1', x: 12, y: 18, status: 'free' },
-  { id: 'T2', x: 32, y: 18, status: 'occupied' },
-  { id: 'T3', x: 52, y: 18, status: 'occupied' },
-  { id: 'T4', x: 72, y: 18, status: 'reserved' },
-  { id: 'T5', x: 12, y: 42, status: 'free' },
-  { id: 'T6', x: 32, y: 42, status: 'free' },
-  { id: 'T7', x: 52, y: 42, status: 'occupied' },
-  { id: 'T8', x: 72, y: 42, status: 'free' },
-  { id: 'T9', x: 12, y: 66, status: 'free' },
-  { id: 'T10', x: 32, y: 66, status: 'reserved' },
-  { id: 'T11', x: 52, y: 66, status: 'free' },
-  { id: 'T12', x: 72, y: 66, status: 'occupied' },
-] as const
-
-const forecast = [
-  { h: '15h', t: 13, icon: '☀' },
-  { h: '16h', t: 12, icon: '⛅' },
-  { h: '17h', t: 11, icon: '⛅' },
-]
-
-const aiInsights = [
-  { icon: '💡', text: "Aujourd'hui est votre meilleur mercredi du mois", tone: 'good' },
-  { icon: '☕', text: 'Stock café bas — commande suggérée demain', tone: 'warn' },
-  { icon: '📈', text: 'Pic attendu entre 19h et 21h (+18% vs moy.)', tone: 'info' },
-]
-
-const sparkData = [38, 42, 35, 50, 47, 55, 60, 58, 65, 62, 70, 68]
+// Sections sans source de données côté serveur : vides, jamais inventées.
+const revenueBreakdown: Array<{ name: string; value: number; color: string }> = []
+const alerts: Array<{ type: 'red' | 'orange' | 'blue' | 'green' | 'yellow'; icon: string; text: string }> = []
+const staffOnDuty: Array<{ name: string; role: string; task: string; since: string; hours: string; color: string }> = []
+const upcomingEvents: Array<{ when: string; title: string; kind: string; party: string; color: string }> = []
+const floorTables: Array<{ id: string; x: number; y: number; status: string }> = []
+const forecast: Array<{ h: string; t: number; icon: string }> = []
+const aiInsights: Array<{ icon: string; text: string; tone: string }> = []
+const sparkData: number[] = []
 
 /* ─────────────────────── HELPERS ─────────────────────── */
 
@@ -414,8 +354,43 @@ export default function Dashboard() {
     return () => clearInterval(t)
   }, [])
 
-  // ── Realtime order notifications ──────────────────────────────
-  const [realtimeOrders, setRealtimeOrders] = useState<typeof liveOrders>([])
+  // ── Statistiques réelles (/api/stats) ─────────────────────────
+  const { data: today, isLoading: loadingToday, isError: errorToday } = useTodayStats()
+  const { data: week } = useWeekStats()
+  const { data: topProductsData } = useTopProductsToday()
+
+  useEffect(() => {
+    // Ne jamais masquer un échec : une absence de données et une API en erreur
+    // ne veulent pas dire la même chose.
+    if (errorToday) toastError('Impossible de charger les statistiques du jour')
+  }, [errorToday])
+
+  const weekChartData = (week ?? []).map((p) => {
+    const [y, m, d] = p.date.split('-').map(Number)
+    return { jour: JOURS_COURT[new Date(y, m - 1, d).getDay()], ca: p.revenue }
+  })
+
+  const topProductsView = (topProductsData ?? [])
+    .filter((tp) => tp.product)
+    .map((tp) => ({
+      name: tp.product!.name,
+      qty: tp.totalQuantity ?? 0,
+      // CA approximatif : prix catalogue actuel × quantité vendue. Le serveur
+      // ne renvoie pas le CA encaissé par produit ; ce calcul reste transparent
+      // et repose sur deux valeurs réelles.
+      revenue: tp.product!.price * (tp.totalQuantity ?? 0),
+    }))
+
+  // ── Commandes en direct (socket réel order:new / order:updated) ──
+  interface LiveOrder {
+    id: number | string
+    table: string
+    items: number
+    total: number
+    elapsed: number
+    status: string
+  }
+  const [realtimeOrders, setRealtimeOrders] = useState<LiveOrder[]>([])
 
   useSocketEvent<{ id: number | string; table?: string; total?: number; items?: number }>(
     'order:new',
@@ -446,10 +421,9 @@ export default function Dashboard() {
     )
   })
 
-  // Merge realtime orders with mock list for display (realtime first).
-  const ordersToDisplay = realtimeOrders.length > 0
-    ? [...realtimeOrders, ...liveOrders].slice(0, 8)
-    : liveOrders
+  // Plus de repli sur une liste fictive : tant qu'aucun événement temps réel
+  // n'est arrivé, la liste reste vide.
+  const ordersToDisplay = realtimeOrders.slice(0, 8)
 
   const greeting = now.getHours() < 12 ? 'Bonjour' : now.getHours() < 18 ? 'Bon après-midi' : 'Bonsoir'
   const firstName = user?.firstName ?? 'Admin'
@@ -547,37 +521,40 @@ export default function Dashboard() {
 
           {sections.stats && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+              {/* Valeurs réelles de /api/stats/today. Aucune comparaison
+                  « vs hier » : le serveur ne la fournit pas. */}
               <StatCard
                 label="CA Aujourd'hui"
-                value="1 847 €"
-                sub="+12% vs hier"
-                subColor="#16a34a"
+                value={loadingToday ? '…' : today ? formatEuros(today.revenue) : '—'}
+                sub="commandes payées"
+                subColor="#64748b"
                 icon={<TrendingUp size={20} color="#6366f1" />}
                 iconBg="#eef2ff"
-                sparkline={<MiniSparkline data={sparkData} color="#6366f1" />}
               />
               <StatCard
                 label="Commandes"
-                value="34"
-                sub="En cours : 5"
-                subColor="#d97706"
+                value={loadingToday ? '…' : today ? String(today.orderCount) : '—'}
+                sub="payées aujourd'hui"
+                subColor="#64748b"
                 icon={<ShoppingBag size={20} color="#f59e0b" />}
                 iconBg="#fffbeb"
               />
               <StatCard
                 label="Tables"
-                value="4 / 12"
+                value={loadingToday ? '…' : today ? `${today.tablesOccupied} / ${today.tablesTotal}` : '—'}
                 sub="occupées"
                 subColor="#64748b"
                 icon={<Users size={20} color="#0ea5e9" />}
                 iconBg="#f0f9ff"
-                ring={<ProgressRing value={4} max={12} color="#0ea5e9" />}
+                ring={today && today.tablesTotal > 0
+                  ? <ProgressRing value={today.tablesOccupied} max={today.tablesTotal} color="#0ea5e9" />
+                  : undefined}
               />
               <StatCard
-                label="Clients"
-                value="18"
-                sub="3 nouveaux"
-                subColor="#7c3aed"
+                label="Panier moyen"
+                value={loadingToday ? '…' : today && today.orderCount > 0 ? formatEuros(today.avgTicket) : '—'}
+                sub="par commande"
+                subColor="#64748b"
                 icon={<CreditCard size={20} color="#ec4899" />}
                 iconBg="#fdf2f8"
               />
@@ -844,7 +821,7 @@ export default function Dashboard() {
               <h2 style={sectionTitle}>CA des 7 derniers jours</h2>
               <div style={{ width: '100%', height: 260 }}>
                 <ResponsiveContainer>
-                  <AreaChart data={revenueWeek} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                  <AreaChart data={weekChartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="caGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#6366f1" stopOpacity={0.25} />
@@ -957,8 +934,8 @@ export default function Dashboard() {
             <div style={card}>
               <h2 style={sectionTitle}>Top 5 Produits</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {topProducts.map((p, i) => {
-                  const maxRev = Math.max(...topProducts.map(x => x.revenue))
+                {topProductsView.map((p, i) => {
+                  const maxRev = Math.max(1, ...topProductsView.map(x => x.revenue))
                   const pct = (p.revenue / maxRev) * 100
                   return (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>

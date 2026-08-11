@@ -392,7 +392,15 @@ router.post('/audit', (req, res) => {
   res.json({ ok: true })
 })
 
+// `:date` vient de l'utilisateur : `..%2f..%2fcustomers` (décodé) lisait des
+// JSON arbitraires (customers.json, audit-log.json avec mots de passe). On
+// exige le format AAAA-MM-JJ strict.
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
 router.get('/audit/:date?', (req, res) => {
+  if (req.params.date && !DATE_RE.test(req.params.date)) {
+    return res.status(400).json({ error: 'date invalide (AAAA-MM-JJ attendu)' })
+  }
   const day = req.params.date || new Date().toISOString().slice(0, 10)
   const file = path.join(DATA_DIR, 'audit', `${day}.json`)
   if (!fs.existsSync(file)) return res.json({ date: day, entries: [] })
@@ -402,6 +410,7 @@ router.get('/audit/:date?', (req, res) => {
 
 // CSV export for CNPD audit
 router.get('/audit/:date/export.csv', (req, res) => {
+  if (!DATE_RE.test(req.params.date)) return res.status(400).send('date invalide')
   const file = path.join(DATA_DIR, 'audit', `${req.params.date}.json`)
   if (!fs.existsSync(file)) return res.status(404).send('not found')
   const log = JSON.parse(fs.readFileSync(file, 'utf8')) as AuditEntry[]

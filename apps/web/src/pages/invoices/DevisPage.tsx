@@ -15,10 +15,16 @@ import {
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
+import {
+  useQuotes, useConvertQuote, useUpdateQuote, useCreateQuote,
+  type Quote, type LigneDocument,
+} from '@/hooks/api/useInvoices'
+
 type Statut = 'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED'
 
 interface Devis {
-  id: number
+  /** Identifiant serveur (cuid) — plus un entier fabriqué côté client. */
+  id: string
   numero: string
   client: string
   date: string
@@ -69,15 +75,9 @@ interface CGVItem {
 /*  Mock data                                                          */
 /* ------------------------------------------------------------------ */
 
-const mockDevis: Devis[] = [
-  { id: 1, numero: 'DEV-2026-042', client: 'Restaurant Le Pavillon', date: '2026-04-12', validite: '2026-05-12', montant: 2450, statut: 'ACCEPTED', opened: true, openedAt: '2026-04-13 10:24', signed: true, signedAt: '2026-04-14 15:02', version: 2 },
-  { id: 2, numero: 'DEV-2026-041', client: 'Brasserie Mansfeld', date: '2026-04-10', validite: '2026-04-25', montant: 1280, statut: 'SENT', opened: true, openedAt: '2026-04-11 08:45', reminderScheduled: true },
-  { id: 3, numero: 'DEV-2026-040', client: 'Café des Artistes', date: '2026-04-08', validite: '2026-05-08', montant: 890, statut: 'DRAFT' },
-  { id: 4, numero: 'DEV-2026-039', client: 'Hotel Parc Belair', date: '2026-04-05', validite: '2026-05-05', montant: 3200, statut: 'ACCEPTED', opened: true, openedAt: '2026-04-06 14:12', signed: true, signedAt: '2026-04-08 09:30' },
-  { id: 5, numero: 'DEV-2026-038', client: 'Trattoria Roma', date: '2026-04-02', validite: '2026-05-02', montant: 630, statut: 'REJECTED', opened: true, openedAt: '2026-04-03 11:08' },
-  { id: 6, numero: 'DEV-2026-037', client: 'Wine Bar Clausen', date: '2026-03-28', validite: '2026-04-11', montant: 1750, statut: 'EXPIRED', opened: false },
-  { id: 7, numero: 'DEV-2026-036', client: 'Bistro Neumunster', date: '2026-03-20', validite: '2026-04-20', montant: 980, statut: 'SENT', opened: false },
-]
+// Les sept devis d'exemple ont été retirés : la liste vient désormais de
+// `GET /api/invoices/quotes`. Un écran vide est honnête, un écran peuplé de
+// faux clients devant un prospect ne l'est pas.
 
 const statutConfig: Record<Statut, { label: string; color: string }> = {
   DRAFT: { label: 'Brouillon', color: '#64748b' },
@@ -301,7 +301,12 @@ function QuotePreview({ design, client, articles, numero, validite }: {
 /*  New Devis Modal                                                    */
 /* ------------------------------------------------------------------ */
 
-function DevisModal({ onClose, onToast }: { onClose: () => void; onToast: (m: string) => void }) {
+function DevisModal({ onClose, onToast, onCreer }: {
+  onClose: () => void
+  onToast: (m: string) => void
+  /** Enregistre réellement le devis. Le numéro est attribué par le serveur. */
+  onCreer: (donnees: { notes: string; items: LigneDocument[] }) => void
+}) {
   const [client, setClient] = useState({ nom: '', adresse: '', email: '' })
   const [articles, setArticles] = useState<LigneArticle[]>([{ id: 1, description: '', quantite: 1, prixHT: 0, tauxTVA: 17 }])
   const [notes, setNotes] = useState('')
@@ -382,9 +387,34 @@ function DevisModal({ onClose, onToast }: { onClose: () => void; onToast: (m: st
             <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>{numero} • Validité : {validiteDate}</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => onToast('Brouillon enregistré')} style={smallBtnStyle}><Save size={13} /> Brouillon</button>
-            <button onClick={() => onToast('Devis envoyé par email')} style={{ ...smallBtnStyle, background: '#065F46', color: '#fff', border: 'none' }}><Send size={13} /> Envoyer</button>
-            <button onClick={() => onToast('Génération du PDF...')} style={{ ...smallBtnStyle, background: '#4338ca', color: '#fff', border: 'none' }}><Download size={13} /> PDF</button>
+            {/* « Envoyer » et « PDF » ont été retirés : ni l'envoi par courriel
+                ni la génération PDF n'existent côté serveur aujourd'hui, ils
+                arrivent en phase 3. Un bouton qui n'envoie rien est pire
+                qu'un bouton absent. */}
+            <button
+              onClick={() => {
+                const lignes = articles
+                  .filter((a) => a.description.trim() && a.quantite > 0)
+                  .map((a) => ({
+                    description: a.description.trim(),
+                    quantity: a.quantite,
+                    unitPrice: a.prixHT,
+                    // taxRate est un pourcentage (17), jamais une fraction.
+                    taxRate: a.tauxTVA,
+                  }))
+                if (!lignes.length) {
+                  onToast('Ajoutez au moins une ligne avec une description')
+                  return
+                }
+                // Le nom du client va dans les notes tant qu'il n'y a pas de
+                // sélecteur relié au CRM (prévu avec le reste de la phase 1).
+                const entete = client.nom.trim() ? `Client : ${client.nom.trim()}\n` : ''
+                onCreer({ notes: `${entete}${notes}`.trim(), items: lignes })
+              }}
+              style={{ ...smallBtnStyle, background: '#065F46', color: '#fff', border: 'none' }}
+            >
+              <Save size={13} /> Enregistrer le devis
+            </button>
             <button onClick={onClose} style={{ ...smallBtnStyle, width: 34, padding: 0, justifyContent: 'center' }}><X size={14} /></button>
           </div>
         </div>
@@ -544,8 +574,8 @@ function DevisModal({ onClose, onToast }: { onClose: () => void; onToast: (m: st
 /* ------------------------------------------------------------------ */
 
 function CompareModal({ devis, onClose }: { devis: Devis[]; onClose: () => void }) {
-  const [a, setA] = useState<number | null>(devis[0]?.id ?? null)
-  const [b, setB] = useState<number | null>(devis[1]?.id ?? null)
+  const [a, setA] = useState<string | null>(devis[0]?.id ?? null)
+  const [b, setB] = useState<string | null>(devis[1]?.id ?? null)
   const devisA = devis.find(d => d.id === a)
   const devisB = devis.find(d => d.id === b)
 
@@ -567,7 +597,7 @@ function CompareModal({ devis, onClose }: { devis: Devis[]; onClose: () => void 
             <div key={tag} style={{ background: '#f8fafc', borderRadius: 14, padding: 18, border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <div style={{ width: 26, height: 26, borderRadius: 8, background: '#4338ca', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800 }}>{tag}</div>
-                <select value={val ?? ''} onChange={e => set(Number(e.target.value))} style={{ ...inputStyle, flex: 1 }}>
+                <select value={val ?? ''} onChange={e => set(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
                   {devis.map(x => <option key={x.id} value={x.id}>{x.numero} – {x.client}</option>)}
                 </select>
               </div>
@@ -759,7 +789,11 @@ function TemplatesModal({ onClose, onApply }: { onClose: () => void; onApply: (t
 /* ------------------------------------------------------------------ */
 
 export default function DevisPage() {
-  const [devisList, setDevisList] = useState<Devis[]>(mockDevis)
+  const { data: devisApi = [] } = useQuotes()
+  const convertir = useConvertQuote()
+  const majDevis = useUpdateQuote()
+  const creerDevis = useCreateQuote()
+
   const [filter, setFilter] = useState<Statut | null>(null)
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
@@ -773,6 +807,24 @@ export default function DevisPage() {
     setToast(m)
     setTimeout(() => setToast(null), 2800)
   }
+
+  // Les devis bruts sont indexés à part : les actions ont besoin des lignes,
+  // que la forme d'affichage ne porte pas.
+  const brutParId = useMemo(() => {
+    const m = new Map<string, Quote>()
+    for (const q of devisApi) m.set(q.id, q)
+    return m
+  }, [devisApi])
+
+  const devisList = useMemo<Devis[]>(() => devisApi.map((q) => ({
+    id: q.id,
+    numero: q.number,
+    client: q.customer ? `${q.customer.firstName} ${q.customer.lastName}`.trim() : 'Client non renseigné',
+    date: q.createdAt.slice(0, 10),
+    validite: q.validUntil ? q.validUntil.slice(0, 10) : '',
+    montant: q.total,
+    statut: q.status as Statut,
+  })), [devisApi])
 
   const stats = useMemo(() => {
     const total = devisList.length
@@ -793,27 +845,36 @@ export default function DevisPage() {
     })
   }, [devisList, filter, search])
 
-  const convertToInvoice = (d: Devis) => {
-    showToast(`Devis ${d.numero} converti en facture FAC-2026-${String(d.id + 100).padStart(3, '0')}`)
-  }
+  /** Conversion réelle : le numéro de la facture vient du serveur. */
+  const convertToInvoice = (d: Devis) => convertir.mutate(d.id)
 
+  /** Duplication réelle : nouveau brouillon avec les mêmes lignes. */
   const duplicate = (d: Devis) => {
-    const copy: Devis = {
-      ...d,
-      id: Math.max(...devisList.map(x => x.id)) + 1,
-      numero: `DEV-2026-${String(Math.max(...devisList.map(x => parseInt(x.numero.slice(-3)))) + 1).padStart(3, '0')}`,
-      statut: 'DRAFT',
-      date: new Date().toISOString().slice(0, 10),
-      opened: false,
-      signed: false,
-    }
-    setDevisList([copy, ...devisList])
-    showToast(`Devis dupliqué : ${copy.numero}`)
+    const source = brutParId.get(d.id)
+    if (!source) return
+    creerDevis.mutate({
+      customerId: source.customerId ?? null,
+      notes: source.notes ?? null,
+      validUntil: source.validUntil ?? null,
+      items: source.items.map((l) => ({
+        description: l.description,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        taxRate: l.taxRate,
+      })),
+    })
   }
 
+  /**
+   * Passage du devis en « accepté ».
+   *
+   * La signature électronique véritable (lien public, tracé, preuve conservée)
+   * arrive en phase 4 : ici on enregistre seulement le changement de statut,
+   * réellement, en base.
+   */
   const signDevisHandler = (d: Devis) => {
-    setDevisList(prev => prev.map(x => x.id === d.id ? { ...x, signed: true, statut: 'ACCEPTED', signedAt: new Date().toLocaleString('fr-FR') } : x))
-    showToast(`${d.numero} signé et accepté`)
+    majDevis.mutate({ id: d.id, status: 'ACCEPTED' })
+    setSignDevis(null)
   }
 
   const pieData = [
@@ -823,7 +884,14 @@ export default function DevisPage() {
     { name: 'Expirés', value: stats.expires, color: '#f59e0b' },
   ].filter(p => p.value > 0)
 
-  const formatDate = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  // Un devis sans date de validité est légitime : afficher « — » plutôt que
+  // le « Invalid Date » que produisait `new Date('')`.
+  const formatDate = (d: string) => {
+    if (!d) return '—'
+    const date = new Date(d)
+    if (Number.isNaN(date.getTime())) return '—'
+    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
 
   return (
     <>
@@ -1011,7 +1079,15 @@ export default function DevisPage() {
       </div>
 
       <AnimatePresence>
-        {showModal && <DevisModal onClose={() => setShowModal(false)} onToast={showToast} />}
+        {showModal && (
+          <DevisModal
+            onClose={() => setShowModal(false)}
+            onToast={showToast}
+            onCreer={(donnees) => {
+              creerDevis.mutate(donnees, { onSuccess: () => setShowModal(false) })
+            }}
+          />
+        )}
         {showCompare && <CompareModal devis={devisList} onClose={() => setShowCompare(false)} />}
         {showTemplates && <TemplatesModal onClose={() => setShowTemplates(false)} onApply={(t) => showToast(`Template "${t.nom}" prêt`)} />}
         {historyDevis && <HistoryModal devis={historyDevis} onClose={() => setHistoryDevis(null)} />}

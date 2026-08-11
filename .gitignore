@@ -7,6 +7,9 @@ dist/
 .DS_Store
 Thumbs.db
 apps/backend/data/
+# Médias de l'affichage TV : images et vidéos téléversées par le gérant.
+# Volontairement hors data/ pour ne pas gonfler les sauvegardes ZIP.
+apps/backend/medias/
 *.tsbuildinfo
 
 # Playwright

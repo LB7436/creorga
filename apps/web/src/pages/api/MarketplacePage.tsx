@@ -41,7 +41,7 @@ const CONNECTORS: Connector[] = [
     id: 'resend',
     name: 'Resend',
     category: 'Emails transactionnels',
-    description: 'Envoie factures, relances et notifs depuis @creorga.lu.',
+    description: 'Envoie factures, relances et notifs depuis @example.com.',
     color: '#f59e0b',
     emoji: '✉️',
     helpUrl: 'https://resend.com/docs',

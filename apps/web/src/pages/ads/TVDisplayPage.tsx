@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { fetchAuth } from '@/lib/fetchAuth'
 
@@ -18,95 +18,208 @@ interface Ad {
   textColor?: string
 }
 
+interface ElementProgramme {
+  id: string
+  type: 'image' | 'video'
+  url: string
+  nom: string
+  /** 0 sur une vidéo : jouer jusqu'au bout. */
+  dureeSec: number
+}
+
+interface CreneauVide {
+  mode: 'noir' | 'sequence' | 'message'
+  message?: string
+}
+
 /**
- * Full-screen TV display — rotates live ads with smooth transitions.
- * Polls backend every 4 seconds for live ad updates.
- * Press ESC to exit fullscreen.
+ * Écran TV plein écran.
+ *
+ * Deux sources, dans cet ordre de priorité :
+ *   1. la grille hebdomadaire (`/api/affichage/maintenant`) — vidéos et images
+ *      téléversées, jouées en boucle avec la durée choisie par créneau ;
+ *   2. à défaut, les publicités « en direct » de la régie historique, pour ne
+ *      rien casser de ce qui existait avant la programmation.
+ *
+ * Si les deux sont vides, on applique le réglage des créneaux vides : écran
+ * noir ou message. Échap pour quitter.
  */
 export default function TVDisplayPage() {
+  const [elements, setElements] = useState<ElementProgramme[]>([])
+  const [nomSequence, setNomSequence] = useState<string | null>(null)
+  const [creneauVide, setCreneauVide] = useState<CreneauVide>({ mode: 'noir' })
   const [ads, setAds] = useState<Ad[]>([])
   const [idx, setIdx] = useState(0)
   const [now, setNow] = useState(Date.now())
+  const videoRef = useRef<HTMLVideoElement>(null)
 
-  // Poll live ads
+  // ─── Interrogation du serveur ─────────────────────────────────────────
+
   useEffect(() => {
-    const fetchLive = async () => {
+    const relever = async () => {
+      try {
+        const r = await fetchAuth(`${BACKEND}/api/affichage/maintenant`)
+        if (r.ok) {
+          const p = await r.json()
+          setElements(p.elements || [])
+          setNomSequence(p.sequence?.nom || null)
+          setCreneauVide(p.creneauVide || { mode: 'noir' })
+        }
+      } catch { /* hors ligne : on garde la dernière programmation connue */ }
+
       try {
         const r = await fetchAuth(`${BACKEND}/api/ads/live`)
-        const data = await r.json()
-        setAds(data.ads || [])
-      } catch { /* offline */ }
+        if (r.ok) {
+          const data = await r.json()
+          setAds(data.ads || [])
+        }
+      } catch { /* hors ligne */ }
     }
-    fetchLive()
-    const id = setInterval(fetchLive, 4000)
+    relever()
+    const id = setInterval(relever, 10_000)
     return () => clearInterval(id)
   }, [])
 
-  // Auto-advance
-  useEffect(() => {
-    if (ads.length === 0) return
-    const current = ads[idx % ads.length]
-    const t = setTimeout(() => {
-      setIdx((i) => (i + 1) % ads.length)
-    }, (current.durationSec || 8) * 1000)
-    return () => clearTimeout(t)
-  }, [idx, ads])
+  // La programmation prime ; la régie historique sert de repli.
+  const suiteProgrammee = elements.length > 0
+  const total = suiteProgrammee ? elements.length : ads.length
 
-  // Clock for the corner
+  // Repartir du début quand la source change, sinon l'index déborde.
+  useEffect(() => { setIdx(0) }, [suiteProgrammee, total])
+
+  const elementCourant = suiteProgrammee ? elements[idx % elements.length] : null
+  const pubCourante = !suiteProgrammee && ads.length > 0 ? ads[idx % ads.length] : null
+
+  const avancer = () => setIdx((i) => (total > 0 ? (i + 1) % total : 0))
+
+  // ─── Enchaînement ─────────────────────────────────────────────────────
+  //
+  // Une vidéo dont la durée vaut 0 s'arrête d'elle-même : on attend
+  // l'événement `ended` plutôt qu'un minuteur, sinon on la couperait au
+  // milieu ou on laisserait un écran figé.
+  useEffect(() => {
+    if (total === 0) return
+    const attenteVideoEntiere = elementCourant?.type === 'video' && elementCourant.dureeSec === 0
+    if (attenteVideoEntiere) return
+
+    const secondes = elementCourant
+      ? elementCourant.dureeSec || 8
+      : pubCourante?.durationSec || 8
+
+    const t = setTimeout(avancer, secondes * 1000)
+    return () => clearTimeout(t)
+  }, [idx, total, elementCourant, pubCourante])
+
+  // Relancer la lecture à chaque changement d'élément.
+  useEffect(() => {
+    if (elementCourant?.type === 'video' && videoRef.current) {
+      videoRef.current.currentTime = 0
+      videoRef.current.play().catch(() => {
+        /* La vidéo est muette : la politique d'autoplay ne devrait pas bloquer. */
+      })
+    }
+  }, [elementCourant?.id, idx])
+
+  // Horloge du bandeau
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
 
-  // ESC to exit
+  // Échap pour sortir
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') window.history.back() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const current = ads.length > 0 ? ads[idx % ads.length] : null
+  const rienAAfficher = total === 0
 
   return (
     <div style={{
       position: 'fixed', inset: 0, overflow: 'hidden',
       background: '#000', color: '#fff', cursor: 'none',
     }}>
-      {!current && (
+      {/* ─── Créneau vide ─────────────────────────────────────────────── */}
+      {rienAAfficher && (
         <div style={{
           position: 'absolute', inset: 0,
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          background: 'linear-gradient(135deg, #0f172a, #1e293b)',
+          background: creneauVide.mode === 'noir'
+            ? '#000'
+            : 'linear-gradient(135deg, #0f172a, #1e293b)',
+          padding: 60, textAlign: 'center',
         }}>
-          <div style={{ fontSize: 80 }}>📺</div>
-          <h1 style={{ fontSize: 36, fontWeight: 800, margin: '20px 0 8px' }}>Creorga TV</h1>
-          <p style={{ fontSize: 16, color: '#94a3b8', maxWidth: 480, textAlign: 'center' }}>
-            Aucune publicité en direct pour le moment. <br />
-            Activez des pubs depuis l'onglet « 🔴 En direct » dans la régie.
-          </p>
+          {creneauVide.mode === 'message' && creneauVide.message ? (
+            <h1 style={{ fontSize: 'clamp(36px, 6vw, 96px)', fontWeight: 900, margin: 0, lineHeight: 1.15 }}>
+              {creneauVide.message}
+            </h1>
+          ) : creneauVide.mode === 'noir' ? null : (
+            <>
+              <div style={{ fontSize: 80 }}>📺</div>
+              <h1 style={{ fontSize: 36, fontWeight: 800, margin: '20px 0 8px' }}>Creorga TV</h1>
+              <p style={{ fontSize: 16, color: '#94a3b8', maxWidth: 520 }}>
+                Aucune séquence programmée sur ce créneau, et aucune publicité en direct.<br />
+                Programmez la semaine depuis « Affichage TV &amp; Ambiance → Programmation ».
+              </p>
+            </>
+          )}
         </div>
       )}
 
+      {/* ─── Élément programmé (vidéo ou image) ───────────────────────── */}
       <AnimatePresence mode="wait">
-        {current && (
+        {elementCourant && (
           <motion.div
-            key={current.id}
+            key={`${elementCourant.id}-${idx}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            style={{ position: 'absolute', inset: 0, background: '#000' }}
+          >
+            {elementCourant.type === 'video' ? (
+              <video
+                ref={videoRef}
+                src={`${BACKEND}${elementCourant.url}`}
+                autoPlay
+                muted
+                playsInline
+                onEnded={() => { if (elementCourant.dureeSec === 0) avancer() }}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
+              />
+            ) : (
+              <img
+                src={`${BACKEND}${elementCourant.url}`}
+                alt={elementCourant.nom}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
+              />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Publicité de la régie historique (repli) ─────────────────── */}
+      <AnimatePresence mode="wait">
+        {pubCourante && (
+          <motion.div
+            key={pubCourante.id}
             initial={{ opacity: 0, scale: 1.05 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.6 }}
             style={{
               position: 'absolute', inset: 0,
-              background: current.imageDataUrl
-                ? `url(${current.imageDataUrl}) center/cover`
-                : current.bgColor || '#1e293b',
-              color: current.textColor || '#fff',
+              background: pubCourante.imageDataUrl
+                ? `url(${pubCourante.imageDataUrl}) center/cover`
+                : pubCourante.bgColor || '#1e293b',
+              color: pubCourante.textColor || '#fff',
               display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center',
               padding: 60, textAlign: 'center',
             }}
           >
-            {current.imageDataUrl && (
+            {pubCourante.imageDataUrl && (
               <div style={{
                 position: 'absolute', inset: 0,
                 background: 'linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.7) 100%)',
@@ -119,29 +232,29 @@ export default function TVDisplayPage() {
               style={{
                 fontSize: 'clamp(48px, 8vw, 120px)', fontWeight: 900,
                 margin: 0, letterSpacing: -2, lineHeight: 1.1,
-                textShadow: current.imageDataUrl ? '0 4px 24px rgba(0,0,0,0.5)' : 'none',
+                textShadow: pubCourante.imageDataUrl ? '0 4px 24px rgba(0,0,0,0.5)' : 'none',
                 position: 'relative', zIndex: 5,
               }}
             >
-              {current.title}
+              {pubCourante.title}
             </motion.h1>
 
-            {current.subtitle && (
+            {pubCourante.subtitle && (
               <motion.p
                 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.5, duration: 0.6 }}
                 style={{
                   fontSize: 'clamp(20px, 2.5vw, 36px)', fontWeight: 500,
                   margin: '16px 0 0', maxWidth: 1200, opacity: 0.9,
-                  textShadow: current.imageDataUrl ? '0 2px 12px rgba(0,0,0,0.5)' : 'none',
+                  textShadow: pubCourante.imageDataUrl ? '0 2px 12px rgba(0,0,0,0.5)' : 'none',
                   position: 'relative', zIndex: 5,
                 }}
               >
-                {current.subtitle}
+                {pubCourante.subtitle}
               </motion.p>
             )}
 
-            {current.price !== undefined && (
+            {pubCourante.price !== undefined && (
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.8, duration: 0.5, type: 'spring' }}
@@ -154,11 +267,11 @@ export default function TVDisplayPage() {
                   position: 'relative', zIndex: 5,
                 }}
               >
-                {current.price.toFixed(2)} {current.currency || '€'}
+                {pubCourante.price.toFixed(2)} {pubCourante.currency || '€'}
               </motion.div>
             )}
 
-            {current.cta && (
+            {pubCourante.cta && (
               <motion.div
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                 transition={{ delay: 1.1, duration: 0.5 }}
@@ -171,39 +284,46 @@ export default function TVDisplayPage() {
                   fontWeight: 700, position: 'relative', zIndex: 5,
                 }}
               >
-                {current.cta}
+                {pubCourante.cta}
               </motion.div>
             )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Top-right HUD */}
-      <div style={{
-        position: 'fixed', top: 20, right: 24, zIndex: 100,
-        display: 'flex', gap: 12, alignItems: 'center',
-        background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)',
-        padding: '8px 14px', borderRadius: 999,
-        fontSize: 12, fontFamily: 'monospace', color: 'rgba(255,255,255,0.85)',
-      }}>
-        <span>🔴 LIVE</span>
-        <span>·</span>
-        <span>{new Date(now).toLocaleTimeString('fr-FR')}</span>
-        {ads.length > 0 && (
-          <>
-            <span>·</span>
-            <span>{(idx % ads.length) + 1} / {ads.length}</span>
-          </>
-        )}
-      </div>
+      {/* Bandeau haut-droite */}
+      {!rienAAfficher && (
+        <div style={{
+          position: 'fixed', top: 20, right: 24, zIndex: 100,
+          display: 'flex', gap: 12, alignItems: 'center',
+          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)',
+          padding: '8px 14px', borderRadius: 999,
+          fontSize: 12, fontFamily: 'monospace', color: 'rgba(255,255,255,0.85)',
+        }}>
+          <span>🔴 LIVE</span>
+          <span>·</span>
+          <span>{new Date(now).toLocaleTimeString('fr-FR')}</span>
+          {nomSequence && suiteProgrammee && (
+            <>
+              <span>·</span>
+              <span>{nomSequence}</span>
+            </>
+          )}
+          <span>·</span>
+          <span>{(idx % total) + 1} / {total}</span>
+        </div>
+      )}
 
-      {/* Progress bar */}
-      {current && (
+      {/* Barre de progression — masquée quand la vidéo décide elle-même de sa durée */}
+      {!rienAAfficher && !(elementCourant?.type === 'video' && elementCourant.dureeSec === 0) && (
         <motion.div
-          key={`bar-${current.id}-${idx}`}
+          key={`bar-${elementCourant?.id || pubCourante?.id}-${idx}`}
           initial={{ width: '0%' }}
           animate={{ width: '100%' }}
-          transition={{ duration: current.durationSec, ease: 'linear' }}
+          transition={{
+            duration: elementCourant ? (elementCourant.dureeSec || 8) : (pubCourante?.durationSec || 8),
+            ease: 'linear',
+          }}
           style={{
             position: 'fixed', bottom: 0, left: 0,
             height: 4, background: 'linear-gradient(90deg, #6366f1, #ec4899)',
@@ -212,7 +332,6 @@ export default function TVDisplayPage() {
         />
       )}
 
-      {/* Exit hint */}
       <div style={{
         position: 'fixed', bottom: 20, left: 24, zIndex: 100,
         fontSize: 11, color: 'rgba(255,255,255,0.5)', fontFamily: 'monospace',

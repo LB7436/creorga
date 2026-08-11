@@ -85,7 +85,7 @@ const defaultTemplates: Template[] = [
   { id: 2, title: 'Retour mitigé 3-4 étoiles', stars: '3-4', usage: 18, avgResponseScore: 78, body: "Bonjour {prénom}, merci pour votre retour constructif. Nous sommes heureux que vous ayez passé un bon moment et prenons note de vos remarques pour continuer à progresser." },
   { id: 3, title: 'Excuse 1-2 étoiles', stars: '1-2', usage: 12, avgResponseScore: 84, body: "Bonjour {prénom}, nous sommes sincèrement désolés que votre visite n'ait pas été à la hauteur. Nous prenons contact avec vous en privé afin de comprendre et de vous proposer une solution." },
   { id: 4, title: 'Événement privé', stars: '5', usage: 9, avgResponseScore: 89, body: "Bonjour {prénom}, merci infiniment d'avoir choisi Creorga pour cet événement. Toute l'équipe a été ravie de contribuer à ce moment unique." },
-  { id: 5, title: 'Réservation manquée', stars: '1-2', usage: 6, avgResponseScore: 81, body: "Bonjour {prénom}, nous vous prions de bien vouloir nous excuser pour ce désagrément. Pourriez-vous nous contacter à contact@creorga.lu afin que nous trouvions ensemble un geste commercial adapté ?" },
+  { id: 5, title: 'Réservation manquée', stars: '1-2', usage: 6, avgResponseScore: 81, body: "Bonjour {prénom}, nous vous prions de bien vouloir nous excuser pour ce désagrément. Pourriez-vous nous contacter à contact@example.com afin que nous trouvions ensemble un geste commercial adapté ?" },
 ];
 
 const suggestionFor = (stars: number, author: string): string[] => {
@@ -107,7 +107,7 @@ const suggestionFor = (stars: number, author: string): string[] => {
   return [
     `Bonjour ${firstName}, nous sommes sincèrement désolés que votre expérience n'ait pas été à la hauteur. Nous prenons contact avec vous en privé afin d'en discuter et de vous proposer un geste adapté.`,
     `${firstName}, votre retour nous attriste. Ce que vous décrivez ne correspond pas à nos standards. La direction vous contacte aujourd'hui même pour en discuter.`,
-    `Bonjour ${firstName}, toutes nos excuses pour ce désagrément. Pouvez-vous nous écrire à contact@creorga.lu ? Nous souhaitons comprendre ce qui s'est passé et réparer cette mauvaise expérience.`,
+    `Bonjour ${firstName}, toutes nos excuses pour ce désagrément. Pouvez-vous nous écrire à contact@example.com ? Nous souhaitons comprendre ce qui s'est passé et réparer cette mauvaise expérience.`,
   ];
 };
 
@@ -190,7 +190,7 @@ export default function ReponsesPage() {
       const ai = r.stars >= 4
         ? `Bonjour ${firstName}, merci infiniment pour ce superbe retour ! Nous notons votre enthousiasme concernant notre service et partagerons votre message avec l'équipe cuisine et salle. Au plaisir de vous revoir très bientôt chez Creorga.`
         : r.stars === 3
-        ? `Bonjour ${firstName}, merci d'avoir partagé votre expérience. Nous prenons note de vos remarques avec sérieux. Pourriez-vous nous contacter directement à contact@creorga.lu afin que nous puissions échanger et vous proposer un nouveau moment à la hauteur de nos ambitions ?`
+        ? `Bonjour ${firstName}, merci d'avoir partagé votre expérience. Nous prenons note de vos remarques avec sérieux. Pourriez-vous nous contacter directement à contact@example.com afin que nous puissions échanger et vous proposer un nouveau moment à la hauteur de nos ambitions ?`
         : `Bonjour ${firstName}, nous regrettons sincèrement que votre visite n'ait pas répondu à vos attentes. Votre retour concernant ${r.comment.slice(0, 40)}... est pris très au sérieux. La direction vous contactera aujourd'hui même pour comprendre précisément la situation et vous proposer un geste à la hauteur du désagrément causé.`;
       setDrafts(d => ({ ...d, [r.id]: ai }));
       setGeneratingId(null);

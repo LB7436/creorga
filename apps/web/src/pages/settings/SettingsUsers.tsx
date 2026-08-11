@@ -106,14 +106,14 @@ const INITIAL_GROUPS: Group[] = [
 ]
 
 const INITIAL_USERS: User[] = [
-  { id: 'u1', name: 'Bryan Lemaire', email: 'bryan@creorga.lu', avatar: 'BL', role: 'r1', groupId: 'g1', lastLogin: '2026-04-16 09:12', status: 'active' },
-  { id: 'u2', name: 'Sophie Müller', email: 'sophie.m@creorga.lu', avatar: 'SM', role: 'r2', groupId: 'g1', lastLogin: '2026-04-16 08:45', status: 'active' },
-  { id: 'u3', name: 'Léon Becker', email: 'leon.b@creorga.lu', avatar: 'LB', role: 'r3', groupId: 'g1', lastLogin: '2026-04-15 22:30', status: 'active' },
-  { id: 'u4', name: 'Marie Dupont', email: 'marie.d@creorga.lu', avatar: 'MD', role: 'r3', groupId: 'g1', lastLogin: '2026-04-15 23:02', status: 'active' },
-  { id: 'u5', name: 'Thierry Weber', email: 'thierry.w@creorga.lu', avatar: 'TW', role: 'r4', groupId: 'g2', lastLogin: '2026-04-16 07:50', status: 'active' },
-  { id: 'u6', name: 'Anaïs Girard', email: 'anais.g@creorga.lu', avatar: 'AG', role: 'r4', groupId: 'g2', lastLogin: '2026-04-14 19:20', status: 'active' },
-  { id: 'u7', name: 'Raphaël Hoffmann', email: 'raphael.h@creorga.lu', avatar: 'RH', role: 'r3', groupId: 'g3', lastLogin: '—', status: 'invited' },
-  { id: 'u8', name: 'Céline Reuter', email: 'celine.r@creorga.lu', avatar: 'CR', role: 'r4', groupId: 'g3', lastLogin: '2026-03-02 18:11', status: 'disabled' },
+  { id: 'u1', name: 'Bryan Lemaire', email: 'bryan@example.com', avatar: 'BL', role: 'r1', groupId: 'g1', lastLogin: '2026-04-16 09:12', status: 'active' },
+  { id: 'u2', name: 'Sophie Müller', email: 'sophie.m@example.com', avatar: 'SM', role: 'r2', groupId: 'g1', lastLogin: '2026-04-16 08:45', status: 'active' },
+  { id: 'u3', name: 'Léon Becker', email: 'leon.b@example.com', avatar: 'LB', role: 'r3', groupId: 'g1', lastLogin: '2026-04-15 22:30', status: 'active' },
+  { id: 'u4', name: 'Marie Dupont', email: 'marie.d@example.com', avatar: 'MD', role: 'r3', groupId: 'g1', lastLogin: '2026-04-15 23:02', status: 'active' },
+  { id: 'u5', name: 'Thierry Weber', email: 'thierry.w@example.com', avatar: 'TW', role: 'r4', groupId: 'g2', lastLogin: '2026-04-16 07:50', status: 'active' },
+  { id: 'u6', name: 'Anaïs Girard', email: 'anais.g@example.com', avatar: 'AG', role: 'r4', groupId: 'g2', lastLogin: '2026-04-14 19:20', status: 'active' },
+  { id: 'u7', name: 'Raphaël Hoffmann', email: 'raphael.h@example.com', avatar: 'RH', role: 'r3', groupId: 'g3', lastLogin: '—', status: 'invited' },
+  { id: 'u8', name: 'Céline Reuter', email: 'celine.r@example.com', avatar: 'CR', role: 'r4', groupId: 'g3', lastLogin: '2026-03-02 18:11', status: 'disabled' },
 ]
 
 const INITIAL_LOG: LogEntry[] = [
@@ -122,7 +122,7 @@ const INITIAL_LOG: LogEntry[] = [
   { id: 'l3', ts: '08:50', user: 'Léon Becker', action: 'Vente', target: 'Ticket #4821' },
   { id: 'l4', ts: '08:46', user: 'Sophie Müller', action: 'Remise appliquée', target: 'Table 4' },
   { id: 'l5', ts: '08:40', user: 'Thierry Weber', action: 'Validation cuisine', target: 'Commande #4820' },
-  { id: 'l6', ts: '08:31', user: 'Bryan Lemaire', action: 'Invitation', target: 'raphael.h@creorga.lu' },
+  { id: 'l6', ts: '08:31', user: 'Bryan Lemaire', action: 'Invitation', target: 'raphael.h@example.com' },
   { id: 'l7', ts: '08:15', user: 'Marie Dupont', action: 'Connexion', target: '—' },
   { id: 'l8', ts: '08:02', user: 'Léon Becker', action: 'Ouverture caisse', target: 'Caisse #1' },
   { id: 'l9', ts: '07:55', user: 'Anaïs Girard', action: 'Mise à jour stock', target: 'Tomates +20kg' },
@@ -530,7 +530,7 @@ export default function SettingsUsers() {
                     type="email"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="collaborateur@creorga.lu"
+                    placeholder="collaborateur@example.com"
                     style={inputStyle}
                   />
                 </div>

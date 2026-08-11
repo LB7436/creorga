@@ -99,6 +99,7 @@ model UserCompany {
 
   user    User    @relation(fields: [userId], references: [id])
   company Company @relation(fields: [companyId], references: [id])
+  profile EmployeeProfile?
 
   @@unique([userId, companyId])
 }
@@ -677,4 +678,68 @@ model EventQuoteItem {
   category     String?
 
   eventQuote EventQuote @relation(fields: [eventQuoteId], references: [id], onDelete: Cascade)
+}
+
+// ─── DOSSIER EMPLOYÉ ───────────────────────────────────
+//
+// Rattaché à UserCompany, qui porte déjà l'appartenance à une société et le
+// rôle. Cloisonnement : toute requête filtre par `userCompany.companyId`.
+//
+// ⚠️ Ces tables contiennent des données personnelles au sens du RGPD
+// (salaire, numéro de sécurité sociale, IBAN, documents de paie). Elles ne
+// doivent jamais être exposées par une route publique ni sortir du périmètre
+// de la société.
+
+model EmployeeProfile {
+  id            String    @id @default(cuid())
+  userCompanyId String    @unique
+  poste         String?
+  contrat       String? // CDI | CDD | Extra/Intérimaire | Stage | Apprentissage
+  heuresHebdo   Float?
+  salaireBrut   Float?
+  dateEmbauche  DateTime?
+  dateFinContrat DateTime?
+  dateNaissance DateTime?
+  adresse       String?
+  telephone     String?
+  numSecu       String?
+  iban          String?
+  statut        String    @default("ACTIF") // ACTIF | INACTIF | CONGE | SORTI
+  competences   String? // texte libre : formations, certifications, langues
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  userCompany UserCompany        @relation(fields: [userCompanyId], references: [id], onDelete: Cascade)
+  notes       EmployeeNote[]
+  documents   EmployeeDocument[]
+}
+
+model EmployeeNote {
+  id        String   @id @default(cuid())
+  profileId String
+  texte     String
+  auteurId  String?
+  createdAt DateTime @default(now())
+
+  profile EmployeeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, createdAt])
+}
+
+model EmployeeDocument {
+  id        String   @id @default(cuid())
+  profileId String
+  type      String // CONTRAT | FICHE_PAIE | DIPLOME | AUTRE
+  nom       String
+  /// Nom du fichier sur disque, jamais repris de l'utilisateur.
+  fichier   String
+  mime      String
+  taille    Int
+  /// Pour une fiche de paie : période au format AAAA-MM.
+  periode   String?
+  createdAt DateTime @default(now())
+
+  profile EmployeeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, type])
 }

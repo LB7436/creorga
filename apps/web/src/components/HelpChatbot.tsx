@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useLocation } from 'react-router-dom'
 import {
-  MessageCircle, X, Send, Sparkles, Loader2,
+  X, Send, Sparkles, Loader2,
   BookOpen, Video, Bot, Download, ChevronRight,
   Play, Zap, ArrowRight, Search, ThumbsUp, ThumbsDown,
   Mic, MicOff,
@@ -11,6 +11,7 @@ import { getHelpForPath, HELP_CONTENT, type AgentCommand, type DemoStep, type Mo
 import api from '@/lib/api'
 import InteractiveTutorial from './InteractiveTutorial'
 import { fetchAuth } from '@/lib/fetchAuth'
+import { useHelp } from '@/stores/helpStore'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -34,7 +35,10 @@ interface ChatMsg {
 }
 
 export default function HelpChatbot() {
-  const [open, setOpen] = useState(false)
+  // Ouverture pilotée par FloatingHub : le panneau n'a plus de bouton flottant
+  // propre, il partageait le coin bas-droit avec deux autres lanceurs.
+  const open = useHelp((s) => s.open)
+  const setOpen = useHelp((s) => s.setOpen)
   const [tab, setTab] = useState<Tab>('agent')
   const [messages, setMessages] = useState<ChatMsg[]>([])
   const [input, setInput] = useState('')
@@ -173,26 +177,9 @@ export default function HelpChatbot() {
 
   return (
     <>
-      {/* Floating launcher */}
-      <motion.button
-        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-        onClick={() => setOpen(!open)}
-        style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 9998,
-          width: 56, height: 56, borderRadius: '50%',
-          background: open ? 'rgba(15,23,42,0.95)' : 'linear-gradient(135deg,#8b5cf6,#ec4899)',
-          color: '#fff', border: 'none', cursor: 'pointer',
-          boxShadow: '0 8px 24px rgba(139,92,246,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-        title="Centre d'aide Creorga"
-      >
-        <AnimatePresence mode="wait">
-          {open
-            ? <motion.span key="x" initial={{ rotate: -90 }} animate={{ rotate: 0 }} exit={{ rotate: 90 }}><X size={22} /></motion.span>
-            : <motion.span key="msg" initial={{ rotate: 90 }} animate={{ rotate: 0 }} exit={{ rotate: -90 }}><MessageCircle size={22} /></motion.span>}
-        </AnimatePresence>
-      </motion.button>
+      {/* Le bouton flottant a été déplacé dans FloatingHub : il occupait le
+          coin bas-droit en même temps que le lanceur de l'assistant et celui
+          des actions rapides, les trois se recouvrant. */}
 
       <AnimatePresence>
         {open && (
@@ -223,6 +210,21 @@ export default function HelpChatbot() {
                   {help.emoji} {help.title} <span style={{ opacity: 0.6 }}>· {location.pathname}</span>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                title="Fermer le centre d'aide"
+                aria-label="Fermer le centre d'aide"
+                style={{
+                  width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+                  border: '1px solid rgba(255,255,255,0.28)',
+                  background: 'rgba(255,255,255,0.16)',
+                  color: '#fff', cursor: 'pointer',
+                  display: 'grid', placeItems: 'center',
+                }}
+              >
+                <X size={17} />
+              </button>
             </header>
 
             {/* Tabs */}

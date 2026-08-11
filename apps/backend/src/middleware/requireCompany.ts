@@ -79,3 +79,22 @@ export async function requireCompany(req: Request, res: Response, next: NextFunc
     next()
   }
 }
+
+/**
+ * Exige un rôle précis sur la société courante. À chaîner APRÈS `requireCompany`,
+ * qui pose `req.role` depuis `UserCompany`. Renvoie 403 sinon.
+ *
+ * Jusqu'ici le seul contrôle de rôle du backend était inline dans companies.ts :
+ * les routes les plus sensibles (sauvegardes intégrales, journal d'audit global,
+ * purge RGPD) étaient accessibles à TOUT membre authentifié, rôle STAFF compris.
+ */
+export function requireRole(...roles: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const role = (req as any).role
+    if (!role || !roles.includes(role)) {
+      res.status(403).json({ error: 'Action réservée au propriétaire' })
+      return
+    }
+    next()
+  }
+}

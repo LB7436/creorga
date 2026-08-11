@@ -64,7 +64,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
         `URL: ${typeof window !== 'undefined' ? window.location.href : ''}\n` +
         `Date: ${new Date().toISOString()}`,
     )
-    window.open(`mailto:support@creorga.lu?subject=${subject}&body=${body}`)
+    window.open(`mailto:support@example.com?subject=${subject}&body=${body}`)
     trackError(error, 'user_reported')
   }
 
@@ -269,7 +269,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
               textAlign: 'center',
             }}
           >
-            Creorga OS · Si le problème persiste, contactez support@creorga.lu
+            Creorga OS · Si le problème persiste, contactez support@example.com
           </p>
         </div>
       </div>

@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    # La production tourne sur qa/pc-2026-07-27, pas sur master : sans ce
+    # motif, typecheck, tests et Playwright ne s'exécutaient JAMAIS sur le
+    # code réellement livré aux clients.
+    branches: [master, 'qa/**']
   pull_request:
 
 jobs:

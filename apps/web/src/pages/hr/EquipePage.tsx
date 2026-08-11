@@ -1,4 +1,4 @@
-import { toastInfo } from '@/lib/toast'
+import { toastInfo, toastError } from '@/lib/toast'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createPortal } from 'react-dom'
@@ -11,8 +11,18 @@ import {
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────
+import DossierEmployeModal from './DossierEmployeModal'
+import { fetchAuth } from '@/lib/fetchAuth'
+
+const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
+
+// Les postes réels sont saisis librement dans le dossier employé : ces unions
+// ne servent plus qu'aux couleurs par défaut, avec un repli pour tout le reste.
 type RoleType = 'Serveur' | 'Cuisinier' | 'Femme de ménage' | 'Manager' | 'Barman'
 type ContratType = 'CDI' | 'CDD' | 'Extra/Intérimaire'
+
+const COULEUR_DEFAUT = '#64748b'
+const FOND_DEFAUT = '#f1f5f9'
 type StatusType = 'Actif' | 'Inactif'
 type SortField = 'nom' | 'role' | 'contrat' | 'heures' | 'salaire' | 'embauche' | 'statut'
 type SortDir = 'asc' | 'desc'
@@ -62,42 +72,42 @@ const AVATAR_COLORS = ['#6366f1', '#f97316', '#ec4899', '#10b981', '#eab308', '#
 const MOCK_EMPLOYEES: Employee[] = [
   {
     id: '1', firstName: 'Marie', lastName: 'Dupont',
-    email: 'marie.dupont@creorga.lu', phone: '+352 621 123 456',
+    email: 'marie.dupont@example.com', phone: '+352 621 123 456',
     dateNaissance: '1990-05-12', adresse: '14 Rue de Hollerich, L-1741 Luxembourg',
     role: 'Serveur', contrat: 'CDI', heuresHebdo: 40, salaireBrut: 3200,
     dateEmbauche: new Date(2023, 2, 15), numSecu: '1990051200147', status: 'Actif',
   },
   {
     id: '2', firstName: 'Jean', lastName: 'Muller',
-    email: 'jean.muller@creorga.lu', phone: '+352 621 234 567',
+    email: 'jean.muller@example.com', phone: '+352 621 234 567',
     dateNaissance: '1985-11-03', adresse: '8 Boulevard Royal, L-2449 Luxembourg',
     role: 'Cuisinier', contrat: 'CDI', heuresHebdo: 40, salaireBrut: 3800,
     dateEmbauche: new Date(2022, 8, 1), numSecu: '1985110300289', status: 'Actif',
   },
   {
     id: '3', firstName: 'Sophie', lastName: 'Klein',
-    email: 'sophie.klein@creorga.lu', phone: '+352 621 345 678',
+    email: 'sophie.klein@example.com', phone: '+352 621 345 678',
     dateNaissance: '1995-07-22', adresse: '22 Rue de Strasbourg, L-2561 Luxembourg',
     role: 'Barman', contrat: 'CDD', heuresHebdo: 35, salaireBrut: 2900,
     dateEmbauche: new Date(2024, 0, 10), numSecu: '1995072200334', status: 'Actif',
   },
   {
     id: '4', firstName: 'Luc', lastName: 'Weber',
-    email: 'luc.weber@creorga.lu', phone: '+352 621 456 789',
+    email: 'luc.weber@example.com', phone: '+352 621 456 789',
     dateNaissance: '1982-01-18', adresse: '5 Avenue de la Gare, L-1611 Luxembourg',
     role: 'Manager', contrat: 'CDI', heuresHebdo: 45, salaireBrut: 5200,
     dateEmbauche: new Date(2021, 5, 1), numSecu: '1982011800412', status: 'Actif',
   },
   {
     id: '5', firstName: 'Anna', lastName: 'Schmit',
-    email: 'anna.schmit@creorga.lu', phone: '+352 621 567 890',
+    email: 'anna.schmit@example.com', phone: '+352 621 567 890',
     dateNaissance: '1993-09-30', adresse: '17 Rue du Fort Neipperg, L-2230 Luxembourg',
     role: 'Femme de ménage', contrat: 'Extra/Intérimaire', heuresHebdo: 20, salaireBrut: 1600,
     dateEmbauche: new Date(2023, 10, 20), numSecu: '1993093000567', status: 'Actif',
   },
   {
     id: '6', firstName: 'Pierre', lastName: 'Martin',
-    email: 'pierre.martin@creorga.lu', phone: '+352 621 678 901',
+    email: 'pierre.martin@example.com', phone: '+352 621 678 901',
     dateNaissance: '1988-03-14', adresse: '31 Rue de Bonnevoie, L-1260 Luxembourg',
     role: 'Cuisinier', contrat: 'CDD', heuresHebdo: 40, salaireBrut: 3500,
     dateEmbauche: new Date(2024, 3, 5), numSecu: '1988031400623', status: 'Inactif',
@@ -119,7 +129,8 @@ const MOCK_CONGES = [
 
 // ── Component ──────────────────────────────────────────────────────────
 export default function EquipePage() {
-  const [employees, setEmployees] = useState<Employee[]>(MOCK_EMPLOYEES)
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [dossierId, setDossierId] = useState<string | null>(null)
   const [roleFilter, setRoleFilter] = useState<string>('Tous')
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
@@ -127,6 +138,42 @@ export default function EquipePage() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
   const [sortField, setSortField] = useState<SortField>('nom')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  /**
+   * L'équipe vient désormais de la base, plus du tableau d'exemple : un module
+   * RH qui affiche de faux salariés devant un client est pire qu'un module
+   * vide. Les champs non renseignés restent vides — ils se remplissent dans le
+   * dossier employé.
+   */
+  const chargerEquipe = async () => {
+    try {
+      const r = await fetchAuth(`${BACKEND}/api/hr-dossier/employes`)
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      const { employes } = await r.json()
+      setEmployees((employes || []).map((e: any): Employee => ({
+        id: e.id,
+        firstName: e.prenom || '',
+        lastName: e.nom || '',
+        email: e.email || '',
+        phone: e.profil?.telephone || '',
+        dateNaissance: e.profil?.dateNaissance ? String(e.profil.dateNaissance).slice(0, 10) : '',
+        adresse: e.profil?.adresse || '',
+        role: (e.profil?.poste || e.role || '—') as RoleType,
+        contrat: (e.profil?.contrat || '—') as ContratType,
+        heuresHebdo: e.profil?.heuresHebdo ?? 0,
+        salaireBrut: e.profil?.salaireBrut ?? 0,
+        dateEmbauche: e.profil?.dateEmbauche ? new Date(e.profil.dateEmbauche) : new Date(),
+        numSecu: e.profil?.numSecu || '',
+        status: e.isActive ? 'Actif' : 'Inactif',
+      })))
+    } catch (e: any) {
+      // Ne jamais masquer un échec de chargement : une liste vide et une liste
+      // inaccessible ne veulent pas dire la même chose.
+      toastError(`Équipe non chargée : ${e.message}`)
+    }
+  }
+
+  useEffect(() => { chargerEquipe() }, [])
 
   const filters = ['Tous', 'Serveur', 'Cuisinier', 'Femme de ménage', 'Manager', 'Barman']
 
@@ -248,7 +295,7 @@ export default function EquipePage() {
               background: '#fff', borderRadius: 14, padding: '16px 20px',
               boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0',
             }}>
-              <div style={{ fontSize: 24, fontWeight: 800, color: ROLE_COLORS[role as RoleType] }}>{count}</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: ROLE_COLORS[role as RoleType] || COULEUR_DEFAUT }}>{count}</div>
               <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600, marginTop: 2 }}>{role}{count !== 1 ? 's' : ''}</div>
             </div>
           )
@@ -344,7 +391,7 @@ export default function EquipePage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: i * 0.03 }}
-                    onClick={() => setSelectedEmployee(emp)}
+                    onClick={() => setDossierId(emp.id)}
                     style={{
                       borderBottom: '1px solid #f1f5f9',
                       cursor: 'pointer',
@@ -379,7 +426,7 @@ export default function EquipePage() {
                       <span style={{
                         display: 'inline-block', padding: '3px 10px', borderRadius: 8,
                         fontSize: 12, fontWeight: 700,
-                        background: ROLE_BG[emp.role], color: ROLE_COLORS[emp.role],
+                        background: ROLE_BG[emp.role] || FOND_DEFAUT, color: ROLE_COLORS[emp.role] || COULEUR_DEFAUT,
                       }}>
                         {emp.role}
                       </span>
@@ -389,7 +436,7 @@ export default function EquipePage() {
                       <span style={{
                         display: 'inline-block', padding: '3px 10px', borderRadius: 8,
                         fontSize: 12, fontWeight: 700,
-                        background: CONTRAT_COLORS[emp.contrat].bg, color: CONTRAT_COLORS[emp.contrat].color,
+                        background: CONTRAT_COLORS[emp.contrat]?.bg || FOND_DEFAUT, color: CONTRAT_COLORS[emp.contrat]?.color || COULEUR_DEFAUT,
                       }}>
                         {emp.contrat}
                       </span>
@@ -459,6 +506,15 @@ export default function EquipePage() {
             </div>
           )}
         </motion.div>
+
+        {/* Dossier employé — fenêtre complète ouverte au clic sur une ligne */}
+        {dossierId && (
+          <DossierEmployeModal
+            userCompanyId={dossierId}
+            onClose={() => setDossierId(null)}
+            onEnregistre={chargerEquipe}
+          />
+        )}
 
         {/* Detail slide-out panel */}
         <AnimatePresence>
@@ -747,7 +803,7 @@ function EmployeeModal({ isOpen, onClose, onSave, employee }: {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label style={labelCss}>Email</label>
-                <input style={inputCss} type="email" value={form.email} onChange={e => update('email', e.target.value)} placeholder="email@creorga.lu" />
+                <input style={inputCss} type="email" value={form.email} onChange={e => update('email', e.target.value)} placeholder="email@example.com" />
               </div>
               <div>
                 <label style={labelCss}>T&eacute;l&eacute;phone</label>

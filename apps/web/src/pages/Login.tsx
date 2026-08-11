@@ -300,7 +300,7 @@ export default function Login() {
             </form>
 
             <div style={{ marginTop: 20, textAlign: 'center', fontSize: 12, color: '#94a3b8' }}>
-              Pas encore de compte ? <a href="mailto:contact@creorga.lu?subject=Demande%20d%27acc%C3%A8s%20Creorga" style={{ color: '#a78bfa', fontWeight: 600, textDecoration: 'none' }}>Demander un accès</a>
+              Pas encore de compte ? <a href="mailto:bryanl1994.bl@gmail.com?subject=Demande%20d%27acc%C3%A8s%20Creorga" style={{ color: '#a78bfa', fontWeight: 600, textDecoration: 'none' }}>Demander un accès</a>
             </div>
 
             {/* Quick demo hint */}

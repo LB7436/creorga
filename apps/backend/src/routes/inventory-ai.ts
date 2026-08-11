@@ -148,9 +148,22 @@ router.post('/backups', (_req, res) => {
   res.json({ ok: true, filename, items: stock.length })
 })
 
+// Le nom de fichier vient de l'utilisateur : sans validation, `..%2f..%2f.env`
+// (décodé par Express) permettait de LIRE, ÉCRASER ou SUPPRIMER n'importe quel
+// fichier du serveur. On exige le motif exact des sauvegardes ET on vérifie que
+// le chemin résolu reste bien dans BACKUP_DIR.
+const NOM_SAUVEGARDE_RE = /^inventory-[\w.-]+\.bak\.json$/
+function cheminSauvegardeSur(filename: string): string | null {
+  if (!NOM_SAUVEGARDE_RE.test(filename)) return null
+  const f = path.resolve(BACKUP_DIR, filename)
+  if (f !== path.join(BACKUP_DIR, filename) || !f.startsWith(BACKUP_DIR + path.sep)) return null
+  return f
+}
+
 router.post('/restore/:filename', (req, res) => {
   ensureBackupDir()
-  const f = path.join(BACKUP_DIR, req.params.filename)
+  const f = cheminSauvegardeSur(req.params.filename)
+  if (!f) return res.status(400).json({ error: 'nom de sauvegarde invalide' })
   if (!fs.existsSync(f)) return res.status(404).json({ error: 'backup not found' })
   try {
     const content = JSON.parse(fs.readFileSync(f, 'utf8'))
@@ -165,14 +178,16 @@ router.post('/restore/:filename', (req, res) => {
 
 router.delete('/backups/:filename', (req, res) => {
   ensureBackupDir()
-  const f = path.join(BACKUP_DIR, req.params.filename)
+  const f = cheminSauvegardeSur(req.params.filename)
+  if (!f) return res.status(400).json({ error: 'nom de sauvegarde invalide' })
   if (!fs.existsSync(f)) return res.status(404).json({ error: 'backup not found' })
   fs.unlinkSync(f)
   res.json({ ok: true })
 })
 
 router.get('/backups/:filename/download', (req, res) => {
-  const f = path.join(BACKUP_DIR, req.params.filename)
+  const f = cheminSauvegardeSur(req.params.filename)
+  if (!f) return res.status(400).json({ error: 'nom de sauvegarde invalide' })
   if (!fs.existsSync(f)) return res.status(404).json({ error: 'backup not found' })
   res.download(f)
 })

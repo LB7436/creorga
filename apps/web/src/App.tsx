@@ -4,8 +4,7 @@ import InstallPrompt from '@/components/InstallPrompt'
 import HelpChatbot from '@/components/HelpChatbot'
 import AssistantPanel from '@/components/AssistantPanel'
 import RobiOperator from '@/components/RobiOperator'
-import AssistantLauncher from '@/components/AssistantLauncher'
-import QuickActionsFAB from '@/components/QuickActionsFAB'
+import FloatingHub from '@/components/FloatingHub'
 import DailyBriefingPill from '@/components/DailyBriefingPill'
 import BirthdayCelebrate from '@/components/BirthdayCelebrate'
 import UniversalSearch from '@/components/UniversalSearch'
@@ -31,6 +30,7 @@ const SettingsTheme = lazy(() => import('@/pages/settings/SettingsTheme'))
 const SettingsLanguage = lazy(() => import('@/pages/settings/SettingsLanguage'))
 const AdsAdminPage = lazy(() => import('@/pages/ads/AdsAdminPage'))
 const TVDisplayPage = lazy(() => import('@/pages/ads/TVDisplayPage'))
+const ProgrammationPage = lazy(() => import('@/pages/ads/ProgrammationPage'))
 const MusicPage = lazy(() => import('@/pages/music/MusicPage'))
 const SetupWizard = lazy(() => import('@/pages/onboarding/SetupWizard'))
 const FloorVisionWizard = lazy(() => import('@/pages/setup/FloorVisionWizard'))
@@ -417,6 +417,7 @@ function App() {
         <Route path="/ads" element={<AdsLayout />}>
           <Route index element={<Navigate to="/ads/regie" replace />} />
           <Route path="regie" element={<AdsAdminPage />} />
+          <Route path="programmation" element={<ProgrammationPage />} />
           <Route path="music" element={<MusicPage />} />
         </Route>
 
@@ -567,8 +568,8 @@ function App() {
     {!isClientFacing && <OnboardingTour />}
     {!isClientFacing && <PosLockScreen active={location.pathname.startsWith('/pos')} />}
     {!isClientFacing && <DailyBriefingPill />}
-    {!isClientFacing && <AssistantLauncher />}
-    {!isClientFacing && <QuickActionsFAB />}
+    {/* Lanceur unique : assistant + centre d'aide + actions rapides */}
+    {!isClientFacing && <FloatingHub />}
     {!isClientFacing && <AssistantPanel />}
     {!isClientFacing && <RobiOperator />}
     <BirthdayCelebrate />

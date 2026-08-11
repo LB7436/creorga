@@ -116,11 +116,15 @@ let timer: NodeJS.Timeout | null = null
 
 export function startBackupWorker(): void {
   if (timer) return
+  // Un échec complet de la sauvegarde ne doit JAMAIS être avalé (règle du
+  // CLAUDE.md) : sans ce log, le gérant peut rester des semaines sans aucune
+  // archive produite et ne le découvrir qu'au moment d'en avoir besoin.
+  const echec = (e: any) => logger.error(`[backup] ÉCHEC complet du snapshot: ${e?.message || e}`)
   setTimeout(() => {
-    runFullBackup().catch(() => { /* ignore */ })
+    runFullBackup().catch(echec)
   }, 60_000)
   timer = setInterval(() => {
-    runFullBackup().catch(() => { /* ignore */ })
+    runFullBackup().catch(echec)
   }, SCAN_INTERVAL_MS)
 }
 

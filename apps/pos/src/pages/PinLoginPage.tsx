@@ -314,8 +314,7 @@ export default function PinLoginPage() {
               {showForgot && (
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                   style={{ maxWidth: 340, padding: 14, borderRadius: 14, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', fontSize: 12, color: 'rgba(255,255,255,0.7)', textAlign: 'center', lineHeight: 1.5 }}>
-                  Contactez votre administrateur :<br/>
-                  <strong style={{ color: '#a5b4fc' }}>admin@creorga.lu</strong> · <strong style={{ color: '#a5b4fc' }}>+352 27 99 01 01</strong>
+                  Contactez le responsable de votre établissement pour réinitialiser votre code.
                 </motion.div>
               )}
             </AnimatePresence>

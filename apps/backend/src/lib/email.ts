@@ -1,33 +1,33 @@
-import { Resend } from 'resend'
-
-const resend = new Resend(process.env.RESEND_API_KEY || 'mock')
 const BRAND_PRIMARY = '#0EA5E9'
 const BRAND_DARK = '#0F172A'
 const BRAND_BG = '#F8FAFC'
 
+/**
+ * Envoi d'e-mails — DÉSACTIVÉ.
+ *
+ * Le domaine d'expédition (creorga.lu) n'est pas détenu : aucun message ne peut
+ * partir sans qu'un fournisseur (Resend, etc.) rejette l'expéditeur ou que le
+ * courriel finisse en indésirable. `sendEmail` est donc un no-op journalisé —
+ * il ne contacte aucun service externe et n'expose aucune adresse @creorga.lu.
+ *
+ * Pour réactiver un jour : rebrancher un client d'envoi ici, et surtout
+ * configurer une adresse d'expédition sur un domaine réellement vérifié
+ * (variable `EMAIL_FROM`), pas creorga.lu.
+ *
+ * Les gabarits ci-dessous sont conservés (référencés par routes/email.ts et
+ * prévus pour la facturation), débarrassés de toute adresse creorga.lu.
+ */
 export async function sendEmail({
   to,
   subject,
-  html,
-  from = 'Creorga <noreply@creorga.lu>',
 }: {
   to: string
   subject: string
-  html: string
+  html?: string
   from?: string
 }) {
-  try {
-    if (!process.env.RESEND_API_KEY) {
-      console.log('[Email MOCK]', { to, subject })
-      return { id: 'mock_' + Date.now(), mocked: true }
-    }
-    const result = await resend.emails.send({ from, to, subject, html })
-    console.log('[Email] Envoyé à', to, '-', subject)
-    return result
-  } catch (err) {
-    console.error('[Email] Erreur d\'envoi:', err)
-    throw err
-  }
+  console.warn('[Email] désactivé (aucun domaine d\'expédition configuré) — non envoyé :', subject, '→', to)
+  return { id: 'disabled_' + Date.now(), disabled: true as const }
 }
 
 // --- Layout commun pour tous les emails ---
@@ -55,9 +55,7 @@ function layout(inner: string, preheader = ''): string {
       <tr><td style="padding:32px;">${inner}</td></tr>
       <tr>
         <td style="background:#F1F5F9;padding:20px 32px;text-align:center;font-size:12px;color:#64748B;">
-          Creorga SARL · Luxembourg<br />
-          <a href="https://creorga.lu" style="color:${BRAND_PRIMARY};text-decoration:none;">creorga.lu</a> ·
-          <a href="mailto:support@creorga.lu" style="color:${BRAND_PRIMARY};text-decoration:none;">support@creorga.lu</a>
+          Creorga · Luxembourg
         </td>
       </tr>
     </table>
@@ -74,6 +72,11 @@ function button(href: string, label: string): string {
 }
 
 // --- Templates ---
+// Note : les liens de bouton pointaient vers app.creorga.lu (domaine non
+// détenu). Ils sont neutralisés en attendant un domaine réel — de toute façon
+// aucun e-mail n'est envoyé tant que sendEmail est désactivé.
+const APP_URL = process.env.FRONTEND_URL || '#'
+
 export const emailTemplates = {
   welcome: (name: string) => layout(`
     <h1 style="margin:0 0 16px;font-size:24px;color:${BRAND_DARK};">Bienvenue ${name} !</h1>
@@ -84,7 +87,7 @@ export const emailTemplates = {
       <li>Inviter votre équipe</li>
       <li>Lancer votre premier service</li>
     </ul>
-    <div style="margin:28px 0;">${button('https://app.creorga.lu/welcome', 'Commencer')}</div>
+    <div style="margin:28px 0;">${button(APP_URL, 'Commencer')}</div>
     <p style="font-size:13px;color:#94A3B8;">Besoin d'aide ? Répondez à cet email, nous sommes là.</p>
   `, `Bienvenue sur Creorga, ${name}`),
 
@@ -131,19 +134,19 @@ export const emailTemplates = {
         </td>
       </tr>
     </table>
-    <div style="margin:24px 0;">${button('https://app.creorga.lu/billing', 'Choisir mon abonnement')}</div>
+    <div style="margin:24px 0;">${button(APP_URL, 'Choisir mon abonnement')}</div>
   `, `Plus que ${daysLeft} jour${daysLeft > 1 ? 's' : ''} d'essai`),
 
   newOrder: (order: { number: string; table: string; items: number; total: number }) => layout(`
     <h1 style="margin:0 0 16px;font-size:22px;">Nouvelle commande ${order.number}</h1>
     <p style="font-size:15px;color:#475569;">Table <strong>${order.table}</strong> · ${order.items} article${order.items > 1 ? 's' : ''} · <strong style="color:${BRAND_PRIMARY};">${order.total.toFixed(2)} €</strong></p>
-    <div style="margin:24px 0;">${button('https://app.creorga.lu/pos/kitchen', 'Voir en cuisine')}</div>
+    <div style="margin:24px 0;">${button(APP_URL, 'Voir en cuisine')}</div>
   `, `Commande ${order.number} - Table ${order.table}`),
 
   invoiceDue: (invoice: { number: string; amount: number; dueDate: string }) => layout(`
     <h1 style="margin:0 0 16px;font-size:22px;">Facture à régler</h1>
     <p style="font-size:15px;color:#475569;">Votre facture ${invoice.number} d'un montant de <strong>${invoice.amount.toFixed(2)} €</strong> arrive à échéance le ${invoice.dueDate}.</p>
-    <div style="margin:24px 0;">${button('https://app.creorga.lu/billing', 'Régler maintenant')}</div>
+    <div style="margin:24px 0;">${button(APP_URL, 'Régler maintenant')}</div>
   `, `Facture ${invoice.number} à échéance`),
 
   teamInvite: (inviter: string, link: string) => layout(`
@@ -173,7 +176,7 @@ export const emailTemplates = {
       </tr>
     </table>
     <p style="font-size:14px;color:#475569;">Plat star de la semaine : <strong>${stats.topItem}</strong></p>
-    <div style="margin:24px 0;">${button('https://app.creorga.lu/owner', 'Voir le rapport complet')}</div>
+    <div style="margin:24px 0;">${button(APP_URL, 'Voir le rapport complet')}</div>
   `, `Rapport hebdo Creorga`),
 }
 

@@ -39,9 +39,11 @@ import cookieParser from 'cookie-parser'
 import { createServer } from 'http'
 import { Server as SocketServer } from 'socket.io'
 import logger from './lib/logger'
+import prisma from './lib/prisma'
+import { listFullBackups } from './jobs/backup-worker'
 import { errorHandler } from './middleware/errorHandler'
 import { authenticate } from './middleware/auth'
-import { requireCompany } from './middleware/requireCompany'
+import { requireCompany, requireRole } from './middleware/requireCompany'
 import authRoutes from './routes/auth'
 import tablesRoutes from './routes/tables'
 import categoriesRoutes from './routes/categories'
@@ -68,6 +70,8 @@ import floorStateRoutes from './routes/floorState'
 import moduleConfigRoutes from './routes/moduleConfig'
 import inventoryAIRoutes from './routes/inventory-ai'
 import adsRoutes from './routes/ads'
+import affichageRoutes, { mediasPublicRouter } from './routes/affichage'
+import rhDossierRoutes from './routes/rh-dossier'
 import aiActionsRoutes from './routes/ai-actions'
 import agentRoutes from './routes/agent'
 import helpFeedbackRoutes from './routes/help-feedback'
@@ -127,8 +131,40 @@ app.use(cookieParser())
 app.use(auditLog)
 
 // Health check
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'creorga-api', timestamp: new Date().toISOString() })
+/**
+ * Contrôle de santé réel.
+ *
+ * L'ancienne version répondait toujours « ok » : même base morte, un moniteur
+ * externe aurait vu vert pendant que la caisse et le back-office renvoyaient
+ * des 503. On sonde donc PostgreSQL et on expose l'âge de la dernière
+ * sauvegarde, puis on renvoie 503 si la base est injoignable — c'est ce qui
+ * rend une surveillance externe (UptimeRobot) réellement utile.
+ */
+app.get('/api/health', async (_req, res) => {
+  const base: Record<string, unknown> = {
+    service: 'creorga-api',
+    timestamp: new Date().toISOString(),
+  }
+
+  let baseDeDonnees = 'ok'
+  try {
+    await prisma.$queryRaw`SELECT 1`
+  } catch (e: any) {
+    baseDeDonnees = 'injoignable'
+    logger.error(`[health] PostgreSQL injoignable: ${e?.message || e}`)
+  }
+
+  try {
+    const derniere = listFullBackups()[0]
+    base.derniereSauvegarde = derniere
+      ? { fichier: derniere.filename, ageHeures: Math.round((Date.now() - derniere.createdAt) / 3_600_000) }
+      : null
+  } catch {
+    base.derniereSauvegarde = null
+  }
+
+  const ok = baseDeDonnees === 'ok'
+  res.status(ok ? 200 : 503).json({ ...base, status: ok ? 'ok' : 'degraded', baseDeDonnees })
 })
 
 // Routes
@@ -147,12 +183,19 @@ app.use('/api/invoices', authenticate, requireCompany, invoicesRoutes)
 app.use('/api/reservations', authenticate, requireCompany, reservationsRoutes)
 app.use('/api/inventory', authenticate, requireCompany, inventoryRoutes)
 app.use('/api/hr', authenticate, requireCompany, hrRoutes)
+// Dossier employé : fiche RH, notes, contrats et fiches de paie.
+// Données personnelles — jamais de route publique ici, contrairement aux
+// médias de l'affichage TV.
+app.use('/api/hr-dossier', authenticate, requireCompany, rhDossierRoutes)
 app.use('/api/haccp', authenticate, requireCompany, haccpRoutes)
 app.use('/api/marketing', authenticate, requireCompany, marketingRoutes)
 app.use('/api/accounting', authenticate, requireCompany, accountingRoutes)
 app.use('/api/reputation', authenticate, requireCompany, reputationRoutes)
 app.use('/api/events', authenticate, requireCompany, eventsRoutes)
-app.use('/api/stripe', stripeRoutes) // webhooks signés côté Stripe
+// Auth exigée : les routes Stripe (ouverture de portail, annulation
+// d'abonnement, lecture client) étaient montées en accès public — IDOR de
+// facturation. Le webhook n'est pas utilisé en prod (clé mock, handlers no-op).
+app.use('/api/stripe', authenticate, stripeRoutes)
 app.use('/api/email', authenticate, emailRoutes)
 app.use('/api/payments', deviceOrUserAuth, paymentsRoutes)
 app.use('/api/portal-config', publicLimiter, portalConfigRoutes) // portail client public (QR)
@@ -163,11 +206,20 @@ app.use('/api/module-config', deviceOrUserAuth, moduleConfigRoutes)
 // Mounted on /api/inventory-ocr to avoid clash with the auth-protected /api/inventory
 app.use('/api/inventory-ocr', authenticate, inventoryAIRoutes)
 app.use('/api/ads', authenticate, adsRoutes)
+// Programmation de l'affichage TV : médiathèque, séquences, grille horaire.
+app.use('/api/affichage', authenticate, affichageRoutes)
+// Service des fichiers médias — volontairement PUBLIC : <img> et <video>
+// n'envoient pas d'en-tête Authorization. L'identifiant de 128 bits tiré au
+// sort fait office de jeton, et il s'agit de visuels destinés à être projetés
+// en salle, pas de données personnelles.
+app.use('/api/media-affichage', mediasPublicRouter)
 app.use('/api/ai', authenticate, aiLimiter, aiActionsRoutes)
 app.use('/api/agent', authenticate, aiLimiter, agentRoutes)
 app.use('/api/help/feedback', helpFeedbackRoutes)
-app.use('/api/owner', authenticate, ownerRoutes)
-app.use('/api/backup', authenticate, backupRoutes)
+// Rôle OWNER exigé : journal d'audit global (avec mots de passe) et purge RGPD
+// destructive étaient ouverts à tout membre. Sauvegardes intégrales idem.
+app.use('/api/owner', authenticate, requireCompany, requireRole('OWNER'), ownerRoutes)
+app.use('/api/backup', authenticate, requireCompany, requireRole('OWNER'), backupRoutes)
 // v3.9 — assistantRoutes MUST be before agentRoutes to take precedence on /intent
 app.use('/api/agent', authenticate, aiLimiter, assistantRoutes)
 app.use('/api/agent', authenticate, aiLimiter, assistantAdvancedRoutes)

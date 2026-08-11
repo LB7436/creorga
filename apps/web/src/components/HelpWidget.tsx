@@ -39,7 +39,7 @@ const FAQS: FAQ[] = [
   { q: 'Comment changer la langue ?', a: 'Depuis le header, cliquez sur le sélecteur de langue (FR/EN/DE/LU).' },
   { q: 'Comment activer le mode sombre ?', a: 'Cliquez sur l\'icône lune/soleil dans le header.' },
   { q: 'Où voir mes raccourcis clavier ?', a: 'Appuyez sur Cmd+/ (ou Ctrl+/) pour afficher la liste complète.' },
-  { q: 'Comment contacter le support ?', a: 'Utilisez ce widget, onglet "Contact support", ou écrivez à support@creorga.lu.' },
+  { q: 'Comment contacter le support ?', a: 'Utilisez ce widget, onglet "Contact support", ou écrivez à support@example.com.' },
   { q: 'Où télécharger l\'application mobile ?', a: 'Disponible bientôt sur iOS et Android. Suivez l\'actualité sur creorga.lu.' },
 ]
 
@@ -440,7 +440,7 @@ function HelpWidget() {
                   textAlign: 'center',
                 }}
               >
-                support@creorga.lu · +352 20 33 44 55
+                support@example.com · +352 20 33 44 55
               </div>
             </motion.div>
           </motion.div>

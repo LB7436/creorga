@@ -1,0 +1,2477 @@
+[
+  {
+    "route": "/",
+    "variante": "clair",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/modules",
+    "variante": "clair",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/welcome",
+    "variante": "clair",
+    "texteLong": 352,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/tour",
+    "variante": "clair",
+    "texteLong": 1423,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/demo",
+    "variante": "clair",
+    "texteLong": 1196,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/status",
+    "variante": "clair",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/pos",
+    "variante": "clair",
+    "texteLong": 1594,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/pos/kitchen",
+    "variante": "clair",
+    "texteLong": 1208,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/crm",
+    "variante": "clair",
+    "texteLong": 522,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/ai/catalogue",
+      "401 /api/ai/catalogue"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/clients",
+    "variante": "clair",
+    "texteLong": 2024,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/invoices",
+    "variante": "clair",
+    "texteLong": 1312,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/accounting",
+    "variante": "clair",
+    "texteLong": 2535,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/sales",
+    "variante": "clair",
+    "texteLong": 1589,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/billing",
+    "variante": "clair",
+    "texteLong": 3148,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/inventory",
+    "variante": "clair",
+    "texteLong": 844,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/inventory-ocr/stock",
+      "401 /api/inventory-ocr/stock"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/autoorder",
+    "variante": "clair",
+    "texteLong": 1070,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/centralkitchen",
+    "variante": "clair",
+    "texteLong": 1543,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/hr",
+    "variante": "clair",
+    "texteLong": 2606,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/hr/team",
+      "401 /api/hr/team"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/haccp",
+    "variante": "clair",
+    "texteLong": 1900,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/maintenance",
+    "variante": "clair",
+    "texteLong": 1845,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/agenda",
+    "variante": "clair",
+    "texteLong": 2606,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/hr/team",
+      "401 /api/hr/team"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/catering",
+    "variante": "clair",
+    "texteLong": 1224,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/clickcollect",
+    "variante": "clair",
+    "texteLong": 1793,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/delivery",
+    "variante": "clair",
+    "texteLong": 1589,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/qrmenu",
+    "variante": "clair",
+    "texteLong": 1558,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/music",
+    "variante": "clair",
+    "texteLong": 1755,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/ads",
+    "variante": "clair",
+    "texteLong": 413,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/ads",
+      "401 /api/ads"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/ads/tv",
+    "variante": "clair",
+    "texteLong": 162,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/ads/live",
+      "401 /api/ads/live"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/reputation",
+    "variante": "clair",
+    "texteLong": 4141,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/ai/catalogue",
+      "401 /api/ai/catalogue"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/reputation/avis",
+    "variante": "clair",
+    "texteLong": 4141,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/ai/catalogue",
+      "401 /api/ai/catalogue"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/reputation/reponses",
+    "variante": "clair",
+    "texteLong": 7752,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/reputation/statistiques",
+    "variante": "clair",
+    "texteLong": 1582,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/ai",
+    "variante": "clair",
+    "texteLong": 2495,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/ai/local",
+    "variante": "clair",
+    "texteLong": 2495,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/ai/settings",
+    "variante": "clair",
+    "texteLong": 2495,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/owner",
+    "variante": "clair",
+    "texteLong": 2430,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/sites",
+    "variante": "clair",
+    "texteLong": 1213,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/licences",
+    "variante": "clair",
+    "texteLong": 2769,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/referral",
+    "variante": "clair",
+    "texteLong": 2985,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/community",
+    "variante": "clair",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/formation",
+    "variante": "clair",
+    "texteLong": 973,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/hr/team",
+      "401 /api/hr/team"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/sustainability",
+    "variante": "clair",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/backup",
+    "variante": "clair",
+    "texteLong": 1057,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/inventory-ocr/backups",
+      "401 /api/backup/full",
+      "401 /api/inventory-ocr/backups",
+      "401 /api/backup/full",
+      "401 /api/inventory-ocr/stock",
+      "401 /api/inventory-ocr/stock"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/rgpd",
+    "variante": "clair",
+    "texteLong": 2769,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/changelog",
+    "variante": "clair",
+    "texteLong": 6229,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/admin",
+    "variante": "clair",
+    "texteLong": 927,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/api",
+    "variante": "clair",
+    "texteLong": 3592,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/api/marketplace",
+    "variante": "clair",
+    "texteLong": 27,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "reponsesKO": [
+      "404 /api/marketplace"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/settings/modules",
+    "variante": "clair",
+    "texteLong": 2217,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/settings/theme",
+    "variante": "clair",
+    "texteLong": 745,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/settings/language",
+    "variante": "clair",
+    "texteLong": 831,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/settings/env-mode",
+    "variante": "clair",
+    "texteLong": 603,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/setup",
+    "variante": "clair",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/setup/assistant",
+    "variante": "clair",
+    "texteLong": 740,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/setup/floor-vision",
+    "variante": "clair",
+    "texteLong": 354,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/standalone/calendar",
+    "variante": "clair",
+    "texteLong": 958,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/standalone/floor",
+    "variante": "clair",
+    "texteLong": 479,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/standalone/planning",
+    "variante": "clair",
+    "texteLong": 2341,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/standalone/stock",
+    "variante": "clair",
+    "texteLong": 605,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/inventory-ocr/stock",
+      "401 /api/inventory-ocr/stock"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/",
+    "variante": "sombre",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/modules",
+    "variante": "sombre",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/welcome",
+    "variante": "sombre",
+    "texteLong": 352,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/tour",
+    "variante": "sombre",
+    "texteLong": 1423,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/demo",
+    "variante": "sombre",
+    "texteLong": 1196,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/status",
+    "variante": "sombre",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/pos",
+    "variante": "sombre",
+    "texteLong": 1594,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/pos/kitchen",
+    "variante": "sombre",
+    "texteLong": 1208,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/crm",
+    "variante": "sombre",
+    "texteLong": 522,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/ai/catalogue",
+      "401 /api/ai/catalogue"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/clients",
+    "variante": "sombre",
+    "texteLong": 2024,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/invoices",
+    "variante": "sombre",
+    "texteLong": 1312,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/accounting",
+    "variante": "sombre",
+    "texteLong": 2535,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/sales",
+    "variante": "sombre",
+    "texteLong": 1589,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/billing",
+    "variante": "sombre",
+    "texteLong": 3148,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/inventory",
+    "variante": "sombre",
+    "texteLong": 844,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/inventory-ocr/stock",
+      "401 /api/inventory-ocr/stock"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/autoorder",
+    "variante": "sombre",
+    "texteLong": 1070,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/centralkitchen",
+    "variante": "sombre",
+    "texteLong": 1543,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/hr",
+    "variante": "sombre",
+    "texteLong": 2606,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/hr/team",
+      "401 /api/hr/team"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/haccp",
+    "variante": "sombre",
+    "texteLong": 1900,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/maintenance",
+    "variante": "sombre",
+    "texteLong": 1845,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/agenda",
+    "variante": "sombre",
+    "texteLong": 2606,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/hr/team",
+      "401 /api/hr/team"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/catering",
+    "variante": "sombre",
+    "texteLong": 1224,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/clickcollect",
+    "variante": "sombre",
+    "texteLong": 1793,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/delivery",
+    "variante": "sombre",
+    "texteLong": 1589,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/qrmenu",
+    "variante": "sombre",
+    "texteLong": 1558,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/music",
+    "variante": "sombre",
+    "texteLong": 1755,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/ads",
+    "variante": "sombre",
+    "texteLong": 413,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/ads",
+      "401 /api/ads"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/ads/tv",
+    "variante": "sombre",
+    "texteLong": 162,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/ads/live",
+      "401 /api/ads/live"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/reputation",
+    "variante": "sombre",
+    "texteLong": 4141,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/ai/catalogue",
+      "401 /api/ai/catalogue"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/reputation/avis",
+    "variante": "sombre",
+    "texteLong": 4141,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/ai/catalogue",
+      "401 /api/ai/catalogue"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/reputation/reponses",
+    "variante": "sombre",
+    "texteLong": 7752,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/reputation/statistiques",
+    "variante": "sombre",
+    "texteLong": 1582,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/ai",
+    "variante": "sombre",
+    "texteLong": 2495,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/ai/local",
+    "variante": "sombre",
+    "texteLong": 2495,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/ai/settings",
+    "variante": "sombre",
+    "texteLong": 2495,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/owner",
+    "variante": "sombre",
+    "texteLong": 2430,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/sites",
+    "variante": "sombre",
+    "texteLong": 1213,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/licences",
+    "variante": "sombre",
+    "texteLong": 2769,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/referral",
+    "variante": "sombre",
+    "texteLong": 2985,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/community",
+    "variante": "sombre",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/formation",
+    "variante": "sombre",
+    "texteLong": 973,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/hr/team",
+      "401 /api/hr/team"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/sustainability",
+    "variante": "sombre",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/backup",
+    "variante": "sombre",
+    "texteLong": 1057,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/inventory-ocr/backups",
+      "401 /api/backup/full",
+      "401 /api/inventory-ocr/backups",
+      "401 /api/backup/full",
+      "401 /api/inventory-ocr/stock",
+      "401 /api/inventory-ocr/stock"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/rgpd",
+    "variante": "sombre",
+    "texteLong": 2769,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/changelog",
+    "variante": "sombre",
+    "texteLong": 6229,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/admin",
+    "variante": "sombre",
+    "texteLong": 927,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/api",
+    "variante": "sombre",
+    "texteLong": 3592,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/api/marketplace",
+    "variante": "sombre",
+    "texteLong": 27,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "reponsesKO": [
+      "404 /api/marketplace"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/settings/modules",
+    "variante": "sombre",
+    "texteLong": 2217,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/settings/theme",
+    "variante": "sombre",
+    "texteLong": 745,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/settings/language",
+    "variante": "sombre",
+    "texteLong": 831,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/settings/env-mode",
+    "variante": "sombre",
+    "texteLong": 603,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/setup",
+    "variante": "sombre",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/setup/assistant",
+    "variante": "sombre",
+    "texteLong": 740,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/setup/floor-vision",
+    "variante": "sombre",
+    "texteLong": 354,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/standalone/calendar",
+    "variante": "sombre",
+    "texteLong": 958,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/standalone/floor",
+    "variante": "sombre",
+    "texteLong": 479,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/standalone/planning",
+    "variante": "sombre",
+    "texteLong": 2341,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/standalone/stock",
+    "variante": "sombre",
+    "texteLong": 605,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/inventory-ocr/stock",
+      "401 /api/inventory-ocr/stock"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/",
+    "variante": "mobile-390x844",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/modules",
+    "variante": "mobile-390x844",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/welcome",
+    "variante": "mobile-390x844",
+    "texteLong": 352,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/tour",
+    "variante": "mobile-390x844",
+    "texteLong": 1423,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/demo",
+    "variante": "mobile-390x844",
+    "texteLong": 1196,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/status",
+    "variante": "mobile-390x844",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/pos",
+    "variante": "mobile-390x844",
+    "texteLong": 1554,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/pos/kitchen",
+    "variante": "mobile-390x844",
+    "texteLong": 1208,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/crm",
+    "variante": "mobile-390x844",
+    "texteLong": 423,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/ai/catalogue",
+      "401 /api/ai/catalogue"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/clients",
+    "variante": "mobile-390x844",
+    "texteLong": 2024,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/invoices",
+    "variante": "mobile-390x844",
+    "texteLong": 1275,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/accounting",
+    "variante": "mobile-390x844",
+    "texteLong": 2433,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/sales",
+    "variante": "mobile-390x844",
+    "texteLong": 1565,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/billing",
+    "variante": "mobile-390x844",
+    "texteLong": 3106,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/inventory",
+    "variante": "mobile-390x844",
+    "texteLong": 784,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/inventory-ocr/stock",
+      "401 /api/inventory-ocr/stock"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/autoorder",
+    "variante": "mobile-390x844",
+    "texteLong": 999,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/centralkitchen",
+    "variante": "mobile-390x844",
+    "texteLong": 1472,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/hr",
+    "variante": "mobile-390x844",
+    "texteLong": 2554,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/hr/team",
+      "401 /api/hr/team"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/haccp",
+    "variante": "mobile-390x844",
+    "texteLong": 1886,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/maintenance",
+    "variante": "mobile-390x844",
+    "texteLong": 1845,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/agenda",
+    "variante": "mobile-390x844",
+    "texteLong": 2554,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/hr/team",
+      "401 /api/hr/team"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/catering",
+    "variante": "mobile-390x844",
+    "texteLong": 1200,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/clickcollect",
+    "variante": "mobile-390x844",
+    "texteLong": 1769,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/delivery",
+    "variante": "mobile-390x844",
+    "texteLong": 1565,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/qrmenu",
+    "variante": "mobile-390x844",
+    "texteLong": 1558,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/music",
+    "variante": "mobile-390x844",
+    "texteLong": 1723,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/ads",
+    "variante": "mobile-390x844",
+    "texteLong": 381,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/ads",
+      "401 /api/ads"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/ads/tv",
+    "variante": "mobile-390x844",
+    "texteLong": 162,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/ads/live",
+      "401 /api/ads/live"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/reputation",
+    "variante": "mobile-390x844",
+    "texteLong": 4042,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/ai/catalogue",
+      "401 /api/ai/catalogue"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/reputation/avis",
+    "variante": "mobile-390x844",
+    "texteLong": 4042,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/ai/catalogue",
+      "401 /api/ai/catalogue"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/reputation/reponses",
+    "variante": "mobile-390x844",
+    "texteLong": 7653,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/reputation/statistiques",
+    "variante": "mobile-390x844",
+    "texteLong": 1400,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/ai",
+    "variante": "mobile-390x844",
+    "texteLong": 2495,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/ai/local",
+    "variante": "mobile-390x844",
+    "texteLong": 2495,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/ai/settings",
+    "variante": "mobile-390x844",
+    "texteLong": 2495,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/owner",
+    "variante": "mobile-390x844",
+    "texteLong": 2357,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/sites",
+    "variante": "mobile-390x844",
+    "texteLong": 1213,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/licences",
+    "variante": "mobile-390x844",
+    "texteLong": 2769,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/referral",
+    "variante": "mobile-390x844",
+    "texteLong": 2943,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/community",
+    "variante": "mobile-390x844",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/formation",
+    "variante": "mobile-390x844",
+    "texteLong": 921,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/hr/team",
+      "401 /api/hr/team"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/sustainability",
+    "variante": "mobile-390x844",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/backup",
+    "variante": "mobile-390x844",
+    "texteLong": 1057,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/inventory-ocr/backups",
+      "401 /api/backup/full",
+      "401 /api/inventory-ocr/backups",
+      "401 /api/backup/full",
+      "401 /api/inventory-ocr/stock",
+      "401 /api/inventory-ocr/stock"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/rgpd",
+    "variante": "mobile-390x844",
+    "texteLong": 2769,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/changelog",
+    "variante": "mobile-390x844",
+    "texteLong": 6229,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/admin",
+    "variante": "mobile-390x844",
+    "texteLong": 927,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/api",
+    "variante": "mobile-390x844",
+    "texteLong": 3592,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/api/marketplace",
+    "variante": "mobile-390x844",
+    "texteLong": 27,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "reponsesKO": [
+      "404 /api/marketplace"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/settings/modules",
+    "variante": "mobile-390x844",
+    "texteLong": 2217,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/settings/theme",
+    "variante": "mobile-390x844",
+    "texteLong": 745,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/settings/language",
+    "variante": "mobile-390x844",
+    "texteLong": 831,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/settings/env-mode",
+    "variante": "mobile-390x844",
+    "texteLong": 603,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/setup",
+    "variante": "mobile-390x844",
+    "texteLong": 288,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/setup/assistant",
+    "variante": "mobile-390x844",
+    "texteLong": 740,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/setup/floor-vision",
+    "variante": "mobile-390x844",
+    "texteLong": 354,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/standalone/calendar",
+    "variante": "mobile-390x844",
+    "texteLong": 958,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/standalone/floor",
+    "variante": "mobile-390x844",
+    "texteLong": 479,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/standalone/planning",
+    "variante": "mobile-390x844",
+    "texteLong": 2341,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default"
+    ],
+    "libelles": []
+  },
+  {
+    "route": "/standalone/stock",
+    "variante": "mobile-390x844",
+    "texteLong": 583,
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "reponsesKO": [
+      "401 /api/agent/operator/stream?userId=default",
+      "401 /api/inventory-ocr/stock",
+      "401 /api/inventory-ocr/stock"
+    ],
+    "libelles": []
+  }
+]

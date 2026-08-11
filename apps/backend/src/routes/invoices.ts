@@ -1,77 +1,14 @@
 import { Router, type Response } from 'express'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
+import { createAvecNumero, NumerotationIndisponibleError } from '../lib/numerotation'
 
 const router = Router()
 
-// ─── Helper: generate sequential number ───────────────
-
-/**
- * Numéro séquentiel du prochain document de l'année en cours.
- *
- * L'ancienne version comptait les documents existants et ajoutait 1, sans
- * verrou : six factures créées simultanément recevaient toutes le même
- * numéro. On repart désormais du plus grand numéro déjà attribué pour
- * l'année (et non d'un comptage, qui décale dès qu'un document est
- * supprimé), et l'unicité est garantie en base par la contrainte
- * (companyId, number). Les appelants réessaient sur conflit via
- * `createAvecNumero`.
- */
-async function nextNumber(companyId: string, prefix: 'INV' | 'QUO'): Promise<string> {
-  const year = new Date().getFullYear()
-  const motif = `${prefix}-${year}-`
-
-  const dernier = prefix === 'INV'
-    ? await prisma.invoice.findFirst({
-        where: { companyId, number: { startsWith: motif } },
-        orderBy: { number: 'desc' },
-        select: { number: true },
-      })
-    : await prisma.quote.findFirst({
-        where: { companyId, number: { startsWith: motif } },
-        orderBy: { number: 'desc' },
-        select: { number: true },
-      })
-
-  const dernierRang = dernier ? parseInt(dernier.number.slice(motif.length), 10) : 0
-  const rang = Number.isFinite(dernierRang) ? dernierRang + 1 : 1
-  return `${motif}${String(rang).padStart(4, '0')}`
-}
-
-/** Erreur levée quand la numérotation échoue malgré les réessais. */
-export class NumerotationIndisponibleError extends Error {
-  constructor() {
-    super('Numérotation de document momentanément indisponible')
-    this.name = 'NumerotationIndisponibleError'
-  }
-}
-
-/**
- * Crée un document en réessayant si le numéro vient d'être pris par une
- * requête concurrente (P2002 sur la contrainte d'unicité).
- *
- * Le délai aléatoire entre deux tentatives est indispensable : sans lui, les
- * requêtes concurrentes se resynchronisent à chaque tour et rejouent la même
- * collision (2 requêtes sur 8 épuisaient leurs tentatives en test).
- */
-async function createAvecNumero<T>(
-  companyId: string,
-  prefix: 'INV' | 'QUO',
-  create: (number: string) => Promise<T>,
-): Promise<T> {
-  const MAX_TENTATIVES = 10
-
-  for (let tentative = 0; tentative < MAX_TENTATIVES; tentative++) {
-    try {
-      return await create(await nextNumber(companyId, prefix))
-    } catch (e: any) {
-      if (e?.code !== 'P2002') throw e
-      const attente = 5 + Math.floor(Math.random() * 20) * (tentative + 1)
-      await new Promise((r) => setTimeout(r, attente))
-    }
-  }
-  throw new NumerotationIndisponibleError()
-}
+// La numérotation vit désormais dans `lib/numerotation.ts`, pour être partagée
+// avec les avoirs et couverte par `lib/numerotation.test.ts`. Ré-exportée ici
+// afin de ne casser aucun import existant.
+export { createAvecNumero, NumerotationIndisponibleError }
 
 // ─── QUOTES ───────────────────────────────────────────
 
@@ -167,8 +104,18 @@ router.post('/quotes/:id/convert', async (req: any, res: Response) => {
       include: { items: true },
     })
     if (!quote) { res.status(404).json({ message: 'Devis non trouvé' }); return }
-    const subtotal = quote.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
-    const taxAmount = quote.items.reduce((s, i) => s + i.quantity * i.unitPrice * (i.taxRate / 100), 0)
+
+    // ⚠️ DÉFAUT CONNU — un devis peut être converti plusieurs fois et produire
+    // autant de factures numérotées pour la même prestation. Le corriger exige
+    // un vrai lien en base (colonne `quoteId` sur Invoice) : posé en phase 2
+    // avec les autres extensions du modèle. Une heuristique sur les notes et le
+    // client bloquerait des conversions légitimes — pire que le défaut.
+
+    // Les montants sont arrondis au centime : 47,617 € n'est pas une somme
+    // d'argent, et l'écart se propagerait au récapitulatif TVA.
+    const centimes = (n: number) => Math.round(n * 100) / 100
+    const subtotal = centimes(quote.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0))
+    const taxAmount = centimes(quote.items.reduce((s, i) => s + i.quantity * i.unitPrice * (i.taxRate / 100), 0))
     const invoice = await createAvecNumero(req.companyId, 'INV', (number) => prisma.invoice.create({
       data: {
         companyId: req.companyId,
@@ -277,6 +224,30 @@ router.post('/', async (req: any, res: Response) => {
       return
     }
     logger.error('Erreur POST /invoices:', error)
+    res.status(500).json({ message: 'Erreur serveur' })
+  }
+})
+
+/**
+ * Facture unique.
+ *
+ * Absente jusqu'ici alors que le crochet `useInvoice` la supposait : un GET sur
+ * `/invoices/<id>` ne correspondait à aucune route et repartait en 404.
+ * Déclarée après le bloc `/quotes`, elle ne l'éclipse donc pas.
+ */
+router.get('/:id', async (req: any, res: Response) => {
+  try {
+    const facture = await prisma.invoice.findFirst({
+      where: { id: req.params.id, companyId: req.companyId },
+      include: { customer: true, items: true },
+    })
+    if (!facture) {
+      res.status(404).json({ message: 'Facture introuvable' })
+      return
+    }
+    res.json(facture)
+  } catch (error) {
+    logger.error('Erreur GET /invoices/:id:', error)
     res.status(500).json({ message: 'Erreur serveur' })
   }
 })
