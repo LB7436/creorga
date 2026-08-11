@@ -24,10 +24,21 @@ const loginSchema = z.object({
 })
 type LoginForm = z.infer<typeof loginSchema>
 
-const TESTIMONIALS = [
-  { quote: 'Creorga a transformé notre brasserie. Intuitif, puissant, et toujours en ligne.', author: 'Sophie Lentz', role: 'Gérante · Brasserie du Centre', loc: 'Luxembourg-Ville' },
-  { quote: 'La solution POS la plus fluide que nous ayons testée. Adoptée en un jour par toute l\'équipe.', author: 'Marc Weber', role: 'Propriétaire · Café um Rond-Point', loc: 'Rumelange' },
-  { quote: 'Les analytics en temps réel ont boosté notre marge de 8 % en trois mois.', author: 'Claire Dubois', role: 'Directrice · Le Bouchon Gourmand', loc: 'Esch-sur-Alzette' },
+/**
+ * Trois témoignages clients étaient affichés ici — « Sophie Lentz, gérante de
+ * la Brasserie du Centre », « Claire Dubois, directrice du Bouchon Gourmand »,
+ * avec des résultats chiffrés (« +8 % de marge en trois mois »). Ces personnes
+ * et ces établissements n'existent pas. Une recommandation attribuée à
+ * quelqu'un qui ne l'a jamais donnée n'est pas un habillage : c'est un faux,
+ * sur la page la plus publique du produit.
+ *
+ * À la place : ce que le produit fait réellement, sans le mettre dans la
+ * bouche de personne. Les vrais témoignages viendront des vrais clients.
+ */
+const ENGAGEMENTS = [
+  { titre: 'Vos données restent chez vous', texte: 'Tout est hébergé sur votre propre serveur. Aucune donnée client ne part chez un tiers.' },
+  { titre: 'Sauvegardé sans y penser', texte: 'Archive complète toutes les 6 heures, base de données comprise, conservée sur 30 versions.' },
+  { titre: 'La caisse fonctionne hors ligne', texte: 'Une coupure Internet n\'arrête pas le service : les commandes continuent et se resynchronisent.' },
 ]
 
 const FEATURES = [
@@ -39,31 +50,51 @@ const FEATURES = [
   { Icon: Shield,        title: 'HACCP + CNPD',     desc: 'Conformité Luxembourg out-of-the-box' },
 ]
 
+/**
+ * Quatre chiffres, tous vérifiables.
+ *
+ * Les précédents ne l'étaient pas : « 33 modules » (il y en a 18 dans
+ * `moduleStore.ts`), « 6 passerelles paiement » (aucune n'est active — cf. la
+ * page Intégrations), « <200 ms de latence POS » (jamais mesuré).
+ */
+/**
+ * Pré-remplissage des identifiants : DÉVELOPPEMENT UNIQUEMENT.
+ *
+ * La version précédente les mettait en dur dans tous les cas. En production,
+ * cela transformait la page publique en porte ouverte : n'importe quel visiteur
+ * de creorga.n8nautomatisations.org arrivait sur un formulaire déjà rempli avec
+ * le compte du propriétaire et n'avait plus qu'à cliquer « Se connecter ».
+ * Le mot de passe partait en clair dans le bundle JavaScript, donc lisible par
+ * quiconque ouvrait les outils du navigateur.
+ *
+ * `import.meta.env.DEV` vaut false dans tout build `vite build`.
+ */
+const PRE_REMPLISSAGE = import.meta.env.DEV
+  ? { email: 'bryan@cafe-rondpoint.lu', password: 'Demo1234!' }
+  : { email: '', password: '' }
+
 const STATS = [
-  { value: '33', label: 'modules intégrés' },
-  { value: '6',  label: 'passerelles paiement' },
-  { value: '5',  label: 'apps unifiées' },
-  { value: '<200ms', label: 'latence POS' },
+  { value: '18', label: 'modules' },
+  { value: '3',  label: 'applications' },
+  { value: '100 %', label: 'sur votre serveur' },
+  { value: '6 h', label: 'entre 2 sauvegardes' },
 ]
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
-  const [testimonialIdx, setTestimonialIdx] = useState(0)
+  const [engagementIdx, setEngagementIdx] = useState(0)
   const [oauthNotice, setOauthNotice] = useState('')
   const navigate = useNavigate()
   const setAuth = useAuthStore((s) => s.setAuth)
 
   useEffect(() => {
-    const id = setInterval(() => setTestimonialIdx((i) => (i + 1) % TESTIMONIALS.length), 6000)
+    const id = setInterval(() => setEngagementIdx((i) => (i + 1) % ENGAGEMENTS.length), 6000)
     return () => clearInterval(id)
   }, [])
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    // admin@creorga.local est le compte de repli du mode développement : il est
-    // DÉSACTIVÉ en production, donc le pré-remplissage échouait dès la mise en
-    // ligne. On pré-remplit le compte de démonstration créé par seed-rich.
-    defaultValues: { email: 'bryan@cafe-rondpoint.lu', password: 'Demo1234!' },
+    defaultValues: PRE_REMPLISSAGE,
   })
 
   const onSubmit = async (data: LoginForm) => {
@@ -78,7 +109,7 @@ export default function Login() {
     }
   }
 
-  const currentTestimonial = TESTIMONIALS[testimonialIdx]
+  const engagementCourant = ENGAGEMENTS[engagementIdx]
 
   return (
     <div style={rootStyle}>
@@ -96,7 +127,7 @@ export default function Login() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <a href="https://creorga.lu" style={navLink}>À propos</a>
+          
           <a href="/demo" style={navLink}>Démo live</a>
           <div style={{ width: 1, height: 20, background: 'rgba(148,163,184,0.2)', margin: '0 6px' }} />
           <span style={{ fontSize: 11, color: '#6ee7b7', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -156,42 +187,30 @@ export default function Login() {
               ))}
             </div>
 
-            {/* Testimonial carousel */}
+            {/* Engagements — à la place des faux témoignages (cf. ENGAGEMENTS) */}
             <AnimatePresence mode="wait">
               <motion.div
-                key={testimonialIdx}
+                key={engagementIdx}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.4 }}
                 style={testimonialCardStyle}
               >
-                <div style={{ fontSize: 28, lineHeight: 0.5, color: '#a78bfa', marginBottom: 10 }}>"</div>
-                <p style={{ fontSize: 14, color: '#e2e8f0', lineHeight: 1.6, fontStyle: 'italic', margin: 0 }}>
-                  {currentTestimonial.quote}
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', marginBottom: 8 }}>
+                  {engagementCourant.titre}
+                </div>
+                <p style={{ fontSize: 13.5, color: '#cbd5e1', lineHeight: 1.6, margin: 0 }}>
+                  {engagementCourant.texte}
                 </p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
-                  <div style={{
-                    width: 34, height: 34, borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#fff', fontWeight: 700, fontSize: 13,
-                  }}>
-                    {currentTestimonial.author.split(' ').map(w => w[0]).join('')}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#f1f5f9' }}>{currentTestimonial.author}</div>
-                    <div style={{ fontSize: 11, color: '#94a3b8' }}>{currentTestimonial.role} · {currentTestimonial.loc}</div>
-                  </div>
-                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-                    {TESTIMONIALS.map((_, i) => (
-                      <span key={i} style={{
-                        width: i === testimonialIdx ? 16 : 4, height: 4, borderRadius: 2,
-                        background: i === testimonialIdx ? '#8b5cf6' : 'rgba(148,163,184,0.3)',
-                        transition: 'all .3s',
-                      }} />
-                    ))}
-                  </div>
+                <div style={{ display: 'flex', gap: 4, marginTop: 14 }}>
+                  {ENGAGEMENTS.map((_, i) => (
+                    <span key={i} style={{
+                      width: i === engagementIdx ? 16 : 4, height: 4, borderRadius: 2,
+                      background: i === engagementIdx ? '#8b5cf6' : 'rgba(148,163,184,0.3)',
+                      transition: 'all .3s',
+                    }} />
+                  ))}
                 </div>
               </motion.div>
             </AnimatePresence>
@@ -303,10 +322,15 @@ export default function Login() {
               Pas encore de compte ? <a href="mailto:bryanl1994.bl@gmail.com?subject=Demande%20d%27acc%C3%A8s%20Creorga" style={{ color: '#a78bfa', fontWeight: 600, textDecoration: 'none' }}>Demander un accès</a>
             </div>
 
-            {/* Quick demo hint */}
-            <div style={demoHintStyle}>
-              <Zap size={12} /> Comptes de démo pré-remplis — cliquez simplement <strong>Se connecter</strong>
-            </div>
+            {/* Le rappel « comptes de démo pré-remplis » n'a de sens qu'en
+                développement : en production les champs sont vides, et l'y
+                laisser reviendrait à annoncer publiquement qu'un compte de
+                démonstration attend d'être essayé. */}
+            {import.meta.env.DEV && (
+              <div style={demoHintStyle}>
+                <Zap size={12} /> Comptes de démo pré-remplis — cliquez simplement <strong>Se connecter</strong>
+              </div>
+            )}
           </motion.div>
 
           {/* Footer */}

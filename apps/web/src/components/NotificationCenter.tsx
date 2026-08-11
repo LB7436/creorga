@@ -2,11 +2,24 @@ import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useOverdueAlerts, formatAlertMessage } from '../lib/overdueAlerts'
 
-/* ── types ── */
-type Category = 'Commandes' | 'Stock' | 'Planning' | 'Clients' | 'HACCP' | 'Factures/Devis'
+/**
+ * Centre de notifications.
+ *
+ * Il affichait 15 notifications écrites en dur : « Nouvelle commande Table 3 »,
+ * « Rupture de stock : Farine », et surtout une alerte HACCP « Frigo 2 : 9,2 °C
+ * (max 8 °C) » que personne n'avait jamais relevée. Sur un registre sanitaire,
+ * une alerte inventée est plus grave qu'une absence d'alerte : elle fait croire
+ * que la surveillance tourne.
+ *
+ * Ne restent que les notifications adossées à une donnée réelle — factures
+ * impayées et devis sans réponse (cf. `lib/overdueAlerts.ts`). Quand il n'y a
+ * rien, la cloche le dit.
+ */
+
+type Category = 'Factures/Devis'
 
 interface Notification {
-  id: number
+  id: string
   icon: string
   title: string
   description: string
@@ -15,88 +28,39 @@ interface Notification {
   unread: boolean
 }
 
-/* ── category colors ── */
 const CATEGORY_COLORS: Record<Category, string> = {
-  Commandes: '#6366f1',
-  Stock: '#f59e0b',
-  Planning: '#8b5cf6',
-  Clients: '#10b981',
-  HACCP: '#ef4444',
   'Factures/Devis': '#dc2626',
 }
 
-/* ── 15 mock notifications ── */
-const INITIAL_NOTIFICATIONS: Notification[] = [
-  { id: 1, icon: '\u{1F37D}', title: 'Nouvelle commande Table 3', description: '4 articles, 34.50 €', time: 'Il y a 2 min', category: 'Commandes', unread: true },
-  { id: 2, icon: '✅', title: 'Commande prête — Table 1', description: 'Plats prêts à servir', time: 'Il y a 8 min', category: 'Commandes', unread: false },
-  { id: 3, icon: '\u{1F4CB}', title: 'Commande guest portail', description: 'Commande #043 QR menu', time: 'Il y a 15 min', category: 'Commandes', unread: true },
-  { id: 4, icon: '\u{1F4B3}', title: 'Paiement reçu — Table 5', description: '48.00 € carte', time: 'Il y a 32 min', category: 'Commandes', unread: false },
-  { id: 5, icon: '⚠️', title: 'Commande en attente > 20min', description: 'Table 7, 23 min', time: 'Il y a 5 min', category: 'Commandes', unread: true },
-  { id: 6, icon: '\u{1F534}', title: 'Rupture de stock: Farine', description: 'Stock à 0', time: 'Il y a 1h', category: 'Stock', unread: true },
-  { id: 7, icon: '\u{1F7E1}', title: 'Stock bas: Café en grains', description: '2.5 kg restants', time: 'Il y a 2h', category: 'Stock', unread: false },
-  { id: 8, icon: '\u{1F4E6}', title: 'Commande fournisseur reçue', description: 'Metro, 12 articles', time: 'Hier', category: 'Stock', unread: false },
-  { id: 9, icon: '\u{1F4C5}', title: 'Réservation 19:30', description: 'Famille Braun, 6 pers', time: 'Il y a 30 min', category: 'Planning', unread: true },
-  { id: 10, icon: '\u{1F504}', title: 'Changement de shift', description: 'Marie ↔ Lucas', time: 'Il y a 3h', category: 'Planning', unread: false },
-  { id: 11, icon: '\u{1F382}', title: 'Anniversaire client', description: 'Marie Weber, 35 ans', time: 'Il y a 4h', category: 'Clients', unread: false },
-  { id: 12, icon: '⭐', title: 'Nouvel avis Google', description: '5★ Excellent service!', time: 'Il y a 5h', category: 'Clients', unread: true },
-  { id: 13, icon: '\u{1F464}', title: 'Nouveau client inscrit', description: 'Pierre Reuter, QR', time: 'Hier', category: 'Clients', unread: false },
-  { id: 14, icon: '\u{1F321}️', title: 'Alerte température', description: 'Frigo 2: 9.2°C (max 8°C)', time: 'Il y a 45 min', category: 'HACCP', unread: true },
-  { id: 15, icon: '✅', title: 'HACCP Midi validé', description: 'Tâches midi OK', time: 'Il y a 2h', category: 'HACCP', unread: false },
-]
-
-/* ── filter tab type ── */
-type FilterTab = 'Tout' | Category
-
-const FILTER_TABS: FilterTab[] = ['Tout', 'Commandes', 'Stock', 'Planning', 'Clients', 'HACCP', 'Factures/Devis']
-
-/* ── component ── */
 export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const overdue = useOverdueAlerts()
 
-  const overdueNotifications = useMemo<Notification[]>(() => {
-    return overdue.all.map((a, i) => ({
-      id: 1000 + i,
+  // Les alertes arrivent du serveur, donc après le premier rendu : elles ne
+  // peuvent pas servir de valeur initiale à un useState, qui ne s'évalue qu'une
+  // seule fois. C'était le défaut de la version précédente — un impayé chargé
+  // ensuite n'apparaissait jamais. On ne mémorise donc que ce qui a été lu, et
+  // la liste se dérive des données.
+  const [lues, setLues] = useState<Set<string>>(() => new Set())
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+
+  const notifications = useMemo<Notification[]>(
+    () => overdue.all.map((a) => ({
+      id: a.id,
       icon: a.type === 'invoice' ? '\u{1F4B0}' : '\u{1F4DD}',
       title: a.type === 'invoice' ? `Facture ${a.number} impayée` : `Devis ${a.number} sans réponse`,
       description: formatAlertMessage(a),
-      time: `${a.daysOverdue}j`,
-      category: 'Factures/Devis' as Category,
-      unread: a.severity === 'danger',
-    }))
-  }, [overdue.all])
-
-  const [notifications, setNotifications] = useState<Notification[]>([
-    ...INITIAL_NOTIFICATIONS,
-    ...overdueNotifications,
-  ])
-  const [activeTab, setActiveTab] = useState<FilterTab>('Tout')
-  const [hoveredId, setHoveredId] = useState<number | null>(null)
-  const [hoveredTab, setHoveredTab] = useState<FilterTab | null>(null)
-
-  /* counts */
-  const unreadCount = useMemo(() => notifications.filter((n) => n.unread).length, [notifications])
-
-  const tabCounts = useMemo(() => {
-    const counts: Record<FilterTab, number> = { Tout: notifications.length, Commandes: 0, Stock: 0, Planning: 0, Clients: 0, HACCP: 0, 'Factures/Devis': 0 }
-    notifications.forEach((n) => { counts[n.category]++ })
-    return counts
-  }, [notifications])
-
-  /* filtered list */
-  const filtered = useMemo(
-    () => (activeTab === 'Tout' ? notifications : notifications.filter((n) => n.category === activeTab)),
-    [notifications, activeTab],
+      time: a.daysOverdue === 1 ? '1 jour de retard' : `${a.daysOverdue} jours de retard`,
+      category: 'Factures/Devis',
+      unread: !lues.has(a.id),
+    })),
+    [overdue.all, lues],
   )
 
-  /* mark single as read */
-  const markRead = (id: number) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, unread: false } : n)))
-  }
+  const unreadCount = useMemo(() => notifications.filter((n) => n.unread).length, [notifications])
+  const filtered = notifications
 
-  /* mark all as read */
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })))
-  }
+  const markRead = (id: string) => setLues((prev) => new Set(prev).add(id))
+  const markAllRead = () => setLues(new Set(notifications.map((n) => n.id)))
 
   return (
     <AnimatePresence>
@@ -226,47 +190,13 @@ export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolea
               )}
             </div>
 
-            {/* ── filter tabs ── */}
-            <div
-              style={{
-                display: 'flex',
-                gap: 4,
-                padding: '12px 20px',
-                borderBottom: '1px solid #f0f0f0',
-                overflowX: 'auto',
-                flexShrink: 0,
-              }}
-            >
-              {FILTER_TABS.map((tab) => {
-                const isActive = activeTab === tab
-                const isHovered = hoveredTab === tab
-                return (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    onMouseEnter={() => setHoveredTab(tab)}
-                    onMouseLeave={() => setHoveredTab(null)}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: 8,
-                      border: 'none',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      transition: 'all 0.15s',
-                      background: isActive ? '#6366f1' : isHovered ? '#f3f4f6' : '#f9fafb',
-                      color: isActive ? '#fff' : '#4b5563',
-                    }}
-                  >
-                    {tab} ({tabCounts[tab]})
-                  </button>
-                )
-              })}
-            </div>
+            {/* Les onglets de filtre (Commandes, Stock, Planning, Clients,
+                HACCP) ne comptaient que des notifications inventées : ils sont
+                retirés avec elles. Ils reviendront quand ces modules émettront
+                de vraies notifications. */}
 
-            {/* ── overdue banner ── */}
-            {(overdue.totals.invoicesCount > 0 || overdue.totals.quotesCount > 0) && (activeTab === 'Tout' || activeTab === 'Factures/Devis') && (
+            {/* ── bandeau de synthèse des retards ── */}
+            {(overdue.totals.invoicesCount > 0 || overdue.totals.quotesCount > 0) && (
               <motion.div
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -286,7 +216,12 @@ export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolea
               >
                 <span style={{ fontSize: 18 }}>{'⚠️'}</span>
                 <span>
-                  {overdue.totals.invoicesCount} factures impayées {'·'} {overdue.totals.quotesCount} devis en attente
+                  {[
+                    overdue.totals.invoicesCount > 0
+                      && `${overdue.totals.invoicesCount} facture${overdue.totals.invoicesCount > 1 ? 's' : ''} impayée${overdue.totals.invoicesCount > 1 ? 's' : ''}`,
+                    overdue.totals.quotesCount > 0
+                      && `${overdue.totals.quotesCount} devis en attente`,
+                  ].filter(Boolean).join(' · ')}
                 </span>
               </motion.div>
             )}
@@ -401,7 +336,14 @@ export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolea
                   }}
                 >
                   <span style={{ fontSize: 36, marginBottom: 12 }}>{'\u{1F514}'}</span>
-                  <span style={{ fontSize: 14, fontWeight: 500 }}>Aucune notification</span>
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>
+                    {overdue.isLoading ? 'Chargement…' : 'Aucune notification'}
+                  </span>
+                  {!overdue.isLoading && (
+                    <span style={{ fontSize: 12.5, marginTop: 6, textAlign: 'center', lineHeight: 1.5 }}>
+                      Aucune facture impayée, aucun devis sans réponse.
+                    </span>
+                  )}
                 </div>
               )}
             </div>

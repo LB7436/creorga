@@ -92,149 +92,38 @@ interface Customer {
   orders: Order[]
 }
 
-/* ── mock data ─────────────────────────────────────────────── */
-const MOCK_CUSTOMERS: Customer[] = [
-  {
-    id: '1', firstName: 'Marc', lastName: 'Schmit', email: 'marc.schmit@pt.lu',
-    phone: '+352 621 123 456', address: '12 rue de la Gare', city: 'Luxembourg-Ville', postalCode: '1616',
-    birthDate: '1985-03-15', anniversaryDate: '2015-06-20', firstVisit: '2024-06-10', notes: 'Préfère la terrasse',
-    loyaltyPoints: 720, loyaltyTier: 'Gold', walletBalance: 45.00,
-    totalSpent: 2340.50, visitCount: 87, avgBasket: 26.90,
-    lastVisit: '2026-04-14T19:30:00', createdAt: '2024-06-10T10:00:00',
-    tags: ['Client fidèle', 'VIP'], marketingConsent: true, emailOptIn: true, smsOptIn: true, onTab: false,
-    preferredTable: 'Table 12 - Terrasse', dietary: ['Végétarien'], allergens: ['Gluten'],
-    nps: 9, churnRisk: 'LOW', clv: 4680, instagram: '@marcschmit',
-    linkedMembers: ['2'],
-    complaints: [], timeline: [
-      { id: 't1', date: '2026-04-14T19:30:00', type: 'VISIT', label: 'Visite', detail: 'Table 12, 3 personnes, 34.50 €' },
-      { id: 't2', date: '2026-04-10T10:00:00', type: 'EMAIL', label: 'Email ouvert', detail: 'Newsletter Avril' },
-      { id: 't3', date: '2026-04-05T20:00:00', type: 'EVENT', label: 'Événement', detail: 'Soirée dégustation vin' },
-      { id: 't4', date: '2026-03-28T13:00:00', type: 'VISIT', label: 'Visite', detail: 'Déjeuner, 2 personnes' },
-      { id: 't5', date: '2026-03-20T19:45:00', type: 'RESERVATION', label: 'Réservation', detail: 'Confirmée via SMS' },
-    ],
-    orders: [
-      { id: 'o1', createdAt: '2026-04-14T19:30:00', total: 34.50, itemsCount: 3, status: 'PAID', paymentMethod: 'Carte' },
-      { id: 'o2', createdAt: '2026-04-10T12:15:00', total: 22.00, itemsCount: 2, status: 'PAID', paymentMethod: 'Cash' },
-      { id: 'o3', createdAt: '2026-04-05T20:00:00', total: 45.80, itemsCount: 4, status: 'PAID', paymentMethod: 'Wallet' },
-      { id: 'o4', createdAt: '2026-03-28T13:00:00', total: 18.50, itemsCount: 2, status: 'PAID', paymentMethod: 'Carte' },
-      { id: 'o5', createdAt: '2026-03-20T19:45:00', total: 29.00, itemsCount: 3, status: 'PAID', paymentMethod: 'Cash' },
-    ]
-  },
-  {
-    id: '2', firstName: 'Léa', lastName: 'Muller', email: 'lea.muller@education.lu',
-    phone: '+352 691 234 567', address: '5 avenue Monterey', city: 'Luxembourg-Ville', postalCode: '2163',
-    birthDate: '1992-07-22', firstVisit: '2025-01-15',
-    loyaltyPoints: 340, loyaltyTier: 'Silver', walletBalance: 20.00,
-    totalSpent: 890.00, visitCount: 34, avgBasket: 26.18,
-    lastVisit: '2026-04-12T12:00:00', createdAt: '2025-01-15T14:00:00',
-    tags: ['Client fidèle'], marketingConsent: true, emailOptIn: true, smsOptIn: false, onTab: false,
-    dietary: [], allergens: [], nps: 8, churnRisk: 'LOW', clv: 1780,
-    linkedMembers: ['1'],
-    complaints: [], timeline: [
-      { id: 't6', date: '2026-04-12T12:00:00', type: 'VISIT', label: 'Visite' },
-      { id: 't7', date: '2026-04-08T13:30:00', type: 'VISIT', label: 'Visite' },
-    ],
-    orders: [
-      { id: 'o6', createdAt: '2026-04-12T12:00:00', total: 15.50, itemsCount: 1, status: 'PAID', paymentMethod: 'Carte' },
-      { id: 'o7', createdAt: '2026-04-08T13:30:00', total: 28.00, itemsCount: 2, status: 'PAID', paymentMethod: 'Cash' },
-    ]
-  },
-  {
-    id: '3', firstName: 'Tom', lastName: 'Reuter', email: 'tom.reuter@gmail.com',
-    phone: '+352 661 345 678', address: '28 rue du Fossé', city: 'Esch-sur-Alzette', postalCode: '4123',
-    birthDate: '1990-11-03', firstVisit: '2024-09-20', notes: 'Allergique aux noix',
-    loyaltyPoints: 580, loyaltyTier: 'Gold', walletBalance: 75.00,
-    totalSpent: 1560.00, visitCount: 62, avgBasket: 25.16,
-    lastVisit: '2026-04-13T20:15:00', createdAt: '2024-09-20T09:00:00',
-    tags: ['VIP', 'Allergique'], marketingConsent: false, emailOptIn: false, smsOptIn: true, onTab: true,
-    preferredTable: 'Table 8 - Coin fenêtre', dietary: [], allergens: ['Noix', 'Arachides'],
-    nps: 10, churnRisk: 'LOW', clv: 3120, instagram: '@tomreuter',
-    linkedMembers: [],
-    complaints: [],
-    timeline: [{ id: 't8', date: '2026-04-13T20:15:00', type: 'VISIT', label: 'Visite VIP' }],
-    orders: [
-      { id: 'o9', createdAt: '2026-04-13T20:15:00', total: 52.00, itemsCount: 4, status: 'PAID', paymentMethod: 'Wallet' },
-      { id: 'o10', createdAt: '2026-04-09T12:45:00', total: 19.50, itemsCount: 2, status: 'PAID', paymentMethod: 'Cash' },
-    ]
-  },
-  {
-    id: '4', firstName: 'Sophie', lastName: 'Weber', email: 'sophie.w@outlook.com',
-    phone: '+352 621 456 789', address: '3 place Guillaume II', city: 'Luxembourg-Ville', postalCode: '1648',
-    birthDate: '1988-01-30', firstVisit: '2025-11-05',
-    loyaltyPoints: 120, loyaltyTier: 'Bronze', walletBalance: 10.00,
-    totalSpent: 320.00, visitCount: 12, avgBasket: 26.67,
-    lastVisit: '2026-04-01T18:00:00', createdAt: '2025-11-05T11:00:00',
-    tags: ['Nouveau', 'Végétarien'], marketingConsent: true, emailOptIn: true, smsOptIn: true, onTab: false,
-    dietary: ['Végétarien', 'Kosher'], allergens: [], nps: 7, churnRisk: 'MEDIUM', clv: 640,
-    linkedMembers: [],
-    complaints: [{ id: 'c1', date: '2026-03-10', subject: 'Attente trop longue', status: 'RESOLVED', resolution: 'Excuses + café offert' }],
-    timeline: [{ id: 't9', date: '2026-04-01T18:00:00', type: 'VISIT', label: 'Visite' }],
-    orders: [
-      { id: 'o11', createdAt: '2026-04-01T18:00:00', total: 24.00, itemsCount: 2, status: 'PAID', paymentMethod: 'Carte' },
-    ]
-  },
-  {
-    id: '5', firstName: 'Pierre', lastName: 'Hoffmann', email: 'p.hoffmann@post.lu',
-    phone: '+352 691 567 890', address: '17 rue de Strasbourg', city: 'Luxembourg-Ville', postalCode: '2561',
-    birthDate: '1975-05-18', anniversaryDate: '2000-09-14', firstVisit: '2023-03-01',
-    loyaltyPoints: 910, loyaltyTier: 'Gold', walletBalance: 120.00,
-    totalSpent: 4200.00, visitCount: 156, avgBasket: 26.92,
-    lastVisit: '2026-04-14T12:30:00', createdAt: '2023-03-01T08:00:00',
-    tags: ['VIP', 'Grand événement'], marketingConsent: true, emailOptIn: true, smsOptIn: true, onTab: false,
-    preferredTable: 'Table 1 - Privée', dietary: [], allergens: [],
-    nps: 10, churnRisk: 'LOW', clv: 8400, facebook: 'pierre.hoffmann',
-    linkedMembers: [],
-    complaints: [],
-    timeline: [{ id: 't10', date: '2026-04-14T12:30:00', type: 'VISIT', label: 'Visite régulière' }],
-    orders: [
-      { id: 'o13', createdAt: '2026-04-14T12:30:00', total: 38.00, itemsCount: 3, status: 'PAID', paymentMethod: 'Wallet' },
-      { id: 'o14', createdAt: '2026-04-12T19:00:00', total: 55.00, itemsCount: 4, status: 'PAID', paymentMethod: 'Carte' },
-    ]
-  },
-  {
-    id: '6', firstName: 'Julie', lastName: 'Kieffer', email: 'julie.kieffer@vo.lu',
-    phone: '+352 661 678 901', address: '9 boulevard Royal', city: 'Luxembourg-Ville', postalCode: '2449',
-    birthDate: '1995-09-12', firstVisit: '2026-01-10', notes: 'Anniversaire en septembre',
-    loyaltyPoints: 45, loyaltyTier: 'Bronze', walletBalance: 0,
-    totalSpent: 85.00, visitCount: 3, avgBasket: 28.33,
-    lastVisit: '2026-02-20T19:00:00', createdAt: '2026-01-10T16:00:00',
-    tags: ['Nouveau'], marketingConsent: false, emailOptIn: false, smsOptIn: false, onTab: false,
-    dietary: ['Végan'], allergens: [], nps: 6, churnRisk: 'HIGH', clv: 170,
-    linkedMembers: [],
-    complaints: [{ id: 'c2', date: '2026-02-22', subject: 'Plat végan indisponible', status: 'OPEN' }],
-    timeline: [{ id: 't11', date: '2026-02-20T19:00:00', type: 'VISIT', label: 'Visite' }],
-    orders: [
-      { id: 'o18', createdAt: '2026-02-20T19:00:00', total: 32.00, itemsCount: 2, status: 'PAID', paymentMethod: 'Carte' },
-    ]
-  },
-  {
-    id: '7', firstName: 'Lucas', lastName: 'Theis', email: 'lucas.theis@pt.lu',
-    phone: '+352 621 789 012', address: '42 rue de Hollerich', city: 'Luxembourg-Ville', postalCode: '1741',
-    birthDate: '1982-12-05', firstVisit: '2025-05-22',
-    loyaltyPoints: 260, loyaltyTier: 'Silver', walletBalance: 35.00,
-    totalSpent: 680.00, visitCount: 28, avgBasket: 24.29,
-    lastVisit: '2026-04-11T20:00:00', createdAt: '2025-05-22T10:00:00',
-    tags: ['Client fidèle'], marketingConsent: true, emailOptIn: true, smsOptIn: false, onTab: true,
-    dietary: [], allergens: ['Lactose'], nps: 8, churnRisk: 'LOW', clv: 1360,
-    linkedMembers: [],
-    complaints: [], timeline: [{ id: 't12', date: '2026-04-11T20:00:00', type: 'VISIT', label: 'Visite' }],
-    orders: [
-      { id: 'o19', createdAt: '2026-04-11T20:00:00', total: 27.50, itemsCount: 2, status: 'PAID', paymentMethod: 'Carte' },
-    ]
-  },
-  {
-    id: '8', firstName: 'Anna', lastName: 'Braun', email: 'anna.braun@gmail.com',
-    phone: '+352 691 890 123', address: '6 rue de Bonnevoie', city: 'Luxembourg-Ville', postalCode: '1260',
-    birthDate: '1998-04-25', firstVisit: '2026-04-14', notes: 'Étudiante, réductions possibles',
-    loyaltyPoints: 0, loyaltyTier: 'Bronze', walletBalance: 0,
-    totalSpent: 0, visitCount: 0, avgBasket: 0,
-    lastVisit: '', createdAt: '2026-04-14T15:00:00',
-    tags: ['Nouveau'], marketingConsent: true, emailOptIn: true, smsOptIn: true, onTab: false,
-    dietary: ['Halal'], allergens: [], churnRisk: 'HIGH', clv: 0,
-    linkedMembers: [],
-    complaints: [], timeline: [], orders: []
-  },
-]
+/* ── dérivations à partir des vraies données ───────────────── */
+/**
+ * Les 8 clients de démonstration qui vivaient ici (Marc Schmit, Léa Muller,
+ * Tom Reuter…) ont été supprimés : ils servaient à compléter les champs
+ * manquants des VRAIS clients, si bien qu'un client du portail héritait
+ * d'une adresse, d'un compte Instagram et d'allergies qui ne sont pas les
+ * siennes. Ne restent que deux règles, appliquées à des données réelles.
+ */
+
+/** Palier de fidélité, avec les mêmes seuils que TIER_CONFIG ci-dessous. */
+function paliersFidelite(points: number): 'Bronze' | 'Silver' | 'Gold' {
+  if (points >= 500) return 'Gold'
+  if (points >= 200) return 'Silver'
+  return 'Bronze'
+}
+
+/**
+ * Risque de départ, déduit de la seule chose qu'on sache vraiment : la date
+ * de dernière visite. Règle explicite, pas un score opaque —
+ * plus de 90 jours : élevé ; plus de 30 : moyen ; sinon faible.
+ * Un client sans aucune visite enregistrée est « élevé » : on n'a jamais eu
+ * l'occasion de le fidéliser.
+ */
+function risqueDeDepart(derniereVisite?: string): 'LOW' | 'MEDIUM' | 'HIGH' {
+  if (!derniereVisite) return 'HIGH'
+  const d = new Date(derniereVisite)
+  if (Number.isNaN(d.getTime())) return 'HIGH'
+  const jours = (Date.now() - d.getTime()) / 86400000
+  if (jours > 90) return 'HIGH'
+  if (jours > 30) return 'MEDIUM'
+  return 'LOW'
+}
 
 /* ── configs ───────────────────────────────────────────────── */
 const TIER_CONFIG = {
@@ -312,27 +201,51 @@ export default function ClientsPage() {
   const rechargeWallet = useRechargeWallet()
 
   const customers: Customer[] = useMemo(() => {
-    if (apiCustomers) {
-      return apiCustomers.map((c, i) => {
-        const mock = MOCK_CUSTOMERS[i % MOCK_CUSTOMERS.length]
-        return {
-          ...mock,
-          ...(c as Partial<Customer>),
-          id: c.id,
-          firstName: c.firstName ?? mock.firstName,
-          lastName: c.lastName ?? mock.lastName,
-          email: c.email ?? mock.email,
-          phone: c.phone ?? mock.phone,
-          loyaltyPoints: c.loyaltyPoints ?? mock.loyaltyPoints,
-          walletBalance: c.walletBalance ?? mock.walletBalance,
-          totalSpent: c.totalSpent ?? mock.totalSpent,
-          visitCount: c.visits ?? mock.visitCount,
-          lastVisit: c.lastVisit ?? mock.lastVisit,
-          tags: c.tags ?? mock.tags,
-        } as Customer
-      })
-    }
-    return []
+    if (!apiCustomers) return []
+    return apiCustomers.map((c) => {
+      const totalSpent = c.totalSpent ?? 0
+      const visitCount = c.visits ?? 0
+      const points = c.loyaltyPoints ?? 0
+      return {
+        id: c.id,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        // Un champ vide reste vide. La version précédente allait chercher
+        // l'adresse, le téléphone et jusqu'aux ALLERGÈNES d'un client de
+        // démonstration pour boucher les trous : un vrai client pouvait
+        // s'afficher « allergique aux noix » sans que personne ne l'ait dit.
+        email: c.email ?? '',
+        phone: c.phone ?? '',
+        birthDate: c.birthDate,
+        notes: c.notes,
+        loyaltyPoints: points,
+        loyaltyTier: paliersFidelite(points),
+        walletBalance: c.walletBalance ?? 0,
+        totalSpent,
+        visitCount,
+        avgBasket: visitCount > 0 ? totalSpent / visitCount : 0,
+        lastVisit: c.lastVisit ?? '',
+        createdAt: c.createdAt ?? '',
+        tags: c.tags ?? [],
+        // Consentements : faux par défaut. Présumer un accord qu'on n'a pas
+        // recueilli serait une faute vis-à-vis du RGPD, pas un détail d'affichage.
+        marketingConsent: false,
+        emailOptIn: false,
+        smsOptIn: false,
+        onTab: false,
+        dietary: [],
+        allergens: [],
+        // Le serveur ne mesure pas la satisfaction : pas de note inventée.
+        nps: undefined,
+        churnRisk: risqueDeDepart(c.lastVisit),
+        // Valeur cumulée réellement dépensée, pas une projection.
+        clv: totalSpent,
+        linkedMembers: [],
+        complaints: [],
+        timeline: [],
+        orders: [],
+      }
+    })
   }, [apiCustomers])
 
   function handleRechargeWallet(id: string, amount: number) {
@@ -458,19 +371,12 @@ export default function ClientsPage() {
     setSelected(c); setPanelTab('overview')
   }
 
-  // CLV trend mock (use selected spending to generate a sensible curve)
-  const clvTrend = useMemo(() => {
-    if (!selected) return []
-    const base = selected.totalSpent / 8
-    return [
-      { mois: 'S-5', clv: base * 4 },
-      { mois: 'S-4', clv: base * 4.8 },
-      { mois: 'S-3', clv: base * 5.4 },
-      { mois: 'S-2', clv: base * 6.2 },
-      { mois: 'S-1', clv: base * 7 },
-      { mois: 'Now', clv: selected.clv },
-    ]
-  }, [selected])
+  // La courbe d'évolution sur 6 mois était fabriquée : on prenait le total
+  // dépensé, on le divisait par 8 et on remontait la pente avec des
+  // coefficients arbitraires (× 4, × 4,8, × 5,4…). Elle montait donc toujours,
+  // pour tout le monde, y compris pour un client qui n'était pas revenu depuis
+  // un an. Le serveur n'expose pas l'historique mensuel par client : la courbe
+  // est retirée plutôt que devinée.
 
   const totalClients = customers.length
   const totalCLV = customers.reduce((s, c) => s + c.clv, 0)
@@ -829,14 +735,14 @@ export default function ClientsPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 10 }}>
                       <div style={{ background: '#eef2ff', borderRadius: 14, padding: 16, border: '1px solid #c7d2fe' }}>
                         <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#4338ca', letterSpacing: '0.06em', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <CreditCard size={11} /> CLV
+                          <CreditCard size={11} /> Total dépensé
                         </p>
                         <div style={{ fontSize: 22, fontWeight: 800, color: '#3730a3' }}>{fmt(selected.clv)}</div>
-                        <ResponsiveContainer width="100%" height={60}>
-                          <LineChart data={clvTrend}>
-                            <Line type="monotone" dataKey="clv" stroke="#4338ca" strokeWidth={2} dot={false} />
-                          </LineChart>
-                        </ResponsiveContainer>
+                        <div style={{ fontSize: 11, color: '#6366f1', marginTop: 4 }}>
+                          {selected.visitCount > 0
+                            ? `sur ${selected.visitCount} visite${selected.visitCount > 1 ? 's' : ''}`
+                            : 'aucune visite enregistrée'}
+                        </div>
                       </div>
                       <div style={{ background: CHURN_CONFIG[selected.churnRisk].bg, borderRadius: 14, padding: 16, border: `1px solid ${CHURN_CONFIG[selected.churnRisk].color}40` }}>
                         <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: CHURN_CONFIG[selected.churnRisk].color, letterSpacing: '0.06em', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 6 }}>

@@ -5,6 +5,7 @@ import { useModuleStore, MODULES } from '@/stores/moduleStore'
 import { useI18n } from '@/lib/i18n'
 import { useThemeColors } from '@/lib/theme'
 import NotificationCenter from '@/components/NotificationCenter'
+import { useOverdueAlerts } from '@/lib/overdueAlerts'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import AssistantMascot from '@/components/AssistantMascot'
 import { useAssistant } from '@/stores/assistantStore'
@@ -151,6 +152,11 @@ export default function AppShell() {
   const [notifOpen, setNotifOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Nombre réel d'alertes derrière la cloche : factures impayées et devis
+  // sans réponse. Même source que le panneau, donc jamais de désaccord entre
+  // la pastille et son contenu.
+  const nbAlertes = useOverdueAlerts().all.length
 
   /* global Cmd+K / Ctrl+K listener */
   useEffect(() => {
@@ -440,7 +446,11 @@ export default function AppShell() {
             }}
           >
             {'\u{1F514}'}
-            {/* unread count badge */}
+            {/* Pastille du nombre d'alertes réelles.
+                Elle affichait « 8 » en dur, quoi qu'il arrive : la cloche
+                réclamait éternellement l'attention pour rien. Elle ne s'affiche
+                désormais que s'il y a vraiment quelque chose à voir. */}
+            {nbAlertes > 0 && (
             <span
               style={{
                 position: 'absolute',
@@ -461,8 +471,9 @@ export default function AppShell() {
                 lineHeight: 1,
               }}
             >
-              8
+              {nbAlertes > 99 ? '99+' : nbAlertes}
             </span>
+            )}
           </button>
 
           {/* user avatar + dropdown */}

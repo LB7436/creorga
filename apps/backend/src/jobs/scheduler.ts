@@ -18,6 +18,8 @@
 
 import fs from 'fs'
 import path from 'path'
+import { safeWriteJson, safeReadJson } from '../lib/safe-json'
+import logger from '../lib/logger'
 
 const DATA_DIR = path.resolve(process.cwd(), 'data')
 const TASKS_FILE = path.join(DATA_DIR, 'scheduled-tasks.json')
@@ -35,15 +37,39 @@ export interface ScheduledTask {
 }
 
 function loadTasks(): ScheduledTask[] {
+  // Fichier absent = aucune tâche programmée. Ce n'est pas une erreur.
+  if (!fs.existsSync(TASKS_FILE)) return []
   try {
-    if (!fs.existsSync(TASKS_FILE)) return []
-    return JSON.parse(fs.readFileSync(TASKS_FILE, 'utf8'))
-  } catch { return [] }
+    const brut = JSON.parse(fs.readFileSync(TASKS_FILE, 'utf8'))
+    if (!Array.isArray(brut)) throw new Error('le contenu n\'est pas un tableau')
+    return brut as ScheduledTask[]
+  } catch (e: any) {
+    // Ne JAMAIS avaler cette lecture (règle du CLAUDE.md). L'ancienne version
+    // renvoyait [] en silence : des rappels programmés disparaissaient sans
+    // qu'aucune trace ne permette de s'en apercevoir.
+    logger.error(`[scheduler] ${TASKS_FILE} illisible (${e?.message || e}) — reprise sur .bak`)
+    const secours = safeReadJson<ScheduledTask[]>(TASKS_FILE + '.bak', [])
+    if (Array.isArray(secours) && secours.length) {
+      logger.warn(`[scheduler] ${secours.length} tâche(s) récupérée(s) depuis la sauvegarde`)
+      return secours
+    }
+    logger.error('[scheduler] aucune reprise possible — les tâches programmées sont perdues')
+    return []
+  }
 }
 
 function saveTasks(tasks: ScheduledTask[]) {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
-  fs.writeFileSync(TASKS_FILE, JSON.stringify(tasks, null, 2), 'utf8')
+  // Écriture atomique (.tmp puis rename, avec .bak) comme tout data/*.json :
+  // un fs.writeFileSync direct laisse un fichier tronqué si le processus meurt
+  // au milieu, et on perd toutes les tâches d'un coup.
+  try {
+    safeWriteJson(TASKS_FILE, tasks)
+  } catch (e: any) {
+    logger.error(`[scheduler] écriture de ${TASKS_FILE} impossible : ${e?.message || e}`)
+    // Propagé : une route qui croit avoir programmé un rappel doit le savoir.
+    throw e
+  }
 }
 
 let timerHandle: NodeJS.Timeout | null = null
@@ -53,8 +79,7 @@ export function startScheduler() {
   timerHandle = setInterval(tick, 60_000)
   // Run once at boot to catch overdue tasks
   setTimeout(tick, 5000)
-  // eslint-disable-next-line no-console
-  console.log('[scheduler] started — check toutes les 60s')
+  logger.info('[scheduler] démarré — vérification toutes les 60 s')
 }
 
 export function stopScheduler() {
@@ -77,11 +102,19 @@ async function tick() {
       }
       mutated = true
     } catch (e: any) {
-      // eslint-disable-next-line no-console
-      console.error('[scheduler] task failed', task.id, e?.message)
+      logger.error(`[scheduler] tâche ${task.id} en échec : ${e?.message || e}`)
     }
   }
-  if (mutated) saveTasks(tasks)
+  // saveTasks peut désormais lever. Ici on est appelé par setInterval : une
+  // exception non rattrapée deviendrait un rejet non géré et tuerait la boucle.
+  if (mutated) {
+    try {
+      saveTasks(tasks)
+    } catch {
+      // Déjà journalisé en erreur par saveTasks. On laisse la boucle vivre :
+      // au pire les tâches seront rejouées au tour suivant.
+    }
+  }
 }
 
 async function executeTask(task: ScheduledTask) {
@@ -101,7 +134,12 @@ async function executeTask(task: ScheduledTask) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: task.payload?.text, currentPath: '/', userId: task.payload?.userId || 'default' }),
       })
-    } catch { /* ignore — backend down */ }
+    } catch (e: any) {
+      // L'API se rappelle elle-même : si ça échoue, l'intention programmée
+      // n'a pas été exécutée. Le taire reviendrait à marquer la tâche « faite »
+      // sans qu'elle ait rien fait.
+      throw new Error(`appel à /api/agent/intent impossible : ${e?.message || e}`)
+    }
   } else if (task.kind === 'broadcast') {
     if (broadcast) broadcast(task.payload?.channel || 'inbox', task.payload?.event || 'notify', task.payload?.data || {})
   }

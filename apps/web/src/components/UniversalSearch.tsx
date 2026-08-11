@@ -8,6 +8,20 @@ import { fetchAuth } from '@/lib/fetchAuth'
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
 /**
+ * Événement d'ouverture de la recherche avancée.
+ *
+ * Un événement plutôt qu'un store partagé : la palette de commandes vit dans
+ * l'AppShell, cette fenêtre est montée à la racine de l'application — les deux
+ * n'ont aucun ancêtre commun où placer un état.
+ */
+export const EVENEMENT_RECHERCHE_AVANCEE = 'creorga:recherche-avancee'
+
+/** Ouvre la recherche avancée depuis n'importe où. */
+export function ouvrirRechercheAvancee() {
+  window.dispatchEvent(new Event(EVENEMENT_RECHERCHE_AVANCEE))
+}
+
+/**
  * Universal Cmd+K Search — searches across :
  *   - Modules (35+)
  *   - Help articles (50+)
@@ -55,17 +69,22 @@ export default function UniversalSearch() {
   const navigate = useNavigate()
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Cmd/Ctrl+K to open
+  // Ouverture par événement, plus par Ctrl+K.
+  //
+  // Ce composant ET la palette de commandes de l'AppShell écoutaient tous les
+  // deux Ctrl+K : les deux fenêtres s'ouvraient l'une par-dessus l'autre, et
+  // fermer celle du dessus laissait l'autre en place. La palette de commandes
+  // garde le raccourci (elle couvre toute la navigation) et propose une entrée
+  // « Recherche avancée » qui déclenche cette fenêtre-ci.
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        setOpen((o) => !o)
-      }
-      if (e.key === 'Escape' && open) setOpen(false)
+    const ouvrir = () => setOpen(true)
+    const echap = (e: KeyboardEvent) => { if (e.key === 'Escape' && open) setOpen(false) }
+    window.addEventListener(EVENEMENT_RECHERCHE_AVANCEE, ouvrir)
+    window.addEventListener('keydown', echap)
+    return () => {
+      window.removeEventListener(EVENEMENT_RECHERCHE_AVANCEE, ouvrir)
+      window.removeEventListener('keydown', echap)
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
   }, [open])
 
   useEffect(() => {

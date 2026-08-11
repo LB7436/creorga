@@ -19,10 +19,27 @@ import { useAuthStore } from '@/stores/authStore'
  * Pour la prod, remplacer par un vrai login.
  */
 
-// admin@creorga.local est le compte de repli du mode développement, DÉSACTIVÉ en
-// production : la démo mobile échouait donc en ligne. Compte créé par seed-rich.
-const DEMO_EMAIL    = 'bryan@cafe-rondpoint.lu'
-const DEMO_PASSWORD = 'Demo1234!'
+/**
+ * ⚠️ CONNEXION AUTOMATIQUE — DÉSACTIVÉE PAR DÉFAUT.
+ *
+ * Cette page ouvrait une session propriétaire à quiconque connaissait l'URL.
+ * `/m/demo` est une route PUBLIQUE (App.tsx:252, hors RequireAuth) : ouvrir
+ * https://…/m/demo depuis un navigateur vierge suffisait à être connecté comme
+ * Bryan, sans un clic. Vérifié en direct le 11 août 2026 sur le site en ligne.
+ * Le mot de passe partait de surcroît en clair dans le bundle JavaScript.
+ *
+ * La connexion automatique n'a lieu que si le build la demande explicitement
+ * (`VITE_DEMO_AUTOLOGIN=true`), ce que le build du site ne fait pas. Sans ce
+ * drapeau, la page renvoie vers l'écran de connexion normal.
+ *
+ * Avant de la réactiver pour l'APK : créer un compte de démonstration DÉDIÉ,
+ * en lecture seule, sur une société de démonstration — jamais le compte
+ * propriétaire d'un établissement réel. L'APK étant téléchargeable depuis le
+ * site public, tout identifiant qu'elle contient est un identifiant public.
+ */
+const AUTOLOGIN_AUTORISE = (import.meta as any).env?.VITE_DEMO_AUTOLOGIN === 'true'
+const DEMO_EMAIL    = (import.meta as any).env?.VITE_DEMO_EMAIL || ''
+const DEMO_PASSWORD = (import.meta as any).env?.VITE_DEMO_PASSWORD || ''
 
 const ENV_BACKEND = (import.meta as any).env?.VITE_REMOTE_BACKEND
                  || (import.meta as any).env?.VITE_BACKEND_URL
@@ -71,6 +88,13 @@ export default function MobileDemoLogin() {
   useEffect(() => {
     if (isAuthed) {
       navigate('/m', { replace: true })
+      return
+    }
+    // Sans autorisation explicite du build, on n'ouvre aucune session : on
+    // renvoie vers l'écran de connexion normal. C'est ce qui ferme l'accès
+    // libre au compte propriétaire depuis /m/demo.
+    if (!AUTOLOGIN_AUTORISE || !DEMO_EMAIL || !DEMO_PASSWORD) {
+      navigate('/login', { replace: true })
       return
     }
     autoLogin()

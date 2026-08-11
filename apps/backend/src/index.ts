@@ -35,6 +35,7 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import compression from 'compression'
 import cookieParser from 'cookie-parser'
 import { createServer } from 'http'
 import { Server as SocketServer } from 'socket.io'
@@ -93,6 +94,15 @@ assertProductionSecrets()
 initMonitoring()
 
 const app = express()
+
+// Un seul intermédiaire devant nous : Caddy, sur la même machine.
+// Sans ce réglage, express-rate-limit voit l'IP de Caddy (127.0.0.1) pour
+// TOUT LE MONDE : soit un seul visiteur bloque le site entier, soit la limite
+// ne protège plus rien. L'avertissement était journalisé depuis le 8 août.
+// Valeur `1` et non `true` : `true` reviendrait à croire n'importe quel
+// X-Forwarded-For envoyé par le client, donc à laisser contourner la limite.
+app.set('trust proxy', 1)
+
 const httpServer = createServer(app)
 
 // CORS strict : liste blanche via ALLOWED_ORIGINS / FRONTEND_URL ;
@@ -120,6 +130,20 @@ liveNs.on('connection', (socket) => {
 // Middleware
 app.use(helmet())
 app.use(cors(corsOptions))
+// Compression gzip/deflate des réponses. Le catalogue produits, la liste des
+// commandes et le plan de salle partaient bruts : c'est du JSON très répétitif,
+// donc très compressible, et la caisse tourne sur une tablette en Wi-Fi.
+app.use(compression({
+  filter: (req, res) => {
+    // L'assistant (routes/agent.ts) répond en flux SSE, morceau par morceau.
+    // Compressé, chaque morceau resterait dans le tampon jusqu'à la fin de la
+    // réponse : la réponse s'afficherait d'un bloc au lieu de s'écrire au fil
+    // de l'eau, et un flux long paraîtrait figé.
+    const type = String(res.getHeader('Content-Type') || '')
+    if (type.includes('text/event-stream')) return false
+    return compression.filter(req, res)
+  },
+}))
 // v3.16 — bump JSON body limit pour OCR vision (images base64 ~ 1-5 MB)
 // v4.7 — Body limit ciblé : 20mb réservé aux routes qui reçoivent des images
 // base64 (OCR/vision), 1mb pour tout le reste. body-parser marque req._body

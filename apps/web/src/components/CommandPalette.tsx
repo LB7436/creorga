@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
+import { useCustomers } from '@/hooks/api/useCustomers'
+import { useProducts } from '@/hooks/api/useProducts'
+import { ouvrirRechercheAvancee } from '@/components/UniversalSearch'
 
 interface CommandPaletteProps {
   open: boolean
@@ -71,28 +74,11 @@ const ACTIONS: Omit<CommandItem, 'type'>[] = [
   { id: 'a-install-app', title: 'Installer l\'application', subtitle: 'PWA sur mobile/tablette', emoji: '\u{1F4F2}' },
 ]
 
-const MOCK_CLIENTS = [
-  { id: 'c1', name: 'Marie Dubois', email: 'marie.dubois@example.com' },
-  { id: 'c2', name: 'Jean Weber', email: 'j.weber@example.lu' },
-  { id: 'c3', name: 'Sophie Thill', email: 'sthill@example.com' },
-  { id: 'c4', name: 'Claude Reuter', email: 'creuter@example.lu' },
-  { id: 'c5', name: 'Anne Kohn', email: 'a.kohn@example.com' },
-  { id: 'c6', name: 'Luc Schmit', email: 'luc.schmit@example.lu' },
-  { id: 'c7', name: 'Isabelle Hoffmann', email: 'ihoffmann@example.com' },
-  { id: 'c8', name: 'Pierre Muller', email: 'pmuller@example.lu' },
-]
-
-const MOCK_PRODUCTS = [
-  { id: 'pr1', name: 'Espresso', price: 2.5, cat: 'Boisson' },
-  { id: 'pr2', name: 'Cappuccino', price: 3.8, cat: 'Boisson' },
-  { id: 'pr3', name: 'Croissant', price: 1.8, cat: 'Pâtisserie' },
-  { id: 'pr4', name: 'Tarte du jour', price: 5.0, cat: 'Pâtisserie' },
-  { id: 'pr5', name: 'Salade César', price: 13.5, cat: 'Plat' },
-  { id: 'pr6', name: 'Burger maison', price: 16.0, cat: 'Plat' },
-  { id: 'pr7', name: 'Pasta truffe', price: 22.0, cat: 'Plat' },
-  { id: 'pr8', name: 'Mojito classique', price: 11.0, cat: 'Cocktail' },
-  { id: 'pr9', name: 'Vin blanc (verre)', price: 6.5, cat: 'Boisson' },
-]
+// Les 8 clients (« Marie Dubois », « Jean Weber »…) et 9 produits (« Pasta
+// truffe », « Mojito classique »…) écrits en dur ici ont été supprimés :
+// chercher « Marie » proposait une cliente inexistante, et cliquer dessus
+// menait à une fiche introuvable. Les vrais clients et produits sont chargés
+// depuis l'API dans le composant.
 
 function fuzzyMatch(query: string, text: string): number {
   if (!query) return 1
@@ -121,6 +107,13 @@ function getTimeGreeting(): string {
 
 export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const navigate = useNavigate()
+  // Mêmes clés react-query que les écrans Clients et Catalogue : la palette
+  // est montée partout, mais elle se sert du cache déjà rempli par ces écrans
+  // au lieu de déclencher deux requêtes supplémentaires par page.
+  const { data: clientsApi } = useCustomers()
+  const { data: produitsApi } = useProducts()
+  const clients = clientsApi || []
+  const produits = produitsApi || []
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const [recent, setRecent] = useState<string[]>([])
@@ -147,30 +140,40 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   /* ── build items ── */
   const allItems: CommandItem[] = useMemo(() => {
     const list: CommandItem[] = []
+    list.push({
+      id: 'a-recherche-avancee',
+      type: 'action',
+      title: 'Recherche avancée',
+      subtitle: 'Factures, clients, produits et articles d\'aide',
+      emoji: '\u{1F50E}',
+      onRun: ouvrirRechercheAvancee,
+    })
     ACTIONS.forEach((a) => list.push({ ...a, type: 'action' }))
     PAGES.forEach((p) => list.push({ ...p, type: 'page' }))
-    MOCK_CLIENTS.forEach((c) =>
+    // Vrais clients et vrais produits. Aucun résultat inventé : si la liste
+    // est vide, la recherche ne propose que des pages et des actions.
+    clients.forEach((c) =>
       list.push({
-        id: c.id,
+        id: `client-${c.id}`,
         type: 'client',
-        title: c.name,
-        subtitle: c.email,
+        title: `${c.firstName} ${c.lastName}`.trim() || 'Client sans nom',
+        subtitle: c.email || c.phone || undefined,
         emoji: '\u{1F464}',
         path: '/crm/clients',
       })
     )
-    MOCK_PRODUCTS.forEach((p) =>
+    produits.forEach((p) =>
       list.push({
-        id: p.id,
+        id: `produit-${p.id}`,
         type: 'product',
         title: p.name,
-        subtitle: `${p.cat} · ${p.price.toFixed(2)} €`,
+        subtitle: [p.category, `${p.price.toFixed(2)} €`].filter(Boolean).join(' · '),
         emoji: '\u{1F37D}️',
         path: '/admin/catalog',
       })
     )
     return list
-  }, [])
+  }, [clients, produits])
 
   const quickItems: CommandItem[] = [
     { id: 'q1', type: 'quick', title: 'Nouvelle commande', emoji: '\u{1F4B3}', subtitle: 'Sauter à la caisse', path: '/pos/floor' },
