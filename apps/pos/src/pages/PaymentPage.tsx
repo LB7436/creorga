@@ -439,8 +439,12 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
 
   if (!table) return null
 
-  const covers = table.covers
-  const grandTotal = tableTotal(table)
+  // Seuls les couverts encore dus. Sans ce filtre, un couvert déjà réglé
+  // réapparaîtrait à l'écran de paiement suivant et serait encaissé une
+  // seconde fois — le client paierait deux fois la même consommation.
+  const covers = table.covers.filter(c => !c.paidAt)
+  const dejaRegles = table.covers.filter(c => c.paidAt)
+  const grandTotal = covers.reduce((s, c) => s + coverTotal(c), 0)
 
   const payingCovers = useMemo(() => {
     if (splitMode === 'full') return covers
@@ -777,6 +781,20 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
             ))}
           </div>
         </div>
+
+        {dejaRegles.length > 0 && (
+          <div style={{
+            padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)',
+            background: 'rgba(16,185,129,0.06)', flexShrink: 0,
+          }}>
+            <span style={{ fontSize: 12, color: '#6ee7b7', fontWeight: 600 }}>
+              ✓ Déjà réglé : {dejaRegles.map(c => c.label).join(', ')}
+            </span>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+              Ces couverts ne sont plus comptés dans le montant ci-dessous.
+            </div>
+          </div>
+        )}
 
         {splitMode === 'by-cover' && (
           <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', flexShrink: 0 }}>

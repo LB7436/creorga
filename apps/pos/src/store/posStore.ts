@@ -40,6 +40,57 @@ export interface Cover {
   id: string
   label: string      // "Couvert 1", "Marie", etc.
   items: OrderItem[]
+  /** Horodatage du règlement (ms). Absent = pas encore payé. */
+  paidAt?: number
+  /** Moyen de paiement retenu pour ce couvert. */
+  paidMethod?: PayMethod
+}
+
+/** Ligne figée d'une vente : le prix est copié, pas référencé. */
+export interface LigneVente {
+  name: string
+  qty: number
+  /** Prix unitaire TTC au moment de la vente. */
+  price: number
+}
+
+/**
+ * Une vente enregistrée. C'est la seule trace comptable de la caisse : elle
+ * n'existait pas, et sans elle aucune clôture ni aucun ticket Z n'est possible.
+ */
+export interface Vente {
+  id: string
+  /** Numéro séquentiel dans la journée, reparti à 1 après chaque clôture. */
+  numero: number
+  horodatage: number
+  tableId: string
+  tableName: string
+  /** Libellés des couverts réglés par cette vente. */
+  couverts: string[]
+  lignes: LigneVente[]
+  /** Hors taxes, déduit du TTC : les prix de la carte sont TTC. */
+  sousTotal: number
+  tva: number
+  pourboire: number
+  /** TTC + pourboire — ce qui est réellement encaissé. */
+  total: number
+  methode: PayMethod
+  vendeur: string
+}
+
+/** Résultat d'une clôture de journée (ticket Z). */
+export interface Cloture {
+  id: string
+  horodatage: number
+  /** Horodatage de la vente la plus ancienne de la période. */
+  debut: number
+  nbVentes: number
+  totalTTC: number
+  totalHT: number
+  totalTva: number
+  totalPourboires: number
+  parMethode: Record<PayMethod, number>
+  ventes: Vente[]
 }
 
 export interface Table {
@@ -69,6 +120,32 @@ export interface POSSettings {
 // ─── Default data ────────────────────────────────────────────────────────────
 
 const uid = () => Math.random().toString(36).slice(2, 9)
+
+/** Arrondi au centime. Sans lui, 3 × 3,30 € donne 9,899999999999999. */
+const centimes = (n: number) => Math.round(n * 100) / 100
+
+/** Total TTC d'un couvert. */
+export function totalCouvert(cover: Cover): number {
+  return centimes(cover.items.reduce((s, i) => s + i.price * i.qty, 0))
+}
+
+/**
+ * Ventile un montant TTC en HT + TVA.
+ *
+ * Les prix de la carte sont TTC — c'est ainsi qu'un café affiche ses prix. La
+ * TVA est donc INCLUSE et doit être extraite, pas ajoutée : `WaiterMode.tsx`
+ * calculait `total * taxRate` et affichait `taxRate * 100`, ce qui traitait le
+ * taux comme une fraction alors que `CLAUDE.md` impose un pourcentage (17, pas
+ * 0,17). À 17 %, l'ancienne formule annonçait une TVA de 17 fois le total.
+ *
+ * @param totalTTC montant toutes taxes comprises
+ * @param taux     POURCENTAGE (17), jamais une fraction
+ */
+export function ventilationTva(totalTTC: number, taux: number): { ht: number; tva: number } {
+  if (!taux || taux <= 0) return { ht: centimes(totalTTC), tva: 0 }
+  const ht = centimes(totalTTC / (1 + taux / 100))
+  return { ht, tva: centimes(totalTTC - ht) }
+}
 
 // Helper — génère un item avec stock 100 par défaut
 const mk = (id: string, name: string, price: number, category: string, emoji: string): MenuItem => ({
@@ -346,10 +423,15 @@ interface POSStore {
   staff: StaffMember[]
   currentStaff: StaffMember | null
   kioskMode: boolean
+  /** Journal des ventes de la journée en cours, la plus récente en tête. */
+  ventes: Vente[]
+  /** Clôtures passées (tickets Z), la plus récente en tête. */
+  clotures: Cloture[]
 
   // ── Table actions
   openTable: (tableId: string, coverCount: number) => void
-  closeTable: (tableId: string) => void
+  /** Renvoie false si la table a des consommations non réglées (sauf `forcer`). */
+  closeTable: (tableId: string, options?: { forcer?: boolean }) => boolean
   setTableStatus: (tableId: string, status: TableStatus) => void
   moveTable: (tableId: string, x: number, y: number) => void
   addTable: (t: Omit<Table, 'covers' | 'mergedWith' | 'status'>) => void
@@ -376,7 +458,10 @@ interface POSStore {
   transferTable: (fromId: string, toId: string) => void
 
   // ── Payment
+  /** Règle la table entière, ou seulement `coverIds`. Inscrit la vente au journal. */
   processPayment: (tableId: string, method: PayMethod, tip: number, coverIds?: string[]) => void
+  /** Clôture la journée (ticket Z). Renvoie null s'il n'y a aucune vente. */
+  cloturerJournee: () => Cloture | null
 
   // ── Menu actions
   addMenuItem: (item: Omit<MenuItem, 'id'>) => void
@@ -388,6 +473,10 @@ interface POSStore {
   updateSettings: (updates: Partial<POSSettings>) => void
 
   // ── Staff actions
+  /** Échecs de PIN consécutifs. Remis à zéro par une connexion réussie. */
+  echecsPin: number
+  /** Horodatage (ms) jusqu'auquel toute saisie de PIN est refusée. 0 = libre. */
+  pinBloqueJusqua: number
   loginStaff: (pin: string) => boolean
   logoutStaff: () => void
   addStaff: (s: Omit<StaffMember, 'id'>) => void
@@ -407,6 +496,10 @@ export const usePOS = create<POSStore>()(
       staff: DEFAULT_STAFF,
       currentStaff: null,
       kioskMode: false,
+      echecsPin: 0,
+      pinBloqueJusqua: 0,
+      ventes: [],
+      clotures: [],
 
       // ── Table actions ─────────────────────────────────────────────────────
 
@@ -423,15 +516,34 @@ export const usePOS = create<POSStore>()(
         })
       })),
 
-      closeTable: (tableId) => set(s => ({
-        tables: s.tables.map(t => t.id !== tableId ? t : {
-          ...t,
-          status: 'dirty',
-          covers: [],
-          openedAt: undefined,
-          mergedWith: [],
-        })
-      })),
+      /**
+       * Libère une table. Vide `covers`, donc EFFACE les commandes.
+       *
+       * Refuse par défaut si des consommations n'ont pas été réglées : c'est
+       * exactement ce qui faisait disparaître du chiffre d'affaires en service.
+       * `forcer: true` reste possible (table abandonnée, commande annulée),
+       * mais devient un geste délibéré.
+       *
+       * @returns true si la table a bien été libérée.
+       */
+      closeTable: (tableId, options) => {
+        const table = get().tables.find(t => t.id === tableId)
+        if (!table) return false
+
+        const impaye = table.covers.some(c => !c.paidAt && c.items.length > 0)
+        if (impaye && !options?.forcer) return false
+
+        set(s => ({
+          tables: s.tables.map(t => t.id !== tableId ? t : {
+            ...t,
+            status: 'dirty',
+            covers: [],
+            openedAt: undefined,
+            mergedWith: [],
+          })
+        }))
+        return true
+      },
 
       setTableStatus: (tableId, status) => set(s => ({
         tables: s.tables.map(t => t.id !== tableId ? t : { ...t, status })
@@ -630,9 +742,103 @@ export const usePOS = create<POSStore>()(
 
       // ── Payment ──────────────────────────────────────────────────────────
 
-      processPayment: (tableId, _method, _tip, _coverIds) => {
-        // Mark paid → close table
-        get().closeTable(tableId)
+      /**
+       * Encaisse une table, ou seulement certains couverts.
+       *
+       * L'ancienne version ignorait `method`, `tip` ET `coverIds` : elle
+       * appelait `closeTable`, qui vide `covers`. Régler la part d'une seule
+       * personne effaçait donc la commande de toute la table — les autres
+       * consommations disparaissaient sans être encaissées. C'est une perte de
+       * chiffre d'affaires réelle, en plein service.
+       *
+       * Désormais : seuls les couverts visés passent en payé, ils GARDENT leurs
+       * lignes, la vente est inscrite au journal, et la table ne se libère que
+       * lorsque plus rien n'est dû.
+       */
+      processPayment: (tableId, method, tip, coverIds) => {
+        const etat = get()
+        const table = etat.tables.find(t => t.id === tableId)
+        if (!table) return
+
+        // Sans sélection : on règle tout ce qui reste dû.
+        const cibles = table.covers.filter(c =>
+          !c.paidAt && (coverIds ? coverIds.includes(c.id) : true)
+        )
+        if (cibles.length === 0) return
+
+        const maintenant = Date.now()
+        const lignes: LigneVente[] = cibles.flatMap(c =>
+          c.items.map(i => ({ name: i.name, qty: i.qty, price: i.price }))
+        )
+        const totalTTC = centimes(cibles.reduce((s, c) => s + totalCouvert(c), 0))
+        const { ht, tva } = ventilationTva(totalTTC, etat.settings.taxRate)
+        const pourboire = centimes(tip || 0)
+
+        const derniere = etat.ventes[0]
+        const vente: Vente = {
+          id: uid(),
+          numero: (derniere?.numero ?? 0) + 1,
+          horodatage: maintenant,
+          tableId,
+          tableName: table.name,
+          couverts: cibles.map(c => c.label),
+          lignes,
+          sousTotal: ht,
+          tva,
+          pourboire,
+          total: centimes(totalTTC + pourboire),
+          methode: method,
+          vendeur: etat.currentStaff?.name || 'Inconnu',
+        }
+
+        const idsRegles = new Set(cibles.map(c => c.id))
+        set(s => ({
+          // La vente la plus récente en tête : le numéro suivant se lit en O(1).
+          ventes: [vente, ...s.ventes],
+          tables: s.tables.map(t => t.id !== tableId ? t : {
+            ...t,
+            covers: t.covers.map(c => idsRegles.has(c.id)
+              ? { ...c, paidAt: maintenant, paidMethod: method }
+              : c),
+          }),
+        }))
+
+        // Table entièrement réglée → elle peut être libérée sans rien perdre.
+        const apres = get().tables.find(t => t.id === tableId)
+        if (apres && apres.covers.every(c => c.paidAt || c.items.length === 0)) {
+          get().closeTable(tableId)
+        }
+      },
+
+      /**
+       * Enregistre la clôture de la journée et repart à zéro (ticket Z).
+       * Renvoie null s'il n'y a rien à clôturer — on ne fabrique pas un
+       * ticket Z vide qui laisserait croire qu'une journée a été arrêtée.
+       */
+      cloturerJournee: () => {
+        const ventes = get().ventes
+        if (ventes.length === 0) return null
+
+        const parMethode: Record<PayMethod, number> = { cash: 0, card: 0, contactless: 0 }
+        for (const v of ventes) parMethode[v.methode] = centimes(parMethode[v.methode] + v.total)
+
+        const cloture: Cloture = {
+          id: uid(),
+          horodatage: Date.now(),
+          debut: ventes[ventes.length - 1].horodatage,
+          nbVentes: ventes.length,
+          totalTTC: centimes(ventes.reduce((s, v) => s + v.total - v.pourboire, 0)),
+          totalHT: centimes(ventes.reduce((s, v) => s + v.sousTotal, 0)),
+          totalTva: centimes(ventes.reduce((s, v) => s + v.tva, 0)),
+          totalPourboires: centimes(ventes.reduce((s, v) => s + v.pourboire, 0)),
+          parMethode,
+          ventes,
+        }
+
+        // Les ventes partent dans la clôture, qui est conservée : on ne
+        // supprime jamais une trace comptable, on la déplace.
+        set(s => ({ ventes: [], clotures: [cloture, ...s.clotures] }))
+        return cloture
       },
 
       // ── Menu actions ─────────────────────────────────────────────────────
@@ -661,9 +867,33 @@ export const usePOS = create<POSStore>()(
 
       // ── Staff actions ──────────────────────────────────────────────────────
 
+      /**
+       * Vérifie un code PIN et ouvre la session.
+       *
+       * L'écran affichait « tentatives restantes » et descendait jusqu'à zéro
+       * sans jamais rien bloquer : on pouvait essayer les 10 000 codes à quatre
+       * chiffres, et le compteur repartait à trois au moindre rechargement de
+       * page. Le blocage vit désormais dans le magasin persistant, donc il
+       * survit à un rechargement, et il s'allonge à chaque série d'échecs.
+       */
       loginStaff: (pin) => {
-        const found = get().staff.find(s => s.pin === pin)
-        if (found) { set({ currentStaff: found }); return true }
+        const { pinBloqueJusqua, echecsPin, staff } = get()
+        if (pinBloqueJusqua && Date.now() < pinBloqueJusqua) return false
+
+        const found = staff.find(s => s.pin === pin)
+        if (found) {
+          set({ currentStaff: found, echecsPin: 0, pinBloqueJusqua: 0 })
+          return true
+        }
+
+        const echecs = echecsPin + 1
+        // 5 échecs → 1 minute ; 10 → 5 minutes ; 15 → 15 minutes.
+        const paliers: Record<number, number> = { 5: 60_000, 10: 300_000, 15: 900_000 }
+        const attente = paliers[echecs]
+        set({
+          echecsPin: echecs,
+          pinBloqueJusqua: attente ? Date.now() + attente : get().pinBloqueJusqua,
+        })
         return false
       },
 
@@ -686,9 +916,37 @@ export const usePOS = create<POSStore>()(
         staff: DEFAULT_STAFF,
         currentStaff: null,
         kioskMode: false,
+        echecsPin: 0,
+        pinBloqueJusqua: 0,
+        // Les clôtures survivent : ce sont des pièces comptables, pas des
+        // données de démonstration. Seul le journal en cours repart à zéro.
+        ventes: [],
       })),
     }),
-    { name: 'creorga-pos-v2' }
+    {
+      name: 'creorga-pos-v2',
+      /**
+       * Le magasin n'avait NI version NI migration : toute évolution de la
+       * structure faisait repartir un poste déjà déployé sur des données
+       * incohérentes (ou le faisait planter au premier accès à un champ
+       * inexistant). Toute modification de forme doit désormais incrémenter ce
+       * numéro et compléter `migrate`.
+       */
+      version: 1,
+      migrate: (etat: any, versionPrecedente: number) => {
+        if (!etat) return etat
+        // v0 → v1 : arrivée du journal des ventes et des clôtures. Les couverts
+        // existants n'ont pas de marqueur de règlement : on les laisse impayés,
+        // ce qui est le comportement sûr (on ne déclare pas payé ce qu'on
+        // ignore) — au pire un serveur réencaisse une table déjà réglée, ce qui
+        // se voit, alors qu'une table déclarée payée à tort ne se voit pas.
+        if (versionPrecedente < 1) {
+          etat.ventes = Array.isArray(etat.ventes) ? etat.ventes : []
+          etat.clotures = Array.isArray(etat.clotures) ? etat.clotures : []
+        }
+        return etat
+      },
+    }
   )
 )
 

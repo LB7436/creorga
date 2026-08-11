@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 // framer-motion animations handled within individual pages
 import FloorPlanPage from './pages/FloorPlanPage'
 import OrderPage from './pages/OrderPage'
@@ -9,9 +9,10 @@ import KioskPage from './pages/KioskPage'
 import FloorPlanEditor from './pages/FloorPlanEditor'
 import WaiterMode from './pages/WaiterMode'
 import KitchenDisplay from './pages/KitchenDisplay'
+import JournalPage from './pages/JournalPage'
 import { usePOS } from './store/posStore'
 
-export type AppView = 'pin_login' | 'floor' | 'order' | 'payment' | 'config' | 'kiosk' | 'editor' | 'waiter' | 'kitchen'
+export type AppView = 'pin_login' | 'floor' | 'order' | 'payment' | 'config' | 'kiosk' | 'editor' | 'waiter' | 'kitchen' | 'journal'
 
 export default function App() {
   const [view, setView] = useState<AppView>('pin_login')
@@ -27,6 +28,33 @@ export default function App() {
   if (view === 'pin_login' && currentStaff) {
     setView('floor')
   }
+
+  /**
+   * Reverrouillage automatique après 10 minutes sans interaction.
+   *
+   * La session n'était JAMAIS reverrouillée : une tablette laissée sur le
+   * comptoir restait ouverte au nom du serveur connecté, avec accès aux
+   * ventes, aux annulations et à la configuration. En kiosque, on ne
+   * reverrouille pas — c'est un mode public, sans session à protéger.
+   */
+  useEffect(() => {
+    if (!currentStaff || kioskMode) return
+    let minuteur: number
+    const reprogrammer = () => {
+      window.clearTimeout(minuteur)
+      minuteur = window.setTimeout(() => {
+        logoutStaff()
+        setView('pin_login')
+      }, 10 * 60_000)
+    }
+    const evenements = ['pointerdown', 'keydown', 'touchstart'] as const
+    evenements.forEach(e => window.addEventListener(e, reprogrammer, { passive: true }))
+    reprogrammer()
+    return () => {
+      window.clearTimeout(minuteur)
+      evenements.forEach(e => window.removeEventListener(e, reprogrammer))
+    }
+  }, [currentStaff, kioskMode, logoutStaff])
 
   const activeTable = activeTableId ? tables.find(t => t.id === activeTableId) : null
   const occupiedCount = tables.filter(t => t.status === 'occupied').length
@@ -79,6 +107,11 @@ export default function App() {
   // ── Kitchen Display System (full takeover) ──
   if (view === 'kitchen') {
     return <KitchenDisplay onExit={() => setView('floor')} />
+  }
+
+  // ── Journal des ventes et clôture (ticket Z) ──
+  if (view === 'journal') {
+    return <JournalPage onExit={() => setView('floor')} />
   }
 
   // ── Breadcrumb segments ──
@@ -182,6 +215,22 @@ export default function App() {
                 <line x1="6" y1="17" x2="18" y2="17"/>
               </svg>
               Cuisine
+            </button>
+          )}
+
+          {/* Journal des ventes — la caisse n'enregistrait rien avant. */}
+          {view === 'floor' && (
+            <button
+              onClick={() => setView('journal')}
+              style={headerBtn()}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 3h12l4 4v14H4z"/>
+                <line x1="8" y1="9" x2="16" y2="9"/>
+                <line x1="8" y1="13" x2="16" y2="13"/>
+                <line x1="8" y1="17" x2="13" y2="17"/>
+              </svg>
+              Journal
             </button>
           )}
 

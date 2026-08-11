@@ -43,6 +43,17 @@ export default function PinLoginPage() {
   const [pin, setPin] = useState('')
   const [error, setError] = useState(false)
   const [shake, setShake] = useState(false)
+  // Secondes restantes avant de pouvoir réessayer. Recalculé chaque seconde
+  // pour que le compte à rebours s'affiche vraiment.
+  const pinBloqueJusqua = usePOS(s => s.pinBloqueJusqua)
+  const [secondesBlocage, setSecondesBlocage] = useState(0)
+  useEffect(() => {
+    const rafraichir = () =>
+      setSecondesBlocage(Math.max(0, Math.ceil((pinBloqueJusqua - Date.now()) / 1000)))
+    rafraichir()
+    const t = setInterval(rafraichir, 1000)
+    return () => clearInterval(t)
+  }, [pinBloqueJusqua])
   const [success, setSuccess] = useState(false)
   const [attempts, setAttempts] = useState(3)
   const [showForgot, setShowForgot] = useState(false)
@@ -61,7 +72,10 @@ export default function PinLoginPage() {
   }, [])
 
   function handleDigit(d: string) {
-    if (pin.length >= 4 || success) return
+    // Le blocage est porté par le magasin persistant : recharger la page ne
+    // le contourne pas, contrairement à l'ancien compteur local qui repartait
+    // à trois et ne bloquait de toute façon jamais rien.
+    if (pin.length >= 4 || success || secondesBlocage > 0) return
     const next = pin + d
     setError(false)
     setPin(next)
@@ -274,7 +288,14 @@ export default function PinLoginPage() {
                   )
                 })}
               </div>
-              {error && (
+              {secondesBlocage > 0 ? (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ color: '#f59e0b', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>
+                  Saisie bloquée — réessayez dans {secondesBlocage} s
+                  <div style={{ color: '#94a3b8', fontWeight: 400, marginTop: 3 }}>
+                    Trop de codes erronés.
+                  </div>
+                </motion.div>
+              ) : error && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ color: '#f43f5e', fontSize: 12, fontWeight: 600 }}>
                   {t.wrongPin} ({attempts} {t.attemptsLeft})
                 </motion.div>

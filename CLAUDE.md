@@ -96,8 +96,15 @@ ne jamais le rendre silencieux.
 
 | Compte | Mot de passe | Usage |
 |---|---|---|
-| `bryan@cafe-rondpoint.lu` | `Demo1234!` | société `seed-rich-company` |
-| `admin@creorga.local` | `Admin1234!` | admin de repli — **désactivé en production** |
+| `bryan@cafe-rondpoint.lu` | *(hors dépôt)* | société `seed-rich-company` |
+| `admin@creorga.local` | `Admin1234!` | admin de repli — **désactivé en production**, jamais valable en ligne |
+
+⚠️ **Aucun mot de passe de production ne doit figurer ici.** `Demo1234!` y était
+écrit et se retrouvait dans le bundle du site public (page de connexion
+pré-remplie + auto-login `/m/demo`) : n'importe quel visiteur pouvait entrer.
+Le compte a été réinitialisé le 11 août 2026 et le nouveau mot de passe n'existe
+que chez l'exploitant. Le seul mot de passe encore cité ci-dessus est celui d'un
+compte de développement refusé en production (`assertProductionSecrets`).
 
 Le seed attend 141 produits, 50 clients, 100 commandes, 20 factures,
 24 ingrédients pour `seed-rich-company`.

@@ -3,6 +3,7 @@ import path from 'path'
 import Stripe from 'stripe'
 import { safeReadJson, safeWriteJson } from '../lib/safe-json'
 import prisma from '../lib/prisma'
+import logger from '../lib/logger'
 
 /**
  * v5.0 — Endpoints guest-facing : suivi commande, appel serveur/addition,
@@ -158,18 +159,58 @@ router.post('/pay', async (req, res) => {
   }
 })
 
-router.post('/paid-confirm', (req, res) => {
-  const { tableId } = req.body as { tableId?: string }
+/**
+ * Confirmation de paiement en ligne, au retour de Stripe Checkout.
+ *
+ * ⚠️ Cette route est PUBLIQUE. Elle se contentait d'un `tableId` et notifiait
+ * aussitôt « Table X a payé en ligne » : ouvrir `/c/paid?table=5` dans un
+ * navigateur suffisait à faire croire au personnel qu'une table avait réglé.
+ * Un client pouvait partir sans payer, un plaisantin vider une salle.
+ *
+ * Un paiement ne se déclare pas, il se prouve : on exige l'identifiant de
+ * session Stripe et on le vérifie AUPRÈS DE STRIPE. Aucune confiance n'est
+ * accordée à ce que le navigateur raconte.
+ */
+router.post('/paid-confirm', async (req, res) => {
+  const { tableId, sessionId } = req.body as { tableId?: string; sessionId?: string }
   if (!tableId) return res.status(400).json({ error: 'tableId requis' })
-  pushStaffNotif({
-    type: 'guest-paid',
-    entityId: tableId,
-    title: `💳 Table ${tableId} a payé en ligne`,
-    message: 'Paiement confirmé côté client.',
-    severity: 'success',
-    cta: { label: 'Voir la table', route: '/pos/floor' },
-  })
-  res.json({ ok: true })
+  if (!sessionId) {
+    return res.status(400).json({ error: 'Preuve de paiement manquante (sessionId).' })
+  }
+
+  // Sans clé Stripe, aucun paiement en ligne ne peut avoir lieu sur ce serveur :
+  // toute confirmation reçue ici serait forcément fabriquée.
+  if (!process.env.STRIPE_SECRET_KEY) {
+    logger.warn(`[guest] confirmation de paiement refusée (Stripe non configuré) — table ${tableId}`)
+    return res.status(503).json({
+      error: "Le paiement en ligne n'est pas configuré sur ce serveur.",
+    })
+  }
+
+  try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+    const session = await stripe.checkout.sessions.retrieve(sessionId)
+
+    if (session.payment_status !== 'paid') {
+      logger.warn(`[guest] session ${sessionId} non réglée (${session.payment_status}) — table ${tableId}`)
+      return res.status(402).json({ error: "Ce paiement n'est pas abouti." })
+    }
+
+    pushStaffNotif({
+      type: 'guest-paid',
+      entityId: tableId,
+      title: `💳 Table ${tableId} a payé en ligne`,
+      message: `Paiement vérifié auprès de Stripe (${(session.amount_total ?? 0) / 100} ${(session.currency || 'eur').toUpperCase()}).`,
+      severity: 'success',
+      cta: { label: 'Voir la table', route: '/pos/floor' },
+    })
+    return res.json({ ok: true })
+  } catch (e: any) {
+    // Ne jamais retomber sur « ok » : un échec de vérification n'est pas un
+    // paiement. Le personnel ne doit pas être notifié dans le doute.
+    logger.error(`[guest] vérification Stripe impossible (${sessionId}) : ${e?.message || e}`)
+    return res.status(502).json({ error: 'Paiement invérifiable pour le moment.' })
+  }
 })
 
 // ─── Fidélité (v5.0.5) — lookup en lecture seule par téléphone ──

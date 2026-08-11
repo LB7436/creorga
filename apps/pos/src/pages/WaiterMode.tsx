@@ -7,6 +7,7 @@ import {
   STATUS_LABELS,
   tableTotal,
   elapsed,
+  ventilationTva,
   type MenuItem,
   type OrderItem,
 } from '../store/posStore'
@@ -124,8 +125,13 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
   const allItems: OrderItem[] = selectedTable?.covers.flatMap(c => c.items) ?? []
   const total = selectedTable ? tableTotal(selectedTable) : 0
   const taxRate = settings.taxRate || 0
-  const tva = total * taxRate
-  const totalTTC = total + tva
+  // Les prix de la carte sont TTC : la TVA est INCLUSE, on l'extrait.
+  // L'ancien calcul faisait `total * taxRate` puis `total + tva`, ce qui
+  // ajoutait la taxe une seconde fois sur un prix qui la contenait déjà —
+  // et traitait le taux comme une fraction alors que CLAUDE.md impose un
+  // pourcentage : à 17, la « TVA » valait 17 fois l'addition.
+  const { ht, tva } = ventilationTva(total, taxRate)
+  const totalTTC = total
   const coverCount = selectedTable?.covers.length ?? 0
 
   const customerNotes = CUSTOMER_NOTES[selectedTableId] || []
@@ -832,12 +838,12 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                 padding: '10px 14px', flexShrink: 0,
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Sous-total</span>
-                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{formatPrice(total)}</span>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Total HT</span>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{formatPrice(taxRate > 0 ? ht : total)}</span>
                 </div>
                 {taxRate > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>TVA ({(taxRate * 100).toFixed(0)}%)</span>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>dont TVA ({taxRate.toFixed(0)} %)</span>
                     <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{formatPrice(tva)}</span>
                   </div>
                 )}
