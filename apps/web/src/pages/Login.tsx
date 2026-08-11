@@ -70,7 +70,10 @@ const FEATURES = [
  * `import.meta.env.DEV` vaut false dans tout build `vite build`.
  */
 const PRE_REMPLISSAGE = import.meta.env.DEV
-  ? { email: 'bryan@cafe-rondpoint.lu', password: 'Demo1234!' }
+  // Adresse seulement : le mot de passe reste hors du dépôt, même ici.
+  // Un mot de passe écrit dans le code finit toujours par sortir — c'est
+  // exactement ce qui est arrivé à `Demo1234!`.
+  ? { email: 'bryanl1994.bl@gmail.com', password: '' }
   : { email: '', password: '' }
 
 const STATS = [

@@ -96,7 +96,7 @@ ne jamais le rendre silencieux.
 
 | Compte | Mot de passe | Usage |
 |---|---|---|
-| `bryan@cafe-rondpoint.lu` | *(hors dépôt)* | société `seed-rich-company` |
+| `bryanl1994.bl@gmail.com` | *(hors dépôt)* | propriétaire de `Café um Rond-Point` (ex-`bryan@cafe-rondpoint.lu`, renommé le 11 août 2026) |
 | `admin@creorga.local` | `Admin1234!` | admin de repli — **désactivé en production**, jamais valable en ligne |
 
 ⚠️ **Aucun mot de passe de production ne doit figurer ici.** `Demo1234!` y était
