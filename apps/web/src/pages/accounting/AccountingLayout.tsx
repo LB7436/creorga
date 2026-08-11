@@ -20,7 +20,7 @@ const items = [
   { label: 'Clôture', path: '/accounting/cloture', icon: Lock },
   { label: 'Dépenses', path: '/accounting/depenses', icon: Receipt },
   { label: 'TVA', path: '/accounting/tva', icon: Percent },
-  { label: 'Rapports', path: '/accounting/rapports', icon: BarChart3 },
+  { label: 'Rapports de caisse', path: '/accounting/rapports', icon: BarChart3 },
 ]
 
 interface StatCardProps {

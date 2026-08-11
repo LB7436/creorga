@@ -61,6 +61,7 @@ import hrRoutes from './routes/hr'
 import haccpRoutes from './routes/haccp'
 import marketingRoutes from './routes/marketing'
 import accountingRoutes from './routes/accounting'
+import rapportsCaisseRoutes from './routes/rapports-caisse'
 import reputationRoutes from './routes/reputation'
 import eventsRoutes from './routes/events'
 import stripeRoutes from './routes/stripe'
@@ -214,6 +215,9 @@ app.use('/api/hr-dossier', authenticate, requireCompany, rhDossierRoutes)
 app.use('/api/haccp', authenticate, requireCompany, haccpRoutes)
 app.use('/api/marketing', authenticate, requireCompany, marketingRoutes)
 app.use('/api/accounting', authenticate, requireCompany, accountingRoutes)
+// Extraits de caisse : chiffre d'affaires de l'établissement. Réservé au
+// propriétaire — un serveur n'a pas à voir les recettes ni les totaux TVA.
+app.use('/api/rapports-caisse', authenticate, requireCompany, requireRole('OWNER'), rapportsCaisseRoutes)
 app.use('/api/reputation', authenticate, requireCompany, reputationRoutes)
 app.use('/api/events', authenticate, requireCompany, eventsRoutes)
 // Auth exigée : les routes Stripe (ouverture de portail, annulation

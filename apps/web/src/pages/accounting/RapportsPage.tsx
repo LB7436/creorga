@@ -1,692 +1,435 @@
-import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { useMemo, useState } from 'react'
+import { Download, Printer, Mail, CalendarRange, Lock } from 'lucide-react'
 import { downloadCsv } from '@/lib/csv'
-import { imprimerHtml, tableauHtml, echapperHtml } from '@/lib/impression'
-import {
-  AreaChart, Area, PieChart, Pie, Cell, BarChart, Bar,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
-} from 'recharts'
-import {
-  TrendingUp, TrendingDown, ChevronDown, FileText, FileSpreadsheet,
-  ArrowUpRight, ArrowDownRight, Calendar, ToggleLeft, ToggleRight,
-} from 'lucide-react'
+import { toastInfo } from '@/lib/toast'
+import { useRapportCaisse, type RapportCaisse } from '@/hooks/api/useRapportsCaisse'
 
-/* ------------------------------------------------------------------ */
-/*  TYPES                                                              */
-/* ------------------------------------------------------------------ */
-type Period = 'ce_mois' | 'mois_dernier' | 'ce_trimestre' | 'cette_annee'
+/**
+ * Extraits de caisse.
+ *
+ * Cette page affichait cinq tableaux écrits en dur — indicateurs, chiffre
+ * d'affaires quotidien, répartition par catégorie, top produits, historique
+ * mensuel — sans le moindre appel au serveur. Les chiffres ne bougeaient
+ * jamais, quel que soit l'établissement ou la période.
+ *
+ * Elle interroge maintenant les commandes réellement encaissées, sur la
+ * période demandée, à la minute près. La route serveur est réservée au
+ * propriétaire.
+ */
 
-interface KpiCard {
-  label: string
-  value: string
-  trend: number
-  trendLabel: string
-  sparkline: number[]
-  prefix?: string
-  isCurrency?: boolean
-  bold?: boolean
-}
+// ─── Périodes ───────────────────────────────────────────────────────────────
 
-/* ------------------------------------------------------------------ */
-/*  MOCK DATA                                                          */
-/* ------------------------------------------------------------------ */
-const periodLabels: Record<Period, string> = {
-  ce_mois: 'Ce mois',
-  mois_dernier: 'Mois dernier',
-  ce_trimestre: 'Ce trimestre',
-  cette_annee: 'Cette année',
-}
+type Preset = 'jour' | 'hier' | 'semaine' | 'mois' | 'trimestre' | 'annee' | 'libre'
 
-const periodDates: Record<Period, string> = {
-  ce_mois: '1 Avr. — 15 Avr. 2026',
-  mois_dernier: '1 Mars — 31 Mars 2026',
-  ce_trimestre: '1 Jan. — 15 Avr. 2026',
-  cette_annee: '1 Jan. — 15 Avr. 2026',
-}
-
-const kpis: KpiCard[] = [
-  { label: "Chiffre d'affaires", value: '24 350', trend: 12.3, trendLabel: '+12,3%', sparkline: [18, 20, 19, 22, 21, 24, 23, 25], isCurrency: true },
-  { label: 'Coût des marchandises', value: '8 120', trend: 5.1, trendLabel: '+5,1%', sparkline: [6, 7, 6.5, 7.2, 7.8, 8, 7.5, 8.1], isCurrency: true },
-  { label: 'Marge brute', value: '16 230', trend: 66.7, trendLabel: '66,7%', sparkline: [12, 13, 12.5, 14, 13.5, 15, 15.5, 16.2], isCurrency: true },
-  { label: 'Charges de personnel', value: '9 450', trend: -2.1, trendLabel: '-2,1%', sparkline: [9.8, 9.6, 9.5, 9.7, 9.4, 9.5, 9.3, 9.45], isCurrency: true },
-  { label: 'Charges fixes', value: '3 200', trend: 0, trendLabel: '0,0%', sparkline: [3.2, 3.2, 3.2, 3.2, 3.2, 3.2, 3.2, 3.2], isCurrency: true },
-  { label: 'Résultat net', value: '3 580', trend: 18.2, trendLabel: '+18,2%', sparkline: [2.1, 2.5, 2.8, 3.0, 2.9, 3.2, 3.4, 3.58], isCurrency: true, bold: true },
+const PRESETS: Array<{ id: Preset; label: string }> = [
+  { id: 'jour', label: "Aujourd'hui" },
+  { id: 'hier', label: 'Hier' },
+  { id: 'semaine', label: 'Cette semaine' },
+  { id: 'mois', label: 'Ce mois' },
+  { id: 'trimestre', label: 'Ce trimestre' },
+  { id: 'annee', label: 'Cette année' },
+  { id: 'libre', label: 'Période précise…' },
 ]
 
-const dailyRevenue = [
-  { jour: '1', courant: 1450, precedent: 1280 },
-  { jour: '2', courant: 1620, precedent: 1350 },
-  { jour: '3', courant: 1380, precedent: 1420 },
-  { jour: '4', courant: 2250, precedent: 1950 },
-  { jour: '5', courant: 2680, precedent: 2200 },
-  { jour: '6', courant: 2420, precedent: 2100 },
-  { jour: '7', courant: 1520, precedent: 1380 },
-  { jour: '8', courant: 1680, precedent: 1450 },
-  { jour: '9', courant: 1750, precedent: 1520 },
-  { jour: '10', courant: 1480, precedent: 1390 },
-  { jour: '11', courant: 2350, precedent: 2050 },
-  { jour: '12', courant: 2780, precedent: 2400 },
-  { jour: '13', courant: 2550, precedent: 2250 },
-  { jour: '14', courant: 1600, precedent: 1500 },
-  { jour: '15', courant: 1840, precedent: 1610 },
-]
+function debutDeJour(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
+function finDeJour(d: Date) { const x = new Date(d); x.setHours(23, 59, 59, 999); return x }
 
-const categoryData = [
-  { name: 'Cuisine', value: 40, color: '#6366f1' },
-  { name: 'Boissons', value: 35, color: '#06b6d4' },
-  { name: 'Desserts', value: 15, color: '#f59e0b' },
-  { name: 'Événements', value: 10, color: '#10b981' },
-]
-
-const topProducts = [
-  { name: 'Menu du jour', montant: 4850 },
-  { name: 'Entrecôte grillée', montant: 3920 },
-  { name: 'Crémant Luxembourg', montant: 3180 },
-  { name: 'Plateau fruits de mer', montant: 2740 },
-  { name: 'Dessert du chef', montant: 2100 },
-]
-
-const monthlyData = [
-  { mois: 'Jan.', ca: 21200, couts: 7100, marge: 14100, personnel: 8900, resultat: 2000 },
-  { mois: 'Fév.', ca: 22800, couts: 7600, marge: 15200, personnel: 9100, resultat: 2800 },
-  { mois: 'Mars', ca: 23500, couts: 7900, marge: 15600, personnel: 9300, resultat: 3100 },
-  { mois: 'Avr.', ca: 24350, couts: 8120, marge: 16230, personnel: 9450, resultat: 3580 },
-]
-
-/* ------------------------------------------------------------------ */
-/*  ANIMATION VARIANTS                                                 */
-/* ------------------------------------------------------------------ */
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.07 } },
+/** Bornes d'un raccourci. La semaine commence le lundi (usage européen). */
+function bornes(preset: Preset): { debut: Date; fin: Date } {
+  const maintenant = new Date()
+  switch (preset) {
+    case 'hier': {
+      const h = new Date(maintenant); h.setDate(h.getDate() - 1)
+      return { debut: debutDeJour(h), fin: finDeJour(h) }
+    }
+    case 'semaine': {
+      const d = new Date(maintenant)
+      const jour = (d.getDay() + 6) % 7 // 0 = lundi
+      d.setDate(d.getDate() - jour)
+      return { debut: debutDeJour(d), fin: maintenant }
+    }
+    case 'mois':
+      return { debut: debutDeJour(new Date(maintenant.getFullYear(), maintenant.getMonth(), 1)), fin: maintenant }
+    case 'trimestre': {
+      const moisDebut = Math.floor(maintenant.getMonth() / 3) * 3
+      return { debut: debutDeJour(new Date(maintenant.getFullYear(), moisDebut, 1)), fin: maintenant }
+    }
+    case 'annee':
+      return { debut: debutDeJour(new Date(maintenant.getFullYear(), 0, 1)), fin: maintenant }
+    default:
+      return { debut: debutDeJour(maintenant), fin: maintenant }
+  }
 }
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } },
+/** Format attendu par <input type="datetime-local"> : heure LOCALE. */
+function pourChamp(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-/* ------------------------------------------------------------------ */
-/*  STYLES                                                             */
-/* ------------------------------------------------------------------ */
-const cardBase: React.CSSProperties = {
-  background: '#ffffff',
-  border: '1px solid #e2e8f0',
-  borderRadius: 16,
-  padding: 24,
+// ─── Formats ────────────────────────────────────────────────────────────────
+
+const euro = (n: number) =>
+  n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 })
+
+const dateHeure = (iso: string) =>
+  new Intl.DateTimeFormat('fr-FR', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  }).format(new Date(iso))
+
+const jourLisible = (aaaammjj: string) => {
+  const [a, m, j] = aaaammjj.split('-').map(Number)
+  return new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
+    .format(new Date(a, m - 1, j))
 }
 
-/* ------------------------------------------------------------------ */
-/*  SPARKLINE COMPONENT                                                */
-/* ------------------------------------------------------------------ */
-function MiniSparkline({ data, color }: { data: number[]; color: string }) {
-  const max = Math.max(...data)
-  const min = Math.min(...data)
-  const range = max - min || 1
-  const w = 64
-  const h = 24
-  const points = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w
-    const y = h - ((v - min) / range) * h
-    return `${x},${y}`
-  }).join(' ')
+const NOM_METHODE: Record<string, string> = {
+  cash: 'Espèces', CASH: 'Espèces',
+  card: 'Carte', CARD: 'Carte',
+  contactless: 'Sans contact',
+  transfer: 'Virement', TRANSFER: 'Virement',
+  'non précisé': 'Non précisé',
+}
+const nomMethode = (m: string) => NOM_METHODE[m] || m
+
+// ─── Page ───────────────────────────────────────────────────────────────────
+
+export default function RapportsPage() {
+  const [preset, setPreset] = useState<Preset>('jour')
+  const initial = bornes('jour')
+  const [debutLibre, setDebutLibre] = useState(pourChamp(initial.debut))
+  const [finLibre, setFinLibre] = useState(pourChamp(initial.fin))
+
+  const { debut, fin } = useMemo(() => {
+    if (preset !== 'libre') return bornes(preset)
+    const d = new Date(debutLibre)
+    const f = new Date(finLibre)
+    return {
+      debut: Number.isNaN(d.getTime()) ? null : d,
+      fin: Number.isNaN(f.getTime()) ? null : f,
+    }
+  }, [preset, debutLibre, finLibre])
+
+  const { data, isLoading, error } = useRapportCaisse(debut, fin)
+  const statut = (error as any)?.response?.status
+  const messageServeur = (error as any)?.response?.data?.error
+
+  const libellePeriode = debut && fin
+    ? `${dateHeure(debut.toISOString())} — ${dateHeure(fin.toISOString())}`
+    : 'Période incomplète'
+
+  // ── Actions
+
+  function telecharger() {
+    if (!data) return
+    downloadCsv(
+      `extrait-caisse-${data.debut.slice(0, 10)}_${data.fin.slice(0, 10)}.csv`,
+      ['N°', 'Date et heure', 'Table', 'Vendeur', 'Paiement', 'Total HT', 'TVA', 'Total TTC', 'Détail'],
+      data.ventes.map((v) => [
+        v.numero,
+        dateHeure(v.horodatage),
+        v.table || '',
+        v.vendeur,
+        nomMethode(v.methode),
+        v.sousTotal,
+        v.tva,
+        v.total,
+        v.lignes.map((l) => `${l.quantite}x ${l.nom}`).join(' | '),
+      ]),
+    )
+  }
+
+  function envoyerParEmail() {
+    if (!data) return
+    // L'envoi depuis le serveur est impossible : aucun domaine d'expédition
+    // n'est configuré. Plutôt qu'un bouton qui affiche « envoyé » sans rien
+    // envoyer, on ouvre la messagerie de l'utilisateur avec le récapitulatif
+    // déjà rédigé, et on télécharge le détail pour qu'il soit joint.
+    const corps = [
+      `Extrait de caisse`,
+      `Période : ${libellePeriode}`,
+      ``,
+      `Ventes encaissées : ${data.nbVentes}`,
+      `Total TTC : ${euro(data.totalTTC)}`,
+      `Dont TVA : ${euro(data.totalTva)}`,
+      `Total HT : ${euro(data.totalHT)}`,
+      `Panier moyen : ${euro(data.panierMoyen)}`,
+      ``,
+      `Répartition par moyen de paiement :`,
+      ...Object.entries(data.parMethode).map(([m, v]) => `  ${nomMethode(m)} : ${euro(v.total)} (${v.nb})`),
+      ``,
+      `Le détail ligne à ligne est dans le fichier CSV téléchargé avec ce message.`,
+    ].join('\n')
+
+    telecharger()
+    window.location.href =
+      `mailto:?subject=${encodeURIComponent(`Extrait de caisse — ${libellePeriode}`)}&body=${encodeURIComponent(corps)}`
+    toastInfo("Le détail a été téléchargé : joignez-le au message qui vient de s'ouvrir.")
+  }
+
+  // ── Accès refusé (la route est réservée au propriétaire)
+
+  if (statut === 403) {
+    return (
+      <div style={{ padding: 40, maxWidth: 560, margin: '0 auto', textAlign: 'center', color: '#cbd5e1' }}>
+        <Lock size={34} style={{ color: '#f59e0b', marginBottom: 14 }} />
+        <h1 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 8px' }}>Réservé au propriétaire</h1>
+        <p style={{ fontSize: 14, lineHeight: 1.6, color: '#94a3b8', margin: 0 }}>
+          Les extraits de caisse contiennent le chiffre d'affaires et les totaux de TVA de
+          l'établissement. Seul le compte propriétaire peut les consulter.
+        </p>
+      </div>
+    )
+  }
+
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: 'block' }}>
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
+    <div style={{ padding: '24px 28px', color: '#e2e8f0' }}>
+      <style>{`
+        @media print {
+          /* À l'impression : ne garder que le rapport. Les boutons et la
+             barre latérale n'ont aucun sens sur une feuille. */
+          aside, nav, button, .sans-impression { display: none !important; }
+          body, .rapport { background: #fff !important; color: #000 !important; }
+          .rapport * { color: #000 !important; border-color: #ccc !important; }
+          .carte { break-inside: avoid; background: #fff !important; }
+        }
+      `}</style>
 
-/* ------------------------------------------------------------------ */
-/*  CUSTOM TOOLTIP                                                     */
-/* ------------------------------------------------------------------ */
-function RevenueTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null
-  return (
-    <div style={{
-      background: '#fff',
-      border: '1px solid #e2e8f0',
-      borderRadius: 12,
-      padding: '12px 16px',
-      boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-      fontSize: 13,
-    }}>
-      <div style={{ fontWeight: 600, color: '#1e293b', marginBottom: 6 }}>Jour {label}</div>
-      {payload.map((p: any) => (
-        <div key={p.dataKey} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color }} />
-          <span style={{ color: '#64748b' }}>
-            {p.dataKey === 'courant' ? 'Période actuelle' : 'Période précédente'}:
-          </span>
-          <span style={{ fontWeight: 600, color: '#1e293b' }}>{p.value.toLocaleString('fr-FR')} €</span>
+      <div className="sans-impression" style={{ marginBottom: 18 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>Extraits de caisse</h1>
+        <p style={{ fontSize: 13, color: '#94a3b8', margin: '4px 0 0' }}>
+          Ventes réellement encaissées, à la minute près. Réservé au propriétaire.
+        </p>
+      </div>
+
+      {/* Sélecteur de période */}
+      <div className="sans-impression" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        {PRESETS.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => setPreset(p.id)}
+            style={{
+              padding: '8px 14px', borderRadius: 20, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+              border: '1px solid rgba(255,255,255,0.12)',
+              background: preset === p.id ? '#6366f1' : 'rgba(255,255,255,0.04)',
+              color: preset === p.id ? '#fff' : '#cbd5e1',
+            }}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {preset === 'libre' && (
+        <div className="sans-impression" style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 16 }}>
+          <label style={{ fontSize: 12, color: '#94a3b8' }}>
+            Du (date et heure)
+            <input
+              type="datetime-local"
+              value={debutLibre}
+              onChange={(e) => setDebutLibre(e.target.value)}
+              style={champ}
+            />
+          </label>
+          <label style={{ fontSize: 12, color: '#94a3b8' }}>
+            Au (date et heure)
+            <input
+              type="datetime-local"
+              value={finLibre}
+              onChange={(e) => setFinLibre(e.target.value)}
+              style={champ}
+            />
+          </label>
         </div>
-      ))}
+      )}
+
+      {/* Actions */}
+      <div className="sans-impression" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+        <button onClick={telecharger} disabled={!data?.nbVentes} style={bouton(!data?.nbVentes)}>
+          <Download size={14} /> Télécharger (Excel)
+        </button>
+        <button onClick={() => window.print()} disabled={!data?.nbVentes} style={bouton(!data?.nbVentes)}>
+          <Printer size={14} /> Imprimer
+        </button>
+        <button onClick={envoyerParEmail} disabled={!data?.nbVentes} style={bouton(!data?.nbVentes)}>
+          <Mail size={14} /> Envoyer par e-mail
+        </button>
+      </div>
+
+      {/* Contenu */}
+      <div className="rapport">
+        <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <CalendarRange size={15} /> {libellePeriode}
+        </div>
+
+        {isLoading && <p style={{ color: '#94a3b8' }}>Calcul de l'extrait…</p>}
+
+        {error && statut !== 403 && (
+          <div style={{ ...carte, borderColor: 'rgba(239,68,68,0.4)' }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Extrait indisponible</div>
+            <div style={{ fontSize: 13, color: '#94a3b8' }}>
+              {messageServeur || "Le serveur n'a pas pu produire cet extrait."}
+            </div>
+          </div>
+        )}
+
+        {data && <Contenu data={data} />}
+      </div>
     </div>
   )
 }
 
-/* ------------------------------------------------------------------ */
-/*  MAIN COMPONENT                                                     */
-/* ------------------------------------------------------------------ */
-export default function RapportsPage() {
-  const [period, setPeriod] = useState<Period>('ce_mois')
+// ─── Contenu du rapport ─────────────────────────────────────────────────────
 
-  /* Exports — ces deux boutons n'avaient aucun onClick (décoratifs).
-     Excel passe par downloadCsv (BOM UTF-8, séparateur « ; », virgule
-     décimale : sans quoi Excel FR casse les accents et ne somme rien).
-     PDF passe par l'impression A4 → « Enregistrer au format PDF ». */
-  const exporterExcel = () => {
-    downloadCsv(
-      `rapport-${period}-${new Date().toISOString().slice(0, 10)}.csv`,
-      ['Mois', 'CA', 'Coûts', 'Marge', 'Personnel', 'Résultat'],
-      monthlyData.map((m) => [m.mois, m.ca, m.couts, m.marge, m.personnel, m.resultat]),
+function Contenu({ data }: { data: RapportCaisse }) {
+  if (data.nbVentes === 0) {
+    return (
+      <div style={{ ...carte, textAlign: 'center', padding: '44px 24px' }}>
+        <div style={{ fontSize: 32, marginBottom: 10 }}>🧾</div>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>Aucune vente sur cette période</div>
+        <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 6 }}>
+          Rien n'a été encaissé entre ces deux dates.
+        </div>
+      </div>
     )
   }
 
-  const exporterPdf = () => {
-    const corps =
-      `<h1>Rapport comptable</h1>` +
-      `<p class="sous">${echapperHtml(periodLabels[period])} — ${echapperHtml(periodDates[period])}</p>` +
-      `<h3>Évolution mensuelle</h3>` +
-      tableauHtml(
-        ['Mois', 'CA', 'Coûts', 'Marge', 'Personnel', 'Résultat'],
-        monthlyData.map((m) => [
-          m.mois,
-          `${m.ca.toLocaleString('fr-LU')} €`,
-          `${m.couts.toLocaleString('fr-LU')} €`,
-          `${m.marge.toLocaleString('fr-LU')} €`,
-          `${m.personnel.toLocaleString('fr-LU')} €`,
-          `${m.resultat.toLocaleString('fr-LU')} €`,
-        ]),
-        [1, 2, 3, 4, 5],
-      ) +
-      `<h3>Meilleures ventes</h3>` +
-      tableauHtml(
-        ['Produit', 'Montant'],
-        topProducts.map((p) => [p.name, `${p.montant.toLocaleString('fr-LU')} €`]),
-        [1],
-      ) +
-      `<h3>Répartition par catégorie</h3>` +
-      tableauHtml(
-        ['Catégorie', 'Part'],
-        categoryData.map((c) => [c.name, `${c.value} %`]),
-        [1],
-      )
-    imprimerHtml('Rapport comptable', corps)
-  }
-  const [compare, setCompare] = useState(true)
-  const [periodOpen, setPeriodOpen] = useState(false)
-
-  const fmt = (n: number) => n.toLocaleString('fr-FR')
-
-  /* Monthly table totals */
-  const totals = {
-    ca: monthlyData.reduce((s, r) => s + r.ca, 0),
-    couts: monthlyData.reduce((s, r) => s + r.couts, 0),
-    marge: monthlyData.reduce((s, r) => s + r.marge, 0),
-    personnel: monthlyData.reduce((s, r) => s + r.personnel, 0),
-    resultat: monthlyData.reduce((s, r) => s + r.resultat, 0),
-  }
+  const maxJour = Math.max(...data.parJour.map((j) => j.total), 1)
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}
-    >
-      {/* ============================================================ */}
-      {/*  1. PERIOD SELECTOR & TOP BAR                                 */}
-      {/* ============================================================ */}
-      <motion.div variants={itemVariants} style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        flexWrap: 'wrap', gap: 16, marginBottom: 28,
-      }}>
-        <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1e293b', margin: 0, marginBottom: 4 }}>
-            Rapports financiers
-          </h1>
-          <p style={{ fontSize: 14, color: '#64748b', margin: 0 }}>
-            Tableau de bord des performances
-          </p>
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 12, marginBottom: 20 }}>
+        <Tuile libelle="Total encaissé" valeur={euro(data.totalTTC)} accent="#22c55e" />
+        <Tuile libelle="Total hors taxes" valeur={euro(data.totalHT)} />
+        <Tuile libelle="dont TVA" valeur={euro(data.totalTva)} />
+        <Tuile libelle="Ventes" valeur={String(data.nbVentes)} />
+        <Tuile libelle="Panier moyen" valeur={euro(data.panierMoyen)} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 14, marginBottom: 20 }}>
+        <div className="carte" style={carte}>
+          <Titre>Par moyen de paiement</Titre>
+          {Object.entries(data.parMethode).map(([m, v]) => (
+            <LigneCle key={m} gauche={`${nomMethode(m)} (${v.nb})`} droite={euro(v.total)} />
+          ))}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          {/* Period Dropdown */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setPeriodOpen(!periodOpen)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '9px 16px', borderRadius: 10,
-                border: '1px solid #e2e8f0', background: '#fff',
-                fontSize: 13, fontWeight: 600, color: '#1e293b',
-                cursor: 'pointer',
-              }}
-            >
-              <Calendar size={14} color="#64748b" />
-              {periodLabels[period]}
-              <ChevronDown size={14} color="#64748b" />
-            </button>
-            {periodOpen && (
-              <div style={{
-                position: 'absolute', top: '110%', left: 0, zIndex: 50,
-                background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.1)', overflow: 'hidden', minWidth: 180,
-              }}>
-                {(Object.keys(periodLabels) as Period[]).map(k => (
-                  <button
-                    key={k}
-                    onClick={() => { setPeriod(k); setPeriodOpen(false) }}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '10px 16px', border: 'none',
-                      background: k === period ? '#f1f5f9' : 'transparent',
-                      fontSize: 13, fontWeight: k === period ? 600 : 400,
-                      color: '#1e293b', cursor: 'pointer',
-                    }}
-                  >
-                    {periodLabels[k]}
-                  </button>
-                ))}
+        <div className="carte" style={carte}>
+          <Titre>Par vendeur</Titre>
+          {Object.entries(data.parVendeur).map(([nom, v]) => (
+            <LigneCle key={nom} gauche={`${nom} (${v.nb})`} droite={euro(v.total)} />
+          ))}
+        </div>
+      </div>
+
+      {data.parJour.length > 1 && (
+        <div className="carte" style={{ ...carte, marginBottom: 20 }}>
+          <Titre>Jour par jour</Titre>
+          {data.parJour.map((j) => (
+            <div key={j.date} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0' }}>
+              <span style={{ fontSize: 12, color: '#94a3b8', width: 110, flexShrink: 0 }}>{jourLisible(j.date)}</span>
+              <div style={{ flex: 1, height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ width: `${(j.total / maxJour) * 100}%`, height: '100%', background: '#6366f1' }} />
               </div>
-            )}
-          </div>
-
-          {/* Date range label */}
-          <span style={{ fontSize: 13, color: '#64748b', fontWeight: 500 }}>
-            {periodDates[period]}
-          </span>
-
-          {/* Compare toggle */}
-          <button
-            onClick={() => setCompare(!compare)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '9px 14px', borderRadius: 10,
-              border: '1px solid #e2e8f0', background: compare ? '#eef2ff' : '#fff',
-              fontSize: 12, fontWeight: 500,
-              color: compare ? '#4f46e5' : '#64748b',
-              cursor: 'pointer',
-            }}
-          >
-            {compare ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-            Comparer
-          </button>
-
-          {/* Export PDF */}
-          <button onClick={exporterPdf} style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '9px 14px', borderRadius: 10,
-            border: '1px solid #fecaca', background: '#fef2f2',
-            fontSize: 13, fontWeight: 600, color: '#dc2626',
-            cursor: 'pointer',
-          }}>
-            <FileText size={14} />
-            PDF
-          </button>
-
-          {/* Export Excel */}
-          <button onClick={exporterExcel} style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '9px 14px', borderRadius: 10,
-            border: '1px solid #bbf7d0', background: '#f0fdf4',
-            fontSize: 13, fontWeight: 600, color: '#16a34a',
-            cursor: 'pointer',
-          }}>
-            <FileSpreadsheet size={14} />
-            Excel
-          </button>
+              <span style={{ fontSize: 12.5, fontWeight: 700, width: 90, textAlign: 'right' }}>{euro(j.total)}</span>
+              <span style={{ fontSize: 11, color: '#64748b', width: 62, textAlign: 'right' }}>{j.nb} vente{j.nb > 1 ? 's' : ''}</span>
+            </div>
+          ))}
         </div>
-      </motion.div>
+      )}
 
-      {/* ============================================================ */}
-      {/*  2. KPI CARDS                                                 */}
-      {/* ============================================================ */}
-      <motion.div variants={itemVariants} style={{
-        display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 16, marginBottom: 28,
-      }}>
-        {kpis.map((kpi, i) => {
-          const isPositive = kpi.trend > 0
-          const isNeutral = kpi.trend === 0
-          const trendColor = isNeutral ? '#64748b' : isPositive ? '#16a34a' : '#dc2626'
-          const sparkColor = kpi.bold ? '#16a34a' : '#6366f1'
-
-          return (
-            <motion.div
-              key={kpi.label}
-              variants={itemVariants}
-              style={{
-                ...cardBase,
-                padding: '20px 18px',
-                borderLeft: kpi.bold ? '3px solid #16a34a' : undefined,
-              }}
-            >
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
-                {kpi.label}
-              </div>
-              <div style={{
-                fontSize: kpi.bold ? 24 : 22, fontWeight: kpi.bold ? 800 : 700,
-                color: kpi.bold ? '#16a34a' : '#1e293b', marginBottom: 8,
-              }}>
-                {kpi.value} {kpi.isCurrency ? '€' : ''}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {!isNeutral && (
-                    isPositive
-                      ? <ArrowUpRight size={14} color={trendColor} />
-                      : <ArrowDownRight size={14} color={trendColor} />
-                  )}
-                  <span style={{ fontSize: 12, fontWeight: 600, color: trendColor }}>
-                    {kpi.trendLabel}
-                  </span>
-                </div>
-                <MiniSparkline data={kpi.sparkline} color={sparkColor} />
-              </div>
-            </motion.div>
-          )
-        })}
-      </motion.div>
-
-      {/* ============================================================ */}
-      {/*  3. REVENUE AREA CHART                                        */}
-      {/* ============================================================ */}
-      <motion.div variants={itemVariants} style={{ ...cardBase, marginBottom: 28 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <div>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', margin: 0 }}>
-              Évolution du chiffre d'affaires
-            </h2>
-            <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0' }}>
-              Revenus journaliers — {periodDates[period]}
-            </p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: '#64748b' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 12, height: 3, borderRadius: 2, background: '#6366f1', display: 'inline-block' }} />
-              Période actuelle
-            </span>
-            {compare && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 12, height: 3, borderRadius: 2, background: '#cbd5e1', display: 'inline-block', borderTop: '1px dashed #94a3b8' }} />
-                Période précédente
-              </span>
-            )}
-          </div>
+      {data.topProduits.length > 0 && (
+        <div className="carte" style={{ ...carte, marginBottom: 20 }}>
+          <Titre>Produits les plus vendus</Titre>
+          {data.topProduits.map((p) => (
+            <LigneCle key={p.nom} gauche={`${p.quantite} × ${p.nom}`} droite={euro(p.total)} />
+          ))}
         </div>
-        <div style={{ width: '100%', height: 400 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={dailyRevenue} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
-              <defs>
-                <linearGradient id="gradientCourant" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis
-                dataKey="jour"
-                tick={{ fontSize: 12, fill: '#94a3b8' }}
-                axisLine={false} tickLine={false}
-                tickFormatter={(v: string) => `${v}`}
-              />
-              <YAxis
-                tick={{ fontSize: 12, fill: '#94a3b8' }}
-                axisLine={false} tickLine={false}
-                tickFormatter={(v: number) => `${fmt(v)} €`}
-                width={80}
-              />
-              <Tooltip content={<RevenueTooltip />} />
-              {compare && (
-                <Area
-                  type="monotone"
-                  dataKey="precedent"
-                  stroke="#cbd5e1"
-                  strokeWidth={2}
-                  strokeDasharray="6 4"
-                  fill="none"
-                  dot={false}
-                />
-              )}
-              <Area
-                type="monotone"
-                dataKey="courant"
-                stroke="#6366f1"
-                strokeWidth={2.5}
-                fill="url(#gradientCourant)"
-                dot={false}
-                activeDot={{ r: 5, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </motion.div>
+      )}
 
-      {/* ============================================================ */}
-      {/*  4. CATEGORY BREAKDOWN (PIE + BAR)                            */}
-      {/* ============================================================ */}
-      <motion.div variants={itemVariants} style={{
-        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 28,
-      }}>
-        {/* PIE CHART */}
-        <div style={cardBase}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', margin: '0 0 20px' }}>
-            Répartition du CA par catégorie
-          </h2>
-          <div style={{ width: '100%', height: 280 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={3}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {categoryData.map((entry, idx) => (
-                    <Cell key={idx} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: number, name: string) => [`${value}%`, name]}
-                  contentStyle={{
-                    background: '#fff', border: '1px solid #e2e8f0',
-                    borderRadius: 10, fontSize: 13, boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                  }}
-                />
-                <Legend
-                  verticalAlign="bottom"
-                  iconType="circle"
-                  iconSize={8}
-                  formatter={(value: string) => (
-                    <span style={{ fontSize: 12, color: '#475569', fontWeight: 500 }}>{value}</span>
-                  )}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* BAR CHART - Top 5 */}
-        <div style={cardBase}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', margin: '0 0 20px' }}>
-            Top 5 produits
-          </h2>
-          <div style={{ width: '100%', height: 280 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topProducts} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                <XAxis
-                  type="number"
-                  tick={{ fontSize: 12, fill: '#94a3b8' }}
-                  axisLine={false} tickLine={false}
-                  tickFormatter={(v: number) => `${fmt(v)} €`}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={{ fontSize: 12, fill: '#475569', fontWeight: 500 }}
-                  axisLine={false} tickLine={false}
-                  width={140}
-                />
-                <Tooltip
-                  formatter={(value: number) => [`${fmt(value)} €`, 'Montant']}
-                  contentStyle={{
-                    background: '#fff', border: '1px solid #e2e8f0',
-                    borderRadius: 10, fontSize: 13, boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                  }}
-                />
-                <Bar dataKey="montant" fill="#6366f1" radius={[0, 6, 6, 0]} barSize={24} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* ============================================================ */}
-      {/*  5. MONTHLY COMPARISON TABLE                                  */}
-      {/* ============================================================ */}
-      <motion.div variants={itemVariants} style={{ ...cardBase, marginBottom: 28, overflowX: 'auto' }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', margin: '0 0 20px' }}>
-          Comparaison mensuelle
-        </h2>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr>
-              {['Métrique', ...monthlyData.map(m => m.mois), 'Total'].map(h => (
-                <th key={h} style={{
-                  textAlign: h === 'Métrique' ? 'left' : 'right',
-                  padding: '12px 16px', fontSize: 11, fontWeight: 700,
-                  color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5,
-                  borderBottom: '2px solid #e2e8f0',
-                }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {([
-              { label: "Chiffre d'affaires", key: 'ca' as const },
-              { label: 'Coûts marchandises', key: 'couts' as const },
-              { label: 'Marge brute', key: 'marge' as const },
-              { label: 'Personnel', key: 'personnel' as const },
-              { label: 'Résultat net', key: 'resultat' as const },
-            ]).map((row, ri) => {
-              const isResultat = row.key === 'resultat'
-              return (
-                <tr key={row.key} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{
-                    padding: '14px 16px', fontWeight: isResultat ? 700 : 500,
-                    color: '#1e293b',
-                  }}>
-                    {row.label}
-                  </td>
-                  {monthlyData.map((m, ci) => {
-                    const val = m[row.key]
-                    const prev = ci > 0 ? monthlyData[ci - 1][row.key] : null
-                    const diff = prev !== null ? val - prev : 0
-                    const diffColor = diff > 0 ? '#16a34a' : diff < 0 ? '#dc2626' : '#64748b'
-                    return (
-                      <td key={m.mois} style={{
-                        padding: '14px 16px', textAlign: 'right',
-                        fontWeight: isResultat ? 700 : 400,
-                        color: isResultat ? (val > 0 ? '#16a34a' : '#dc2626') : '#1e293b',
-                      }}>
-                        <div>{fmt(val)} €</div>
-                        {compare && prev !== null && (
-                          <div style={{ fontSize: 11, color: diffColor, marginTop: 2 }}>
-                            {diff > 0 ? '+' : ''}{fmt(diff)} €
-                          </div>
-                        )}
-                      </td>
-                    )
-                  })}
-                  <td style={{
-                    padding: '14px 16px', textAlign: 'right',
-                    fontWeight: 700,
-                    color: isResultat ? '#16a34a' : '#1e293b',
-                    borderLeft: '2px solid #e2e8f0',
-                  }}>
-                    {fmt(totals[row.key])} €
-                  </td>
+      <div className="carte" style={carte}>
+        <Titre>Détail des ventes ({data.ventes.length})</Titre>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+            <thead>
+              <tr style={{ textAlign: 'left', color: '#94a3b8' }}>
+                <th style={cellule}>N°</th>
+                <th style={cellule}>Date et heure</th>
+                <th style={cellule}>Table</th>
+                <th style={cellule}>Vendeur</th>
+                <th style={cellule}>Paiement</th>
+                <th style={{ ...cellule, textAlign: 'right' }}>HT</th>
+                <th style={{ ...cellule, textAlign: 'right' }}>TVA</th>
+                <th style={{ ...cellule, textAlign: 'right' }}>TTC</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.ventes.map((v) => (
+                <tr key={v.id} style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <td style={cellule}>{v.numero}</td>
+                  <td style={cellule}>{dateHeure(v.horodatage)}</td>
+                  <td style={cellule}>{v.table || '—'}</td>
+                  <td style={cellule}>{v.vendeur}</td>
+                  <td style={cellule}>{nomMethode(v.methode)}</td>
+                  <td style={{ ...cellule, textAlign: 'right' }}>{euro(v.sousTotal)}</td>
+                  <td style={{ ...cellule, textAlign: 'right' }}>{euro(v.tva)}</td>
+                  <td style={{ ...cellule, textAlign: 'right', fontWeight: 700 }}>{euro(v.total)}</td>
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </motion.div>
-
-      {/* ============================================================ */}
-      {/*  6. CASH FLOW SUMMARY                                         */}
-      {/* ============================================================ */}
-      <motion.div variants={itemVariants} style={{
-        ...cardBase,
-        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0,
-      }}>
-        {/* Encaissements */}
-        <div style={{
-          padding: '28px 32px', borderRight: '1px solid #e2e8f0',
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-        }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>
-            Encaissements
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <TrendingUp size={20} color="#16a34a" />
-            <span style={{ fontSize: 28, fontWeight: 700, color: '#1e293b' }}>26 780 €</span>
-          </div>
-          <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
-            Total des entrées
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
-
-        {/* Decaissements */}
-        <div style={{
-          padding: '28px 32px', borderRight: '1px solid #e2e8f0',
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-        }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>
-            Décaissements
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <TrendingDown size={20} color="#dc2626" />
-            <span style={{ fontSize: 28, fontWeight: 700, color: '#1e293b' }}>23 200 €</span>
-          </div>
-          <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
-            Total des sorties
-          </div>
-        </div>
-
-        {/* Solde */}
-        <div style={{
-          padding: '28px 32px',
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          background: '#f0fdf4', borderRadius: '0 16px 16px 0',
-        }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#16a34a', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>
-            Solde
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <ArrowUpRight size={20} color="#16a34a" />
-            <span style={{ fontSize: 28, fontWeight: 800, color: '#16a34a' }}>+3 580 €</span>
-          </div>
-          <div style={{ fontSize: 12, color: '#16a34a', marginTop: 6, fontWeight: 500 }}>
-            Trésorerie positive
-          </div>
-        </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </>
   )
 }
+
+// ─── Petits composants et styles ────────────────────────────────────────────
+
+const Titre = ({ children }: { children: React.ReactNode }) => (
+  <div style={{ fontSize: 12, color: '#94a3b8', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 10, fontWeight: 700 }}>
+    {children}
+  </div>
+)
+
+function Tuile({ libelle, valeur, accent }: { libelle: string; valeur: string; accent?: string }) {
+  return (
+    <div className="carte" style={{ ...carte, padding: 14 }}>
+      <div style={{ fontSize: 11, color: '#64748b' }}>{libelle}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4, color: accent || '#e2e8f0' }}>{valeur}</div>
+    </div>
+  )
+}
+
+function LigneCle({ gauche, droite }: { gauche: string; droite: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 13 }}>
+      <span style={{ color: '#cbd5e1' }}>{gauche}</span>
+      <span style={{ fontWeight: 700 }}>{droite}</span>
+    </div>
+  )
+}
+
+const carte: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.03)',
+  border: '1px solid rgba(255,255,255,0.08)',
+  borderRadius: 14,
+  padding: 18,
+}
+
+const cellule: React.CSSProperties = { padding: '7px 10px', whiteSpace: 'nowrap' }
+
+const champ: React.CSSProperties = {
+  display: 'block', marginTop: 5, padding: '9px 12px', borderRadius: 10,
+  border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)',
+  color: '#e2e8f0', fontSize: 13, colorScheme: 'dark',
+}
+
+const bouton = (desactive?: boolean): React.CSSProperties => ({
+  display: 'inline-flex', alignItems: 'center', gap: 7,
+  padding: '9px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+  border: '1px solid rgba(255,255,255,0.12)',
+  background: desactive ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.07)',
+  color: desactive ? '#64748b' : '#e2e8f0',
+  cursor: desactive ? 'not-allowed' : 'pointer',
+})
