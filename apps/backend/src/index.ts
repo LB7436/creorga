@@ -90,6 +90,7 @@ import { initMonitoring } from './lib/monitoring'
 import { startStockSyncJob } from './lib/stockStore'
 import creatorAuthRoutes from './routes/creator/auth'
 import creatorDonneesRoutes from './routes/creator/donnees'
+import creatorOpportunitesRoutes from './routes/creator/opportunites'
 import { creatorConfigure } from './lib/creatorSecurity'
 import { brancherVidageArret } from './lib/eventSink'
 import { ErrorLogTransport } from './lib/errorLogTransport'
@@ -267,6 +268,7 @@ app.use('/api/agent', authenticate, aiLimiter, assistantAdvancedRoutes)
 if (creatorConfigure()) {
   app.use('/api/creator/auth', creatorAuthLimiter, creatorAuthRoutes)
   app.use('/api/creator', creatorDonneesRoutes)
+  app.use('/api/creator', creatorOpportunitesRoutes)
 } else {
   logger.warn('[creator] CREATOR_JWT_SECRET / CREATOR_TOTP_KEY absents — console créateur non montée')
 }
@@ -334,6 +336,12 @@ httpServer.listen(PORT, () => {
     startCreatorMetrics()
     logger.info('[creator-metrics] snapshot quotidien par société activé (1h, upsert J-1)')
   }).catch((e) => logger.warn('[creator-metrics] non démarré:', e?.message))
+
+  // Console créateur — moteur d'opportunités (10 min après boot, puis 24h ;
+  // CREATOR_ENGINE_ENABLED=1 requis en production)
+  import('./jobs/opportunity-engine').then(({ startOpportunityEngine }) => {
+    startOpportunityEngine()
+  }).catch((e) => logger.warn('[opportunites] non démarré:', e?.message))
 })
 
 // Console créateur — collecte : toute erreur logger.error() part aussi en base,

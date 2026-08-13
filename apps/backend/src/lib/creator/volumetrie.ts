@@ -38,7 +38,6 @@ export const TABLES_DIRECTES: ReadonlyArray<{ modele: string; table: string }> =
   { modele: 'expense', table: 'Expense' },
   { modele: 'review', table: 'Review' },
   { modele: 'eventQuote', table: 'EventQuote' },
-  { modele: 'eventQuoteItem', table: 'EventQuoteItem' },
 ]
 
 // Tables de lignes rattachées par jointure : (table SQL, table parente, clé).
@@ -47,6 +46,7 @@ const TABLES_JOINTES: ReadonlyArray<{ table: string; parent: string; cle: string
   { table: 'InvoiceItem', parent: 'Invoice', cle: 'invoiceId' },
   { table: 'QuoteItem', parent: 'Quote', cle: 'quoteId' },
   { table: 'PurchaseOrderItem', parent: 'PurchaseOrder', cle: 'purchaseOrderId' },
+  { table: 'EventQuoteItem', parent: 'EventQuote', cle: 'eventQuoteId' },
 ]
 
 export async function compterLignes(companyId: string): Promise<Record<string, number>> {
@@ -59,6 +59,9 @@ export async function compterLignes(companyId: string): Promise<Record<string, n
   resultats.QuoteItem = await prisma.quoteItem.count({ where: { quote: { companyId } } })
   resultats.PurchaseOrderItem = await prisma.purchaseOrderItem.count({
     where: { purchaseOrder: { companyId } },
+  })
+  resultats.EventQuoteItem = await prisma.eventQuoteItem.count({
+    where: { eventQuote: { companyId } },
   })
   return resultats
 }

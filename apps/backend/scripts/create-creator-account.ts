@@ -14,11 +14,29 @@ import readline from 'node:readline/promises'
 import bcrypt from 'bcryptjs'
 import prisma from '../src/lib/prisma'
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+async function lireEntrees(): Promise<[string, string]> {
+  if (process.stdin.isTTY) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+    const email = await rl.question('Email du compte créateur : ')
+    const password = await rl.question('Mot de passe (12 caractères minimum, saisie visible) : ')
+    rl.close()
+    return [email, password]
+  }
+  // Entrée redirigée (automatisation, recette) : deux lignes attendues.
+  const brut = await new Promise<string>((resolve) => {
+    let acc = ''
+    process.stdin.setEncoding('utf8')
+    process.stdin.on('data', (morceau) => {
+      acc += morceau
+    })
+    process.stdin.on('end', () => resolve(acc))
+  })
+  const [email = '', password = ''] = brut.split(/\r?\n/)
+  return [email, password]
+}
 
-const email = (await rl.question('Email du compte créateur : ')).trim().toLowerCase()
-const password = await rl.question('Mot de passe (12 caractères minimum, saisie visible) : ')
-rl.close()
+const [emailBrut, password] = await lireEntrees()
+const email = emailBrut.trim().toLowerCase()
 
 if (!email.includes('@')) {
   console.error('Email invalide.')
