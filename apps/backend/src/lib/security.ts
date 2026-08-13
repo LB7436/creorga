@@ -116,6 +116,19 @@ export const aiLimiter = rateLimit({
   message: { message: 'Quota IA atteint, réessayez dans une minute.' },
 })
 
+/**
+ * Console créateur : un seul utilisateur légitime au monde — le quota peut
+ * être bien plus sévère que l'authLimiter des sociétés (5 tentatives / 15 min).
+ */
+export const creatorAuthLimiter = rateLimit({
+  skip: rateLimitBypass,
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Trop de tentatives sur la console. Réessayez dans 15 minutes.' },
+})
+
 /** Limiteur générique API publique (portail client) : 300 req / min / IP. */
 export const publicLimiter = rateLimit({
   skip: rateLimitBypass,

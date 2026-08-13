@@ -84,10 +84,14 @@ import backupRoutes from './routes/backup'
 import gameScoresRoutes from './routes/gameScores'
 import guestRoutes from './routes/guest'
 import { auditLog } from './middleware/audit-log'
-import { assertProductionSecrets, buildCorsOrigin, authLimiter, aiLimiter, publicLimiter } from './lib/security'
+import { assertProductionSecrets, buildCorsOrigin, authLimiter, aiLimiter, publicLimiter, creatorAuthLimiter } from './lib/security'
 import { deviceOrUserAuth } from './middleware/deviceAuth'
 import { initMonitoring } from './lib/monitoring'
 import { startStockSyncJob } from './lib/stockStore'
+import creatorAuthRoutes from './routes/creator/auth'
+import { creatorConfigure } from './lib/creatorSecurity'
+import { brancherVidageArret } from './lib/eventSink'
+import { ErrorLogTransport } from './lib/errorLogTransport'
 
 // Refuse de démarrer en production avec des secrets de dev ou absents.
 assertProductionSecrets()
@@ -256,6 +260,15 @@ app.use('/api/backup', authenticate, requireCompany, requireRole('OWNER'), backu
 app.use('/api/agent', authenticate, aiLimiter, assistantRoutes)
 app.use('/api/agent', authenticate, aiLimiter, assistantAdvancedRoutes)
 
+// Console créateur — auth totalement disjointe des comptes sociétés : jamais
+// authenticate ni requireCompany ici. En production, la console n'est montée
+// que si ses secrets dédiés sont posés (l'app clients démarre quand même).
+if (creatorConfigure()) {
+  app.use('/api/creator/auth', creatorAuthLimiter, creatorAuthRoutes)
+} else {
+  logger.warn('[creator] CREATOR_JWT_SECRET / CREATOR_TOTP_KEY absents — console créateur non montée')
+}
+
 // Error handler
 app.use(errorHandler)
 
@@ -307,4 +320,15 @@ httpServer.listen(PORT, () => {
     startBackupWorker()
     logger.info('[backup] worker démarré — snapshot complet data/ (6h)')
   }).catch((e) => logger.warn('[backup] non démarré:', e?.message))
+
+  // Console créateur — rétention RGPD des événements (5 min après boot, puis 24h)
+  import('./jobs/creator-retention').then(({ startCreatorRetention }) => {
+    startCreatorRetention()
+    logger.info('[creator-retention] purge quotidienne activée (ActivityEvent 90j, LoginEvent 180j, ErrorLog 30j)')
+  }).catch((e) => logger.warn('[creator-retention] non démarré:', e?.message))
 })
+
+// Console créateur — collecte : toute erreur logger.error() part aussi en base,
+// et l'arrêt du service vide le tampon d'événements (2 dernières secondes).
+logger.add(new ErrorLogTransport())
+brancherVidageArret()
