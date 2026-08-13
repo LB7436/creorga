@@ -2,21 +2,21 @@ import { Router, type Response } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma'
 import { authenticate, type AuthRequest } from '../middleware/auth'
+import { requireCompany } from '../middleware/requireCompany'
 import { validate } from '../middleware/validate'
 import logger from '../lib/logger'
 
 const router = Router()
 router.use(authenticate)
+// Adhésion vérifiée : le header x-company-id était cru tel quel, et les routes
+// par id n'avaient aucun filtre société.
+router.use(requireCompany)
 
 // ─── GET /api/products ─────────────────────────────────
 
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const companyId = req.headers['x-company-id'] as string
-    if (!companyId) {
-      res.status(400).json({ message: 'x-company-id header requis' })
-      return
-    }
+    const companyId = (req as any).companyId as string
 
     const categoryId = req.query.categoryId as string | undefined
 
@@ -53,11 +53,7 @@ const createProductSchema = z.object({
 
 router.post('/', validate(createProductSchema), async (req: AuthRequest, res: Response) => {
   try {
-    const companyId = req.headers['x-company-id'] as string
-    if (!companyId) {
-      res.status(400).json({ message: 'x-company-id header requis' })
-      return
-    }
+    const companyId = (req as any).companyId as string
 
     const product = await prisma.product.create({
       data: { companyId, ...req.body },
@@ -74,10 +70,18 @@ router.post('/', validate(createProductSchema), async (req: AuthRequest, res: Re
 
 router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const product = await prisma.product.update({
-      where: { id: req.params.id },
-      data: req.body,
+    const companyId = (req as any).companyId as string
+    // Le corps ne doit pas pouvoir réaffecter le produit à une autre société.
+    const { companyId: _societe, id: _id, ...donnees } = req.body ?? {}
+    const { count } = await prisma.product.updateMany({
+      where: { id: req.params.id, companyId },
+      data: donnees,
     })
+    if (count === 0) {
+      res.status(404).json({ message: 'Produit non trouvé' })
+      return
+    }
+    const product = await prisma.product.findUnique({ where: { id: req.params.id } })
     res.json(product)
   } catch (error) {
     logger.error('Erreur PUT /products:', error)
@@ -89,10 +93,15 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
 
 router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    await prisma.product.update({
-      where: { id: req.params.id },
+    const companyId = (req as any).companyId as string
+    const { count } = await prisma.product.updateMany({
+      where: { id: req.params.id, companyId },
       data: { isActive: false },
     })
+    if (count === 0) {
+      res.status(404).json({ message: 'Produit non trouvé' })
+      return
+    }
     res.json({ message: 'Produit supprimé' })
   } catch (error) {
     logger.error('Erreur DELETE /products:', error)

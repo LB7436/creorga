@@ -1,20 +1,20 @@
 import { Router, type Response } from 'express'
 import prisma from '../lib/prisma'
 import { authenticate, type AuthRequest } from '../middleware/auth'
+import { requireCompany } from '../middleware/requireCompany'
 import logger from '../lib/logger'
 
 const router = Router()
 router.use(authenticate)
+// Le header x-company-id était cru sans vérifier l'adhésion : n'importe quel
+// compte authentifié pouvait lire le chiffre d'affaires d'une autre société.
+router.use(requireCompany)
 
 // ─── GET /api/stats/today ──────────────────────────────
 
 router.get('/today', async (req: AuthRequest, res: Response) => {
   try {
-    const companyId = req.headers['x-company-id'] as string
-    if (!companyId) {
-      res.status(400).json({ message: 'x-company-id header requis' })
-      return
-    }
+    const companyId = (req as any).companyId as string
 
     const startOfDay = new Date()
     startOfDay.setHours(0, 0, 0, 0)
@@ -65,11 +65,7 @@ router.get('/today', async (req: AuthRequest, res: Response) => {
 
 router.get('/week', async (req: AuthRequest, res: Response) => {
   try {
-    const companyId = req.headers['x-company-id'] as string
-    if (!companyId) {
-      res.status(400).json({ message: 'x-company-id header requis' })
-      return
-    }
+    const companyId = (req as any).companyId as string
 
     const days: Array<{ date: string; revenue: number; orders: number }> = []
 
@@ -107,11 +103,7 @@ router.get('/week', async (req: AuthRequest, res: Response) => {
 
 router.get('/products/top', async (req: AuthRequest, res: Response) => {
   try {
-    const companyId = req.headers['x-company-id'] as string
-    if (!companyId) {
-      res.status(400).json({ message: 'x-company-id header requis' })
-      return
-    }
+    const companyId = (req as any).companyId as string
 
     const startOfDay = new Date()
     startOfDay.setHours(0, 0, 0, 0)

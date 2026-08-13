@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma'
 import { authenticate } from '../middleware/auth'
+import { requireCompany } from '../middleware/requireCompany'
 import { validate } from '../middleware/validate'
 import type { AuthRequest } from '../middleware/auth'
 
@@ -18,10 +19,11 @@ const updateSchema = z.object({
 })
 
 // GET /companies/members — list all members of the current company
-router.get('/members', async (req: AuthRequest, res, next) => {
+// requireCompany : le header était cru tel quel — tout compte authentifié
+// pouvait lister les membres (noms + emails) de n'importe quelle société.
+router.get('/members', requireCompany, async (req: AuthRequest, res, next) => {
   try {
-    const companyId = req.headers['x-company-id'] as string
-    if (!companyId) return res.status(400).json({ message: 'x-company-id requis' })
+    const companyId = (req as any).companyId as string
 
     const members = await prisma.userCompany.findMany({
       where: { companyId },

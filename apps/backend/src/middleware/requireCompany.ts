@@ -23,6 +23,41 @@ export async function requireCompany(req: Request, res: Response, next: NextFunc
   }
 
   try {
+    // Requêtes sans utilisateur (montage derrière deviceOrUserAuth) : un
+    // terminal POS présente un jeton d'installation, sans identité — il n'y a
+    // aucune adhésion à vérifier. Ne JAMAIS poursuivre vers la recherche
+    // d'adhésion avec un userId indéfini : Prisma ignore un filtre undefined,
+    // la requête renverrait l'adhésion d'un autre membre (élévation silencieuse).
+    if (!user?.userId) {
+      if ((req as any).device) {
+        if (!companyId) {
+          res.status(400).json({ error: 'x-company-id header requis' })
+          return
+        }
+        // Le jeton d'appareil est global à l'installation : on vérifie au
+        // moins que la société annoncée existe. Rattacher chaque appareil à
+        // une société (un jeton par appareil) est un chantier séparé.
+        const company = await prisma.company.findUnique({ where: { id: companyId } })
+        if (!company) {
+          res.status(403).json({ error: 'Accès refusé à cette société' })
+          return
+        }
+        ;(req as any).companyId = companyId
+        ;(req as any).company = company
+        ;(req as any).role = null
+        return next()
+      }
+      if (isProduction()) {
+        res.status(401).json({ error: 'Authentification requise' })
+        return
+      }
+      // Compat dev de deviceOrUserAuth : requête sans aucun jeton hors production.
+      ;(req as any).companyId = companyId || FALLBACK_COMPANY.id
+      ;(req as any).company = FALLBACK_COMPANY
+      ;(req as any).role = 'OWNER'
+      return next()
+    }
+
     // If no header passed, pick the user's first active company.
     if (!companyId && user?.userId) {
       const first = await prisma.userCompany.findFirst({

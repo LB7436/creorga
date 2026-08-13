@@ -2,12 +2,16 @@ import { Router, type Response } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma'
 import { authenticate, type AuthRequest } from '../middleware/auth'
+import { requireCompany } from '../middleware/requireCompany'
 import { validate } from '../middleware/validate'
 import { io } from '../index'
 import logger from '../lib/logger'
 
 const router = Router()
 router.use(authenticate)
+// Adhésion vérifiée : le header x-company-id était cru tel quel, et les routes
+// par id (statut, encaissement, articles) n'avaient aucun filtre société.
+router.use(requireCompany)
 
 /**
  * Arrondi monétaire au centime.
@@ -29,11 +33,7 @@ class OrderInputError extends Error {
 
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const companyId = req.headers['x-company-id'] as string
-    if (!companyId) {
-      res.status(400).json({ message: 'x-company-id header requis' })
-      return
-    }
+    const companyId = (req as any).companyId as string
 
     const { status, tableId } = req.query
 
@@ -62,8 +62,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
 router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const order = await prisma.order.findUnique({
-      where: { id: req.params.id },
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id, companyId: (req as any).companyId },
       include: {
         items: { include: { product: true } },
         table: true,
@@ -97,11 +97,7 @@ const createOrderSchema = z.object({
 
 router.post('/', validate(createOrderSchema), async (req: AuthRequest, res: Response) => {
   try {
-    const companyId = req.headers['x-company-id'] as string
-    if (!companyId) {
-      res.status(400).json({ message: 'x-company-id header requis' })
-      return
-    }
+    const companyId = (req as any).companyId as string
 
     const { tableId, items, notes } = req.body
 
@@ -227,6 +223,15 @@ const updateStatusSchema = z.object({
 
 router.put('/:id/status', validate(updateStatusSchema), async (req: AuthRequest, res: Response) => {
   try {
+    const appartient = await prisma.order.findFirst({
+      where: { id: req.params.id, companyId: (req as any).companyId },
+      select: { id: true },
+    })
+    if (!appartient) {
+      res.status(404).json({ message: 'Commande non trouvée' })
+      return
+    }
+
     const order = await prisma.order.update({
       where: { id: req.params.id },
       data: { status: req.body.status },
@@ -252,8 +257,8 @@ router.post('/:id/checkout', validate(checkoutSchema), async (req: AuthRequest, 
   try {
     const { paymentMethod, cashReceived } = req.body
 
-    const existing = await prisma.order.findUnique({
-      where: { id: req.params.id },
+    const existing = await prisma.order.findFirst({
+      where: { id: req.params.id, companyId: (req as any).companyId },
     })
 
     if (!existing) {
@@ -316,9 +321,20 @@ const addItemSchema = z.object({
 
 router.post('/:id/items', validate(addItemSchema), async (req: AuthRequest, res: Response) => {
   try {
+    const companyId = (req as any).companyId as string
     const { productId, quantity, notes } = req.body
 
-    const product = await prisma.product.findUnique({ where: { id: productId } })
+    const commande = await prisma.order.findFirst({
+      where: { id: req.params.id, companyId },
+      select: { id: true },
+    })
+    if (!commande) {
+      res.status(404).json({ message: 'Commande non trouvée' })
+      return
+    }
+
+    // Produit restreint à la société : on ne facture pas la carte d'un autre.
+    const product = await prisma.product.findFirst({ where: { id: productId, companyId } })
     if (!product) {
       res.status(404).json({ message: 'Produit non trouvé' })
       return
@@ -363,9 +379,28 @@ router.post('/:id/items', validate(addItemSchema), async (req: AuthRequest, res:
 
 router.put('/:id/items/:itemId', async (req: AuthRequest, res: Response) => {
   try {
+    const commande = await prisma.order.findFirst({
+      where: { id: req.params.id, companyId: (req as any).companyId },
+      select: { id: true },
+    })
+    if (!commande) {
+      res.status(404).json({ message: 'Commande non trouvée' })
+      return
+    }
+    const existant = await prisma.orderItem.findFirst({
+      where: { id: req.params.itemId, orderId: req.params.id },
+      select: { id: true },
+    })
+    if (!existant) {
+      res.status(404).json({ message: 'Article non trouvé' })
+      return
+    }
+
+    // Le corps ne doit pas pouvoir déplacer l'article vers une autre commande.
+    const { orderId: _commande, id: _id, ...donnees } = req.body ?? {}
     const item = await prisma.orderItem.update({
       where: { id: req.params.itemId },
-      data: req.body,
+      data: donnees,
       include: { product: true },
     })
 
@@ -396,7 +431,21 @@ router.put('/:id/items/:itemId', async (req: AuthRequest, res: Response) => {
 
 router.delete('/:id/items/:itemId', async (req: AuthRequest, res: Response) => {
   try {
-    await prisma.orderItem.delete({ where: { id: req.params.itemId } })
+    const commande = await prisma.order.findFirst({
+      where: { id: req.params.id, companyId: (req as any).companyId },
+      select: { id: true },
+    })
+    if (!commande) {
+      res.status(404).json({ message: 'Commande non trouvée' })
+      return
+    }
+    const { count } = await prisma.orderItem.deleteMany({
+      where: { id: req.params.itemId, orderId: req.params.id },
+    })
+    if (count === 0) {
+      res.status(404).json({ message: 'Article non trouvé' })
+      return
+    }
 
     // Recalculer les totaux
     const allItems = await prisma.orderItem.findMany({ where: { orderId: req.params.id } })
