@@ -1,6 +1,7 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import logger from '../lib/logger'
 import { captureError } from '../lib/monitoring'
+import { push as pushEvenement } from '../lib/eventSink'
 
 /**
  * Erreur levée par express.json() quand le corps n'est pas du JSON valide.
@@ -26,6 +27,15 @@ export function errorHandler(
 
   logger.error('Erreur non gérée:', err)
   captureError(err, { method: req.method, path: req.path })
+  // Console créateur : l'erreur est visible avec son contexte de requête —
+  // le transport Winston, lui, n'a que le message.
+  pushEvenement('errorLog', {
+    method: req.method,
+    path: req.path,
+    companyId: (req as any).companyId ?? null,
+    message: String(err?.message ?? err).slice(0, 2000),
+    stack: err?.stack ? String(err.stack).slice(0, 4000) : null,
+  })
 
   res.status(500).json({
     message: process.env.NODE_ENV === 'production'

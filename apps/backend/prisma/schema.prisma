@@ -203,6 +203,11 @@ model Order {
   // la numérotation applicative (lecture du max + 1) ne suffit pas sous
   // charge, c'est la base qui doit trancher.
   @@unique([companyId, orderNumber])
+  // Tous les agrégats de la console créateur (CA du jour, extraits, snapshot
+  // quotidien) filtrent par société puis paidAt/status : sans ces index,
+  // chaque calcul balaie la table entière.
+  @@index([companyId, paidAt])
+  @@index([companyId, status])
 }
 
 model OrderItem {
@@ -742,4 +747,147 @@ model EmployeeDocument {
   profile EmployeeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@index([profileId, type])
+}
+
+// ─── Console créateur ────────────────────────────────────────────────────
+// Authentification du créateur, totalement disjointe de User/UserCompany :
+// secret JWT distinct et claim de type dédié — un jeton société ne vaut rien
+// ici, et réciproquement.
+
+model CreatorAccount {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  password    String
+  /// Secret TOTP base32, chiffré AES-256-GCM avec CREATOR_TOTP_KEY.
+  totpSecret  String?
+  totpEnabled Boolean   @default(false)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  refreshTokens CreatorRefreshToken[]
+}
+
+model CreatorRefreshToken {
+  id         String    @id @default(cuid())
+  token      String    @unique
+  accountId  String
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  expiresAt  DateTime
+  /// Révoqué plutôt que supprimé : l'historique de connexion de la console
+  /// est conservé, et la réutilisation d'un jeton révoqué se détecte.
+  revokedAt  DateTime?
+
+  account CreatorAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
+}
+
+// Collecte d'usage : une ligne par requête API (mutations, GET échantillonnés).
+// companyId volontairement sans clé étrangère : l'événement survit à la
+// société et l'écriture par lots ne paie aucune contrainte.
+// RGPD : des actions, pas des contenus — jamais de corps, d'IP ni de
+// user-agent ; path sans query string ; rétention 90 jours.
+model ActivityEvent {
+  id         String   @id @default(cuid())
+  ts         DateTime @default(now())
+  companyId  String?
+  userId     String?
+  role       String?
+  method     String
+  module     String
+  path       String
+  status     Int
+  durationMs Int?
+
+  @@index([companyId, ts])
+  @@index([module, ts])
+  @@index([userId, ts])
+}
+
+// L'historique que la rotation des RefreshToken détruit. Échec sans compte :
+// emailHash (sha256), jamais l'email en clair. Rétention 180 jours.
+model LoginEvent {
+  id        String   @id @default(cuid())
+  ts        DateTime @default(now())
+  userId    String?
+  emailHash String?
+  kind      String // LOGIN | LOGIN_FAILED | REFRESH | LOGOUT
+  companyId String?
+
+  @@index([userId, ts])
+  @@index([ts])
+}
+
+// Erreurs applicatives (errorHandler + transport logger). Rétention 30 jours.
+model ErrorLog {
+  id        String   @id @default(cuid())
+  ts        DateTime @default(now())
+  method    String?
+  path      String?
+  companyId String?
+  message   String
+  /// Tronquée à 4000 caractères à l'écriture.
+  stack     String?
+
+  @@index([ts])
+}
+
+// Photographie quotidienne par société : la matière première de la console
+// (usage, volumes, signaux métier). Une ligne par société et par jour.
+model TenantMetricDaily {
+  id                    String   @id @default(cuid())
+  companyId             String
+  /// Minuit local du jour photographié.
+  date                  DateTime
+  activeUsers           Int      @default(0)
+  mutations             Int      @default(0)
+  /// { "crm": 42, "haccp": 0, ... } — GET échantillonnés ×5 réappliqués.
+  moduleUsage           Json     @default("{}")
+  /// Commandes PAID datées par paidAt (discipline rapports-caisse).
+  revenue               Float    @default(0)
+  orders                Int      @default(0)
+  /// Somme des |écarts| des caisses clôturées ce jour.
+  cashDiscrepancy       Float    @default(0)
+  /// Calculé sur dueDate, jamais sur un statut 'OVERDUE'.
+  invoicesOverdueCount  Int      @default(0)
+  invoicesOverdueAmount Float    @default(0)
+  expensesNoReceipt     Int      @default(0)
+  haccpLogs             Int      @default(0)
+  /// ≥ 1 commande PAID ce jour — dénominateur du signal HACCP.
+  wasOpen               Boolean  @default(false)
+  /// { "Order": 1240, "Customer": 310, ... }
+  rowCounts             Json     @default("{}")
+  /// Poids estimé des données de la société (pg_column_size + documents).
+  dataBytes             BigInt   @default(0)
+  createdAt             DateTime @default(now())
+
+  @@unique([companyId, date])
+  @@index([date])
+}
+
+// Opportunité commerciale produite par le moteur de règles : preuve chiffrée
+// et brouillon de message en français. La console n'envoie jamais rien —
+// le créateur copie et envoie lui-même.
+model Opportunity {
+  id         String   @id @default(cuid())
+  companyId  String
+  ruleId     String
+  severity   String // info | warning | critical
+  title      String
+  message    String
+  /// { periode, valeur, unite, seuil, details[], methode, fiabilite }
+  evidence   Json
+  status     String   @default("NEW") // NEW | SENT | ACCEPTED | DISMISSED
+  statusNote String?
+  /// `${ruleId}:${companyId}:${periodeISO}` — une opportunité par règle,
+  /// société et période : pas de doublon d'un jour à l'autre.
+  dedupKey   String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([companyId, status])
+  @@index([status, createdAt])
 }

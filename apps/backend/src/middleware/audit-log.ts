@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import type { NextFunction, Request, Response } from 'express'
 import { safeWriteJson, safeReadJson } from '../lib/safe-json'
+import { push as pushEvenement } from '../lib/eventSink'
 import logger from '../lib/logger'
 
 const DATA_DIR = path.resolve(process.cwd(), 'data')
@@ -55,10 +56,13 @@ function planifierEcriture() {
 // Ne JAMAIS journaliser ces champs en clair : le mot de passe des routes
 // /auth était persisté entier dans data/audit-log.json (donc lisible via
 // /api/owner/audit et embarqué dans chaque sauvegarde). Fuite RGPD/CNPD.
+// Étendu aux identités (email, téléphone, adresse) et données RH : dans un
+// journal, ce sont des données personnelles sans valeur d'exploitation.
 const CHAMPS_SENSIBLES = new Set([
   'password', 'motdepasse', 'motDePasse', 'pin', 'code',
   'token', 'refreshtoken', 'refreshToken', 'accesstoken', 'accessToken',
   'secret', 'iban', 'currentpassword', 'currentPassword', 'newpassword', 'newPassword',
+  'email', 'telephone', 'phone', 'adresse', 'address', 'numsecu', 'numSecu', 'salaireBrut',
 ])
 
 function summarizeBody(body: unknown) {
@@ -78,30 +82,74 @@ function summarizeBody(body: unknown) {
   }, {})
 }
 
+// Chemins jamais collectés : santé (sonde), console créateur (auto-exclusion,
+// même logique que /api/owner/audit), et les endpoints publics ou de polling
+// dont le volume noierait l'usage réel (plan de salle 1,5 s, portail 2,5 s).
+const CHEMINS_EXCLUS = [
+  '/api/owner/audit',
+  '/api/creator',
+  '/api/health',
+  '/api/floor-state',
+  '/api/portal-config',
+  '/api/guest',
+  '/api/game-scores',
+  '/api/media-affichage',
+]
+
+// Les GET partent UNIQUEMENT vers ActivityEvent (jamais dans le JSON), à
+// 1 lecture sur 5 : le facteur ×5 est réappliqué à l'agrégation. Les
+// mutations partent dans les deux.
+const TAUX_ECHANTILLON_GET = 0.2
+
 export function auditLog(req: Request, res: Response, next: NextFunction) {
-  if (!MUTATING.has(req.method) || req.path.startsWith('/api/owner/audit')) {
+  const estMutation = MUTATING.has(req.method)
+  if (CHEMINS_EXCLUS.some((prefixe) => req.path.startsWith(prefixe))) {
     next()
     return
   }
+  const collecterGet = !estMutation && req.method === 'GET' && Math.random() < TAUX_ECHANTILLON_GET
+  if (!estMutation && !collecterGet) {
+    next()
+    return
+  }
+
+  const debut = process.hrtime.bigint()
   res.on('finish', () => {
     try {
       const user = (req as any).user
-      const entries = readAuditLog()
-      entries.unshift({
-        id: Math.random().toString(36).slice(2, 10),
-        ts: new Date().toISOString(),
-        userId: user?.userId ?? user?.id ?? 'anonymous',
-        // Posé par requireCompany quand la route en dispose : permet à
-        // /api/owner/audit de ne montrer à chaque société que son journal.
+      const durationMs = Number((process.hrtime.bigint() - debut) / 1000000n)
+
+      if (estMutation) {
+        const entries = readAuditLog()
+        entries.unshift({
+          id: Math.random().toString(36).slice(2, 10),
+          ts: new Date().toISOString(),
+          userId: user?.userId ?? user?.id ?? 'anonymous',
+          // Posé par requireCompany quand la route en dispose : permet à
+          // /api/owner/audit de ne montrer à chaque société que son journal.
+          companyId: (req as any).companyId ?? null,
+          method: req.method,
+          path: req.originalUrl,
+          status: res.statusCode,
+          module: req.originalUrl.split('/')[2] || 'system',
+          body: summarizeBody(req.body),
+        })
+        if (entries.length > 1000) entries.length = 1000
+        planifierEcriture()
+      }
+
+      // Collecte console créateur : des actions, pas des contenus — ni corps,
+      // ni IP, ni user-agent, path sans query string.
+      pushEvenement('activityEvent', {
         companyId: (req as any).companyId ?? null,
+        userId: user?.userId ?? user?.id ?? null,
+        role: (req as any).role ?? null,
         method: req.method,
-        path: req.originalUrl,
-        status: res.statusCode,
         module: req.originalUrl.split('/')[2] || 'system',
-        body: summarizeBody(req.body),
+        path: (req.originalUrl || req.path).split('?')[0],
+        status: res.statusCode,
+        durationMs,
       })
-      if (entries.length > 1000) entries.length = 1000
-      planifierEcriture()
     } catch {
       // La journalisation ne doit jamais casser la requête métier.
     }

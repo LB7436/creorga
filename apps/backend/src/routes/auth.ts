@@ -8,8 +8,14 @@ import { validate } from '../middleware/validate'
 import { authenticate, type AuthRequest } from '../middleware/auth'
 import logger from '../lib/logger'
 import { fallbackAdminAllowed } from '../lib/security'
+import { push as pushEvenement } from '../lib/eventSink'
 
 const router = Router()
+
+/** Jamais l'email en clair dans LoginEvent : empreinte sha256 normalisée. */
+function hachageEmail(email: string): string {
+  return crypto.createHash('sha256').update(String(email).trim().toLowerCase()).digest('hex')
+}
 
 // ─── Schemas ───────────────────────────────────────────
 
@@ -164,6 +170,7 @@ router.post('/login', validate(loginSchema), async (req, res) => {
     if (user) {
       const valid = await bcrypt.compare(password, user.password)
       if (!valid) {
+        pushEvenement('loginEvent', { kind: 'LOGIN_FAILED', userId: user.id })
         res.status(401).json({ message: 'Email ou mot de passe incorrect' })
         return
       }
@@ -189,6 +196,11 @@ router.post('/login', validate(loginSchema), async (req, res) => {
       })
 
       logger.info(`Connexion DB: ${email}`)
+      pushEvenement('loginEvent', {
+        kind: 'LOGIN',
+        userId: user.id,
+        companyId: companies[0]?.companyId ?? null,
+      })
       res.json({
         accessToken,
         user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, avatar: user.avatar },
@@ -217,6 +229,8 @@ router.post('/login', validate(loginSchema), async (req, res) => {
     return
   }
 
+  // Compte inconnu : on trace l'échec sans jamais stocker l'email en clair.
+  pushEvenement('loginEvent', { kind: 'LOGIN_FAILED', emailHash: hachageEmail(email) })
   res.status(401).json({ message: 'Email ou mot de passe incorrect' })
 })
 
@@ -265,6 +279,9 @@ router.post('/refresh', async (req, res) => {
       path: '/',
     })
 
+    // La rotation détruit l'historique côté RefreshToken : c'est LoginEvent
+    // qui permet de reconstruire les sessions (grappes de REFRESH).
+    pushEvenement('loginEvent', { kind: 'REFRESH', userId: stored.userId })
     res.json({ accessToken })
   } catch (error) {
     // DB indisponible (mode sans Docker) → en dev, ré-émettre une session
@@ -293,7 +310,9 @@ router.post('/logout', async (req, res) => {
   try {
     const token = req.cookies?.refreshToken
     if (token) {
+      const stored = await prisma.refreshToken.findUnique({ where: { token }, select: { userId: true } })
       await prisma.refreshToken.deleteMany({ where: { token } })
+      if (stored) pushEvenement('loginEvent', { kind: 'LOGOUT', userId: stored.userId })
     }
 
     res.clearCookie('refreshToken', { path: '/' })
