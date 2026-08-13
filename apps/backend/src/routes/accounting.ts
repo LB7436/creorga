@@ -64,17 +64,57 @@ router.post('/cash-drawers/open', async (req: any, res: Response) => {
   }
 })
 
+// L'écart de caisse ne peut se calculer que sur l'argent réellement entré
+// dans le tiroir : une vente carte n'y passe pas, et une vente mixte n'y
+// laisse que sa part espèces (cashReceived).
+export function especesEncaissees(
+  ventes: Array<{ total: number; paymentMethod: string | null; cashReceived: number | null }>,
+): number {
+  const somme = ventes.reduce((acc, v) => {
+    if (v.paymentMethod === 'CASH') return acc + v.total
+    if (v.paymentMethod === 'MIXED') return acc + (v.cashReceived ?? 0)
+    return acc
+  }, 0)
+  return Math.round(somme * 100) / 100
+}
+
 router.put('/cash-drawers/:id/close', async (req: any, res: Response) => {
   try {
     const existing = await prisma.cashDrawer.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Caisse non trouvée' }); return }
+
+    // Re-clôturer élargirait la fenêtre de ventes et réécrirait un écart déjà
+    // constaté : la clôture est définitive.
+    if (existing.closedAt) { res.status(409).json({ message: 'Caisse déjà clôturée' }); return }
+
     const { closeAmount, notes } = req.body
-    const discrepancy = existing.openAmount + existing.totalSales - parseFloat(closeAmount)
+    const montantCompte = Number(closeAmount)
+    if (!Number.isFinite(montantCompte) || montantCompte < 0) {
+      res.status(400).json({ message: 'closeAmount doit être un nombre positif ou nul' })
+      return
+    }
+
+    // totalSales n'était jamais alimenté (toujours 0) : l'écart calculé
+    // accusait systématiquement le fond de caisse, quelles que soient les
+    // ventes de la session.
+    const maintenant = new Date()
+    const ventes = await prisma.order.findMany({
+      where: {
+        companyId: req.companyId,
+        status: 'PAID',
+        paidAt: { gte: existing.openedAt, lte: maintenant },
+      },
+      select: { total: true, paymentMethod: true, cashReceived: true },
+    })
+    const totalSales = especesEncaissees(ventes)
+    const discrepancy = Math.round((existing.openAmount + totalSales - montantCompte) * 100) / 100
+
     const drawer = await prisma.cashDrawer.update({
       where: { id: req.params.id },
       data: {
-        closedAt: new Date(),
-        closeAmount: parseFloat(closeAmount),
+        closedAt: maintenant,
+        closeAmount: montantCompte,
+        totalSales,
         discrepancy,
         notes: notes ?? existing.notes,
       },
