@@ -89,6 +89,7 @@ import { deviceOrUserAuth } from './middleware/deviceAuth'
 import { initMonitoring } from './lib/monitoring'
 import { startStockSyncJob } from './lib/stockStore'
 import creatorAuthRoutes from './routes/creator/auth'
+import creatorDonneesRoutes from './routes/creator/donnees'
 import { creatorConfigure } from './lib/creatorSecurity'
 import { brancherVidageArret } from './lib/eventSink'
 import { ErrorLogTransport } from './lib/errorLogTransport'
@@ -265,6 +266,7 @@ app.use('/api/agent', authenticate, aiLimiter, assistantAdvancedRoutes)
 // que si ses secrets dédiés sont posés (l'app clients démarre quand même).
 if (creatorConfigure()) {
   app.use('/api/creator/auth', creatorAuthLimiter, creatorAuthRoutes)
+  app.use('/api/creator', creatorDonneesRoutes)
 } else {
   logger.warn('[creator] CREATOR_JWT_SECRET / CREATOR_TOTP_KEY absents — console créateur non montée')
 }
@@ -326,6 +328,12 @@ httpServer.listen(PORT, () => {
     startCreatorRetention()
     logger.info('[creator-retention] purge quotidienne activée (ActivityEvent 90j, LoginEvent 180j, ErrorLog 30j)')
   }).catch((e) => logger.warn('[creator-retention] non démarré:', e?.message))
+
+  // Console créateur — snapshot quotidien par société (2 min après boot, puis 1h, idempotent)
+  import('./jobs/creator-metrics').then(({ startCreatorMetrics }) => {
+    startCreatorMetrics()
+    logger.info('[creator-metrics] snapshot quotidien par société activé (1h, upsert J-1)')
+  }).catch((e) => logger.warn('[creator-metrics] non démarré:', e?.message))
 })
 
 // Console créateur — collecte : toute erreur logger.error() part aussi en base,
