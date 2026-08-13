@@ -6,7 +6,8 @@
     "apps/web",
     "apps/backend",
     "apps/pos",
-    "apps/guest"
+    "apps/guest",
+    "apps/superadmin"
   ],
   "scripts": {
     "dev": "npm run dev --workspace=apps/backend & npm run dev --workspace=apps/web",

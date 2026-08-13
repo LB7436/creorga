@@ -1,24 +1,23 @@
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  LayoutDashboard, Users, BarChart3, CreditCard, Flag,
-  LifeBuoy, ScrollText, Settings, LogOut, ShieldCheck, Activity,
+  LayoutDashboard, Users, Lightbulb, ScrollText, Settings, LogOut, ShieldCheck, Activity,
 } from 'lucide-react';
 
 interface SidebarProps {
   onLogout: () => void;
 }
 
+// Seuls les écrans branchés sur de vraies données figurent ici — les
+// maquettes sans substrat (Analytics, Billing, Feature Flags, Support) ont
+// été retirées : un écran vide ne ment pas.
 const NAV = [
   { to: '/', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
-  { to: '/health', label: 'Tenant Health', icon: Activity },
-  { to: '/clients', label: 'Clients', icon: Users },
-  { to: '/analytics', label: 'Analytiques', icon: BarChart3 },
-  { to: '/billing', label: 'Facturation', icon: CreditCard },
-  { to: '/feature-flags', label: 'Feature Flags', icon: Flag },
-  { to: '/support', label: 'Support', icon: LifeBuoy },
-  { to: '/logs', label: 'Logs Système', icon: ScrollText },
-  { to: '/settings', label: 'Paramètres', icon: Settings },
+  { to: '/clients', label: 'Sociétés', icon: Users },
+  { to: '/opportunites', label: 'Opportunités', icon: Lightbulb },
+  { to: '/logs', label: 'Journal & audit', icon: ScrollText },
+  { to: '/health', label: 'Santé serveur', icon: Activity },
+  { to: '/settings', label: 'Réglages', icon: Settings },
 ];
 
 export default function Sidebar({ onLogout }: SidebarProps) {

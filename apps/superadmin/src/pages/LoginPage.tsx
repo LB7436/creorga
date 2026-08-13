@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ShieldCheck, Lock, Mail, KeyRound, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { connexion, validerTotp, ApiError } from '../lib/api';
 
 interface Props {
   onLogin: () => void;
@@ -14,15 +15,14 @@ export default function LoginPage({ onLogin }: Props) {
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
+  const [pendingToken, setPendingToken] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const handleStep1 = (e: React.FormEvent) => {
+  const handleStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    // Maquette : validation de forme uniquement — l'authentification réelle
-    // (compte créateur + TOTP côté serveur) remplace cette page en phase 2.
     if (!email.includes('@')) {
       setError('Email invalide.');
       return;
@@ -32,10 +32,21 @@ export default function LoginPage({ onLogin }: Props) {
       return;
     }
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const reponse = await connexion(email, password);
+      if (reponse.totpRequis && reponse.pendingToken) {
+        setPendingToken(reponse.pendingToken);
+        setStep(2);
+      } else {
+        // Fenêtre d'amorçage : TOTP pas encore enrôlé — la page Réglages
+        // propose l'enrôlement dès l'arrivée.
+        onLogin();
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Serveur injoignable — réessayez.');
+    } finally {
       setLoading(false);
-      setStep(2);
-    }, 400);
+    }
   };
 
   const handleOtpChange = (i: number, v: string) => {
@@ -52,25 +63,25 @@ export default function LoginPage({ onLogin }: Props) {
     }
   };
 
-  const handleStep2 = (e: React.FormEvent) => {
+  const handleStep2 = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    // Dev mode — accept 6-digit OTP or any code starting with "000000" / "123456"
     const code = otp.join('');
     if (code.length !== 6) {
       setError('Code OTP incomplet (6 chiffres).');
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await validerTotp(pendingToken, code);
       onLogin();
-    }, 400);
-  };
-
-  const handleSkipOtp = () => {
-    setLoading(true);
-    setTimeout(() => { setLoading(false); onLogin() }, 300);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Serveur injoignable — réessayez.');
+      setOtp(['', '', '', '', '', '']);
+      otpRefs.current[0]?.focus();
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -123,7 +134,7 @@ export default function LoginPage({ onLogin }: Props) {
           textAlign: 'center', fontSize: 24, fontWeight: 700,
           color: '#e2e8f0', margin: '0 0 6px',
         }}>
-          Super-Admin Creorga
+          Console Créateur Creorga
         </h1>
         <p style={{
           textAlign: 'center', color: '#94a3b8', fontSize: 13,
@@ -171,6 +182,7 @@ export default function LoginPage({ onLogin }: Props) {
               <Mail size={16} style={{ position: 'absolute', left: 12, top: 13, color: '#64748b' }} />
               <input
                 type="email" value={email} onChange={e => setEmail(e.target.value)}
+                autoComplete="username"
                 style={{
                   width: '100%', padding: '11px 12px 11px 38px',
                   background: '#0a0a0f', border: '1px solid #2a2a35',
@@ -187,6 +199,7 @@ export default function LoginPage({ onLogin }: Props) {
               <input
                 type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••••"
+                autoComplete="current-password"
                 style={{
                   width: '100%', padding: '11px 40px 11px 38px',
                   background: '#0a0a0f', border: '1px solid #2a2a35',
@@ -207,21 +220,8 @@ export default function LoginPage({ onLogin }: Props) {
               color: '#fff', border: 'none', borderRadius: 8,
               fontSize: 14, fontWeight: 600, cursor: loading ? 'wait' : 'pointer',
               boxShadow: '0 4px 16px rgba(167,139,250,0.25)',
-              marginBottom: 8,
             }}>
               {loading ? 'Vérification...' : 'Continuer'}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setLoading(true); setTimeout(() => { setLoading(false); onLogin() }, 200) }}
-              disabled={loading}
-              style={{
-                width: '100%', padding: '10px',
-                background: 'rgba(167,139,250,0.15)', color: '#c4b5fd',
-                border: '1px dashed rgba(167,139,250,0.4)', borderRadius: 8,
-                fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              }}>
-              🚀 Dev — Entrer directement (bypass total)
             </button>
           </form>
         ) : (
@@ -269,16 +269,7 @@ export default function LoginPage({ onLogin }: Props) {
             }}>
               {loading ? 'Authentification...' : 'Se connecter'}
             </button>
-            <button type="button" onClick={handleSkipOtp} disabled={loading} style={{
-              width: '100%', padding: '10px',
-              background: 'rgba(167,139,250,0.12)', color: '#c4b5fd',
-              border: '1px solid rgba(167,139,250,0.3)', borderRadius: 8,
-              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              marginBottom: 10,
-            }}>
-              🚀 Dev — Ignorer l'OTP
-            </button>
-            <button type="button" onClick={() => setStep(1)} style={{
+            <button type="button" onClick={() => { setStep(1); setOtp(['', '', '', '', '', '']); setError(''); }} style={{
               width: '100%', padding: '10px',
               background: 'transparent', color: '#94a3b8',
               border: '1px solid #2a2a35', borderRadius: 8,
@@ -293,7 +284,7 @@ export default function LoginPage({ onLogin }: Props) {
           marginTop: 24, paddingTop: 16, borderTop: '1px solid #2a2a35',
           fontSize: 11, color: '#64748b', textAlign: 'center', lineHeight: 1.6,
         }}>
-          Connexion sécurisée · IP loggée · 2FA obligatoire<br />
+          Connexion sécurisée · Verrouillage après 5 échecs · 2FA<br />
           © Creorga OS · Luxembourg
         </div>
       </motion.div>

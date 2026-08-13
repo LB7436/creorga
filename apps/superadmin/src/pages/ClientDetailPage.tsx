@@ -1,634 +1,578 @@
-import { useState } from 'react';
+/**
+ * Fiche société — données réelles (plus aucune maquette).
+ *
+ * GET /companies/:id           → identité, membres, modules
+ * GET /companies/:id/metrics   → série TenantMetricDaily sur 30 jours
+ * GET /companies/:id/volumes   → occupation disque + lignes par table
+ */
+import { useMemo, useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, MoreHorizontal, Mail, Gift, RefreshCw, Pause, UserCheck,
-  TrendingUp, Users, Clock, Euro, Activity,
-  StickyNote, CheckCircle2, AlertTriangle, Heart, Zap, Download,
-  CreditCard, Star, MessageSquare, LifeBuoy,
+  ArrowLeft, Activity, Briefcase, Database, Euro,
+  AlertTriangle, FileX, ClipboardCheck, Users,
 } from 'lucide-react';
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Area, AreaChart,
+  ResponsiveContainer, AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts';
+import { creatorApi, ApiError } from '../lib/api';
+import {
+  couleurs, carte, formatEuro, formatNombre, formatOctets, depuis,
+} from '../lib/theme';
 
-const BG = '#0a0a0f';
-const CARD = '#13131a';
-const BORDER = '#2a2a35';
-const TEXT = '#e2e8f0';
-const MUTED = '#94a3b8';
-const ACCENT = '#a78bfa';
+// ─── Types des réponses API ───────────────────────────────────────────
 
-const client = {
-  id: '1',
-  name: 'Café um Rond-Point',
-  city: 'Rumelange',
-  logo: 'CR',
-  plan: 'Pro',
-  status: 'Actif',
-  mrr: 149,
-  ca: 1788,
-  healthScore: 82,
-  since: '2024-11-03',
-  users: 8,
-  sites: 1,
-  modules: 6,
-  email: 'contact@cafe-rumelange.lu',
-  phone: '+352 27 12 34 56',
-  country: 'LU',
-  nextBilling: '2026-05-03',
-};
+interface Membre {
+  userId: string;
+  prenom: string;
+  nom: string;
+  email: string;
+  role: string;
+  actif: boolean;
+  derniereConnexion: string | null;
+}
 
-const usageData = [
-  { day: 'Lun', heures: 9.2, commandes: 142 },
-  { day: 'Mar', heures: 8.7, commandes: 128 },
-  { day: 'Mer', heures: 9.5, commandes: 156 },
-  { day: 'Jeu', heures: 10.1, commandes: 189 },
-  { day: 'Ven', heures: 12.3, commandes: 243 },
-  { day: 'Sam', heures: 13.8, commandes: 287 },
-  { day: 'Dim', heures: 6.4, commandes: 98 },
-];
+interface FicheSociete {
+  societe: {
+    id: string;
+    name: string;
+    legalName: string | null;
+    vatNumber: string | null;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
+    createdAt: string;
+  };
+  membres: Membre[];
+  modules: { moduleId: string; isActive: boolean; expiresAt: string | null }[];
+}
 
-const mrrTrend = [
-  { mois: 'Nov', mrr: 49 },
-  { mois: 'Déc', mrr: 99 },
-  { mois: 'Jan', mrr: 99 },
-  { mois: 'Fév', mrr: 149 },
-  { mois: 'Mar', mrr: 149 },
-  { mois: 'Avr', mrr: 149 },
-];
+interface TenantMetricDaily {
+  id: string;
+  companyId: string;
+  date: string;
+  activeUsers: number;
+  mutations: number;
+  moduleUsage: Record<string, number>;
+  revenue: number;
+  orders: number;
+  cashDiscrepancy: number;
+  invoicesOverdueCount: number;
+  invoicesOverdueAmount: number;
+  expensesNoReceipt: number;
+  haccpLogs: number;
+  wasOpen: boolean;
+  rowCounts: Record<string, number>;
+  dataBytes: number;
+}
 
-const modulesUsage = [
-  { name: 'POS', pct: 98, color: '#a78bfa' },
-  { name: 'Stocks', pct: 84, color: '#8b5cf6' },
-  { name: 'Menu', pct: 76, color: '#7c3aed' },
-  { name: 'Analytique', pct: 62, color: '#6d28d9' },
-  { name: 'Personnel', pct: 41, color: '#5b21b6' },
-  { name: 'Marketing', pct: 18, color: '#4c1d95' },
-];
+interface Volumes {
+  rowCounts: Record<string, number>;
+  dataBytes: number;
+}
 
-const invoicesMock = [
-  { id: 'INV-2026-0412', date: '2026-04-03', amount: 149, status: 'Payée' },
-  { id: 'INV-2026-0289', date: '2026-03-03', amount: 149, status: 'Payée' },
-  { id: 'INV-2026-0176', date: '2026-02-03', amount: 149, status: 'Payée' },
-  { id: 'INV-2026-0051', date: '2026-01-03', amount: 149, status: 'Payée' },
-  { id: 'INV-2025-1198', date: '2025-12-03', amount: 99, status: 'Payée' },
-  { id: 'INV-2025-1089', date: '2025-11-03', amount: 49, status: 'Payée' },
-];
+type Onglet = 'usage' | 'metier' | 'volumes';
 
-const ticketsMock = [
-  { id: 'T-4821', subject: 'Problème impression ticket', date: '2026-04-12', status: 'Résolu', satisfaction: 5 },
-  { id: 'T-4789', subject: 'Question sur TVA 17%', date: '2026-03-28', status: 'Résolu', satisfaction: 5 },
-  { id: 'T-4701', subject: 'Formation module stocks', date: '2026-03-10', status: 'Résolu', satisfaction: 4 },
-  { id: 'T-4612', subject: 'Ajout utilisateur', date: '2026-02-14', status: 'Résolu', satisfaction: 5 },
-];
+function messageErreur(erreur: unknown): string {
+  if (erreur instanceof ApiError) return erreur.message;
+  if (erreur instanceof Error) return erreur.message;
+  return 'Erreur inconnue';
+}
 
-const activityMock = [
-  { time: '2026-04-18 14:23', action: 'Commande #1284 créée', user: 'Sophie M.' },
-  { time: '2026-04-18 13:51', action: 'Stock mis à jour (Café)', user: 'Marc L.' },
-  { time: '2026-04-18 11:07', action: 'Connexion admin', user: 'Jean R.' },
-  { time: '2026-04-18 09:14', action: 'Menu modifié (Plat du jour)', user: 'Jean R.' },
-  { time: '2026-04-17 19:48', action: 'Rapport journée exporté', user: 'Jean R.' },
-  { time: '2026-04-17 15:22', action: 'Utilisateur ajouté', user: 'Jean R.' },
-  { time: '2026-04-17 10:03', action: 'Facturation générée', user: 'Système' },
-];
-
-const tabs = [
-  { key: 'overview', label: "Vue d'ensemble", icon: TrendingUp },
-  { key: 'usage', label: 'Utilisation', icon: Activity },
-  { key: 'billing', label: 'Facturation', icon: CreditCard },
-  { key: 'support', label: 'Support', icon: LifeBuoy },
-  { key: 'activity', label: 'Activité', icon: Clock },
-  { key: 'notes', label: 'Notes CRM', icon: StickyNote },
-];
+// ─── Page ─────────────────────────────────────────────────────────────
 
 export default function ClientDetailPage() {
-  useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('overview');
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [notes, setNotes] = useState(
-    "Très bon client, recommande Creorga à 2 autres restaurateurs de la région. Intéressé par module Marketing au Q3."
+  const [onglet, setOnglet] = useState<Onglet>('usage');
+
+  const fiche = useQuery({
+    queryKey: ['societe', id],
+    queryFn: () => creatorApi.get<FicheSociete>(`/companies/${id}`),
+    enabled: id !== undefined,
+  });
+
+  const metriques = useQuery({
+    queryKey: ['societe', id, 'metriques', 30],
+    queryFn: () => creatorApi.get<TenantMetricDaily[]>(`/companies/${id}/metrics?jours=30`),
+    enabled: id !== undefined,
+  });
+
+  const volumes = useQuery({
+    queryKey: ['societe', id, 'volumes'],
+    queryFn: () => creatorApi.get<Volumes>(`/companies/${id}/volumes`),
+    enabled: id !== undefined,
+  });
+
+  const boutonRetour = (
+    <motion.button
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      onClick={() => navigate('/clients')}
+      style={{
+        background: 'transparent', border: 'none', color: couleurs.texteSecondaire,
+        display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+        fontSize: 13, marginBottom: 20, padding: 0,
+      }}
+    >
+      <ArrowLeft size={16} /> Retour aux clients
+    </motion.button>
   );
 
-  const quickActions = [
-    { label: 'Envoyer un email', icon: Mail, color: '#3b82f6' },
-    { label: 'Offrir crédit (30j Pro)', icon: Gift, color: '#10b981' },
-    { label: 'Changer de plan', icon: RefreshCw, color: '#f59e0b' },
-    { label: 'Suspendre le compte', icon: Pause, color: '#ef4444' },
-    { label: 'Impersonnifier', icon: UserCheck, color: ACCENT },
+  if (id === undefined) {
+    return (
+      <PagePleine>
+        {boutonRetour}
+        <MessageCarte couleur={couleurs.rouge} texte="Identifiant de société manquant dans l’URL." />
+      </PagePleine>
+    );
+  }
+
+  if (fiche.isLoading) {
+    return (
+      <PagePleine>
+        {boutonRetour}
+        <MessageCarte couleur={couleurs.texteSecondaire} texte="Chargement…" />
+      </PagePleine>
+    );
+  }
+
+  if (fiche.data === undefined) {
+    return (
+      <PagePleine>
+        {boutonRetour}
+        <MessageCarte couleur={couleurs.rouge} texte={`Erreur : ${messageErreur(fiche.error)}`} />
+      </PagePleine>
+    );
+  }
+
+  const { societe, membres } = fiche.data;
+  const initiales =
+    societe.name.split(/\s+/).filter(Boolean).slice(0, 2).map((mot) => mot[0]?.toUpperCase() ?? '').join('') || '?';
+
+  const infosDiscretes = [
+    societe.address,
+    societe.vatNumber ? `TVA ${societe.vatNumber}` : null,
+    societe.email,
+    `Créée le ${new Date(societe.createdAt).toLocaleDateString('fr-LU')}`,
+  ].filter((info): info is string => info !== null);
+
+  const onglets: { cle: Onglet; libelle: string; icone: typeof Activity }[] = [
+    { cle: 'usage', libelle: 'Usage', icone: Activity },
+    { cle: 'metier', libelle: 'Métier', icone: Briefcase },
+    { cle: 'volumes', libelle: 'Volumes', icone: Database },
   ];
 
   return (
-    <div style={{ padding: '32px 40px', background: BG, minHeight: '100vh', color: TEXT }}>
-      <motion.button
-        initial={{ opacity: 0, x: -10 }}
-        animate={{ opacity: 1, x: 0 }}
-        onClick={() => navigate('/clients')}
-        style={{
-          background: 'transparent', border: 'none', color: MUTED,
-          display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
-          fontSize: 13, marginBottom: 20,
-        }}
-      >
-        <ArrowLeft size={16} /> Retour aux clients
-      </motion.button>
+    <PagePleine>
+      {boutonRetour}
 
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         style={{
-          background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14,
-          padding: 24, display: 'flex', alignItems: 'center', gap: 20,
-          marginBottom: 24,
+          ...carte, borderRadius: 14, padding: 24,
+          display: 'flex', alignItems: 'center', gap: 20, marginBottom: 24,
         }}
       >
         <div style={{
-          width: 72, height: 72, borderRadius: 16,
-          background: 'linear-gradient(135deg, #a78bfa, #7c3aed)',
+          width: 72, height: 72, borderRadius: 16, flexShrink: 0,
+          background: `linear-gradient(135deg, ${couleurs.accent}, ${couleurs.accentFonce})`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontWeight: 800, fontSize: 24, color: '#fff',
-        }}>{client.logo}</div>
-
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>{client.name}</h1>
-            <span style={{
-              background: 'rgba(167, 139, 250, 0.15)', color: ACCENT,
-              padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-            }}>{client.plan}</span>
-            <span style={{
-              background: 'rgba(16, 185, 129, 0.15)', color: '#10b981',
-              padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-              display: 'flex', alignItems: 'center', gap: 4,
-            }}>
-              <CheckCircle2 size={12} /> {client.status}
-            </span>
-          </div>
-          <div style={{ fontSize: 13, color: MUTED, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            <span>{client.city}, {client.country}</span>
-            <span>•</span>
-            <span>{client.email}</span>
-            <span>•</span>
-            <span>Client depuis {new Date(client.since).toLocaleDateString('fr-FR')}</span>
-          </div>
+        }}>
+          {initiales}
         </div>
-
-        <div style={{ position: 'relative' }}>
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            style={{
-              background: ACCENT, color: '#fff', border: 'none',
-              padding: '10px 18px', borderRadius: 8, cursor: 'pointer',
-              fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8,
-            }}
-          >
-            Actions <MoreHorizontal size={16} />
-          </button>
-          <AnimatePresence>
-            {menuOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                style={{
-                  position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-                  background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10,
-                  minWidth: 240, zIndex: 20, overflow: 'hidden',
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-                }}
-              >
-                {quickActions.map((a) => (
-                  <button
-                    key={a.label}
-                    onClick={() => setMenuOpen(false)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      width: '100%', padding: '12px 14px', background: 'transparent',
-                      border: 'none', color: TEXT, cursor: 'pointer', fontSize: 13,
-                      borderBottom: `1px solid ${BORDER}`, textAlign: 'left',
-                    }}
-                  >
-                    <a.icon size={16} color={a.color} /> {a.label}
-                  </button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1 style={{ margin: '0 0 6px', fontSize: 24, fontWeight: 700 }}>{societe.name}</h1>
+          {societe.legalName !== null && societe.legalName !== societe.name && (
+            <div style={{ fontSize: 13, color: couleurs.texteSecondaire, marginBottom: 4 }}>
+              {societe.legalName}
+            </div>
+          )}
+          <div style={{
+            fontSize: 13, color: couleurs.texteDiscret,
+            display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center',
+          }}>
+            {infosDiscretes.map((info, i) => (
+              <span key={info} style={{ display: 'flex', gap: 10 }}>
+                {i > 0 && <span>•</span>}
+                {info}
+              </span>
+            ))}
+          </div>
         </div>
       </motion.div>
 
       <div style={{
-        display: 'flex', gap: 2, borderBottom: `1px solid ${BORDER}`,
+        display: 'flex', gap: 2, borderBottom: `1px solid ${couleurs.bordure}`,
         marginBottom: 24, overflowX: 'auto',
       }}>
-        {tabs.map((t) => (
+        {onglets.map((o) => (
           <button
-            key={t.key}
-            onClick={() => setActiveTab(t.key)}
+            key={o.cle}
+            onClick={() => setOnglet(o.cle)}
             style={{
               background: 'transparent', border: 'none',
               padding: '12px 18px', cursor: 'pointer',
-              color: activeTab === t.key ? ACCENT : MUTED,
-              borderBottom: `2px solid ${activeTab === t.key ? ACCENT : 'transparent'}`,
+              color: onglet === o.cle ? couleurs.accent : couleurs.texteSecondaire,
+              borderBottom: `2px solid ${onglet === o.cle ? couleurs.accent : 'transparent'}`,
               fontSize: 13, fontWeight: 600,
               display: 'flex', alignItems: 'center', gap: 8,
               marginBottom: -1, whiteSpace: 'nowrap',
             }}
           >
-            <t.icon size={14} /> {t.label}
+            <o.icone size={14} /> {o.libelle}
           </button>
         ))}
       </div>
 
       <AnimatePresence mode="wait">
         <motion.div
-          key={activeTab}
+          key={onglet}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          {activeTab === 'overview' && <OverviewTab />}
-          {activeTab === 'usage' && <UsageTab />}
-          {activeTab === 'billing' && <BillingTab />}
-          {activeTab === 'support' && <SupportTab />}
-          {activeTab === 'activity' && <ActivityTab />}
-          {activeTab === 'notes' && <NotesTab notes={notes} setNotes={setNotes} />}
+          {onglet === 'usage' && (
+            metriques.isLoading
+              ? <MessageCarte couleur={couleurs.texteSecondaire} texte="Chargement…" />
+              : metriques.data === undefined
+                ? <MessageCarte couleur={couleurs.rouge} texte={`Erreur : ${messageErreur(metriques.error)}`} />
+                : <OngletUsage serie={metriques.data} membres={membres} />
+          )}
+          {onglet === 'metier' && (
+            metriques.isLoading
+              ? <MessageCarte couleur={couleurs.texteSecondaire} texte="Chargement…" />
+              : metriques.data === undefined
+                ? <MessageCarte couleur={couleurs.rouge} texte={`Erreur : ${messageErreur(metriques.error)}`} />
+                : <OngletMetier serie={metriques.data} />
+          )}
+          {onglet === 'volumes' && (
+            volumes.isLoading
+              ? <MessageCarte couleur={couleurs.texteSecondaire} texte="Chargement…" />
+              : volumes.data === undefined
+                ? <MessageCarte couleur={couleurs.rouge} texte={`Erreur : ${messageErreur(volumes.error)}`} />
+                : <OngletVolumes volumes={volumes.data} />
+          )}
         </motion.div>
       </AnimatePresence>
+    </PagePleine>
+  );
+}
+
+// ─── Onglet Usage ─────────────────────────────────────────────────────
+
+function OngletUsage({ serie, membres }: { serie: TenantMetricDaily[]; membres: Membre[] }) {
+  const usageParModule = useMemo(() => {
+    const totaux: Record<string, number> = {};
+    for (const jour of serie) {
+      for (const [module, n] of Object.entries(jour.moduleUsage ?? {})) {
+        totaux[module] = (totaux[module] ?? 0) + n;
+      }
+    }
+    return Object.entries(totaux)
+      .map(([module, total]) => ({ module, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [serie]);
+
+  return (
+    <div style={{ display: 'grid', gap: 20 }}>
+      <div style={carte}>
+        <h3 style={titreCarte}>Usage par module — 30 jours</h3>
+        {usageParModule.length === 0 ? (
+          <TexteVide texte="Aucune donnée d’usage — la collecte vient de démarrer, l’historique se remplit chaque nuit." />
+        ) : (
+          <ResponsiveContainer width="100%" height={Math.max(160, usageParModule.length * 36)}>
+            <BarChart data={usageParModule} layout="vertical" margin={{ left: 8, right: 24 }}>
+              <CartesianGrid stroke={couleurs.bordure} strokeDasharray="3 3" horizontal={false} />
+              <XAxis
+                type="number"
+                stroke={couleurs.texteSecondaire}
+                fontSize={11}
+                tickFormatter={(v) => formatNombre(Number(v))}
+              />
+              <YAxis
+                type="category"
+                dataKey="module"
+                stroke={couleurs.texteSecondaire}
+                fontSize={12}
+                width={140}
+              />
+              <Tooltip
+                contentStyle={styleInfobulle}
+                formatter={(v) => [formatNombre(Number(v)), 'Actions']}
+              />
+              <Bar dataKey="total" fill={couleurs.accent} radius={[0, 6, 6, 0]} barSize={18} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      <div style={carte}>
+        <h3 style={{ ...titreCarte, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Users size={16} color={couleurs.accent} /> Membres ({formatNombre(membres.length)})
+        </h3>
+        {membres.length === 0 ? (
+          <TexteVide texte="Aucun membre rattaché à cette société." />
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${couleurs.bordure}`, textAlign: 'left', color: couleurs.texteSecondaire }}>
+                <th style={styleTh}>Membre</th>
+                <th style={styleTh}>Email</th>
+                <th style={styleTh}>Rôle</th>
+                <th style={styleTh}>Statut</th>
+                <th style={styleTh}>Dernière connexion</th>
+              </tr>
+            </thead>
+            <tbody>
+              {membres.map((m) => (
+                <tr key={m.userId} style={{ borderBottom: `1px solid ${couleurs.bordure}` }}>
+                  <td style={{ ...styleTd, fontWeight: 600 }}>{m.prenom} {m.nom}</td>
+                  <td style={{ ...styleTd, color: couleurs.texteSecondaire }}>{m.email}</td>
+                  <td style={styleTd}>{m.role}</td>
+                  <td style={styleTd}><BadgeActif actif={m.actif} /></td>
+                  <td style={{ ...styleTd, color: couleurs.texteSecondaire }}>{depuis(m.derniereConnexion)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }
 
-function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return (
-    <div style={{
-      background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12,
-      padding: 20, ...style,
-    }}>{children}</div>
-  );
-}
+// ─── Onglet Métier ────────────────────────────────────────────────────
 
-function StatCard({ label, value, icon: Icon, color }: any) {
-  return (
-    <Card>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <div style={{ fontSize: 12, color: MUTED, marginBottom: 6 }}>{label}</div>
-          <div style={{ fontSize: 26, fontWeight: 700 }}>{value}</div>
-        </div>
-        <div style={{
-          width: 40, height: 40, borderRadius: 10,
-          background: `${color}20`, display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Icon size={20} color={color} />
-        </div>
+function OngletMetier({ serie }: { serie: TenantMetricDaily[] }) {
+  const { serieCa, ecartsCaisse, dernier, depensesSansJustif, totalHaccp, joursOuverts } = useMemo(() => {
+    const triee = [...serie].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    );
+    return {
+      serieCa: triee.map((m) => ({
+        date: new Date(m.date).toLocaleDateString('fr-LU', { day: '2-digit', month: '2-digit' }),
+        revenue: m.revenue,
+      })),
+      ecartsCaisse: triee.reduce((somme, m) => somme + m.cashDiscrepancy, 0),
+      dernier: triee.length > 0 ? triee[triee.length - 1] : null,
+      depensesSansJustif: triee.reduce((somme, m) => somme + m.expensesNoReceipt, 0),
+      totalHaccp: triee.reduce((somme, m) => somme + m.haccpLogs, 0),
+      joursOuverts: triee.filter((m) => m.wasOpen).length,
+    };
+  }, [serie]);
+
+  if (serie.length === 0 || dernier === null) {
+    return (
+      <div style={carte}>
+        <TexteVide texte="Aucune métrique métier — la collecte vient de démarrer, l’historique se remplit chaque nuit." />
       </div>
-    </Card>
-  );
-}
+    );
+  }
 
-function OverviewTab() {
   return (
     <div style={{ display: 'grid', gap: 20 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-        <StatCard label="MRR" value={`${client.mrr}€`} icon={Euro} color="#10b981" />
-        <StatCard label="CA total" value={`${client.ca}€`} icon={TrendingUp} color={ACCENT} />
-        <StatCard label="Utilisateurs" value={client.users} icon={Users} color="#3b82f6" />
-        <StatCard label="Health Score" value={`${client.healthScore}/100`} icon={Heart} color="#ef4444" />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+        <Tuile
+          libelle="Écarts de caisse (30 j)"
+          valeur={formatEuro(ecartsCaisse)}
+          sousTexte="cumul de la période"
+          icone={Euro}
+          couleur={ecartsCaisse > 50 ? couleurs.rouge : couleurs.vert}
+        />
+        <Tuile
+          libelle="Impayés (dernier relevé)"
+          valeur={formatEuro(dernier.invoicesOverdueAmount)}
+          sousTexte={`${formatNombre(dernier.invoicesOverdueCount)} facture(s) en retard`}
+          icone={AlertTriangle}
+          couleur={dernier.invoicesOverdueCount > 0 ? couleurs.orange : couleurs.vert}
+        />
+        <Tuile
+          libelle="Dépenses sans justificatif (30 j)"
+          valeur={formatNombre(depensesSansJustif)}
+          sousTexte="cumul de la période"
+          icone={FileX}
+          couleur={depensesSansJustif > 0 ? couleurs.orange : couleurs.vert}
+        />
+        <Tuile
+          libelle="Relevés HACCP (30 j)"
+          valeur={formatNombre(totalHaccp)}
+          sousTexte={`sur ${formatNombre(joursOuverts)} jour(s) ouvert(s)`}
+          icone={ClipboardCheck}
+          couleur={couleurs.bleu}
+        />
       </div>
 
-      <Card>
-        <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Évolution MRR</h3>
-        <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={mrrTrend}>
+      <div style={carte}>
+        <h3 style={titreCarte}>Chiffre d’affaires — 30 jours</h3>
+        <ResponsiveContainer width="100%" height={240}>
+          <AreaChart data={serieCa}>
             <defs>
-              <linearGradient id="mrrGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={ACCENT} stopOpacity={0.5} />
-                <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
+              <linearGradient id="degradeCa" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={couleurs.accent} stopOpacity={0.5} />
+                <stop offset="100%" stopColor={couleurs.accent} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke={BORDER} strokeDasharray="3 3" />
-            <XAxis dataKey="mois" stroke={MUTED} fontSize={11} />
-            <YAxis stroke={MUTED} fontSize={11} />
-            <Tooltip contentStyle={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8 }} />
-            <Area type="monotone" dataKey="mrr" stroke={ACCENT} fill="url(#mrrGrad)" strokeWidth={2} />
+            <CartesianGrid stroke={couleurs.bordure} strokeDasharray="3 3" />
+            <XAxis dataKey="date" stroke={couleurs.texteSecondaire} fontSize={11} />
+            <YAxis
+              stroke={couleurs.texteSecondaire}
+              fontSize={11}
+              tickFormatter={(v) => formatEuro(Number(v))}
+              width={80}
+            />
+            <Tooltip
+              contentStyle={styleInfobulle}
+              formatter={(v) => [formatEuro(Number(v)), 'CA']}
+            />
+            <Area
+              type="monotone"
+              dataKey="revenue"
+              stroke={couleurs.accent}
+              fill="url(#degradeCa)"
+              strokeWidth={2}
+            />
           </AreaChart>
         </ResponsiveContainer>
-      </Card>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
-        <Card>
-          <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Health Score</h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-            <div style={{
-              width: 120, height: 120, borderRadius: '50%',
-              background: `conic-gradient(#10b981 ${client.healthScore * 3.6}deg, ${BORDER} 0deg)`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <div style={{
-                width: 96, height: 96, borderRadius: '50%', background: CARD,
-                display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center',
-              }}>
-                <div style={{ fontSize: 28, fontWeight: 800, color: '#10b981' }}>{client.healthScore}</div>
-                <div style={{ fontSize: 10, color: MUTED }}>/ 100</div>
-              </div>
-            </div>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <HealthIndicator label="Engagement" value={92} />
-              <HealthIndicator label="Paiements" value={100} />
-              <HealthIndicator label="Support" value={74} />
-              <HealthIndicator label="Adoption modules" value={65} />
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Informations</h3>
-          <InfoRow label="Plan" value={client.plan} />
-          <InfoRow label="Sites" value={String(client.sites)} />
-          <InfoRow label="Modules actifs" value={String(client.modules)} />
-          <InfoRow label="Prochaine facture" value={new Date(client.nextBilling).toLocaleDateString('fr-FR')} />
-          <InfoRow label="Téléphone" value={client.phone} />
-        </Card>
       </div>
     </div>
   );
 }
 
-function HealthIndicator({ label, value }: { label: string; value: number }) {
-  const color = value >= 80 ? '#10b981' : value >= 60 ? '#f59e0b' : '#ef4444';
+// ─── Onglet Volumes ───────────────────────────────────────────────────
+
+function OngletVolumes({ volumes }: { volumes: Volumes }) {
+  const lignes = useMemo(
+    () =>
+      Object.entries(volumes.rowCounts)
+        .filter(([, nombre]) => nombre > 0)
+        .sort((a, b) => b[1] - a[1]),
+    [volumes.rowCounts],
+  );
+
+  if (volumes.dataBytes === 0 && lignes.length === 0) {
+    return (
+      <div style={carte}>
+        <TexteVide texte="Aucun volume mesuré — la collecte vient de démarrer, l’historique se remplit chaque nuit." />
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-        <span style={{ color: MUTED }}>{label}</span>
-        <span style={{ color, fontWeight: 600 }}>{value}%</span>
+    <div style={{ display: 'grid', gap: 20 }}>
+      <div style={{ ...carte, textAlign: 'center', padding: '36px 20px' }}>
+        <div style={{ fontSize: 12, color: couleurs.texteSecondaire, marginBottom: 8 }}>
+          Données stockées
+        </div>
+        <div style={{ fontSize: 42, fontWeight: 800, color: couleurs.accent }}>
+          {formatOctets(volumes.dataBytes)}
+        </div>
       </div>
-      <div style={{ height: 5, background: BORDER, borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{ width: `${value}%`, height: '100%', background: color }} />
+
+      <div style={carte}>
+        <h3 style={titreCarte}>Lignes par table</h3>
+        {lignes.length === 0 ? (
+          <TexteVide texte="Aucune table avec des données pour cette société." />
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${couleurs.bordure}`, textAlign: 'left', color: couleurs.texteSecondaire }}>
+                <th style={styleTh}>Table</th>
+                <th style={{ ...styleTh, textAlign: 'right' }}>Lignes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lignes.map(([table, nombre]) => (
+                <tr key={table} style={{ borderBottom: `1px solid ${couleurs.bordure}` }}>
+                  <td style={{ ...styleTd, fontFamily: 'monospace' }}>{table}</td>
+                  <td style={{ ...styleTd, textAlign: 'right', fontWeight: 600 }}>{formatNombre(nombre)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+// ─── Briques d'affichage ──────────────────────────────────────────────
+
+function PagePleine({ children }: { children: ReactNode }) {
   return (
     <div style={{
-      display: 'flex', justifyContent: 'space-between',
-      padding: '8px 0', borderBottom: `1px solid ${BORDER}`, fontSize: 13,
+      padding: '32px 40px', background: couleurs.fond,
+      minHeight: '100vh', color: couleurs.texte,
     }}>
-      <span style={{ color: MUTED }}>{label}</span>
-      <span style={{ fontWeight: 600 }}>{value}</span>
+      {children}
     </div>
   );
 }
 
-function UsageTab() {
+function MessageCarte({ couleur, texte }: { couleur: string; texte: string }) {
   return (
-    <div style={{ display: 'grid', gap: 20 }}>
-      <Card>
-        <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Heures d'utilisation / jour</h3>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={usageData}>
-            <CartesianGrid stroke={BORDER} strokeDasharray="3 3" />
-            <XAxis dataKey="day" stroke={MUTED} fontSize={11} />
-            <YAxis stroke={MUTED} fontSize={11} />
-            <Tooltip contentStyle={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8 }} />
-            <Bar dataKey="heures" fill={ACCENT} radius={[6, 6, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </Card>
+    <div style={{ ...carte, color: couleur, fontSize: 14 }}>{texte}</div>
+  );
+}
 
-      <Card>
-        <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Commandes / jour</h3>
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={usageData}>
-            <CartesianGrid stroke={BORDER} strokeDasharray="3 3" />
-            <XAxis dataKey="day" stroke={MUTED} fontSize={11} />
-            <YAxis stroke={MUTED} fontSize={11} />
-            <Tooltip contentStyle={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8 }} />
-            <Line type="monotone" dataKey="commandes" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} />
-          </LineChart>
-        </ResponsiveContainer>
-      </Card>
+function TexteVide({ texte }: { texte: string }) {
+  return (
+    <div style={{ color: couleurs.texteDiscret, fontSize: 13, padding: '12px 0' }}>{texte}</div>
+  );
+}
 
-      <Card>
-        <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Utilisation par module</h3>
-        <div style={{ display: 'grid', gap: 12 }}>
-          {modulesUsage.map((m) => (
-            <div key={m.name}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13 }}>
-                <span>{m.name}</span>
-                <span style={{ color: m.color, fontWeight: 600 }}>{m.pct}%</span>
-              </div>
-              <div style={{ height: 8, background: BORDER, borderRadius: 4, overflow: 'hidden' }}>
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${m.pct}%` }}
-                  transition={{ duration: 0.8 }}
-                  style={{ height: '100%', background: m.color }}
-                />
-              </div>
-            </div>
-          ))}
+function BadgeActif({ actif }: { actif: boolean }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', padding: '3px 10px',
+      borderRadius: 999, fontSize: 11, fontWeight: 600, letterSpacing: 0.3,
+      background: actif ? 'rgba(34, 197, 94, 0.15)' : 'rgba(100, 116, 139, 0.15)',
+      color: actif ? couleurs.vert : couleurs.texteSecondaire,
+      border: `1px solid ${actif ? 'rgba(34, 197, 94, 0.3)' : 'rgba(100, 116, 139, 0.3)'}`,
+    }}>
+      {actif ? 'Actif' : 'Inactif'}
+    </span>
+  );
+}
+
+function Tuile({ libelle, valeur, sousTexte, icone: Icone, couleur }: {
+  libelle: string;
+  valeur: string;
+  sousTexte: string;
+  icone: typeof Euro;
+  couleur: string;
+}) {
+  return (
+    <div style={carte}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <div style={{ fontSize: 12, color: couleurs.texteSecondaire, marginBottom: 6 }}>{libelle}</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: couleur }}>{valeur}</div>
+          <div style={{ fontSize: 11, color: couleurs.texteDiscret, marginTop: 4 }}>{sousTexte}</div>
         </div>
-      </Card>
-    </div>
-  );
-}
-
-function BillingTab() {
-  return (
-    <div style={{ display: 'grid', gap: 20 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-        <StatCard label="Total facturé" value={`${client.ca}€`} icon={Euro} color="#10b981" />
-        <StatCard label="Impayés" value="0€" icon={AlertTriangle} color="#f59e0b" />
-        <StatCard label="Mode de paiement" value="SEPA" icon={CreditCard} color={ACCENT} />
-        <StatCard label="Prochaine facture" value="03/05" icon={Clock} color="#3b82f6" />
+        <div style={{
+          width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+          background: `${couleur}20`, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Icone size={20} color={couleur} />
+        </div>
       </div>
-
-      <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontSize: 16 }}>Historique des factures</h3>
-          <button style={btnSec}>
-            <Download size={14} /> Exporter
-          </button>
-        </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ borderBottom: `1px solid ${BORDER}`, textAlign: 'left', color: MUTED }}>
-              <th style={thStyle}>N°</th>
-              <th style={thStyle}>Date</th>
-              <th style={thStyle}>Montant</th>
-              <th style={thStyle}>Statut</th>
-              <th style={thStyle}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {invoicesMock.map((i) => (
-              <tr key={i.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
-                <td style={tdStyle}>{i.id}</td>
-                <td style={tdStyle}>{new Date(i.date).toLocaleDateString('fr-FR')}</td>
-                <td style={{ ...tdStyle, fontWeight: 600 }}>{i.amount}€</td>
-                <td style={tdStyle}>
-                  <span style={{
-                    background: 'rgba(16, 185, 129, 0.15)', color: '#10b981',
-                    padding: '2px 8px', borderRadius: 5, fontSize: 11, fontWeight: 600,
-                  }}>{i.status}</span>
-                </td>
-                <td style={tdStyle}>
-                  <button style={btnGhost}><Download size={14} /></button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
     </div>
   );
 }
 
-function SupportTab() {
-  return (
-    <div style={{ display: 'grid', gap: 20 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-        <StatCard label="Tickets totaux" value="12" icon={LifeBuoy} color={ACCENT} />
-        <StatCard label="Résolus" value="11" icon={CheckCircle2} color="#10b981" />
-        <StatCard label="En cours" value="1" icon={Clock} color="#f59e0b" />
-        <StatCard label="Satisfaction" value="4.8/5" icon={Star} color="#fbbf24" />
-      </div>
-
-      <Card>
-        <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Tickets récents</h3>
-        <div style={{ display: 'grid', gap: 10 }}>
-          {ticketsMock.map((t) => (
-            <div
-              key={t.id}
-              style={{
-                padding: 14, background: BG, borderRadius: 8,
-                border: `1px solid ${BORDER}`, display: 'flex',
-                alignItems: 'center', justifyContent: 'space-between',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 12, color: MUTED, marginBottom: 4 }}>{t.id} • {new Date(t.date).toLocaleDateString('fr-FR')}</div>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{t.subject}</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ display: 'flex', gap: 2 }}>
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} size={12} fill={i < t.satisfaction ? '#fbbf24' : 'transparent'} color="#fbbf24" />
-                  ))}
-                </div>
-                <span style={{
-                  background: 'rgba(16, 185, 129, 0.15)', color: '#10b981',
-                  padding: '3px 10px', borderRadius: 5, fontSize: 11, fontWeight: 600,
-                }}>{t.status}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function ActivityTab() {
-  return (
-    <Card>
-      <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Journal d'activité</h3>
-      <div style={{ display: 'grid', gap: 2 }}>
-        {activityMock.map((a, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.03 }}
-            style={{
-              padding: '12px 14px', display: 'flex',
-              justifyContent: 'space-between', alignItems: 'center',
-              borderBottom: `1px solid ${BORDER}`, fontSize: 13,
-            }}
-          >
-            <div>
-              <div style={{ fontWeight: 500 }}>{a.action}</div>
-              <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>par {a.user}</div>
-            </div>
-            <div style={{ fontSize: 11, color: MUTED }}>{a.time}</div>
-          </motion.div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function NotesTab({ notes, setNotes }: { notes: string; setNotes: (v: string) => void }) {
-  return (
-    <div style={{ display: 'grid', gap: 20 }}>
-      <Card>
-        <h3 style={{ margin: '0 0 16px', fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <StickyNote size={16} color={ACCENT} /> Notes internes
-        </h3>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={6}
-          style={{
-            width: '100%', background: BG, border: `1px solid ${BORDER}`,
-            borderRadius: 8, padding: 12, color: TEXT, fontSize: 13,
-            fontFamily: 'inherit', resize: 'vertical',
-          }}
-        />
-      </Card>
-
-      <Card>
-        <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Prochaines actions</h3>
-        <div style={{ display: 'grid', gap: 10 }}>
-          {[
-            { t: 'Appel de suivi trimestriel', d: '28/04/2026', icon: MessageSquare },
-            { t: 'Proposer module Marketing', d: '15/05/2026', icon: Zap },
-            { t: 'Renouvellement contrat', d: '03/11/2026', icon: RefreshCw },
-          ].map((a, i) => (
-            <div key={i} style={{
-              padding: 12, background: BG, borderRadius: 8,
-              border: `1px solid ${BORDER}`, display: 'flex',
-              alignItems: 'center', gap: 12,
-            }}>
-              <a.icon size={16} color={ACCENT} />
-              <div style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{a.t}</div>
-              <div style={{ fontSize: 12, color: MUTED }}>{a.d}</div>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      <Card>
-        <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Risques / Opportunités</h3>
-        <div style={{ display: 'grid', gap: 10 }}>
-          <div style={{ padding: 12, background: 'rgba(16, 185, 129, 0.08)', borderRadius: 8, border: `1px solid #10b98140`, fontSize: 13 }}>
-            <strong style={{ color: '#10b981' }}>Opportunité:</strong> Client promoteur — 2 recommandations actives.
-          </div>
-          <div style={{ padding: 12, background: 'rgba(245, 158, 11, 0.08)', borderRadius: 8, border: `1px solid #f59e0b40`, fontSize: 13 }}>
-            <strong style={{ color: '#f59e0b' }}>À surveiller:</strong> Utilisation module Marketing à 18% seulement.
-          </div>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-const thStyle: React.CSSProperties = { padding: '10px 8px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' };
-const tdStyle: React.CSSProperties = { padding: '12px 8px' };
-const btnSec: React.CSSProperties = {
-  background: BG, border: `1px solid ${BORDER}`, color: TEXT,
-  padding: '8px 14px', borderRadius: 7, cursor: 'pointer',
-  fontSize: 12, fontWeight: 600, display: 'inline-flex',
-  alignItems: 'center', gap: 6,
-};
-const btnGhost: React.CSSProperties = {
-  background: 'transparent', border: 'none', color: MUTED,
-  cursor: 'pointer', padding: 6,
+const titreCarte: CSSProperties = { margin: '0 0 16px', fontSize: 16 };
+const styleTh: CSSProperties = { padding: '10px 8px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' };
+const styleTd: CSSProperties = { padding: '12px 8px' };
+const styleInfobulle: CSSProperties = {
+  background: couleurs.panneau,
+  border: `1px solid ${couleurs.bordure}`,
+  borderRadius: 8,
 };
