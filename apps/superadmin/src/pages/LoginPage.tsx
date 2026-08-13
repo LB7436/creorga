@@ -8,9 +8,10 @@ interface Props {
 
 export default function LoginPage({ onLogin }: Props) {
   const [step, setStep] = useState<1 | 2>(1);
-  const [email, setEmail] = useState('bryan@creorga.lu');
-  // Pre-filled in dev so Chrome autofill never wipes the state
-  const [password, setPassword] = useState('Creorga2026!');
+  // Jamais de valeur pré-remplie : un identifiant en dur ici finit dans le
+  // bundle public (vécu : dist/ contenait email et mot de passe en clair).
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
   const [error, setError] = useState('');
@@ -20,8 +21,8 @@ export default function LoginPage({ onLogin }: Props) {
   const handleStep1 = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    // Dev mode — accept any valid-looking email + any password (min 1 char)
-    // Founder credentials: bryan@creorga.lu / Creorga2026!  (OTP auto)
+    // Maquette : validation de forme uniquement — l'authentification réelle
+    // (compte créateur + TOTP côté serveur) remplace cette page en phase 2.
     if (!email.includes('@')) {
       setError('Email invalide.');
       return;
