@@ -91,6 +91,9 @@ export function auditLog(req: Request, res: Response, next: NextFunction) {
         id: Math.random().toString(36).slice(2, 10),
         ts: new Date().toISOString(),
         userId: user?.userId ?? user?.id ?? 'anonymous',
+        // Posé par requireCompany quand la route en dispose : permet à
+        // /api/owner/audit de ne montrer à chaque société que son journal.
+        companyId: (req as any).companyId ?? null,
         method: req.method,
         path: req.originalUrl,
         status: res.statusCode,

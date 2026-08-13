@@ -28,13 +28,22 @@ function writeJson(file: string, data: any) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8')
 }
 
+/**
+ * Une société ne doit voir que son propre journal. Les entrées historiques
+ * (antérieures à l'estampille companyId) restent visibles pendant la
+ * transition : la fenêtre de 1 000 entrées les évacue d'elle-même.
+ */
+export function filtrerParSociete(entries: any[], companyId: string | undefined): any[] {
+  return entries.filter((entry) => entry.companyId == null || entry.companyId === companyId)
+}
+
 router.get('/audit', (req, res) => {
   const page = Math.max(1, Number(req.query.page || 1))
   const limit = Math.min(100, Math.max(10, Number(req.query.limit || 50)))
   const user = String(req.query.user || '').toLowerCase()
   const module = String(req.query.module || '').toLowerCase()
   const date = String(req.query.date || '')
-  let entries = readAuditEntries()
+  let entries = filtrerParSociete(readAuditEntries(), (req as any).companyId)
   if (user) entries = entries.filter((entry) => String(entry.userId || '').toLowerCase().includes(user))
   if (module) entries = entries.filter((entry) => String(entry.module || '').toLowerCase().includes(module))
   if (date) entries = entries.filter((entry) => String(entry.ts || '').startsWith(date))
@@ -44,7 +53,14 @@ router.get('/audit', (req, res) => {
 
 router.post('/audit', (req, res) => {
   const entries = readAuditEntries()
-  const entry = { id: Math.random().toString(36).slice(2, 10), ts: new Date().toISOString(), ...(req.body || {}) }
+  // companyId imposé côté serveur : une société ne peut pas forger une entrée
+  // au nom d'une autre.
+  const entry = {
+    id: Math.random().toString(36).slice(2, 10),
+    ts: new Date().toISOString(),
+    ...(req.body || {}),
+    companyId: (req as any).companyId ?? null,
+  }
   writeJson(path.join(DATA_DIR, 'audit-log.json'), [entry, ...entries].slice(0, 1000))
   res.status(201).json(entry)
 })
