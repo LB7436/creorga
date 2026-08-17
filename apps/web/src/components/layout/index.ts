@@ -1,5 +1,4 @@
-export { default as AppLayout } from './AppLayout'
+// Seuls layouts vivants. AppLayout/Sidebar/TopBar (nav legacy aux routes
+// inexistantes et badges en dur) ont été supprimés en v4.7.
 export { default as AppShell } from './AppShell'
 export { default as ModuleLayout } from './ModuleLayout'
-export { default as Sidebar } from './Sidebar'
-export { default as TopBar } from './TopBar'

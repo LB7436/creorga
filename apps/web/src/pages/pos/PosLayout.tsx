@@ -1,13 +1,15 @@
-import { LayoutDashboard, Map, ClipboardList, ChefHat, CreditCard, Settings2, Tablet, ExternalLink } from 'lucide-react'
+import { LayoutDashboard, Map, ChefHat, Tablet, ExternalLink } from 'lucide-react'
 import ModuleLayout from '@/components/layout/ModuleLayout'
 
+// Trois entrées sur six n'étaient que des redirections (« Commandes » et
+// « Configuration » renvoyaient au tableau de bord, « Caisse » au plan de
+// salle) : un menu qui promet six écrans et n'en livre que trois. On ne garde
+// que les destinations réelles ; les anciennes URL restent redirigées dans
+// App.tsx pour la rétro-compatibilité.
 const items = [
   { label: 'Tableau de bord', path: '/pos/dashboard', icon: LayoutDashboard },
   { label: 'Plan de salle', path: '/pos/floor', icon: Map },
-  { label: 'Commandes', path: '/pos/orders', icon: ClipboardList },
   { label: 'Cuisine KDS', path: '/pos/kitchen', icon: ChefHat },
-  { label: 'Caisse', path: '/pos/checkout', icon: CreditCard },
-  { label: 'Configuration', path: '/pos/config', icon: Settings2 },
 ]
 
 /**

@@ -10,6 +10,7 @@ import BirthdayCelebrate from '@/components/BirthdayCelebrate'
 import UniversalSearch from '@/components/UniversalSearch'
 import OnboardingWizard from '@/components/OnboardingWizard'
 import RequireAuth from '@/components/auth/RequireAuth'
+import RequireRole from '@/components/auth/RequireRole'
 import { useAuthStore } from '@/stores/authStore'
 import AppShell from '@/components/layout/AppShell'
 import Login from '@/pages/Login'
@@ -101,8 +102,6 @@ const RelancesPage = lazy(() => import('@/pages/invoices/RelancesPage'))
 
 // Reservations Pages (now under Agenda)
 const CalendrierPage = lazy(() => import('@/pages/reservations/CalendrierPage'))
-const ReservListePage = lazy(() => import('@/pages/reservations/ListePage'))
-const ReservConfigPage = lazy(() => import('@/pages/reservations/ConfigPage'))
 
 // Inventory Pages
 const StockPage = lazy(() => import('@/pages/inventory/StockPage'))
@@ -141,10 +140,6 @@ const AvisPage = lazy(() => import('@/pages/reputation/AvisPage'))
 const ReponsesPage = lazy(() => import('@/pages/reputation/ReponsesPage'))
 const ReputStatsPage = lazy(() => import('@/pages/reputation/StatsPage'))
 
-// Events Pages — v4.1 AgendaPage retiré (module agenda obsolète)
-const EventsDevisPage = lazy(() => import('@/pages/events/DevisPage'))
-const ClientsB2BPage = lazy(() => import('@/pages/events/ClientsB2BPage'))
-
 // Sites & API Pages
 const SitesPage = lazy(() => import('@/pages/sites/SitesPage'))
 const ApiPage = lazy(() => import('@/pages/api/ApiPage'))
@@ -162,9 +157,6 @@ const CateringPage = lazy(() => import('@/pages/catering/CateringPage'))
 const CentralKitchenPage = lazy(() => import('@/pages/centralkitchen/CentralKitchenPage'))
 const BillingPage = lazy(() => import('@/pages/billing/BillingPage'))
 const AutoOrderPage = lazy(() => import('@/pages/autoorder/AutoOrderPage'))
-const SustainabilityPage = lazy(() => import('@/pages/sustainability/SustainabilityPage'))
-const CommunityPage = lazy(() => import('@/pages/community/CommunityPage'))
-const StatusPage = lazy(() => import('@/pages/status/StatusPage'))
 const ChangelogPage = lazy(() => import('@/pages/changelog/ChangelogPage'))
 const ReferralPage = lazy(() => import('@/pages/referral/ReferralPage'))
 import OnboardingTour from '@/components/OnboardingTour'
@@ -259,7 +251,9 @@ function App() {
       <Route path="/standalone/calendar" element={<RequireAuth><CalendrierPage /></RequireAuth>} />
 
       {/* Mobile / PWA — accessible without AppShell */}
-      <Route path="/m" element={<MobileLayout />}>
+      {/* La section mobile était la seule zone authentifiée sans garde :
+          n'importe quel visiteur voyait /m (constat d'audit §2 bis). */}
+      <Route path="/m" element={<RequireAuth><MobileLayout /></RequireAuth>}>
         <Route index element={<MobileLive />} />
         <Route path="briefing" element={<MobileBriefing />} />
         <Route path="magic" element={<MobileMagicCam />} />
@@ -382,20 +376,21 @@ function App() {
         {/* v4.1 — Formation folded dans /hr/formation, ancienne URL redirige */}
         <Route path="/formation" element={<Navigate to="/hr/formation" replace />} />
 
-        {/* Maintenance Module */}
-        <Route path="/maintenance" element={<MaintenancePage />} />
+        {/* Maintenance Module — réservé propriétaire/manager (RequireRole :
+            avant, le masquage n'était que visuel et l'URL directe passait) */}
+        <Route path="/maintenance" element={<RequireRole roles={['owner', 'manager']}><MaintenancePage /></RequireRole>} />
 
         {/* v3.18.5 — Module Licences supprimé (URL legacy redirige vers RGPD) */}
         <Route path="/licences" element={<Navigate to="/rgpd" replace />} />
 
         {/* RGPD / Conformité Module */}
-        <Route path="/rgpd" element={<RgpdPage />} />
+        <Route path="/rgpd" element={<RequireRole roles={['owner', 'manager']}><RgpdPage /></RequireRole>} />
 
         {/* Multi-établissements Module */}
-        <Route path="/sites" element={<SitesPage />} />
+        <Route path="/sites" element={<RequireRole roles={['owner', 'manager']}><SitesPage /></RequireRole>} />
 
         {/* API & Intégrations Module */}
-        <Route path="/api" element={<ApiPage />} />
+        <Route path="/api" element={<RequireRole roles={['owner', 'manager']}><ApiPage /></RequireRole>} />
         {/* Hors de /api/ : le proxy Vite (vite.config.ts) capte tout /api/… et
             le renvoie au backend, qui repond 404 — la page n'etait jamais
             rendue. Cf. rapport de test §4.4, « ecran blanc ». */}
@@ -425,10 +420,10 @@ function App() {
         <Route path="/music" element={<Navigate to="/ads/music" replace />} />
 
         {/* Sauvegarde & Sécurité Module */}
-        <Route path="/backup" element={<BackupPage />} />
+        <Route path="/backup" element={<RequireRole roles={['owner', 'manager']}><BackupPage /></RequireRole>} />
 
         {/* v4.1 — Owner Layout : Rapport + Abonnement + Parrainage fusionnés */}
-        <Route path="/owner" element={<OwnerLayout />}>
+        <Route path="/owner" element={<RequireRole roles={['owner', 'manager']}><OwnerLayout /></RequireRole>}>
           <Route index element={<Navigate to="/owner/rapport" replace />} />
           <Route path="rapport" element={<OwnerReportPage />} />
           <Route path="abonnement" element={<BillingPage />} />
