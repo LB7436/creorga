@@ -19,18 +19,15 @@ interface ModuleUXState {
   setViewMode: (mode: ViewMode) => void
 }
 
-function readViewMode(): ViewMode {
-  if (typeof window === 'undefined') return 'all'
-  const saved = window.localStorage.getItem('creorga.viewMode')
-  return saved === 'service' || saved === 'admin' || saved === 'all' ? saved : 'all'
-}
-
 export const useModuleUXStore = create<ModuleUXState>()(
   persist(
     (set) => ({
       usageStats: {},
       pinnedModules: [],
-      viewMode: readViewMode(),
+      // Une seule source de vérité : le blob zustand persist. L'ancienne clé
+      // brute creorga.viewMode était lue à l'init puis écrasée par la
+      // réhydratation — deux stockages qui pouvaient diverger.
+      viewMode: 'all' as ViewMode,
       recordModuleOpen: (id) =>
         set((state) => {
           const current = state.usageStats[id] ?? { count: 0, lastOpened: 0 }
@@ -53,12 +50,7 @@ export const useModuleUXStore = create<ModuleUXState>()(
           delete next[id]
           return { usageStats: next }
         }),
-      setViewMode: (mode) => {
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem('creorga.viewMode', mode)
-        }
-        set({ viewMode: mode })
-      },
+      setViewMode: (mode) => set({ viewMode: mode }),
     }),
     { name: 'creorga-module-ux' }
   )

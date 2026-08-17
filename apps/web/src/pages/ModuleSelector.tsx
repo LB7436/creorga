@@ -1,27 +1,18 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/stores/authStore'
 import { useModuleStore, MODULES } from '@/stores/moduleStore'
 import type { ModuleId, ModuleDef } from '@/stores/moduleStore'
 import AdminQuickMenu from '@/components/AdminQuickMenu'
-import { useModuleConfig } from '@/stores/moduleConfigStore'
-import { useEnvMode } from '@/stores/envModeStore'
-import { useSharedModuleConfig } from '@/hooks/useSharedModuleConfig'
+import { useModulePreferences, demarrerSyncPreferencesModules } from '@/stores/modulePreferencesStore'
+import type { PreferenceModule } from '@/stores/modulePreferencesStore'
 import { useModuleUXStore } from '@/stores/moduleUXStore'
+import { ESPACES, MODULES_PROPRIETAIRE } from '@/config/espaces'
+import { toastWarning } from '@/lib/toast'
 
 // v3.18.7 — Illustrations SVG 3D-style remplacent les emojis simples
 import { ModuleIllustration, MODULE_EMOJI } from '@/components/illustrations/ModuleIllustrations'
-
-type CategoryFilter = 'all' | 'core' | 'business' | 'digital' | 'admin'
-
-const CATEGORY_TABS: { key: CategoryFilter; label: string }[] = [
-  { key: 'all', label: 'Tous' },
-  { key: 'core', label: 'Core' },
-  { key: 'business', label: 'Business' },
-  { key: 'digital', label: 'Digital' },
-  { key: 'admin', label: 'Admin' },
-]
 
 /* ── helpers ── */
 function hexToRgba(hex: string, alpha: number) {
@@ -92,17 +83,37 @@ function FloatingOrbs() {
   )
 }
 
+/** État affiché sur une carte — les quatre états demandés par la mission. */
+type EtatCarte = 'actif' | 'desactive' | 'indisponible' | 'reserve' | 'bientot'
+
+function etatDuModule(mod: ModuleDef, cfg: PreferenceModule | undefined, role: string): EtatCarte {
+  if (!mod.available) return 'indisponible'
+  if (cfg?.enabled === false) return 'desactive'
+  if (cfg?.displayMode === 'coming_soon') return 'bientot'
+  if (role === 'employee' && MODULES_PROPRIETAIRE.has(mod.id)) return 'reserve'
+  return 'actif'
+}
+
+const BADGES: Record<Exclude<EtatCarte, 'actif'>, { texte: string; fond: string; bord: string; encre: string; icone: string }> = {
+  desactive:    { texte: 'Désactivé',                fond: 'rgba(100,116,139,0.18)', bord: 'rgba(148,163,184,0.4)', encre: '#cbd5e1', icone: '⏸' },
+  indisponible: { texte: 'Non disponible',           fond: 'rgba(100,116,139,0.18)', bord: 'rgba(148,163,184,0.4)', encre: '#94a3b8', icone: '∅' },
+  reserve:      { texte: 'Réservé au propriétaire',  fond: 'rgba(59,130,246,0.14)',  bord: 'rgba(96,165,250,0.4)',  encre: '#93c5fd', icone: '🔒' },
+  bientot:      { texte: 'Bientôt',                  fond: 'rgba(245,158,11,0.14)',  bord: 'rgba(245,158,11,0.45)', encre: '#fcd34d', icone: '🚧' },
+}
+
 /* ── module card ── */
 interface ModuleCardProps {
   mod: ModuleDef
+  etat: EtatCarte
   onClick: () => void
   pinned: boolean
   onTogglePin: () => void
 }
 
-function ModuleCard({ mod, onClick, pinned, onTogglePin }: ModuleCardProps) {
-  // v3.18.7 — illustration SVG 3D-style avec fallback emoji
+function ModuleCard({ mod, etat, onClick, pinned, onTogglePin }: ModuleCardProps) {
   const emoji = MODULE_EMOJI[mod.id] || '📁'
+  const inerte = etat === 'desactive' || etat === 'indisponible'
+  const badge = etat !== 'actif' ? BADGES[etat] : null
 
   return (
     // La carte contient un bouton « épingler » : un <button> ne peut pas en
@@ -114,8 +125,9 @@ function ModuleCard({ mod, onClick, pinned, onTogglePin }: ModuleCardProps) {
       layout
       role="button"
       tabIndex={0}
-      whileHover={{ scale: 1.03, boxShadow: `0 20px 50px ${hexToRgba(mod.color, 0.25)}` }}
-      whileTap={{ scale: 0.97 }}
+      aria-disabled={inerte}
+      whileHover={inerte ? undefined : { scale: 1.03, boxShadow: `0 20px 50px ${hexToRgba(mod.color, 0.25)}` }}
+      whileTap={inerte ? undefined : { scale: 0.97 }}
       onClick={onClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -126,24 +138,31 @@ function ModuleCard({ mod, onClick, pinned, onTogglePin }: ModuleCardProps) {
       style={{
         position: 'relative',
         width: '100%',
+        // Hauteur commune : les cartes d'une même grille restent alignées
+        // quelle que soit la longueur du nom ou du sous-titre.
+        minHeight: 172,
+        display: 'flex',
+        flexDirection: 'column',
         textAlign: 'left',
-        cursor: 'pointer',
+        cursor: inerte ? 'not-allowed' : 'pointer',
         border: 'none',
         outline: 'none',
         background: 'rgba(255,255,255,0.06)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
         borderRadius: 20,
-        padding: 24,
+        padding: 20,
         color: '#fff',
         borderWidth: 1,
         borderStyle: 'solid',
         borderColor: 'rgba(255,255,255,0.08)',
         transition: 'border-color 0.3s, background 0.3s',
-        perspective: '800px',
         overflow: 'hidden',
+        opacity: inerte ? 0.55 : 1,
+        filter: inerte ? 'saturate(0.4)' : 'none',
       }}
       onMouseEnter={(e) => {
+        if (inerte) return
         const el = e.currentTarget as HTMLElement
         el.style.borderColor = hexToRgba(mod.color, 0.4)
         el.style.background = 'rgba(255,255,255,0.09)'
@@ -152,18 +171,6 @@ function ModuleCard({ mod, onClick, pinned, onTogglePin }: ModuleCardProps) {
         const el = e.currentTarget as HTMLElement
         el.style.borderColor = 'rgba(255,255,255,0.08)'
         el.style.background = 'rgba(255,255,255,0.06)'
-        el.style.transform = ''
-      }}
-      onMouseMove={(e) => {
-        const el = e.currentTarget as HTMLElement
-        const rect = el.getBoundingClientRect()
-        const x = e.clientX - rect.left
-        const y = e.clientY - rect.top
-        const midX = rect.width / 2
-        const midY = rect.height / 2
-        const rotateY = ((x - midX) / midX) * 6
-        const rotateX = ((midY - y) / midY) * 6
-        el.style.transform = `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.03)`
       }}
     >
       <button
@@ -171,7 +178,7 @@ function ModuleCard({ mod, onClick, pinned, onTogglePin }: ModuleCardProps) {
           e.stopPropagation()
           onTogglePin()
         }}
-        title={pinned ? 'Retirer des favoris' : 'Epingler ce module'}
+        title={pinned ? 'Retirer des favoris' : 'Épingler ce module'}
         style={{
           position: 'absolute',
           top: 12,
@@ -194,14 +201,14 @@ function ModuleCard({ mod, onClick, pinned, onTogglePin }: ModuleCardProps) {
         📌
       </button>
 
-      {/* gradient glow behind icon */}
+      {/* halo derrière l'icône */}
       <div
         style={{
           position: 'absolute',
           top: 10,
           left: 10,
-          width: 80,
-          height: 80,
+          width: 72,
+          height: 72,
           borderRadius: '50%',
           background: `radial-gradient(circle, ${hexToRgba(mod.color, 0.25)} 0%, transparent 70%)`,
           filter: 'blur(20px)',
@@ -209,23 +216,20 @@ function ModuleCard({ mod, onClick, pinned, onTogglePin }: ModuleCardProps) {
         }}
       />
 
-      {/* v3.18.7 — illustration SVG 3D-style remplace l'emoji simple */}
       <div
         style={{
-          width: 64,
-          height: 64,
-          marginBottom: 16,
+          width: 52,
+          height: 52,
+          marginBottom: 12,
           position: 'relative',
           zIndex: 1,
           filter: `drop-shadow(0 8px 16px ${hexToRgba(mod.color, 0.35)})`,
         }}
       >
-        <ModuleIllustration id={mod.id} size={64} />
-        {/* Fallback emoji si pas d'illustration */}
+        <ModuleIllustration id={mod.id} size={52} />
         <span style={{ position: 'absolute', display: 'none', fontSize: 26 }} aria-hidden>{emoji}</span>
       </div>
 
-      {/* name */}
       <p
         style={{
           margin: 0,
@@ -241,7 +245,6 @@ function ModuleCard({ mod, onClick, pinned, onTogglePin }: ModuleCardProps) {
         {mod.name}
       </p>
 
-      {/* tagline */}
       <p
         style={{
           margin: 0,
@@ -250,12 +253,36 @@ function ModuleCard({ mod, onClick, pinned, onTogglePin }: ModuleCardProps) {
           color: 'rgba(148,163,184,0.8)',
           position: 'relative',
           zIndex: 1,
+          flex: 1,
         }}
       >
         {mod.tagline}
       </p>
 
-      {/* bottom accent line */}
+      {/* état du module — toujours lisible, jamais implicite */}
+      {badge && (
+        <span
+          style={{
+            marginTop: 10,
+            alignSelf: 'flex-start',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 10px',
+            borderRadius: 999,
+            fontSize: 11,
+            fontWeight: 700,
+            background: badge.fond,
+            border: `1px solid ${badge.bord}`,
+            color: badge.encre,
+            position: 'relative',
+            zIndex: 1,
+          }}
+        >
+          {badge.icone} {badge.texte}
+        </span>
+      )}
+
       <div
         style={{
           position: 'absolute',
@@ -287,39 +314,34 @@ export default function ModuleSelector() {
   const togglePin = useModuleUXStore((s) => s.togglePin)
 
   const [search, setSearch] = useState('')
-  const [category, setCategory] = useState<CategoryFilter>('all')
-  const localModuleConfig = useModuleConfig((s) => s.config)
-  const { config: remoteModuleConfig } = useSharedModuleConfig(1500)
-  // Remote wins (backend) — falls back to local if no remote entry
-  const moduleConfig = useMemo(() => {
-    const merged: Record<string, any> = {}
-    for (const id of Object.keys({ ...localModuleConfig, ...remoteModuleConfig })) {
-      merged[id] = { ...(localModuleConfig[id] || {}), ...(remoteModuleConfig[id] || {}) }
-    }
-    return merged
-  }, [localModuleConfig, remoteModuleConfig])
-  const comingSoonMode = useEnvMode((s) => s.comingSoonMode)
+  const [espaceActif, setEspaceActif] = useState<string>('all')
+
+  // Préférences synchronisées serveur (remplace l'ancien couple
+  // localStorage + polling nu de 1,5 s).
+  const moduleConfig = useModulePreferences((s) => s.config)
+  const etatSync = useModulePreferences((s) => s.etat)
+  const erreurSync = useModulePreferences((s) => s.erreur)
+  useEffect(() => {
+    demarrerSyncPreferencesModules()
+  }, [])
+
   const serviceIds = useMemo(() => new Set<ModuleId>(['pos', 'hr', 'sales', 'haccp', 'qrmenu']), [])
   const adminIds = useMemo(() => new Set<ModuleId>(['owner', 'sites', 'rgpd', 'backup', 'api', 'maintenance']), [])
-  const employeeHiddenIds = useMemo(() => new Set<ModuleId>(['rgpd', 'backup', 'sites', 'api', 'maintenance', 'owner']), [])
 
-  // Apply display-mode filter from SettingsModules:
-  //   - "hidden"     → exclude completely
-  //   - "coming_soon" → show with overlay but not clickable
-  //   - "visible"    → normal
-  const filteredModules = useMemo(() => {
+  /**
+   * Modules visibles avec leur état. « hidden » disparaît (c'est son rôle) ;
+   * tous les autres états restent AFFICHÉS avec leur badge — y compris pour
+   * un employé, qui voit désormais « Réservé au propriétaire » au lieu d'une
+   * absence inexpliquée.
+   */
+  const modulesAffiches = useMemo(() => {
+    const q = search.toLowerCase()
     return MODULES.filter((m) => {
       const cfg = moduleConfig[m.id]
       if (cfg?.displayMode === 'hidden') return false
-      if (role === 'employee' && employeeHiddenIds.has(m.id)) return false
       if (viewMode === 'service' && !serviceIds.has(m.id)) return false
       if (viewMode === 'admin' && !adminIds.has(m.id)) return false
-      const matchCategory = category === 'all' || m.category === category
-      const matchSearch =
-        !search ||
-        m.name.toLowerCase().includes(search.toLowerCase()) ||
-        m.tagline.toLowerCase().includes(search.toLowerCase())
-      return matchCategory && matchSearch
+      return !q || m.name.toLowerCase().includes(q) || m.tagline.toLowerCase().includes(q)
     }).sort((a, b) => {
       const pinnedA = pinnedModules.indexOf(a.id)
       const pinnedB = pinnedModules.indexOf(b.id)
@@ -333,13 +355,37 @@ export default function ModuleSelector() {
       if ((statsB?.count ?? 0) !== (statsA?.count ?? 0)) return (statsB?.count ?? 0) - (statsA?.count ?? 0)
       return (statsB?.lastOpened ?? 0) - (statsA?.lastOpened ?? 0)
     })
-  }, [category, search, moduleConfig, role, employeeHiddenIds, viewMode, serviceIds, adminIds, pinnedModules, usageStats])
+  }, [search, moduleConfig, viewMode, serviceIds, adminIds, pinnedModules, usageStats])
+
+  /** Sections par espace, dans l'ordre des six espaces. */
+  const sections = useMemo(() => {
+    const parId = new Map(modulesAffiches.map((m) => [m.id, m]))
+    return ESPACES.map((espace) => ({
+      espace,
+      modules: espace.modules.map((id) => parId.get(id)).filter(Boolean) as ModuleDef[],
+    })).filter((s) => s.modules.length > 0 && (espaceActif === 'all' || s.espace.id === espaceActif))
+  }, [modulesAffiches, espaceActif])
+
+  const nbVisibles = sections.reduce((n, s) => n + s.modules.length, 0)
+  const nbMasquesReglages = MODULES.filter((m) => moduleConfig[m.id]?.displayMode === 'hidden').length
 
   const handleModule = (mod: ModuleDef) => {
     const cfg = moduleConfig[mod.id]
-    if (cfg?.displayMode === 'coming_soon') {
-      // Block navigation + show toast-like hint
-      alert(`🚧 ${cfg.customLabel || mod.name} est marqué "Bientôt disponible"`)
+    const etat = etatDuModule(mod, cfg, role)
+    if (etat === 'bientot') {
+      toastWarning(`${cfg?.customLabel || mod.name} est marqué « Bientôt disponible ».`)
+      return
+    }
+    if (etat === 'reserve') {
+      toastWarning('Module réservé au propriétaire — demandez un accès à votre responsable.')
+      return
+    }
+    if (etat === 'desactive') {
+      toastWarning(`${cfg?.customLabel || mod.name} est désactivé pour cet établissement.`)
+      return
+    }
+    if (etat === 'indisponible') {
+      toastWarning(`${mod.name} n'est pas disponible sur cette version.`)
       return
     }
     setActiveModule(mod.id)
@@ -363,8 +409,15 @@ export default function ModuleSelector() {
     >
       <FloatingOrbs />
       {role === 'employee' && (
-        <div style={{ position: 'relative', zIndex: 12, margin: '16px auto 0', maxWidth: 960, padding: '10px 14px', borderRadius: 14, border: '1px solid rgba(96,165,250,0.24)', background: 'rgba(59,130,246,0.12)', color: '#bfdbfe', fontSize: 13, fontWeight: 800 }}>
-          👁 Vue collaborateur: modules sensibles masques, acces operationnel conserve.
+        <div style={{ position: 'relative', zIndex: 12, margin: '16px auto 0', maxWidth: 1080, padding: '10px 14px', borderRadius: 14, border: '1px solid rgba(96,165,250,0.24)', background: 'rgba(59,130,246,0.12)', color: '#bfdbfe', fontSize: 13, fontWeight: 800 }}>
+          👁 Vue collaborateur : les modules réservés au propriétaire sont verrouillés (badge 🔒), l'accès opérationnel est conservé.
+        </div>
+      )}
+
+      {/* Échec de synchronisation des réglages : affiché, jamais avalé. */}
+      {etatSync === 'erreur' && (
+        <div style={{ position: 'relative', zIndex: 12, margin: '16px auto 0', maxWidth: 1080, padding: '10px 14px', borderRadius: 14, border: '1px solid rgba(248,113,113,0.35)', background: 'rgba(239,68,68,0.10)', color: '#fecaca', fontSize: 13, fontWeight: 600 }}>
+          ⚠ Réglages des modules non synchronisés ({erreurSync}) — affichage d'après la dernière copie locale.
         </div>
       )}
 
@@ -446,7 +499,7 @@ export default function ModuleSelector() {
 
           <button
             onClick={handleLogout}
-            title="Deconnexion"
+            title="Déconnexion"
             style={{
               width: 36,
               height: 36,
@@ -487,7 +540,7 @@ export default function ModuleSelector() {
         transition={{ duration: 0.6, delay: 0.1 }}
         style={{
           textAlign: 'center',
-          paddingTop: 32,
+          paddingTop: 28,
           paddingBottom: 8,
           position: 'relative',
           zIndex: 10,
@@ -506,18 +559,19 @@ export default function ModuleSelector() {
           Bonjour, {user?.firstName}
         </h1>
         <p style={{ margin: 0, fontSize: 15, color: 'rgba(148,163,184,0.7)' }}>
-          Que voulez-vous gerer aujourd'hui ?
+          Que voulez-vous gérer aujourd'hui ?
         </p>
       </motion.div>
 
-      {/* ── search bar ── */}
+      {/* ── search + actions rapides ── */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
         style={{
           display: 'flex',
-          justifyContent: 'center',
+          flexDirection: 'column',
+          alignItems: 'center',
           padding: '20px 24px 8px',
           position: 'relative',
           zIndex: 10,
@@ -612,7 +666,7 @@ export default function ModuleSelector() {
         </div>
       </motion.div>
 
-      {/* ── category tabs ── */}
+      {/* ── onglets des six espaces ── */}
       <motion.div
         data-tour="filters"
         initial={{ opacity: 0, y: 12 }}
@@ -622,35 +676,38 @@ export default function ModuleSelector() {
           display: 'flex',
           justifyContent: 'center',
           gap: 6,
-          padding: '16px 24px 24px',
+          padding: '16px 24px 20px',
           position: 'relative',
           zIndex: 10,
           flexWrap: 'wrap',
         }}
       >
-        {CATEGORY_TABS.map((tab) => {
-          const isActive = category === tab.key
+        {[{ id: 'all', nom: 'Tous', emoji: '⊞' }, ...ESPACES].map((tab) => {
+          const isActive = espaceActif === tab.id
           return (
             <button
-              key={tab.key}
-              onClick={() => setCategory(tab.key)}
+              key={tab.id}
+              onClick={() => setEspaceActif(tab.id)}
               style={{
-                padding: '8px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 7,
+                padding: '9px 16px',
                 borderRadius: 12,
                 border: '1px solid',
                 borderColor: isActive ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.06)',
                 background: isActive
                   ? 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.15))'
                   : 'rgba(255,255,255,0.03)',
-                color: isActive ? '#a5b4fc' : 'rgba(148,163,184,0.6)',
+                color: isActive ? '#a5b4fc' : 'rgba(148,163,184,0.7)',
                 fontSize: 13,
-                fontWeight: isActive ? 600 : 500,
+                fontWeight: isActive ? 700 : 500,
                 cursor: 'pointer',
                 transition: 'all 0.25s',
                 backdropFilter: 'blur(8px)',
               }}
             >
-              {tab.label}
+              <span aria-hidden>{tab.emoji}</span> {tab.nom}
             </button>
           )
         })}
@@ -662,10 +719,10 @@ export default function ModuleSelector() {
           (vécu le 8 août — « il ne montre que 5 modules maintenant »). Tant
           qu'une vue ou un masquage réduit la liste, on l'affiche noir sur
           blanc avec le moyen d'en sortir. */}
-      {(viewMode !== 'all' || MODULES.some((m) => moduleConfig[m.id]?.displayMode === 'hidden')) && (
+      {(viewMode !== 'all' || nbMasquesReglages > 0) && (
         <div
           style={{
-            maxWidth: 960, margin: '0 auto 18px', padding: '12px 18px',
+            maxWidth: 1080, margin: '0 auto 18px', padding: '12px 18px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             gap: 12, flexWrap: 'wrap', borderRadius: 14,
             border: '1px solid rgba(245,158,11,0.45)',
@@ -675,8 +732,8 @@ export default function ModuleSelector() {
         >
           <span>
             {viewMode !== 'all'
-              ? `Vue « ${viewMode === 'service' ? 'Service' : 'Admin'} » active — ${MODULES.length - filteredModules.length} module(s) masqué(s) par cette vue.`
-              : `${MODULES.filter((m) => moduleConfig[m.id]?.displayMode === 'hidden').length} module(s) masqué(s) dans les réglages.`}
+              ? `Vue « ${viewMode === 'service' ? 'Service' : 'Admin'} » active — ${MODULES.length - nbVisibles} module(s) masqué(s) par cette vue.`
+              : `${nbMasquesReglages} module(s) masqué(s) dans les réglages.`}
           </span>
           <div style={{ display: 'flex', gap: 8 }}>
             {viewMode !== 'all' && (
@@ -696,10 +753,10 @@ export default function ModuleSelector() {
         </div>
       )}
 
-      {/* ── module grid ── */}
+      {/* ── espaces + grilles ── */}
       <div
         style={{
-          maxWidth: 960,
+          maxWidth: 1080,
           margin: '0 auto',
           padding: '0 24px 80px',
           position: 'relative',
@@ -708,79 +765,118 @@ export default function ModuleSelector() {
       >
         <AnimatePresence mode="wait">
           <motion.div
-            key={category + search}
+            key={espaceActif + search + viewMode}
             variants={containerVariants}
             initial="hidden"
             animate="show"
             exit="hidden"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 16,
-            }}
           >
-            {filteredModules.map((mod) => {
-              const cfg = moduleConfig[mod.id]
-              const isComingSoon = cfg?.displayMode === 'coming_soon'
-              // Apply customLabel if set — swap the module name
-              const displayMod = cfg?.customLabel ? { ...mod, name: cfg.customLabel } : mod
-              return (
-                <div key={mod.id} data-tour="module-card" data-module-id={mod.id} style={{ position: 'relative' }}>
-                  <ModuleCard
-                    mod={displayMod}
-                    onClick={() => handleModule(mod)}
-                    pinned={pinnedModules.includes(mod.id)}
-                    onTogglePin={() => togglePin(mod.id)}
-                  />
-                  {isComingSoon && (
-                    <div style={{
-                      position: 'absolute', inset: 0, borderRadius: 18,
-                      background: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(4px)',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      gap: 4, pointerEvents: 'none',
-                      border: '1px solid rgba(245,158,11,0.4)',
-                    }}>
-                      <div style={{ fontSize: 32 }}>🚧</div>
-                      <div style={{ fontSize: 13, color: '#fcd34d', fontWeight: 800, letterSpacing: 1 }}>
-                        BIENTÔT
-                      </div>
-                      <div style={{ fontSize: 11, color: '#94a3b8' }}>Module verrouillé</div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+            {sections.map(({ espace, modules }) => (
+              <section key={espace.id} style={{ marginBottom: 34 }}>
+                <header
+                  style={{
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    gap: 12,
+                    marginBottom: 14,
+                    paddingBottom: 8,
+                    borderBottom: `1px solid ${hexToRgba(espace.couleur, 0.25)}`,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <span style={{ fontSize: 20 }} aria-hidden>{espace.emoji}</span>
+                  <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#f1f5f9', letterSpacing: '-0.01em' }}>
+                    {espace.nom}
+                  </h2>
+                  <span style={{ fontSize: 12.5, color: 'rgba(148,163,184,0.75)' }}>
+                    {espace.description}
+                  </span>
+                  <span
+                    style={{
+                      marginLeft: 'auto',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: hexToRgba(espace.couleur, 0.9),
+                      background: hexToRgba(espace.couleur, 0.12),
+                      border: `1px solid ${hexToRgba(espace.couleur, 0.3)}`,
+                      borderRadius: 999,
+                      padding: '3px 10px',
+                    }}
+                  >
+                    {modules.length} module{modules.length > 1 ? 's' : ''}
+                  </span>
+                </header>
 
-            {filteredModules.length === 0 && (
+                <div className="grille-modules">
+                  {modules.map((mod) => {
+                    const cfg = moduleConfig[mod.id]
+                    const etat = etatDuModule(mod, cfg, role)
+                    const displayMod = cfg?.customLabel ? { ...mod, name: cfg.customLabel } : mod
+                    return (
+                      <div key={mod.id} data-tour="module-card" data-module-id={mod.id} style={{ position: 'relative' }}>
+                        <ModuleCard
+                          mod={displayMod}
+                          etat={etat}
+                          onClick={() => handleModule(mod)}
+                          pinned={pinnedModules.includes(mod.id)}
+                          onTogglePin={() => togglePin(mod.id)}
+                        />
+                        {etat === 'bientot' && (
+                          <div style={{
+                            position: 'absolute', inset: 0, borderRadius: 20,
+                            background: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(4px)',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            gap: 4, pointerEvents: 'none',
+                            border: '1px solid rgba(245,158,11,0.4)',
+                          }}>
+                            <div style={{ fontSize: 32 }}>🚧</div>
+                            <div style={{ fontSize: 13, color: '#fcd34d', fontWeight: 800, letterSpacing: 1 }}>
+                              BIENTÔT
+                            </div>
+                            <div style={{ fontSize: 11, color: '#94a3b8' }}>Module verrouillé</div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            ))}
+
+            {nbVisibles === 0 && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 style={{
-                  gridColumn: '1 / -1',
                   textAlign: 'center',
                   padding: '60px 20px',
                   color: 'rgba(148,163,184,0.5)',
                   fontSize: 14,
                 }}
               >
-                Aucun module trouve.
+                Aucun module ne correspond{search ? ` à « ${search} »` : ''}.
               </motion.div>
             )}
           </motion.div>
         </AnimatePresence>
       </div>
 
-      {/* ── responsive styles via inline <style> ── */}
+      {/* ── grille responsive par classe (le sélecteur d'attribut de style
+          inline utilisé avant cassait au moindre changement de style) ── */}
       <style>{`
-        @media (max-width: 900px) {
-          div[style*="grid-template-columns: repeat(4"] {
-            grid-template-columns: repeat(3, 1fr) !important;
-          }
+        .grille-modules {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
         }
-        @media (max-width: 640px) {
-          div[style*="grid-template-columns: repeat(4"] {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
+        @media (max-width: 1024px) {
+          .grille-modules { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 720px) {
+          .grille-modules { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 430px) {
+          .grille-modules { grid-template-columns: 1fr; }
         }
       `}</style>
     </div>
