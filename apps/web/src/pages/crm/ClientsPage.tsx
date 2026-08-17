@@ -195,7 +195,9 @@ export default function ClientsPage() {
 
   // Real API only: the CRM must show customers created from the client portal or staff entry,
   // not seeded/demo identities.
-  const { data: apiCustomers } = useCustomers()
+  // isError consommé : une panne serveur affichait exactement le même écran
+  // qu'un CRM réellement vide (constat d'audit) — désormais l'échec se voit.
+  const { data: apiCustomers, isError: erreurClients, isLoading: chargementClients, refetch: relireClients } = useCustomers()
   const createCustomer = useCreateCustomer()
   const updateCustomer = useUpdateCustomer()
   const rechargeWallet = useRechargeWallet()
@@ -487,12 +489,34 @@ export default function ClientsPage() {
         ))}
       </div>
 
-      {/* Table */}
+      {/* Table — trois états distincts : chargement, panne (avec Réessayer),
+          et vide réel. Avant, la panne serveur rendait le même écran que
+          « Aucun client » : indistinguable d'un CRM vide. */}
       <div style={{
         background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0',
         boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflow: 'hidden',
       }}>
-        {filtered.length === 0 ? (
+        {chargementClients ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: '#94a3b8', fontWeight: 500 }}>
+            Chargement des clients…
+          </div>
+        ) : erreurClients ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 200, gap: 10, color: '#991b1b' }}>
+            <p style={{ fontWeight: 700, margin: 0 }}>Impossible de charger les clients.</p>
+            <p style={{ fontSize: 13, margin: 0, color: '#b91c1c' }}>
+              Le serveur n'a pas répondu — la liste ci-dessous n'est PAS vide, elle est inaccessible.
+            </p>
+            <button
+              onClick={() => relireClients()}
+              style={{
+                marginTop: 4, padding: '8px 18px', borderRadius: 8, border: '1px solid #fca5a5',
+                background: '#fef2f2', color: '#991b1b', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+              }}
+            >
+              Réessayer
+            </button>
+          </div>
+        ) : filtered.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 200, color: '#94a3b8' }}>
             <Users size={40} style={{ marginBottom: 12, opacity: 0.4 }} />
             <p style={{ fontWeight: 500, margin: 0 }}>Aucun client trouvé</p>

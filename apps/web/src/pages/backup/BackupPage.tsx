@@ -28,29 +28,41 @@ export default function BackupPage() {
   const [fullBackups, setFullBackups] = useState<FullBackupFile[]>([])
   const [fullLoading, setFullLoading] = useState(true)
   const [fullBusy, setFullBusy] = useState<string | null>(null)
+  // Panne serveur ≠ « aucune sauvegarde ». Sur un module de sécurité, un
+  // écran vide mensonger est le pire des états : l'échec est affiché avec
+  // un bouton Réessayer, jamais avalé.
+  const [erreurListe, setErreurListe] = useState<string | null>(null)
 
   const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
 
   const fetchBackups = useCallback(async () => {
     try {
       const r = await fetchAuth(`${BACKEND}/api/inventory-ocr/backups`)
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
       const data = await r.json()
       setBackups(data.backups || [])
-    } catch { /* offline */ }
+      setErreurListe(null)
+    } catch (e) {
+      setErreurListe(e instanceof Error ? e.message : 'Serveur injoignable')
+    }
     try {
       const r = await fetchAuth(`${BACKEND}/api/inventory-ocr/stock`)
       const data = await r.json()
       setStockSize(data.total || 0)
-    } catch { /* offline */ }
+    } catch { /* le compteur de stock est decoratif, la liste porte l'erreur */ }
     setLoading(false)
   }, [])
 
   const fetchFullBackups = useCallback(async () => {
     try {
       const r = await fetchAuth(`${BACKEND}/api/backup/full`)
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
       const data = await r.json()
       setFullBackups(data.backups || [])
-    } catch { /* offline */ }
+      setErreurListe(null)
+    } catch (e) {
+      setErreurListe(e instanceof Error ? e.message : 'Serveur injoignable')
+    }
     setFullLoading(false)
   }, [])
 
@@ -154,6 +166,31 @@ export default function BackupPage() {
           Stockées sur disque dans <code style={{ fontSize: 12, padding: '2px 6px', background: '#f1f5f9', borderRadius: 4 }}>apps/backend/data/backups/</code>
         </p>
       </header>
+
+      {erreurListe && (
+        <div style={{
+          marginBottom: 20, padding: '12px 16px', borderRadius: 10,
+          border: '1px solid #fecaca', background: '#fef2f2', color: '#991b1b',
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+          fontSize: 13.5, fontWeight: 600,
+        }}>
+          <AlertTriangle size={16} />
+          <span style={{ flex: 1 }}>
+            Impossible de lire la liste des sauvegardes ({erreurListe}). Les listes
+            ci-dessous peuvent être incomplètes — ce n'est PAS la preuve qu'aucune
+            sauvegarde n'existe.
+          </span>
+          <button
+            onClick={() => { setLoading(true); setFullLoading(true); fetchBackups(); fetchFullBackups() }}
+            style={{
+              padding: '7px 14px', borderRadius: 8, border: '1px solid #fca5a5',
+              background: '#fff', color: '#991b1b', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+            }}
+          >
+            Réessayer
+          </button>
+        </div>
+      )}
 
       <section style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
