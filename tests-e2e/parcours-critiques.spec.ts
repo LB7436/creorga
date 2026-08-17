@@ -63,7 +63,10 @@ test.describe('Parcours critiques', () => {
   test('POS-1/10 — vente complète : commande puis encaissement', async ({ page }) => {
     await seConnecter(page)
     await page.goto('/pos/dashboard', { waitUntil: 'domcontentloaded' })
-    await page.waitForLoadState('networkidle').catch(() => {})
+    // networkidle est borne : le back-office interroge le serveur toutes les
+    // 1,5 a 2 s (config modules, plan de salle), le reseau n'est donc jamais
+    // inactif et l'attente par defaut consommait tout le budget du test.
+    await page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => {})
 
     // Le tableau de bord POS doit afficher ses indicateurs temps réel.
     await expect(page.getByText(/Tableau de bord POS/i).first()).toBeVisible({ timeout: 30_000 })
@@ -71,7 +74,7 @@ test.describe('Parcours critiques', () => {
 
     // Le plan de salle doit lister des tables issues du seed.
     await page.goto('/pos/floor', { waitUntil: 'domcontentloaded' })
-    await page.waitForLoadState('networkidle').catch(() => {})
+    await page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => {})
     // « Plan de salle » figure aussi dans le menu latéral : viser la 1re occurrence.
     await expect(page.getByText(/Plan de salle/i).first()).toBeVisible({ timeout: 30_000 })
     await expect(page.getByText(/SALLE PRINCIPALE|Libres/i).first()).toBeVisible()
@@ -80,7 +83,7 @@ test.describe('Parcours critiques', () => {
   test('FAC — le module facturation liste devis et factures', async ({ page }) => {
     await seConnecter(page)
     await page.goto('/invoices', { waitUntil: 'domcontentloaded' })
-    await page.waitForLoadState('networkidle').catch(() => {})
+    await page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => {})
 
     await expect(page.locator('body')).toContainText(/Devis|Factures/i, { timeout: 20_000 })
     // Les documents seedés portent la numérotation séquentielle.
@@ -90,7 +93,7 @@ test.describe('Parcours critiques', () => {
   test('CRM — les clients seedés sont visibles', async ({ page }) => {
     await seConnecter(page)
     await page.goto('/crm/clients', { waitUntil: 'domcontentloaded' })
-    await page.waitForLoadState('networkidle').catch(() => {})
+    await page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => {})
 
     // Régression : les clients étaient invisibles car filtrés sur isGuest.
     const lignes = page.locator('table tbody tr, [role="row"]')
@@ -192,7 +195,7 @@ test.describe('Parcours critiques', () => {
     const fautifs: string[] = []
     for (const route of modules) {
       await page.goto(route, { waitUntil: 'domcontentloaded' })
-      await page.waitForLoadState('networkidle').catch(() => {})
+      await page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => {})
       await page.waitForTimeout(800)
       const clairs = await surfacesClaires(page)
       if (clairs.length) fautifs.push(`${route} → ${clairs.slice(0, 3).join(', ')}`)
