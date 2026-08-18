@@ -37,13 +37,16 @@ export default function GuestCallButtons({ tableId, billTotal }: { tableId: stri
     setPaying(true)
     setPayError(null)
     try {
+      // Le montant est calculé par le serveur depuis les commandes de la
+      // table : on n'envoie plus de total depuis le navigateur.
       const r = await fetch(`${BACKEND}/api/guest/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tableId, total: billTotal }),
+        body: JSON.stringify({ tableId }),
       })
-      const data = await r.json()
+      const data = await r.json().catch(() => ({}))
       if (r.status === 501) { setPayError(t('pay_bill_unavailable')); return }
+      if (!r.ok) { setPayError(data?.error || t('pay_bill_unavailable')); return }
       if (data.url) window.location.href = data.url
     } catch {
       setPayError(t('pay_bill_unavailable'))

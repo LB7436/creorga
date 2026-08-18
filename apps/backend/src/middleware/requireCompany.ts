@@ -30,13 +30,22 @@ export async function requireCompany(req: Request, res: Response, next: NextFunc
     // la requête renverrait l'adhésion d'un autre membre (élévation silencieuse).
     if (!user?.userId) {
       if ((req as any).device) {
+        const device = (req as any).device as { type: string; companyId?: string }
+        // v5.0 — Jeton lié à une société (POS_DEVICE_TOKENS ou
+        // POS_DEVICE_COMPANY_ID) : la société annoncée doit être la sienne ;
+        // sans en-tête, on prend celle du jeton. Un jeton global historique
+        // (sans société) garde l'ancien contrôle d'existence.
+        if (device.companyId) {
+          if (companyId && companyId !== device.companyId) {
+            res.status(403).json({ error: 'Ce terminal n’est pas rattaché à cette société' })
+            return
+          }
+          companyId = device.companyId
+        }
         if (!companyId) {
           res.status(400).json({ error: 'x-company-id header requis' })
           return
         }
-        // Le jeton d'appareil est global à l'installation : on vérifie au
-        // moins que la société annoncée existe. Rattacher chaque appareil à
-        // une société (un jeton par appareil) est un chantier séparé.
         const company = await prisma.company.findUnique({ where: { id: companyId } })
         if (!company) {
           res.status(403).json({ error: 'Accès refusé à cette société' })

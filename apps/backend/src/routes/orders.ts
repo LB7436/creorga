@@ -223,12 +223,36 @@ const updateStatusSchema = z.object({
 
 router.put('/:id/status', validate(updateStatusSchema), async (req: AuthRequest, res: Response) => {
   try {
+    const cible = req.body.status as string
+    const role = String((req as any).role || '')
+    const superviseur = role === 'OWNER' || role === 'MANAGER'
+
+    // v5.0 — Un statut n'est pas un règlement : « PAYÉE » ne se pose que par
+    // l'encaissement (POST /:id/checkout), qui enregistre le moyen de paiement,
+    // le montant reçu et la monnaie. Sinon une commande pouvait passer payée
+    // sans aucune trace comptable.
+    if (cible === 'PAID') {
+      res.status(409).json({ message: 'Le passage en PAYÉE se fait par l’encaissement (POST /orders/:id/checkout).' })
+      return
+    }
+    // L'annulation efface du chiffre : responsable ou propriétaire seulement.
+    if (cible === 'CANCELLED' && !superviseur) {
+      res.status(403).json({ message: 'Annulation réservée au responsable ou au propriétaire' })
+      return
+    }
+
     const appartient = await prisma.order.findFirst({
       where: { id: req.params.id, companyId: (req as any).companyId },
-      select: { id: true },
+      select: { id: true, status: true },
     })
     if (!appartient) {
       res.status(404).json({ message: 'Commande non trouvée' })
+      return
+    }
+    // Une commande encaissée ou annulée est close : on ne la rouvre pas par un
+    // simple changement de statut.
+    if (appartient.status === 'PAID' || appartient.status === 'CANCELLED') {
+      res.status(409).json({ message: `Commande ${appartient.status === 'PAID' ? 'déjà encaissée' : 'annulée'} : statut figé` })
       return
     }
 

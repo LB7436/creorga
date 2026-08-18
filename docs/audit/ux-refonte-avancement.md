@@ -1,7 +1,7 @@
 # Refonte UX/UI — point d'avancement
 
-**Mis à jour** : 18 août 2026, après la vague v4.9.
-**Branche** : `qa/pc-2026-07-27` — 10 commits de mission depuis `dd238fa`. **Rien n'est poussé sur GitHub** (règle de la mission : pas de push avant validation complète).
+**Mis à jour** : 18 août 2026, après la vague v5.0 (mission terminée, voir `ux-refonte-finale.md` et `test-matrice.md`).
+**Branche** : `qa/pc-2026-07-27` — 11 commits de mission depuis `dd238fa`. **Rien n'est poussé sur GitHub** (règle de la mission : pas de push avant validation complète).
 **Fichiers protégés** : `apps/guest/*`, `routes/portalConfig.ts`, `routes/crm.ts`, `stores/moduleStore.ts` — jamais modifiés.
 **Fichiers en vol de l'exploitant, non commités, à préserver** : `apps/backend/package.json`, `apps/backend/src/routes/backup.ts`, `apps/web/src/pages/guest/games/MenschGame.tsx`, `package-lock.json`. Note : la garde `portalConfigManagementGuard` de `apps/backend/src/index.ts` (travail en vol) a été **embarquée dans `e695d89`** avec le montage de la route stock — cohérent, elle rend le PATCH portail réservé au propriétaire.
 
@@ -12,12 +12,12 @@
 | Phase 0 — audit | ✅ | `dd238fa` |
 | v4.7 — modules & navigation | ✅ | `30c2b18`, `8f2c60c`, `ca188c7` |
 | v4.8 — caisse & stock | ✅ | `66a251b`, `e695d89`, `eb70e66`, `77895d3` |
-| v4.9 — catalogue jeux | ✅ | (commit v4.9, voir `git log`) |
-| v5.0 — sécurité, paiements, sauvegardes, certification | ⏳ suivante | — |
+| v4.9 — catalogue jeux | ✅ | `bcd2762` |
+| v5.0 — sécurité, paiements, sauvegardes, certification | ✅ (partiel : Float→centimes, chiffrement, toggles restants = décisions/plans au rapport final) | (commit v5.0, voir `git log`) |
 
-## État de référence (à la fin de la v4.9)
+## État de référence (à la fin de la v5.0)
 
-Builds 4/4 · backend **105** unit · POS **31** · web **24** (5 + 19 registre des jeux) · API 50 · **e2e 17/17** (15 + GST-8/GST-9).
+Builds 4/4 · backend **114** unit · POS **31** · web **24** · API **59** (50 + 8 GUEST + 1 SAUV) · **e2e 18/18** (15 + GST-8/GST-9/TOG-1).
 
 ## Ce que chaque vague a réglé (constats de l'audit)
 
@@ -50,14 +50,9 @@ Builds 4/4 · backend **105** unit · POS **31** · web **24** (5 + 19 registre 
 
 ## Reste à faire
 
-### v5.0 — sécurité et certification
-- `guest.ts` : `POST /pay` et `POST /orders` recalculent depuis la base ; `PATCH /orders/:id/status` public.
-- `stripe.ts` : IDOR inter-sociétés ; webhook (`express.raw` + signature + montage hors `authenticate`).
-- `orders.ts:224` : rôle sur statut/encaissement. `requireCompany.ts:32` : jeton d'appareil ↔ société.
-- Montants `Float` → centimes entiers (schéma Prisma, tous les modèles monétaires).
-- Toggles restants (~68) → persistance serveur + rollback : `usePortalConfig.ts:39` (PATCH sans Authorization → 401 avalé, **le plus grave**), HACCP checklist, ParamsPage RH, AdminCompany horaires, KDS réglages, QrMenu, etc.
-- Tests : produits (création/prix/masquage), toggles, paiement, **restauration de sauvegarde** (destructif, aucun test).
-- `docs/audit/test-matrice.md`, `docs/audit/ux-refonte-finale.md`, captures desktop/mobile, liste des risques.
+### v5.0 — sécurité et certification (fait / reste)
+- **Fait** : `guest.ts` (prix serveur, `/bill`, `/pay` serveur, `/paid-confirm` lié à la table + idempotent, PATCH statut staff), `stripe.ts` (IDOR : OWNER + étiquette `companyId` ; `stripeWebhook` en `express.raw` hors `authenticate`, signature obligatoire), `orders.ts` (PAYÉE via encaissement seulement, annulation OWNER/MANAGER, commande close figée), `deviceAuth.ts`/`requireCompany.ts` (jeton ↔ société), `usePortalConfig.ts` (PATCH authentifié, rejette) + `ClientsConfig` (serveur = vérité, annulation, désactivé pendant l'enregistrement, e2e TOG-1), `verifier-restauration.ts` (restauration prouvée en base jetable : 24 JSON, 47 tables, 3 sociétés).
+- **Reste (décisions de l'exploitant, plans au rapport final §6)** : Float→centimes (57 colonnes), chiffrement des ZIP (`backup.ts` en vol), ~60 toggles hors modules/portail, `npm audit` (16 vulns prod, `package-lock` en vol), Stripe non joué faute de clés, `portalConfig.ts` protégé (première société).
 
 ### Hors vagues, à mentionner au rapport final
 - Jeux : aucun jeu n'est **en ligne** (pas de socket de partie) — le multijoueur est toujours « sur la même tablette » ; le registre porte `connexion: 'local'` partout, prêt pour un futur `'en-ligne'`. Marques déposées dans les noms (Yahtzee, Mastermind, Simon, Puissance 4, Rummikub, Motus, Tetris) : risque juridique à arbitrer par l'exploitant, non renommées (hors périmètre, e2e GST-7 dépend de « Petits Chevaux 3D »). Jeux « bientôt » (Tetris, machine à sous, roulette) : jamais affichés.

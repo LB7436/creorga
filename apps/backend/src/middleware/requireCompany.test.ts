@@ -148,6 +148,31 @@ describe('requireCompany — requêtes sans utilisateur (deviceOrUserAuth)', () 
     expect(findFirst).not.toHaveBeenCalled()
   })
 
+  it('v5.0 — terminal lié à une société : une autre société annoncée → 403, sans appel base', async () => {
+    const { req, res, next } = makeCtx()
+    req.user = undefined
+    req.device = { type: 'pos-terminal', companyId: 'societe-a' }
+    req.headers['x-company-id'] = 'societe-b'
+
+    await requireCompany(req, res, next)
+
+    expect(res.statusCode).toBe(403)
+    expect(next).not.toHaveBeenCalled()
+    expect(companyFindUnique).not.toHaveBeenCalled()
+  })
+
+  it('v5.0 — terminal lié à une société : sans en-tête, la société du jeton est prise', async () => {
+    const { req, res, next } = makeCtx()
+    req.user = undefined
+    req.device = { type: 'pos-terminal', companyId: 'societe-a' }
+    companyFindUnique.mockResolvedValue({ id: 'societe-a', name: 'Société A' })
+
+    await requireCompany(req, res, next)
+
+    expect(next).toHaveBeenCalledTimes(1)
+    expect(req.companyId).toBe('societe-a')
+  })
+
   it('terminal POS : société inconnue → 403', async () => {
     const { req, res, next } = makeCtx()
     req.user = undefined

@@ -260,6 +260,43 @@ test.describe('Parcours critiques', () => {
     expect(corps).toContain('Casino · mises fictives · 18+')
   })
 
+  test('TOG-1 — Portail client : un interrupteur refusé par le serveur revient en arrière', async ({ page }) => {
+    await seConnecter(page)
+    await page.goto('/clients', { waitUntil: 'domcontentloaded' })
+    const chat = page.locator('button[role="switch"][aria-label="Activer le chat"]')
+    await expect(chat).toBeVisible({ timeout: 30_000 })
+    // Laisser la valeur serveur arriver (le hook la pose après le premier GET).
+    await page.waitForTimeout(1200)
+    const avant = await chat.getAttribute('aria-checked')
+
+    // 1. Le serveur refuse (403 simulé) : l'affichage optimiste DOIT être annulé.
+    await page.route('**/api/portal-config', (route) => {
+      if (route.request().method() === 'PATCH') {
+        return route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: 'Action réservée au propriétaire' }) })
+      }
+      return route.continue()
+    })
+    await chat.click()
+    await expect(chat).toHaveAttribute('aria-checked', avant!, { timeout: 5_000 })
+    await expect(page.locator('body')).toContainText(/réservé au propriétaire/i)
+    await page.unroute('**/api/portal-config')
+
+    // 2. Le serveur accepte : la valeur persiste après rechargement (source serveur).
+    await chat.click()
+    await expect(chat).toHaveAttribute('aria-checked', avant === 'true' ? 'false' : 'true', { timeout: 5_000 })
+    await page.waitForTimeout(800)
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    const chatBis = page.locator('button[role="switch"][aria-label="Activer le chat"]')
+    await expect(chatBis).toBeVisible({ timeout: 30_000 })
+    await page.waitForTimeout(1500)
+    await expect(chatBis).toHaveAttribute('aria-checked', avant === 'true' ? 'false' : 'true')
+
+    // Remise en l'état initial pour ne pas laisser le portail modifié.
+    await chatBis.click()
+    await expect(chatBis).toHaveAttribute('aria-checked', avant!, { timeout: 5_000 })
+    await page.waitForTimeout(800)
+  })
+
   test('UI-1 — aucune surface claire sur les modules principaux', async ({ page }) => {
     // Chaque route est compilée à la demande par Vite au premier passage.
     test.setTimeout(240_000)

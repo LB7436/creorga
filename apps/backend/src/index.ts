@@ -64,7 +64,7 @@ import accountingRoutes from './routes/accounting'
 import rapportsCaisseRoutes from './routes/rapports-caisse'
 import reputationRoutes from './routes/reputation'
 import eventsRoutes from './routes/events'
-import stripeRoutes from './routes/stripe'
+import stripeRoutes, { stripeWebhook } from './routes/stripe'
 import emailRoutes from './routes/email'
 import paymentsRoutes from './routes/payments'
 import portalConfigRoutes from './routes/portalConfig'
@@ -157,6 +157,10 @@ app.use(compression({
 // base64 (OCR/vision), 1mb pour tout le reste. body-parser marque req._body
 // après un premier parse et skip un second passage, donc l'ordre ici fait foi.
 const LARGE_BODY_PATHS = ['/api/agent', '/api/floor-state', '/api/inventory-ocr']
+// v5.0 — Webhook Stripe : corps BRUT (la signature se vérifie sur les octets
+// exacts) et hors `authenticate` (Stripe n'a pas de JWT). Doit précéder
+// express.json(), qui marquerait le corps comme déjà lu.
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '1mb' }), stripeWebhook)
 app.use(LARGE_BODY_PATHS, express.json({ limit: '20mb' }))
 app.use(express.json({ limit: '1mb' }))
 app.use(cookieParser())

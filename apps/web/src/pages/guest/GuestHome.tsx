@@ -437,6 +437,11 @@ function GuestMenu({
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
   const [orderState, setOrderState] = useState<'idle' | 'sending' | 'success'>('idle')
+  // Refus du serveur (produit inconnu, table manquante, base indisponible) :
+  // affiché tel quel au lieu d'un faux écran « commande envoyée ».
+  const [orderError, setOrderError] = useState<string | null>(null)
+  // Addition telle que calculée par le serveur (prix de la base, pas du panier).
+  const [lastOrderTotal, setLastOrderTotal] = useState<number | null>(null)
   const [addedId, setAddedId] = useState<string | null>(null)
   const [qrMenuDocument, setQrMenuDocument] = useState<QrMenuDocument | null>(() => {
     try {
@@ -536,26 +541,40 @@ function GuestMenu({
   const handleSendOrder = () => {
     if (!requireGuestClient('Inscrivez-vous pour envoyer une commande: le serveur verra votre nom, mobile, table et historique client.')) return
     setOrderState('sending')
+    setOrderError(null)
+    // Le serveur recalcule les prix depuis sa base ; on n'envoie que les
+    // identifiants et quantités (le nom sert au journal client local).
     const orderItems = cart.map((item) => ({ productId: item.id, name: item.name, qty: item.qty, price: item.price }))
 
     fetch(`${(import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'}/api/guest/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tableId: tableNumber || 'sans-table', items: orderItems }),
+      body: JSON.stringify({ tableId: tableNumber || 'sans-table', items: orderItems.map(({ productId, qty }) => ({ productId, qty })) }),
     })
-      .then((r) => r.json())
-      .then((data) => { if (data?.id) setLastOrderId(data.id) })
-      .catch(() => { /* le suivi live sera juste indisponible, la commande reste envoyée au staff via l'événement local */ })
-      .finally(() => {
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(data?.error || `Commande refusée (HTTP ${r.status})`)
+        return data
+      })
+      .then((data) => {
+        if (data?.id) setLastOrderId(data.id)
+        setLastOrderTotal(typeof data?.total === 'number' ? data.total : null)
         recordGuestEvent('order', guestClient ?? loadGuestClient(), {
           items: orderItems,
           subtotal,
           tva,
-          total,
+          total: typeof data?.total === 'number' ? data.total : total,
           tableNumber,
+          orderId: data?.id,
         })
         setOrderState('success')
         clearCart()
+      })
+      .catch((e: any) => {
+        // Un refus ou une panne n'est pas une commande envoyée : on le dit,
+        // le panier reste intact pour réessayer ou appeler le serveur.
+        setOrderState('idle')
+        setOrderError(e?.message || 'Commande impossible pour le moment. Appelez le serveur.')
       })
   }
 
@@ -640,7 +659,8 @@ function GuestMenu({
       {tableNumber && (
         <div style={{ width: '100%', maxWidth: 340 }}>
           {lastOrderId && <OrderTracking orderId={lastOrderId} tableId={tableNumber} />}
-          <GuestCallButtons tableId={tableNumber} billTotal={total} />
+          {/* Montant réellement enregistré par le serveur, pas le panier local. */}
+          <GuestCallButtons tableId={tableNumber} billTotal={lastOrderTotal ?? undefined} />
         </div>
       )}
     </motion.div>
@@ -1027,6 +1047,14 @@ function GuestMenu({
                       <>{t('send_order')}</>
                     )}
                   </motion.button>
+                  {orderError && (
+                    <p role="alert" style={{
+                      marginTop: 10, padding: '10px 12px', borderRadius: 12, fontSize: 12, lineHeight: 1.4,
+                      background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.45)', color: '#fecaca',
+                    }}>
+                      {orderError}
+                    </p>
+                  )}
                 </div>
               )}
             </motion.div>

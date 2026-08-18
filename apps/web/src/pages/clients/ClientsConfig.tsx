@@ -7,6 +7,7 @@ import PhotoWall from '@/components/PhotoWall'
 import { useBrand } from '@/stores/brandStore'
 import { usePortalConfig } from '@/hooks/usePortalConfig'
 import { GUEST_GAMES, estCasino, estJouable, libelleJoueurs } from '@/pages/guest/games/catalog'
+import { toastError } from '@/lib/toast'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -101,7 +102,7 @@ function getPortalPreviewUrl(settings: PortalSettings) {
 // Toggle Switch
 // ---------------------------------------------------------------------------
 
-function ToggleSwitch({ active, onToggle, label }: { active: boolean; onToggle: () => void; label: string }) {
+function ToggleSwitch({ active, onToggle, label, disabled }: { active: boolean; onToggle: () => void; label: string; disabled?: boolean }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
       <span style={{ fontSize: 12, fontWeight: 600, color: active ? '#6366f1' : '#94a3b8', minWidth: 28, textAlign: 'right' }}>
@@ -109,12 +110,15 @@ function ToggleSwitch({ active, onToggle, label }: { active: boolean; onToggle: 
       </span>
       <button
         onClick={onToggle}
+        disabled={disabled}
         aria-checked={active}
+        aria-busy={disabled || undefined}
         aria-label={label}
         role="switch"
         style={{
-          position: 'relative', width: 48, height: 28, borderRadius: 14, border: 'none', cursor: 'pointer',
+          position: 'relative', width: 48, height: 28, borderRadius: 14, border: 'none', cursor: disabled ? 'progress' : 'pointer',
           background: active ? '#6366f1' : '#d1d5db', transition: 'background 0.25s ease', flexShrink: 0, padding: 0,
+          opacity: disabled ? 0.6 : 1,
         }}
       >
         <motion.div
@@ -270,12 +274,31 @@ export default function ClientsConfig() {
     } catch { /* ignore */ }
   }, [])
 
-  const { update: updateRemoteConfig } = usePortalConfig(0) // no polling here, we're the writer
+  const { config: configServeur, update: updateRemoteConfig } = usePortalConfig(0) // no polling here, we're the writer
+  const [enregistrement, setEnregistrement] = useState(false)
+
+  // v5.0 — La valeur affichée est celle du serveur : c'est elle que voit le
+  // portail des clients. Le localStorage ne sert plus que de repli hors ligne.
+  useEffect(() => {
+    if (!configServeur) return
+    setSettings((prev) => ({
+      ...prev,
+      toggles: { ...prev.toggles, ...(configServeur.toggles ?? {}) },
+      games: Object.keys(configServeur.games ?? {}).length ? { ...prev.games, ...configServeur.games } : prev.games,
+      welcomeMessage: configServeur.welcomeMessage ?? prev.welcomeMessage,
+      accentColor: configServeur.accentColor || prev.accentColor,
+      tableNumber: configServeur.tableNumber || prev.tableNumber,
+      themeMode: configServeur.themeMode ?? prev.themeMode,
+    }))
+  }, [configServeur])
 
   const persist = useCallback((next: PortalSettings) => {
-    setSettings(next)
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch { /* quota */ }
-    // Sync to backend so the guest portal (5178) picks it up.
+    // Écriture optimiste, ANNULÉE si le serveur refuse : un interrupteur ne
+    // reste jamais allumé alors que l'enregistrement a échoué (le PATCH est
+    // réservé au propriétaire ; il finissait en 401 avalé).
+    let precedent: PortalSettings | null = null
+    setSettings((prev) => { precedent = prev; return next })
+    setEnregistrement(true)
     updateRemoteConfig({
       toggles: next.toggles,
       games: next.games,
@@ -283,7 +306,21 @@ export default function ClientsConfig() {
       accentColor: next.accentColor,
       tableNumber: next.tableNumber,
       themeMode: next.themeMode,
-    }).catch(() => { /* offline ok */ })
+    })
+      .then((serveur) => {
+        // Le serveur a le dernier mot sur ce qui est réellement enregistré.
+        setSettings((prev) => ({
+          ...prev,
+          toggles: { ...prev.toggles, ...(serveur.toggles ?? {}) },
+          games: Object.keys(serveur.games ?? {}).length ? { ...prev.games, ...serveur.games } : prev.games,
+        }))
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch { /* quota */ }
+      })
+      .catch((e: any) => {
+        if (precedent) setSettings(precedent)
+        toastError(e?.message || 'Enregistrement refusé par le serveur — le réglage a été annulé.')
+      })
+      .finally(() => setEnregistrement(false))
   }, [updateRemoteConfig])
 
   const toggleFeature = (id: string) => persist({ ...settings, toggles: { ...settings.toggles, [id]: !settings.toggles[id] } })
@@ -370,7 +407,7 @@ export default function ClientsConfig() {
                         {toggle.description}
                       </p>
                     </div>
-                    <ToggleSwitch active={isActive} onToggle={() => toggleFeature(toggle.id)} label={toggle.label} />
+                    <ToggleSwitch active={isActive} onToggle={() => toggleFeature(toggle.id)} label={toggle.label} disabled={enregistrement} />
                   </motion.div>
                 )
               })}
@@ -408,6 +445,7 @@ export default function ClientsConfig() {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.012 * i + 0.15, duration: 0.25 }}
                     onClick={() => toggleGame(game.id)}
+                    disabled={enregistrement}
                     style={{
                       position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                       padding: '14px 6px 12px', borderRadius: 14, cursor: 'pointer',
