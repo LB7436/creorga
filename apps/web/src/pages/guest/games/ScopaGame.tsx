@@ -162,7 +162,7 @@ export default function ScopaGame({ onBack }: { onBack?: () => void }) {
 
   if (setup === 'setup') {
     return (
-      <Game3DShell title="Scoopa 3D" subtitle="Scopa italienne, 2 a 4 joueurs en pass-and-play" onBack={onBack}>
+      <Game3DShell title="Scoopa" subtitle="Scopa italienne, de 2 à 4 joueurs sur cette tablette" onBack={onBack}>
         <div style={setupStyle}>
           <div style={setupPanelStyle}>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
@@ -183,7 +183,7 @@ export default function ScopaGame({ onBack }: { onBack?: () => void }) {
                 />
               ))}
             </div>
-            <h2 style={{ margin: 0, color: TEXT, fontSize: 26 }}>Scoopa 3D</h2>
+            <h2 style={{ margin: 0, color: TEXT, fontSize: 26 }}>Scoopa</h2>
             <p style={{ margin: 0, color: MUTED, fontSize: 13, lineHeight: 1.5 }}>
               Jeu de cartes italien repris depuis VibeResto: 40 cartes, captures par somme, Denari, Settebello, Primiera et points de Scopa.
             </p>
@@ -211,7 +211,7 @@ export default function ScopaGame({ onBack }: { onBack?: () => void }) {
   }
 
   return (
-    <Game3DShell title="Scoopa 3D" subtitle="Table de cartes 3D, multijoueur local" onBack={onBack} side={side}>
+    <Game3DShell title="Scoopa" subtitle="Table de cartes, de 2 à 4 joueurs sur cette tablette" onBack={onBack} side={side}>
       <div style={tableSceneStyle}>
         <div style={opponentsStyle}>
           {state.hands.map((hand, index) => index !== state.currentPlayerIndex && (

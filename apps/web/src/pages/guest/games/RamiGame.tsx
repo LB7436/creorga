@@ -139,8 +139,8 @@ export default function RamiGame({ onBack }: GameProps) {
   return (
     <>
     <Game3DShell
-      title="Rami Salon 3D"
-      subtitle="Vs CPU — mode normal ou sortie 40"
+      title="Rami Salon"
+      subtitle="Rami simplifié contre l’ordinateur — mode normal ou sortie 40"
       onBack={onBack}
       side={gameSide({
         stats: [

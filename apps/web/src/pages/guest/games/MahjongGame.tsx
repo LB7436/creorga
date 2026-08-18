@@ -77,8 +77,8 @@ export default function MahjongGame({ onBack }: GameProps) {
   return (
     <>
     <Game3DShell
-      title="Mahjong Bamboo 3D"
-      subtitle="Memory chronometre, tuiles face cachee"
+      title="Mémo Bambou"
+      subtitle="Memory chronométré, tuiles face cachée"
       onBack={onBack}
       side={gameSide({
         stats: [

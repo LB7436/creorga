@@ -1,12 +1,11 @@
 import { lazy, Suspense, useEffect, useMemo, useState, type ComponentType, type CSSProperties, type LazyExoticComponent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Award, Bot, Check, ChevronLeft, Clock, Copy, Crown, Gamepad2, Heart,
+  Award, ChevronLeft, Clock, Crown, Gamepad2, Heart,
   History, Lock, Medal, Search, ShieldCheck, Sparkles, Star, Target,
-  Timer, Trophy, Users, X, Zap,
+  Timer, Trophy, Users, X,
 } from 'lucide-react'
 import { usePortalConfig } from '@/hooks/usePortalConfig'
-import { useAssistant } from '@/stores/assistantStore'
 import GuestRegistrationModal from './GuestRegistrationModal'
 import GamesLeaderboard from './games/GamesLeaderboard'
 import {
@@ -20,10 +19,16 @@ import {
   CATEGORY_META,
   GAME_ID_ALIASES,
   GUEST_GAMES,
-  PLAYERS_LABEL,
+  JEUX_RECOMMANDES,
   difficultyLabel,
+  estCasino,
+  estJouable,
+  libelleAge,
+  libelleJoueurs,
+  libelleModes,
   type GameCategory,
   type GameDifficulty,
+  type GameModule,
   type GuestGameDef,
 } from './games/catalog'
 import {
@@ -39,7 +44,6 @@ import {
 import { GameShellProvider, readTableId, type GameShellValue } from './games/lib/GameShell'
 
 type DifficultyFilter = 'all' | GameDifficulty
-type GameModule = { default: ComponentType<{ onBack?: () => void }> }
 type GameComponent = LazyExoticComponent<ComponentType<{ onBack?: () => void }>> & {
   preload?: () => Promise<GameModule>
 }
@@ -49,13 +53,34 @@ type PlayMode = 'solo' | 'ensemble' | 'individuel' | 'tournoi'
 const PLAY_MODE_KEY = 'creorga-guest-play-mode-v1'
 const PLAY_DIFFICULTY_KEY = 'creorga-guest-play-difficulty-v1'
 const PLAY_MODES: { id: PlayMode; label: string; desc: string; icon: typeof Users }[] = [
-  { id: 'solo', label: 'Solo', desc: 'Client seul ou CPU quand possible', icon: Gamepad2 },
-  { id: 'ensemble', label: 'Ensemble', desc: 'Plusieurs joueurs sur la meme table', icon: Users },
-  { id: 'individuel', label: 'Individuel', desc: 'Scores separes apres la partie', icon: Medal },
-  { id: 'tournoi', label: 'Tournoi', desc: 'Manches locales et classement table', icon: Crown },
+  { id: 'solo', label: 'Solo', desc: 'Seul, ou contre l’ordinateur', icon: Gamepad2 },
+  { id: 'ensemble', label: 'Ensemble', desc: 'À plusieurs sur cette tablette', icon: Users },
+  { id: 'individuel', label: 'Individuel', desc: 'Scores séparés après la partie', icon: Medal },
+  { id: 'tournoi', label: 'Tournoi', desc: 'Manches et classement de table', icon: Crown },
 ]
 const PLAY_DIFFICULTIES: GameDifficulty[] = ['facile', 'moyen', 'difficile']
-const FAMILY_FEATURED_IDS = ['mensch', 'connect4', 'rummikub', 'memory', 'simon', 'ttt', 'yahtzee', 'bingo', '421']
+
+/**
+ * Modes réellement proposables pour un jeu, dans l'ordre d'affichage.
+ * Le dialogue de lancement affichait « Solo / Ensemble / Individuel / Tournoi »
+ * pour les 40 jeux alors que seuls Petits Chevaux (par la clé localStorage) et
+ * Maxi Burger (par le GameShell) lisent ce choix : pour un jeu contre
+ * l'ordinateur, « Tournoi » ne faisait rien. On ne montre plus que ce que le
+ * jeu sait faire ; un seul mode → pas de sélecteur.
+ */
+function modesProposes(game: GuestGameDef): PlayMode[] {
+  const modes: PlayMode[] = []
+  if (game.modes.includes('solo') || game.modes.includes('cpu')) modes.push('solo')
+  if (game.modes.includes('local')) modes.push('ensemble', 'individuel')
+  if (game.modes.includes('tournoi')) modes.push('tournoi')
+  return modes.length ? modes : ['solo']
+}
+
+/** Le mode mémorisé s'il est proposé par ce jeu, sinon le premier proposé. */
+function modePourJeu(game: GuestGameDef, souhaite: PlayMode): PlayMode {
+  const proposes = modesProposes(game)
+  return proposes.includes(souhaite) ? souhaite : proposes[0]
+}
 
 const GAME_BACKDROP_POOL = [
   'radial-gradient(circle at 18% 18%, rgba(34,197,94,0.34), transparent 24%), linear-gradient(135deg, rgba(15,118,110,0.55), rgba(17,24,39,0.88))',
@@ -93,24 +118,6 @@ function gameAccent(game: GuestGameDef) {
   if (game.categories.includes('reflexion')) return '#3b82f6'
   if (game.categories.includes('multi')) return '#a855f7'
   return '#fbbf24'
-}
-
-function gameMiniatureKind(game: GuestGameDef) {
-  if (game.id === 'chess') return 'chess'
-  if (game.id === 'mensch') return 'board'
-  if (['yahtzee', 'farkle', '421', 'pig'].includes(game.id)) return 'dice'
-  if (['motus', 'hangman', 'wordscramble', 'quizgen'].includes(game.id)) return 'word'
-  if (['memory', 'simon'].includes(game.id)) return 'memory'
-  if (game.id === 'snake') return 'snake'
-  if (game.id === 'bingo') return 'bingo'
-  if (game.id === 'basket3d') return 'hoop'
-  if (game.id === 'billard') return 'pool'
-  if (game.id === 'mahjong3d' || game.id === 'rummikub') return 'tiles'
-  if (game.id === 'towerdefense') return 'tower'
-  if (game.categories.includes('cartes')) return 'cards'
-  if (game.categories.includes('arcade')) return 'arcade'
-  if (game.categories.includes('reflexion')) return 'grid'
-  return 'tokens'
 }
 
 function loadPlayMode(): PlayMode {
@@ -166,48 +173,14 @@ function makeLazyGame(loader: () => Promise<GameModule>): GameComponent {
   return component
 }
 
-const GAME_COMPONENTS: Record<string, GameComponent> = {
-  blackjack: makeLazyGame(() => import('./games/BlackjackGame')),
-  poker: makeLazyGame(() => import('./games/PokerGame')),
-  solitaire: makeLazyGame(() => import('./games/SolitaireGame')),
-  memory: makeLazyGame(() => import('./games/MemoryGame')),
-  bataille: makeLazyGame(() => import('./games/WarGame')),
-  higherlower: makeLazyGame(() => import('./games/HigherLowerGame')),
-  chess: makeLazyGame(() => import('./games/ChessGame')),
-  towerdefense: makeLazyGame(() => import('./games/TowerDefenseGame')),
-  maxiburger: makeLazyGame(() => import('./games/MaxiBurgerGame')),
-  castlerush: makeLazyGame(() => import('./games/CastleRushGame')),
-  ttt: makeLazyGame(() => import('./games/TicTacToeGame')),
-  connect4: makeLazyGame(() => import('./games/ConnectFourGame')),
-  mastermind: makeLazyGame(() => import('./games/MastermindGame')),
-  reversi: makeLazyGame(() => import('./games/ReversiGame')),
-  sliding: makeLazyGame(() => import('./games/SlidingPuzzleGame')),
-  yahtzee: makeLazyGame(() => import('./games/YahtzeeGame')),
-  farkle: makeLazyGame(() => import('./games/FarkleGame')),
-  '421': makeLazyGame(() => import('./games/Game421')),
-  pig: makeLazyGame(() => import('./games/PigGame')),
-  motus: makeLazyGame(() => import('./games/MotusGame')),
-  hangman: makeLazyGame(() => import('./games/Hangman')),
-  '2048': makeLazyGame(() => import('./games/Game2048')),
-  snake: makeLazyGame(() => import('./games/SnakeGame')),
-  simon: makeLazyGame(() => import('./games/SimonGame')),
-  reaction: makeLazyGame(() => import('./games/ReactionGame')),
-  minesweeper: makeLazyGame(() => import('./games/MinesweeperGame')),
-  quizgen: makeLazyGame(() => import('./games/QuizGame')),
-  bingo: makeLazyGame(() => import('./games/BingoGame')),
-  numbermemory: makeLazyGame(() => import('./games/NumberMemoryGame')),
-  wordscramble: makeLazyGame(() => import('./games/WordScrambleGame')),
-  scoopa: makeLazyGame(() => import('./games/ScopaGame')),
-  mensch: makeLazyGame(() => import('./games/MenschGame')),
-  basket3d: makeLazyGame(() => import('./games/BasketballGame')),
-  mahjong3d: makeLazyGame(() => import('./games/MahjongGame')),
-  erreur11: makeLazyGame(() => import('./games/SpotErrorGame')),
-  billard: makeLazyGame(() => import('./games/BilliardsGame')),
-  run21: makeLazyGame(() => import('./games/Run21Game')),
-  tritowers: makeLazyGame(() => import('./games/TriTowersGame')),
-  rami: makeLazyGame(() => import('./games/RamiGame')),
-  rummikub: makeLazyGame(() => import('./games/RummikubGame')),
-}
+/**
+ * Composants dérivés du registre : un jeu sans `chargeur` (statut « bientôt »)
+ * n'a pas de composant, donc pas de carte cliquable — plus de liste parallèle
+ * à tenir à jour ici.
+ */
+const GAME_COMPONENTS: Record<string, GameComponent> = Object.fromEntries(
+  GUEST_GAMES.flatMap((game) => (game.chargeur ? [[game.id, makeLazyGame(game.chargeur)] as const] : [])),
+)
 
 function gameEnabled(configured: Record<string, boolean>, gameId: string) {
   if (!Object.keys(configured).length) return true
@@ -233,7 +206,7 @@ function difficultyMatches(game: GuestGameDef, filter: DifficultyFilter) {
 
 function GameMiniature({ game, ui, large }: { game: GuestGameDef; ui: GameTheme; large?: boolean }) {
   const accent = gameAccent(game)
-  const kind = gameMiniatureKind(game)
+  const kind = game.miniature
   return (
     <div style={miniatureFrameStyle(accent, ui, large)}>
       <span style={miniatureGlowStyle(accent)} />
@@ -671,7 +644,7 @@ function GameCard({
   const played = progress.playsByGame[game.id] ?? 0
   const seconds = progress.secondsByGame[game.id] ?? 0
   const favorite = progress.favorites.includes(game.id)
-  const disabled = !game.available || !GAME_COMPONENTS[game.id]
+  const disabled = !estJouable(game) || !GAME_COMPONENTS[game.id]
 
   return (
     <motion.div variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}>
@@ -698,10 +671,9 @@ function GameCard({
           <div className="flex items-start justify-between mb-2">
             <GameMiniature game={game} ui={ui} />
             <div className="flex items-center gap-1">
-              {game.new && <span style={badge('#22c55e')}>NEW</span>}
-              {game.hot && !game.new && <span style={badge('#f59e0b')}>HOT</span>}
+              {game.statut === 'beta' && <span style={badge('#f59e0b')} title={game.raisonBeta}>BÊTA</span>}
               {!disabled && (
-                <span style={badge('#6366f1')}>{PLAYERS_LABEL[game.players ?? (game.categories.includes('multi') ? 'duo' : 'solo')]}</span>
+                <span style={badge('#6366f1')}>{libelleJoueurs(game)}</span>
               )}
               {disabled ? (
                 <Lock size={13} style={{ color: ui.muted }} />
@@ -725,8 +697,8 @@ function GameCard({
 
           <div className="grid grid-cols-3 gap-1 text-[9px]" style={{ color: ui.muted }}>
             <span className="flex items-center gap-1"><Clock size={9} />{game.estTime}</span>
-            <span className="flex items-center gap-1"><Star size={9} fill="#fbbf24" color="#fbbf24" />{game.rating}</span>
-            <span className="flex items-center gap-1"><Users size={9} />{played}x</span>
+            <span className="flex items-center gap-1"><ShieldCheck size={9} />{libelleAge(game)}</span>
+            <span className="flex items-center gap-1"><Gamepad2 size={9} />{played}x</span>
           </div>
 
           {seconds > 0 && (
@@ -761,133 +733,59 @@ function badge(color: string) {
   } as const
 }
 
-function ChallengePanel({
+/**
+ * Remplace l'« Invitation de table » : elle fabriquait un code DUEL-XXXX que
+ * rien ne consommait (aucun socket, aucun serveur de partie) et un bouton
+ * « Robi » qui ouvrait un assistant absent du portail client. Ici, seulement
+ * ce qui existe : les jeux qui se jouent à plusieurs sur cette tablette.
+ */
+function MultijoueurPanel({
   ui,
-  mode,
-  onMode,
-  onQuickPlay,
+  games,
+  onPlay,
 }: {
   ui: GameTheme
-  mode: PlayMode
-  onMode: (mode: PlayMode) => void
-  onQuickPlay: () => void
+  games: GuestGameDef[]
+  onPlay: (game: GuestGameDef) => void
 }) {
-  const [code, setCode] = useState('')
-  const [joinCode, setJoinCode] = useState('')
-  const [status, setStatus] = useState('')
-  const [copied, setCopied] = useState(false)
-  const assistant = useAssistant()
-  const createCode = () => {
-    const prefix = mode === 'tournoi' ? 'TOUR' : 'DUEL'
-    setCode(`${prefix}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`)
-    setStatus('Invitation prete sur cette table.')
-    setCopied(false)
-  }
-  const copy = async () => {
-    if (!code) return
-    try {
-      await navigator.clipboard.writeText(code)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1600)
-    } catch {
-      setCopied(false)
-    }
-  }
-  const askRobi = () => {
-    assistant.setPanelSize('normal')
-    assistant.setOpen(true)
-    assistant.addMessage({
-      role: 'bot',
-      text: 'Je suis Robi. Je peux choisir un jeu selon le temps disponible, expliquer les regles, lancer un defi de table ou aider un client bloque dans une partie.',
-    })
-  }
-  const join = () => {
-    const normalized = joinCode.trim().toUpperCase()
-    if (!normalized) {
-      setStatus('Entrez un code invitation.')
-      return
-    }
-    if (normalized.startsWith('TOUR')) onMode('tournoi')
-    else onMode('ensemble')
-    setCode(normalized)
-    setStatus('Invitation rejointe. Choisissez le jeu et lancez la partie.')
-  }
-
+  const aPlusieurs = games.filter((game) => game.modes.includes('local'))
   return (
     <div className="rounded-xl p-3 grid gap-3" style={{ background: ui.surface, border: `1px solid ${ui.accent}33` }}>
-      <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'rgba(6,182,212,0.12)', color: '#67e8f9' }}>
-        <Zap size={18} />
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'rgba(6,182,212,0.12)', color: '#67e8f9' }}>
+          <Users size={18} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold" style={{ color: ui.text }}>Jouer à plusieurs</p>
+          <p className="text-[10px]" style={{ color: ui.muted }}>
+            Ces jeux se jouent à plusieurs sur cette tablette, en se la passant. Aucune connexion entre appareils n’est nécessaire.
+          </p>
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold" style={{ color: ui.text }}>Invitation de table</p>
-        <p className="text-[10px]" style={{ color: ui.muted }}>
-          Creez un code duel/tournoi, l'adversaire le rejoint, puis la partie se declenche.
-        </p>
-      </div>
-      <button onClick={askRobi} className="px-2 py-1 rounded-lg text-xs font-black flex items-center gap-1" style={{ background: 'rgba(168,85,247,0.14)', color: ui.text, border: `1px solid ${ui.accent}44` }}>
-        <Bot size={13} /> Robi
-      </button>
-      {code ? (
-        <button onClick={copy} className="px-2 py-1 rounded-lg text-xs font-black" style={{ background: ui.bg, color: ui.text, border: `1px solid ${ui.border}` }}>
-          {copied ? <Check size={13} /> : <Copy size={13} />} {code}
-        </button>
-      ) : (
-        <button onClick={createCode} className="px-3 py-2 rounded-lg text-xs font-bold" style={{ background: '#06b6d4', color: '#041014', border: 'none' }}>
-          Creer
-        </button>
-      )}
-      <div className="grid grid-cols-2 gap-2">
-        <button onClick={() => onMode('ensemble')} className="rounded-lg px-3 py-2 text-xs font-black" style={{ background: mode === 'ensemble' ? `${ui.accent}22` : ui.soft, color: ui.text, border: `1px solid ${mode === 'ensemble' ? `${ui.accent}66` : ui.border}` }}>Duel ensemble</button>
-        <button onClick={() => onMode('tournoi')} className="rounded-lg px-3 py-2 text-xs font-black" style={{ background: mode === 'tournoi' ? 'rgba(245,158,11,0.2)' : ui.soft, color: ui.text, border: `1px solid ${mode === 'tournoi' ? '#f59e0b88' : ui.border}` }}>Tournoi</button>
-      </div>
-      <div className="grid grid-cols-[1fr_auto] gap-2">
-        <input
-          value={joinCode}
-          onChange={(event) => setJoinCode(event.target.value)}
-          placeholder="Code recu: DUEL-A7K2"
-          className="rounded-lg text-xs"
-          style={{ background: ui.bg, color: ui.text, border: `1px solid ${ui.border}`, padding: '9px 10px', outline: 'none' }}
-        />
-        <button onClick={join} className="px-3 py-2 rounded-lg text-xs font-black" style={{ background: ui.soft, color: ui.text, border: `1px solid ${ui.border}` }}>Rejoindre</button>
-      </div>
-      <button onClick={onQuickPlay} className="px-3 py-2 rounded-lg text-xs font-black" style={{ background: ui.accent, color: '#fff', border: 'none' }}>
-        Lancer le defi
-      </button>
-      {status && <p className="text-[10px]" style={{ color: ui.muted }}>{status}</p>}
-    </div>
-  )
-}
-
-function PlayModePanel({ ui, mode, onMode }: { ui: GameTheme; mode: PlayMode; onMode: (mode: PlayMode) => void }) {
-  return (
-    <div className="rounded-xl p-3" style={{ background: ui.surface, border: `1px solid ${ui.border}` }}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-bold" style={{ color: ui.text }}>Mode de jeu</span>
-        <Users size={13} style={{ color: ui.muted }} />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {PLAY_MODES.map((item) => {
-          const Icon = item.icon
-          const active = mode === item.id
-          return (
+      {aPlusieurs.length ? (
+        <div className="grid gap-2">
+          {aPlusieurs.map((game) => (
             <button
-              key={item.id}
-              onClick={() => onMode(item.id)}
-              className="rounded-lg p-2 text-left"
-              style={{
-                background: active ? `${ui.accent}22` : ui.soft,
-                border: `1px solid ${active ? `${ui.accent}66` : ui.border}`,
-                color: ui.text,
-              }}
+              key={game.id}
+              onClick={() => onPlay(game)}
+              data-game-id={`multi-${game.id}`}
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-left"
+              style={{ background: ui.soft, border: `1px solid ${ui.border}`, color: ui.text }}
             >
-              <span className="flex items-center gap-1.5 text-[11px] font-black">
-                <Icon size={12} /> {item.label}
+              <span style={{ fontSize: 20 }}>{game.icon}</span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-xs font-black truncate">{game.name}</span>
+                <span className="block text-[10px]" style={{ color: ui.muted }}>
+                  {libelleJoueurs(game)}{game.modes.includes('tournoi') ? ' · mode tournoi' : ''}{game.id === 'maxiburger' ? ' · chacun son tour' : ''}
+                </span>
               </span>
-              <span className="block text-[9px] mt-1 leading-snug" style={{ color: ui.muted }}>{item.desc}</span>
+              <span className="text-[10px] font-black" style={{ color: ui.accent }}>Jouer</span>
             </button>
-          )
-        })}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[11px]" style={{ color: ui.muted }}>Aucun jeu à plusieurs n’est activé par l’établissement.</p>
+      )}
     </div>
   )
 }
@@ -919,6 +817,8 @@ function GameLaunchDialog({
 }) {
   if (!game) return null
   const inscriptionConseillee = profileRecommande(mode) && !profile
+  const modes = modesProposes(game)
+  const casino = estCasino(game)
   return (
     <AnimatePresence>
       <motion.div
@@ -945,10 +845,11 @@ function GameLaunchDialog({
           bottom: 12,
           zIndex: 71,
           maxWidth: 560,
+          maxHeight: 'calc(100vh - 24px)',
+          overflowY: 'auto',
           margin: '0 auto',
           color: ui.text,
           borderRadius: 18,
-          overflow: 'hidden',
           backgroundImage: `linear-gradient(145deg, ${ui.mode === 'light' ? 'rgba(255,255,255,0.96)' : 'rgba(8,8,18,0.98)'}, ${ui.card}), ${gameBackdrop(game)}`,
           backgroundSize: 'cover',
           border: `1px solid ${ui.accent}44`,
@@ -958,7 +859,10 @@ function GameLaunchDialog({
         <div style={{ padding: 14, borderBottom: `1px solid ${ui.border}`, display: 'flex', alignItems: 'center', gap: 12 }}>
           <GameMiniature game={game} ui={ui} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p className="text-sm font-black truncate" style={{ color: ui.text }}>{game.name}</p>
+            <p className="text-sm font-black truncate" style={{ color: ui.text }}>
+              {game.name}
+              {game.statut === 'beta' && <span className="ml-2 align-middle" style={badge('#f59e0b')}>BÊTA</span>}
+            </p>
             <p className="text-[11px] leading-snug" style={{ color: ui.muted }}>{game.description}</p>
           </div>
           <button onClick={onClose} aria-label="Fermer" className="rounded-xl p-2" style={{ color: ui.text, border: `1px solid ${ui.border}`, background: ui.soft }}>
@@ -967,54 +871,88 @@ function GameLaunchDialog({
         </div>
 
         <div style={{ padding: 14, display: 'grid', gap: 12 }}>
-          <div>
-            <p className="text-xs font-black mb-2" style={{ color: ui.text }}>Qui joue ?</p>
-            <div className="grid grid-cols-2 gap-2">
-              {PLAY_MODES.map((item) => {
-                const Icon = item.icon
-                const active = mode === item.id
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => onMode(item.id)}
-                    className="rounded-xl p-2 text-left"
-                    style={{
-                      background: active ? `${ui.accent}24` : ui.soft,
-                      border: `1px solid ${active ? `${ui.accent}88` : ui.border}`,
-                      color: ui.text,
-                    }}
-                  >
-                    <span className="flex items-center gap-1.5 text-[11px] font-black">
-                      <Icon size={12} /> {item.label}
-                    </span>
-                    <span className="block text-[9px] mt-1 leading-snug" style={{ color: ui.muted }}>{item.desc}</span>
-                  </button>
-                )
-              })}
-            </div>
+          {/* Ce que le jeu fait vraiment : joueurs, âge, durée, moteur. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]" style={{ color: ui.muted }}>
+            <span className="flex items-center gap-1"><Users size={10} />{libelleJoueurs(game)}</span>
+            <span className="flex items-center gap-1"><ShieldCheck size={10} />{libelleAge(game)}</span>
+            <span className="flex items-center gap-1"><Clock size={10} />{game.estTime}</span>
+            {game.rendu === '3d' && <span className="flex items-center gap-1"><Sparkles size={10} />3D</span>}
           </div>
 
-          <div>
-            <p className="text-xs font-black mb-2" style={{ color: ui.text }}>Difficulte</p>
-            <div className="grid grid-cols-3 gap-2">
-              {PLAY_DIFFICULTIES.map((level) => (
-                <button
-                  key={level}
-                  onClick={() => onDifficulty(level)}
-                  className="rounded-xl py-2 text-xs font-black capitalize"
-                  style={{
-                    background: difficulty === level
-                      ? level === 'facile' ? '#22c55e' : level === 'moyen' ? '#f59e0b' : '#ef4444'
-                      : ui.soft,
-                    color: difficulty === level ? '#fff' : ui.text,
-                    border: `1px solid ${difficulty === level ? 'transparent' : ui.border}`,
-                  }}
-                >
-                  {level}
-                </button>
-              ))}
-            </div>
+          <div className="rounded-xl p-3" style={{ background: ui.soft, border: `1px solid ${ui.border}` }}>
+            <p className="text-[11px] font-black mb-1" style={{ color: ui.text }}>Règles</p>
+            <p className="text-[11px] leading-snug" style={{ color: ui.muted }}>{game.regles}</p>
+            <p className="text-[10px] mt-2" style={{ color: ui.muted }}>{libelleModes(game)}</p>
           </div>
+
+          {game.statut === 'beta' && game.raisonBeta && (
+            <div className="rounded-xl p-3 text-[11px]" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.45)', color: ui.text }}>
+              <span className="font-black">Version bêta.</span> {game.raisonBeta}
+            </div>
+          )}
+
+          {casino && (
+            <div className="rounded-xl p-3 text-[11px]" style={{ background: 'rgba(236,72,153,0.12)', border: '1px solid rgba(236,72,153,0.45)', color: ui.text }}>
+              <span className="font-black">Jeu de casino à mises fictives.</span> Aucun argent réel n’est engagé ni gagné. Réservé aux adultes.
+            </div>
+          )}
+
+          {modes.length > 1 && (
+            <div>
+              <p className="text-xs font-black mb-2" style={{ color: ui.text }}>Qui joue ?</p>
+              <div className="grid grid-cols-2 gap-2">
+                {PLAY_MODES.filter((item) => modes.includes(item.id)).map((item) => {
+                  const Icon = item.icon
+                  const active = mode === item.id
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => onMode(item.id)}
+                      className="rounded-xl p-2 text-left"
+                      style={{
+                        background: active ? `${ui.accent}24` : ui.soft,
+                        border: `1px solid ${active ? `${ui.accent}88` : ui.border}`,
+                        color: ui.text,
+                      }}
+                    >
+                      <span className="flex items-center gap-1.5 text-[11px] font-black">
+                        <Icon size={12} /> {item.label}
+                      </span>
+                      <span className="block text-[9px] mt-1 leading-snug" style={{ color: ui.muted }}>{item.desc}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Le sélecteur n'apparaît que si le jeu lit vraiment ce réglage. */}
+          {game.niveau === 'lanceur' && (
+            <div>
+              <p className="text-xs font-black mb-2" style={{ color: ui.text }}>Difficulté</p>
+              <div className="grid grid-cols-3 gap-2">
+                {PLAY_DIFFICULTIES.map((level) => (
+                  <button
+                    key={level}
+                    onClick={() => onDifficulty(level)}
+                    className="rounded-xl py-2 text-xs font-black capitalize"
+                    style={{
+                      background: difficulty === level
+                        ? level === 'facile' ? '#22c55e' : level === 'moyen' ? '#f59e0b' : '#ef4444'
+                        : ui.soft,
+                      color: difficulty === level ? '#fff' : ui.text,
+                      border: `1px solid ${difficulty === level ? 'transparent' : ui.border}`,
+                    }}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {game.niveau === 'en-jeu' && (
+            <p className="text-[10px]" style={{ color: ui.muted }}>Le niveau se règle dans le jeu, à l’écran d’accueil de la partie.</p>
+          )}
 
           <div className="rounded-xl p-3" style={{ background: ui.soft, border: `1px solid ${ui.border}` }}>
             <p className="text-[11px] font-black" style={{ color: ui.text }}>
@@ -1162,33 +1100,48 @@ export default function GamesSection() {
   const visibleGames = useMemo(() => {
     const enabled = config?.games ?? {}
     return GUEST_GAMES
-      .filter((game) => game.available && GAME_COMPONENTS[game.id])
+      .filter((game) => estJouable(game) && GAME_COMPONENTS[game.id])
       .filter((game) => gameEnabled(enabled, game.id))
   }, [config?.games])
+  // Le casino (mises fictives, adultes) vit dans sa propre section, jamais
+  // mêlé aux jeux pour enfants ni compté dans « Tous ».
+  const jeuxPrincipaux = useMemo(() => visibleGames.filter((game) => !estCasino(game)), [visibleGames])
+  const jeuxCasino = useMemo(() => visibleGames.filter(estCasino), [visibleGames])
 
+  // Recommandé = un jeu famille du registre (jamais casino, jamais bêta), le
+  // favori du client s'il en a un, sinon rotation du jour. Si l'établissement a
+  // désactivé tous les jeux famille : pas de bannière — plutôt rien qu'un jeu
+  // qui ne convient pas à une table avec des enfants.
   const featured = useMemo(() => {
-    const familyGames = FAMILY_FEATURED_IDS
-      .map((id) => visibleGames.find((game) => game.id === id))
-      .filter(Boolean) as GuestGameDef[]
-    const favorite = familyGames.find((game) => progress.favorites.includes(game.id))
-    return favorite || familyGames[new Date().getDate() % Math.max(familyGames.length, 1)] || visibleGames[0]
+    const recommandes = JEUX_RECOMMANDES.filter((game) => visibleGames.some((visible) => visible.id === game.id))
+    if (!recommandes.length) return undefined
+    const favorite = recommandes.find((game) => progress.favorites.includes(game.id))
+    return favorite || recommandes[new Date().getDate() % recommandes.length]
   }, [visibleGames, progress.favorites])
+
+  const correspondRecherche = (game: GuestGameDef) => {
+    const q = search.trim().toLowerCase()
+    if (!q) return true
+    return game.name.toLowerCase().includes(q) ||
+      game.description.toLowerCase().includes(q) ||
+      game.regles.toLowerCase().includes(q) ||
+      game.categories.some((category) => category.includes(q))
+  }
 
   const filtered = useMemo(() => {
     let list = activeCategory === 'all'
-      ? visibleGames
-      : visibleGames.filter((game) => game.categories.includes(activeCategory))
+      ? jeuxPrincipaux
+      : jeuxPrincipaux.filter((game) => game.categories.includes(activeCategory))
     list = list.filter((game) => difficultyMatches(game, difficulty))
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      list = list.filter((game) =>
-        game.name.toLowerCase().includes(q) ||
-        game.description.toLowerCase().includes(q) ||
-        game.categories.some((category) => category.includes(q))
-      )
-    }
-    return list
-  }, [activeCategory, difficulty, search, visibleGames])
+    return list.filter(correspondRecherche)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCategory, difficulty, search, jeuxPrincipaux])
+
+  const casinoFiltre = useMemo(
+    () => jeuxCasino.filter((game) => difficultyMatches(game, difficulty)).filter(correspondRecherche),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [jeuxCasino, difficulty, search],
+  )
 
   const achievements = useMemo(() => deriveAchievements(progress, visibleGames), [progress, visibleGames])
   const topGames = useMemo(() => {
@@ -1221,7 +1174,10 @@ export default function GamesSection() {
 
   const requestPlay = (game: GuestGameDef) => {
     setLaunchGame(game)
-    setLaunchMode(playMode)
+    // Le mode mémorisé (« Tournoi » choisi pour les Petits Chevaux, par exemple)
+    // n'a pas de sens pour un jeu contre l'ordinateur : on retombe sur ce que
+    // ce jeu propose vraiment.
+    setLaunchMode(modePourJeu(game, playMode))
     setLaunchDifficulty(loadPlayDifficulty() || difficultyLabel(game.difficulty))
     void GAME_COMPONENTS[game.id]?.preload?.()
   }
@@ -1309,7 +1265,7 @@ export default function GamesSection() {
               <GameMiniature game={featured} ui={ui} large />
               <div className="flex-1 min-w-0">
                 <h2 className="text-xl font-black mb-1" style={{ color: ui.text }}>{featured.name}</h2>
-                <p className="text-[11px] font-semibold" style={{ color: ui.muted }}>{difficultyLabel(featured.difficulty)} · mobile first</p>
+                <p className="text-[11px] font-semibold" style={{ color: ui.muted }}>{libelleJoueurs(featured)} · {libelleAge(featured)} · {difficultyLabel(featured.difficulty)}</p>
               </div>
             </div>
             <p
@@ -1324,8 +1280,8 @@ export default function GamesSection() {
               {featured.description}
             </p>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] mt-2" style={{ color: ui.muted }}>
-              <span className="flex items-center gap-1"><Star size={10} fill="#fbbf24" color="#fbbf24" />{featured.rating}</span>
               <span className="flex items-center gap-1"><Clock size={10} />{featured.estTime}</span>
+              {featured.rendu === '3d' && <span className="flex items-center gap-1"><Sparkles size={10} />vraie 3D</span>}
               <span className="flex items-center gap-1"><Gamepad2 size={10} />{progress.playsByGame[featured.id] ?? 0} parties</span>
             </div>
             <div className="mt-4 py-2.5 rounded-lg text-center text-sm font-black" style={{ background: accent, color: '#fff' }}>
@@ -1354,15 +1310,16 @@ export default function GamesSection() {
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
-        {CATEGORY_META.map((cat) => {
+        {CATEGORY_META.filter((cat) => cat.id !== 'casino').map((cat) => {
           const count = cat.id === 'all'
-            ? visibleGames.length
-            : visibleGames.filter((game) => game.categories.includes(cat.id as Exclude<GameCategory, 'all'>)).length
+            ? jeuxPrincipaux.length
+            : jeuxPrincipaux.filter((game) => game.categories.includes(cat.id as Exclude<GameCategory, 'all'>)).length
           const activeCat = activeCategory === cat.id
           return (
             <button
               key={cat.id}
               onClick={() => setActiveCategory(cat.id)}
+              title={cat.hint}
               className="shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold"
               style={activeCat
                 ? { background: cat.color, color: '#fff' }
@@ -1375,6 +1332,11 @@ export default function GamesSection() {
           )
         })}
       </div>
+      {CATEGORY_META.find((cat) => cat.id === activeCategory)?.hint && (
+        <p className="text-[10px] -mt-2 px-1" style={{ color: ui.muted }}>
+          {CATEGORY_META.find((cat) => cat.id === activeCategory)?.hint}
+        </p>
+      )}
 
       <div className="rounded-xl p-3" style={{ background: ui.surface, border: `1px solid ${ui.border}` }}>
         <div className="flex items-center justify-between mb-2">
@@ -1444,6 +1406,32 @@ export default function GamesSection() {
           </div>
         )}
       </div>
+
+      <MultijoueurPanel ui={ui} games={visibleGames} onPlay={requestPlay} />
+
+      {/* Casino à part : mises fictives, adultes. Jamais dans « Tous », jamais recommandé. */}
+      {casinoFiltre.length > 0 && (
+        <div data-section="casino">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs font-bold" style={{ color: ui.text }}>🎰 Casino — mises fictives ({casinoFiltre.length})</p>
+          </div>
+          <p className="text-[10px] mb-2" style={{ color: ui.muted }}>
+            Jetons virtuels uniquement, aucun argent réel n’est engagé. Réservé aux adultes.
+          </p>
+          <motion.div className="grid grid-cols-2 gap-2.5" initial="hidden" animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: 0.03 } } }}>
+            {casinoFiltre.map((game) => (
+              <GameCard
+                key={game.id}
+                game={game}
+                progress={progress}
+                onPlay={() => requestPlay(game)}
+                onFavorite={() => toggleFavorite(game.id)}
+                ui={ui}
+              />
+            ))}
+          </motion.div>
+        </div>
+      )}
 
       <div className="rounded-xl overflow-hidden" style={{ background: '#11111d', border: '1px solid rgba(255,255,255,0.08)' }}>
         <button onClick={() => setShowLeaderboard((v) => !v)} className="w-full p-3 flex items-center justify-between">
@@ -1529,12 +1517,6 @@ export default function GamesSection() {
         </AnimatePresence>
       </div>
 
-      <ChallengePanel
-        ui={ui}
-        mode={playMode}
-        onMode={selectPlayMode}
-        onQuickPlay={() => featured && requestPlay(featured)}
-      />
       <GameLaunchDialog
         game={launchGame}
         ui={ui}
@@ -1550,7 +1532,7 @@ export default function GamesSection() {
       />
       <GuestRegistrationModal
         open={registrationOpen}
-        reason="Creorga garde votre pseudo, email et mobile pour les commandes, les records, les succes et les invitations de jeux."
+        reason="Creorga garde votre pseudo, email et mobile pour les commandes, les records et les succès."
         onClose={() => setRegistrationOpen(false)}
         onSaved={(profile) => {
           setGuestClient(profile)

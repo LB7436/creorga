@@ -69,11 +69,14 @@ export default function SpotErrorGame({ onBack }: GameProps) {
           <BistroScene variant="left" />
           <div style={{ position: 'relative' }} onClick={onMiss}>
             <BistroScene variant="right" />
-            {differences.map((diff) => (
+            {differences.map((diff, index) => (
               <button
                 key={diff.id}
                 onClick={(e) => mark(e, diff.id, diff.label)}
-                title={diff.label}
+                // Pas de `title={diff.label}` : l'infobulle au survol révélait
+                // la réponse à la souris. Le libellé n'est donné qu'une fois
+                // l'erreur trouvée.
+                aria-label={found.includes(diff.id) ? `Trouvée : ${diff.label}` : `Zone ${index + 1}`}
                 style={{
                   position: 'absolute',
                   left: `${diff.x}%`,

@@ -156,7 +156,9 @@ export function deriveAchievements(progress: GameProgress, games: GuestGameDef[]
   const playedIds = Object.keys(progress.playsByGame).filter((id) => progress.playsByGame[id] > 0)
   const playedGames = games.filter((game) => playedIds.includes(game.id))
   const playedCategories = new Set(playedGames.flatMap((game) => game.categories))
-  const casinoPlays = playedGames.filter((game) => game.categories.includes('casino')).length
+  // Comptait les jeux « casino » : deux seulement sont visibles, le succès
+  // « 3 jeux » était inatteignable — et poussait des enfants vers le casino.
+  const cardPlays = playedGames.filter((game) => game.categories.includes('cartes')).length
   const arcadePlays = playedGames.filter((game) => game.categories.includes('arcade')).length
 
   const pct = (value: number, target: number) => Math.min(100, Math.round((value / target) * 100))
@@ -166,7 +168,7 @@ export function deriveAchievements(progress: GameProgress, games: GuestGameDef[]
     { id: 'explorer', name: 'Explorateur', icon: '🧭', desc: 'Tester 5 jeux différents', progress: pct(playedIds.length, 5) },
     { id: 'allrounder', name: 'Polyvalent', icon: '🏅', desc: 'Jouer dans 4 catégories', progress: pct(playedCategories.size, 4) },
     { id: 'arcade', name: 'Réflexes', icon: '⚡', desc: 'Tester 3 jeux arcade', progress: pct(arcadePlays, 3) },
-    { id: 'cards', name: 'Cartes sur table', icon: '🃏', desc: 'Tester 3 jeux de cartes/casino', progress: pct(casinoPlays, 3) },
+    { id: 'cards', name: 'Cartes sur table', icon: '🃏', desc: 'Tester 3 jeux de cartes', progress: pct(cardPlays, 3) },
     { id: 'long', name: 'Marathon', icon: '⏱️', desc: '30 minutes de jeu cumulées', progress: pct(progress.totalSeconds, 30 * 60) },
     { id: 'favorite', name: 'Favori', icon: '♥', desc: 'Marquer un jeu favori', progress: pct(progress.favorites.length, 1) },
   ]

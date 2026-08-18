@@ -248,8 +248,8 @@ export default function RummikubGame({ onBack }: GameProps) {
   return (
     <>
     <Game3DShell
-      title="Rummi Kub 3D"
-      subtitle="Vs CPU — table PARTAGÉE, manipulation libre"
+      title="Rummi Kub"
+      subtitle="Contre l’ordinateur — table partagée, manipulation libre"
       onBack={onBack}
       side={gameSide({
         stats: [

@@ -6,7 +6,7 @@ import QRCodeCanvas from '@/components/QRCodeCanvas'
 import PhotoWall from '@/components/PhotoWall'
 import { useBrand } from '@/stores/brandStore'
 import { usePortalConfig } from '@/hooks/usePortalConfig'
-import { GUEST_GAMES } from '@/pages/guest/games/catalog'
+import { GUEST_GAMES, estCasino, estJouable, libelleJoueurs } from '@/pages/guest/games/catalog'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,6 +24,10 @@ interface GameEntry {
   id: string
   name: string
   emoji: string
+  /** Sous-titre honnête : joueurs réels, mention Bêta ou casino. */
+  detail: string
+  beta: boolean
+  casino: boolean
 }
 
 interface PortalSettings {
@@ -50,9 +54,19 @@ const PORTAL_TOGGLES: PortalToggle[] = [
   { id: 'announcements', label: 'Afficher les annonces', description: 'Promotions et actualités', emoji: '\u{1F4E2}', previewTab: 'annonces' },
 ]
 
+// Même registre que le portail client : un jeu « bientôt » n'est pas proposé,
+// un jeu bêta ou casino est signalé comme tel au restaurateur avant qu'il ne
+// l'active pour ses clients.
 const GAMES: GameEntry[] = GUEST_GAMES
-  .filter((game) => game.available)
-  .map((game) => ({ id: game.id, name: game.name, emoji: game.icon }))
+  .filter(estJouable)
+  .map((game) => ({
+    id: game.id,
+    name: game.name,
+    emoji: game.icon,
+    detail: estCasino(game) ? 'Casino · mises fictives · 18+' : libelleJoueurs(game),
+    beta: game.statut === 'beta',
+    casino: estCasino(game),
+  }))
 
 const ACCENT_COLORS = [
   { id: 'indigo', label: 'Indigo', value: '#6366f1' },
@@ -417,10 +431,26 @@ export default function ClientsConfig() {
                     <span style={{ fontSize: 24 }}>{game.emoji}</span>
                     <span style={{
                       fontSize: 11, fontWeight: 600, textAlign: 'center', lineHeight: 1.3, transition: 'color 0.2s',
-                      color: checked ? '#312e81' : '#64748b',
+                      // indigo-500 : lisible sur le fond clair d'origine comme sur
+                      // le thème sombre (l'indigo-900 y disparaissait).
+                      color: checked ? '#6366f1' : '#64748b',
                     }}>
                       {game.name}
                     </span>
+                    <span style={{
+                      fontSize: 9, fontWeight: 600, textAlign: 'center', lineHeight: 1.2,
+                      color: game.casino ? '#be185d' : '#94a3b8',
+                    }}>
+                      {game.detail}
+                    </span>
+                    {game.beta && (
+                      <span style={{
+                        fontSize: 8, fontWeight: 800, letterSpacing: 0.6, padding: '1px 5px', borderRadius: 5,
+                        background: 'rgba(245,158,11,0.15)', color: '#b45309', border: '1px solid rgba(245,158,11,0.45)',
+                      }}>
+                        BÊTA
+                      </span>
+                    )}
                   </motion.button>
                 )
               })}

@@ -182,6 +182,84 @@ test.describe('Parcours critiques', () => {
     await ctx.close()
   })
 
+  test('GST-8 — catalogue des jeux honnête : recommandé famille, casino à part, lanceur fidèle', async ({ browser }) => {
+    const ctx = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+      locale: 'fr-FR',
+    })
+    const page = await ctx.newPage()
+    await page.goto('/c?table=T4', { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('input[placeholder*="Rechercher un jeu"]')).toBeVisible({ timeout: 45_000 })
+
+    // 1. Le jeu recommandé est un jeu famille du registre — jamais casino.
+    const recommande = page.locator('[data-game-id^="featured-"]').first()
+    await expect(recommande).toBeVisible()
+    const idRecommande = (await recommande.getAttribute('data-game-id'))!.replace('featured-', '')
+    expect(['mensch', 'scoopa', 'memory', 'connect4', 'ttt', 'rummikub', 'simon', 'yahtzee']).toContain(idRecommande)
+
+    // 2. Plus d'invitation DUEL/TOUR factice ni de notes inventées.
+    const corps = await page.locator('body').innerText()
+    expect(corps).not.toContain('Invitation de table')
+    expect(corps).not.toMatch(/\b4[,.][0-9]\s*$/m)
+
+    // 3. Le casino a sa propre section, avec sa mention, hors du catalogue principal.
+    const casino = page.locator('[data-section="casino"]')
+    await expect(casino).toContainText('mises fictives')
+    await expect(casino).toContainText('Blackjack')
+    const catalogue = page.locator('text=/^Catalogue \\(\\d+\\)$/')
+    await expect(catalogue).toBeVisible()
+    // Le compteur « Tous » exclut les 2 jeux casino : 38 sur 40 dans la config par défaut.
+    await expect(page.locator('button', { hasText: /^🎮\s*Tous/ }).first()).toContainText('38')
+
+    // 4. Puissance 4 se joue contre l'ordinateur : ni « 2 joueurs », ni tournoi,
+    //    ni sélecteur de difficulté (le jeu ne le lit pas).
+    await page.locator('[data-game-id="connect4"]').click()
+    const dialogue = page.locator('[role="dialog"]')
+    await expect(dialogue).toBeVisible()
+    await expect(dialogue).toContainText('Vs ordinateur')
+    await expect(dialogue).toContainText('Règles')
+    await expect(dialogue).not.toContainText('Tournoi')
+    await expect(dialogue).not.toContainText('Difficulté')
+    await dialogue.locator('button[aria-label="Fermer"]').click()
+
+    // 5. Les Petits Chevaux annoncent 1–4 joueurs, la 3D et le vrai mode tournoi.
+    await page.locator('[data-game-id="mensch"]').click()
+    await expect(dialogue).toContainText('1–4 joueurs')
+    await expect(dialogue).toContainText('Tournoi')
+    await expect(dialogue).toContainText('3D')
+    await dialogue.locator('button[aria-label="Fermer"]').click()
+
+    // 6. Les Échecs lisent bien la difficulté choisie ici : le sélecteur est présent.
+    await page.locator('[data-game-id="chess"]').click()
+    await expect(dialogue).toContainText('Difficulté')
+    await dialogue.locator('button[aria-label="Fermer"]').click()
+
+    // 7. Un jeu bêta le dit avant de se lancer.
+    await page.locator('[data-game-id="rami"]').click()
+    await expect(dialogue).toContainText('Version bêta')
+    await dialogue.locator('button[aria-label="Fermer"]').click()
+
+    await ctx.close()
+  })
+
+  test('GST-9 — le back-office lit le même registre : Bêta et casino signalés', async ({ page }) => {
+    await seConnecter(page)
+    await page.goto('/clients', { waitUntil: 'domcontentloaded' })
+    await page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => {})
+    await expect(page.getByText(/jeux activés/i).first()).toBeVisible({ timeout: 30_000 })
+    const corps = await page.locator('body').innerText()
+    // 40 jeux proposés (les « bientôt » n'apparaissent pas), pas de « 3D » abusif.
+    expect(corps).toMatch(/\/ 40 jeux activés/)
+    expect(corps).toContain('Rami Salon')
+    expect(corps).not.toContain('Rami Salon 3D')
+    expect(corps).not.toContain('Mahjong Bamboo')
+    expect(corps).toContain('BÊTA')
+    expect(corps).toContain('Casino · mises fictives · 18+')
+  })
+
   test('UI-1 — aucune surface claire sur les modules principaux', async ({ page }) => {
     // Chaque route est compilée à la demande par Vite au premier passage.
     test.setTimeout(240_000)
