@@ -71,6 +71,7 @@ import portalConfigRoutes from './routes/portalConfig'
 import floorStateRoutes from './routes/floorState'
 import moduleConfigRoutes from './routes/moduleConfig'
 import inventoryAIRoutes from './routes/inventory-ai'
+import stockVentesRoutes from './routes/stock-ventes'
 import adsRoutes from './routes/ads'
 import affichageRoutes, { mediasPublicRouter, maintenantPublicRouter } from './routes/affichage'
 import rhDossierRoutes from './routes/rh-dossier'
@@ -232,10 +233,36 @@ app.use('/api/events', authenticate, requireCompany, eventsRoutes)
 app.use('/api/stripe', authenticate, stripeRoutes)
 app.use('/api/email', authenticate, emailRoutes)
 app.use('/api/payments', deviceOrUserAuth, paymentsRoutes)
-app.use('/api/portal-config', publicLimiter, portalConfigRoutes) // portail client public (QR)
+// Le portail client reste public pour les lectures QR et l'inscription client,
+// mais sa configuration et son journal d'événements sont des données de gestion.
+// Les laisser derrière le seul rate-limit permettait à un visiteur anonyme de
+// changer le branding, désactiver les jeux ou lire les événements des tables.
+function portalConfigManagementGuard(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const path = req.path
+  const protectedRoute =
+    req.method === 'PUT' ||
+    req.method === 'PATCH' ||
+    (req.method === 'POST' && path === '/reset') ||
+    (req.method === 'GET' && path === '/client-events')
+
+  if (!protectedRoute) {
+    next()
+    return
+  }
+
+  authenticate(req, res, () => {
+    requireCompany(req, res, () => {
+      requireRole('OWNER')(req, res, next)
+    })
+  })
+}
+
+app.use('/api/portal-config', publicLimiter, portalConfigManagementGuard, portalConfigRoutes) // portail client public (QR)
 app.use('/api/game-scores', publicLimiter, gameScoresRoutes) // scores jeux guest (public)
 app.use('/api/guest', publicLimiter, guestRoutes) // suivi commande, appel serveur, paiement (public)
 app.use('/api/floor-state', deviceOrUserAuth, floorStateRoutes)
+// Pont caisse -> stock : decrement a la vente, alerte de rupture immediate (v4.8).
+app.use('/api/stock-ventes', deviceOrUserAuth, stockVentesRoutes)
 app.use('/api/module-config', deviceOrUserAuth, moduleConfigRoutes)
 // Mounted on /api/inventory-ocr to avoid clash with the auth-protected /api/inventory
 app.use('/api/inventory-ocr', authenticate, inventoryAIRoutes)

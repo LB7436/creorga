@@ -14,6 +14,7 @@
 
 import fs from 'fs'
 import path from 'path'
+import { getStock } from '../lib/stockStore'
 
 const DATA_DIR = path.resolve(process.cwd(), 'data')
 
@@ -23,9 +24,9 @@ function loadJson<T = any>(file: string, fallback: T): T {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')) as T } catch { return fallback }
 }
 
-interface Notif {
+export interface Notif {
   id: string
-  type: 'stock-low' | 'invoice-overdue' | 'overtime' | 'sales-drop' | 'bad-review'
+  type: 'stock-low' | 'stock-out' | 'invoice-overdue' | 'overtime' | 'sales-drop' | 'bad-review'
   entityId: string
   title: string
   message: string
@@ -55,9 +56,21 @@ function alreadyNotifiedToday(type: string, entityId: string): boolean {
   return loadNotifLog().some((n) => n.type === type && n.entityId === entityId && n.pushedAt >= start.getTime())
 }
 
-function pushNotif(n: Omit<Notif, 'id' | 'pushedAt'>) {
-  if (todayCount() >= 5) return  // rate-limit max 5/jour
+/**
+ * Publie une notification proactive (journal + diffusion temps réel).
+ * Exportée : la route de vente de la caisse s'en sert pour signaler une
+ * rupture de stock au moment exact où elle se produit, avec la même
+ * déduplication quotidienne que le balayage périodique.
+ */
+export function pushNotif(n: Omit<Notif, 'id' | 'pushedAt'>) {
   if (alreadyNotifiedToday(n.type, n.entityId)) return  // dédup
+  // Plafond anti-spam de 5/jour — mais JAMAIS pour une notification
+  // critique. Vécu en recette : cinq relances de factures au démarrage
+  // avaient épuisé le quota, et la rupture de stock déclenchée par une vente
+  // — le cas exact que la mission demande de notifier — était supprimée
+  // en silence. Un impayé de 30 jours peut attendre demain ; un Coca-Cola à
+  // zéro pendant le service, non.
+  if (n.severity !== 'critical' && todayCount() >= 5) return
   const notif: Notif = { ...n, id: 'pn-' + Math.random().toString(36).slice(2, 10), pushedAt: Date.now() }
   const log = loadNotifLog()
   log.push(notif)
@@ -70,17 +83,32 @@ function pushNotif(n: Omit<Notif, 'id' | 'pushedAt'>) {
 
 async function scan() {
   try {
-    // 1. Stock bas (qty <= minStock ou < 2 jours de conso projetée — proxy : qty < 5)
-    const stock = loadJson<any[]>('inventory-stock.json', [])
+    // 1. Stock bas et ruptures.
+    // L'ancienne version lisait `item.qty` et `item.minStock`, deux champs qui
+    // N'EXISTENT PAS dans le schéma StockEntry (quantity / lowStockThreshold) :
+    // qty valait toujours 0, la condition `qty > 0` était toujours fausse,
+    // et aucune alerte n'est jamais partie — une rupture de Coca ne
+    // prévenait personne (constat d'audit, confirmé). Elle excluait aussi la
+    // rupture totale, le cas le plus grave.
+    const stock = getStock()
     for (const item of stock) {
-      const qty = item.qty || 0
-      const min = item.minStock || 5
-      if (qty <= min && qty > 0) {
+      const qty = Number(item.quantity ?? 0)
+      const seuil = Number(item.lowStockThreshold ?? 0)
+      if (qty <= 0) {
+        pushNotif({
+          type: 'stock-out',
+          entityId: item.id || item.name,
+          title: `🚫 Rupture : ${item.name}`,
+          message: `Stock à zéro — le produit est retiré de la carte client jusqu'au réapprovisionnement.`,
+          cta: { label: 'Commander', route: '/inventory/stock' },
+          severity: 'critical',
+        })
+      } else if (seuil > 0 && qty <= seuil) {
         pushNotif({
           type: 'stock-low',
           entityId: item.id || item.name,
           title: `📦 Stock bas : ${item.name}`,
-          message: `Il reste ${qty} ${item.unit || 'unités'}. Robi suggère commande.`,
+          message: `Il reste ${qty} ${item.unit || 'unités'} (seuil : ${seuil}).`,
           cta: { label: 'Commander', route: '/inventory/stock' },
           severity: 'warning',
         })

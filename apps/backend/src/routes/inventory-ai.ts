@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import fs from 'fs'
 import path from 'path'
-import { loadStock, saveStock, type StockEntry as SharedStockEntry } from '../lib/stockStore'
+import { getStock, saveStock, type StockEntry as SharedStockEntry } from '../lib/stockStore'
 
 const STORE_DIR = path.resolve(process.cwd(), 'data')
 
@@ -43,11 +43,15 @@ const router = Router()
 
 // Stock persisté sur disque — accès centralisé via lib/stockStore
 type StockEntry = SharedStockEntry
-let stock: StockEntry[] = loadStock()
+// Plus de copie privée : `stock` lit TOUJOURS le cache partagé de
+// lib/stockStore. L'ancien `let stock = loadStock()` figeait une copie au
+// démarrage et l'écrivait telle quelle à chaque sauvegarde — un décrément
+// fait par la caisse aurait été écrasé à la prochaine édition manuelle.
+const stockActuel = (): StockEntry[] => getStock()
 const uid = () => Math.random().toString(36).slice(2, 10)
 
 // ─── GET stock ──────────────────────────────────────────────────────────────
-router.get('/stock', (_req, res) => res.json({ stock, total: stock.length }))
+router.get('/stock', (_req, res) => res.json({ stock: stockActuel(), total: stockActuel().length }))
 
 // ─── POST bulk add (after OCR review) ──────────────────────────────────────
 router.post('/stock/bulk', (req, res) => {
@@ -57,7 +61,7 @@ router.post('/stock/bulk', (req, res) => {
   const added: StockEntry[] = []
   for (const item of items) {
     // Try to find an existing entry (case-insensitive name match)
-    const existing = stock.find((s) => s.name.toLowerCase() === item.name.toLowerCase())
+    const existing = stockActuel().find((s) => s.name.toLowerCase() === item.name.toLowerCase())
     if (existing) {
       // Weighted average price
       const newQty = existing.quantity + item.qty
@@ -77,43 +81,41 @@ router.post('/stock/bulk', (req, res) => {
         lastSupplier: supplier,
         lastUpdated: Date.now(),
       }
-      stock.push(entry)
+      stockActuel().push(entry)
       added.push(entry)
     }
   }
 
-  saveStock(stock)
+  saveStock(stockActuel())
 
   // v3.16 — push real-time vers tous les clients PC (StockPage live update)
   try {
     const broadcast = (globalThis as any).liveBroadcast
-    if (broadcast) broadcast('inventory', 'inventory:bulk-added', { added, supplier, total: stock.length })
+    if (broadcast) broadcast('inventory', 'inventory:bulk-added', { added, supplier, total: stockActuel().length })
   } catch { /* ignore */ }
 
-  res.json({ added, totalStockEntries: stock.length })
+  res.json({ added, totalStockEntries: stockActuel().length })
 })
 
 // ─── PATCH a stock entry (manual edit qty, price, etc.) ────────────────────
 router.patch('/stock/:id', (req, res) => {
-  const entry = stock.find((s) => s.id === req.params.id)
+  const entry = stockActuel().find((s) => s.id === req.params.id)
   if (!entry) return res.status(404).json({ error: 'not found' })
   Object.assign(entry, req.body)
   entry.lastUpdated = Date.now()
-  saveStock(stock)
+  saveStock(stockActuel())
   res.json(entry)
 })
 
 // ─── DELETE stock entry ─────────────────────────────────────────────────────
 router.delete('/stock/:id', (req, res) => {
-  stock = stock.filter((s) => s.id !== req.params.id)
-  saveStock(stock)
-  res.json({ ok: true, total: stock.length })
+  saveStock(stockActuel().filter((s) => s.id !== req.params.id))
+  res.json({ ok: true, total: stockActuel().length })
 })
 
 // ─── DELETE all (manual reset by admin) ────────────────────────────────────
 router.delete('/stock', (_req, res) => {
-  stock = []
-  saveStock(stock)
+  saveStock([])
   res.json({ ok: true, total: 0 })
 })
 
@@ -144,8 +146,8 @@ router.get('/backups', (_req, res) => {
 router.post('/backups', (_req, res) => {
   ensureBackupDir()
   const filename = `inventory-${new Date().toISOString().replace(/[:.]/g, '-')}.bak.json`
-  fs.writeFileSync(path.join(BACKUP_DIR, filename), JSON.stringify(stock, null, 2), 'utf8')
-  res.json({ ok: true, filename, items: stock.length })
+  fs.writeFileSync(path.join(BACKUP_DIR, filename), JSON.stringify(stockActuel(), null, 2), 'utf8')
+  res.json({ ok: true, filename, items: stockActuel().length })
 })
 
 // Le nom de fichier vient de l'utilisateur : sans validation, `..%2f..%2f.env`
@@ -168,9 +170,8 @@ router.post('/restore/:filename', (req, res) => {
   try {
     const content = JSON.parse(fs.readFileSync(f, 'utf8'))
     if (!Array.isArray(content)) return res.status(400).json({ error: 'invalid backup format' })
-    stock = content
-    saveStock(stock)
-    res.json({ ok: true, restored: stock.length })
+    saveStock(content)
+    res.json({ ok: true, restored: content.length })
   } catch (e: any) {
     res.status(500).json({ error: e.message })
   }
