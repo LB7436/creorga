@@ -84,8 +84,6 @@ const RgpdPage = lazy(() => import('@/pages/rgpd/RgpdPage'))
 
 // POS Pages
 const FloorPlan = lazy(() => import('@/pages/pos/FloorPlan'))
-const OrderPage = lazy(() => import('@/pages/pos/OrderPage'))
-const Checkout = lazy(() => import('@/pages/pos/Checkout'))
 const DashboardPage = lazy(() => import('@/pages/pos/DashboardPage'))
 
 // CRM Pages
@@ -293,9 +291,15 @@ function App() {
           <Route path="floor" element={<UnifiedFloorPlan />} />
           <Route path="floor-classic" element={<FloorPlan />} />
           <Route path="design" element={<RoomDesignerPage />} />
-          <Route path="order/:tableId" element={<OrderPage />} />
+          {/* v4.8 — OrderPage (table « T4 » en dur, 20 produits et un panier
+              inventés) et Checkout (« Sophie Keller » fictive) étaient des
+              maquettes que RIEN dans l'application ne reliait : accessibles
+              seulement en tapant l'URL. La prise de commande réelle est la
+              caisse tactile (apps/pos) ; les URL sont conservées et menées au
+              plan de salle, qui est vrai. */}
+          <Route path="order/:tableId" element={<Navigate to="/pos/floor" replace />} />
           <Route path="checkout" element={<Navigate to="/pos/floor" replace />} />
-          <Route path="checkout/:orderId" element={<Checkout />} />
+          <Route path="checkout/:orderId" element={<Navigate to="/pos/floor" replace />} />
           {/* v3.18 — fusion : /pos/orders + /pos/config étaient des alias, redirige vers dashboard */}
           <Route path="orders" element={<Navigate to="/pos/dashboard" replace />} />
           <Route path="config" element={<Navigate to="/pos/dashboard" replace />} />
