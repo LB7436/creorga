@@ -589,6 +589,9 @@ interface ModalProps {
 
 function TableModal({ table, onClose, onOpenOrder }: ModalProps) {
   const [covers, setCovers] = useState(2)
+  // Refus du store (table impayée) : la modale RESTE ouverte avec le motif,
+  // au lieu de se fermer comme si l'action avait réussi.
+  const [refus, setRefus] = useState<string | null>(null)
   const openTable = usePOS(s => s.openTable)
   const setTableStatus = usePOS(s => s.setTableStatus)
 
@@ -600,8 +603,18 @@ function TableModal({ table, onClose, onOpenOrder }: ModalProps) {
 
   function handleOpen() { openTable(table.id, covers); onOpenOrder(table.id); onClose() }
   function handleGoToOrder() { onOpenOrder(table.id); onClose() }
-  function handleMarkDirty() { setTableStatus(table.id, 'dirty'); onClose() }
-  function handleMarkAvailable() { setTableStatus(table.id, 'available'); onClose() }
+  // Le store refuse « dirty »/« available » sur une table qui a des
+  // consommations non réglées — c'était par ici que « Fermer la table »
+  // contournait closeTable et faisait disparaître du chiffre d'affaires.
+  const MOTIF_IMPAYE = 'Cette table a des consommations non réglées : encaissez-la avant de la fermer.'
+  function handleMarkDirty() {
+    if (setTableStatus(table.id, 'dirty')) onClose()
+    else setRefus(MOTIF_IMPAYE)
+  }
+  function handleMarkAvailable() {
+    if (setTableStatus(table.id, 'available')) onClose()
+    else setRefus(MOTIF_IMPAYE)
+  }
   function handleMarkReserved() { setTableStatus(table.id, 'reserved'); onClose() }
 
   const gradientBtn = (c: string, bgBase: string): React.CSSProperties => ({
@@ -719,6 +732,17 @@ function TableModal({ table, onClose, onOpenOrder }: ModalProps) {
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {refus && (
+            <div
+              role="alert"
+              style={{
+                padding: '10px 14px', borderRadius: 12, fontSize: 13, fontWeight: 600, lineHeight: 1.4,
+                color: '#fecaca', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)',
+              }}
+            >
+              ⚠ {refus}
+            </div>
+          )}
           {isOccupied ? (
             <>
               <button onClick={handleGoToOrder} style={gradientBtn('#818cf8', '#6366f1')}>Voir la commande</button>
@@ -1106,7 +1130,14 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
     setTransferFrom(t.id)
     setTransferNotice(`Cliquez sur une table destination pour transférer depuis ${t.name}`)
   }
-  function ctxClean(t: Table) { setTableStatus(t.id, 'available') }
+  function ctxClean(t: Table) {
+    // Le menu contextuel a le même garde-fou que la modale : une table
+    // impayée ne se « nettoie » pas d'un clic droit.
+    if (!setTableStatus(t.id, 'available')) {
+      setTransferNotice(`${t.name} a des consommations non réglées — encaissez avant de libérer.`)
+      setTimeout(() => setTransferNotice(null), 3500)
+    }
+  }
 
   const syncedSelected = selectedTable
     ? tables.find(t => t.id === selectedTable.id) ?? null

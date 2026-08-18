@@ -65,13 +65,23 @@ export default function JournalPage({ onExit }: { onExit: () => void }) {
 
           <Ligne libelle="Total hors taxes" valeur={euro(ticket.totalHT)} />
           <Ligne libelle="dont TVA" valeur={euro(ticket.totalTva)} />
-          <Ligne libelle="Total encaissé" valeur={euro(ticket.totalTTC)} fort />
+          {/* Les remises sont visibles sur le Z : sans cette ligne, un CA
+              inférieur à la somme des additions paraît inexplicable. Elles
+              n'apparaissent que si elles existent — pas de ligne à 0,00 €
+              qui ferait croire à un rabais systématique. */}
+          {(ticket.totalRemises ?? 0) > 0 && (
+            <Ligne libelle="dont remises accordées" valeur={`− ${euro(ticket.totalRemises)}`} />
+          )}
+          <Ligne libelle="Chiffre d'affaires TTC" valeur={euro(ticket.totalTTC)} fort />
           <div style={separateur} />
           <Ligne libelle="Espèces" valeur={euro(ticket.parMethode.cash)} />
           <Ligne libelle="Carte" valeur={euro(ticket.parMethode.card)} />
           <Ligne libelle="Sans contact" valeur={euro(ticket.parMethode.contactless)} />
           <div style={separateur} />
           <Ligne libelle="Pourboires" valeur={euro(ticket.totalPourboires)} />
+          {(ticket.totalArrondisCaritatifs ?? 0) > 0 && (
+            <Ligne libelle="Arrondis caritatifs (à reverser)" valeur={euro(ticket.totalArrondisCaritatifs)} />
+          )}
 
           <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
             <button onClick={() => window.print()} style={{ ...bouton, flex: 1 }}>Imprimer</button>

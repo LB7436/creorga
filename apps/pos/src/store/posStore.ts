@@ -54,6 +54,28 @@ export interface LigneVente {
   price: number
 }
 
+/** Nature d'une remise accordée à l'encaissement. */
+export type TypeRemise = 'promo' | 'carte_cadeau' | 'points' | 'membre' | 'geste'
+
+/**
+ * Une remise figée dans la vente. Sans cette trace, promos, cartes cadeaux
+ * et points fidélité étaient déduits À L'ÉCRAN puis oubliés au journal : le
+ * ticket Z affichait un chiffre encaissé supérieur à l'argent réellement
+ * entré en caisse.
+ */
+export interface Remise {
+  type: TypeRemise
+  libelle: string
+  /** Montant TTC déduit, en euros positifs. */
+  montant: number
+}
+
+/** Une part d'un règlement mixte (ex. 30 € en espèces + le reste en carte). */
+export interface Reglement {
+  methode: PayMethod
+  montant: number
+}
+
 /**
  * Une vente enregistrée. C'est la seule trace comptable de la caisse : elle
  * n'existait pas, et sans elle aucune clôture ni aucun ticket Z n'est possible.
@@ -68,14 +90,34 @@ export interface Vente {
   /** Libellés des couverts réglés par cette vente. */
   couverts: string[]
   lignes: LigneVente[]
-  /** Hors taxes, déduit du TTC : les prix de la carte sont TTC. */
+  /** Hors taxes, déduit du TTC APRÈS remises : les prix de la carte sont TTC. */
   sousTotal: number
   tva: number
   pourboire: number
-  /** TTC + pourboire — ce qui est réellement encaissé. */
+  /** Total brut TTC des lignes, avant toute remise. */
+  brut: number
+  /** Remises accordées, dans l'ordre d'application. */
+  remises: Remise[]
+  /** Arrondi caritatif (« arrondir aux 50 € »), reversé, jamais du chiffre. */
+  arrondiCaritatif: number
+  /** TTC net + pourboire + arrondi — ce qui est réellement encaissé. */
   total: number
+  /**
+   * Ventilation par moyen de paiement. Somme = total. Un règlement simple
+   * n'a qu'une entrée ; un règlement mixte en a plusieurs. `methode` reste
+   * la méthode principale (la plus grosse part) pour la rétro-compat.
+   */
+  reglements: Reglement[]
   methode: PayMethod
   vendeur: string
+}
+
+/** Ce que l'écran de paiement transmet au store en plus de la méthode et du pourboire. */
+export interface OptionsPaiement {
+  remises?: Remise[]
+  arrondiCaritatif?: number
+  /** Ventilation d'un règlement mixte. Si absent : tout sur `method`. */
+  reglements?: Reglement[]
 }
 
 /** Résultat d'une clôture de journée (ticket Z). */
@@ -89,6 +131,10 @@ export interface Cloture {
   totalHT: number
   totalTva: number
   totalPourboires: number
+  /** Somme des remises accordées sur la période — visible sur le ticket Z. */
+  totalRemises: number
+  /** Arrondis caritatifs collectés (à reverser, hors chiffre d'affaires). */
+  totalArrondisCaritatifs: number
   parMethode: Record<PayMethod, number>
   ventes: Vente[]
 }
@@ -432,7 +478,7 @@ interface POSStore {
   openTable: (tableId: string, coverCount: number) => void
   /** Renvoie false si la table a des consommations non réglées (sauf `forcer`). */
   closeTable: (tableId: string, options?: { forcer?: boolean }) => boolean
-  setTableStatus: (tableId: string, status: TableStatus) => void
+  setTableStatus: (tableId: string, status: TableStatus) => boolean
   moveTable: (tableId: string, x: number, y: number) => void
   addTable: (t: Omit<Table, 'covers' | 'mergedWith' | 'status'>) => void
   updateTable: (id: string, updates: Partial<Table>) => void
@@ -459,7 +505,7 @@ interface POSStore {
 
   // ── Payment
   /** Règle la table entière, ou seulement `coverIds`. Inscrit la vente au journal. */
-  processPayment: (tableId: string, method: PayMethod, tip: number, coverIds?: string[]) => void
+  processPayment: (tableId: string, method: PayMethod, tip: number, coverIds?: string[], options?: OptionsPaiement) => Vente | null
   /** Clôture la journée (ticket Z). Renvoie null s'il n'y a aucune vente. */
   cloturerJournee: () => Cloture | null
 
@@ -486,6 +532,49 @@ interface POSStore {
   // ── Reset (for testing)
   resetData: () => void
 }
+
+/**
+ * Migration du magasin persistant. Exportée pour être testée directement :
+ * elle touche des données financières et mérite sa preuve.
+ */
+export function migrerEtatPersistant(etat: any, versionPrecedente: number): any {
+    if (!etat) return etat
+    // v0 → v1 : arrivée du journal des ventes et des clôtures. Les couverts
+    // existants n'ont pas de marqueur de règlement : on les laisse impayés,
+    // ce qui est le comportement sûr (on ne déclare pas payé ce qu'on
+    // ignore) — au pire un serveur réencaisse une table déjà réglée, ce qui
+    // se voit, alors qu'une table déclarée payée à tort ne se voit pas.
+    if (versionPrecedente < 1) {
+      etat.ventes = Array.isArray(etat.ventes) ? etat.ventes : []
+      etat.clotures = Array.isArray(etat.clotures) ? etat.clotures : []
+    }
+    // v1 → v2 : remises, arrondi caritatif et ventilation par règlement.
+    // Une vente ancienne n'a connu aucune remise (elles n'étaient pas
+    // enregistrées) : brut = total - pourboire, remises vides, un seul
+    // règlement sur sa méthode. On ne réécrit pas l'histoire, on la
+    // complète avec ce qu'elle disait déjà.
+    if (versionPrecedente < 2) {
+      const completer = (v: any) => {
+        if (!v || typeof v !== 'object') return v
+        if (!Array.isArray(v.remises)) v.remises = []
+        if (typeof v.arrondiCaritatif !== 'number') v.arrondiCaritatif = 0
+        if (typeof v.brut !== 'number') v.brut = centimes((v.total ?? 0) - (v.pourboire ?? 0))
+        if (!Array.isArray(v.reglements) || v.reglements.length === 0) {
+          v.reglements = [{ methode: v.methode ?? 'card', montant: v.total ?? 0 }]
+        }
+        return v
+      }
+      etat.ventes = (etat.ventes ?? []).map(completer)
+      etat.clotures = (etat.clotures ?? []).map((c: any) => {
+        if (!c || typeof c !== 'object') return c
+        if (typeof c.totalRemises !== 'number') c.totalRemises = 0
+        if (typeof c.totalArrondisCaritatifs !== 'number') c.totalArrondisCaritatifs = 0
+        c.ventes = (c.ventes ?? []).map(completer)
+        return c
+      })
+    }
+    return etat
+  }
 
 export const usePOS = create<POSStore>()(
   persist(
@@ -545,9 +634,29 @@ export const usePOS = create<POSStore>()(
         return true
       },
 
-      setTableStatus: (tableId, status) => set(s => ({
-        tables: s.tables.map(t => t.id !== tableId ? t : { ...t, status })
-      })),
+      /**
+       * Change le statut d'une table.
+       *
+       * Refuse « dirty » ou « available » sur une table qui a des
+       * consommations non réglées : c'était le contournement de la
+       * protection de closeTable — « Fermer la table » passait par ici, la
+       * table repartait « à nettoyer » puis « libre », et la prochaine
+       * ouverture écrasait les couverts impayés. Même règle que closeTable :
+       * on ne fait pas disparaître du chiffre d'affaires par un changement
+       * de statut.
+       *
+       * @returns false si le changement a été refusé.
+       */
+      setTableStatus: (tableId, status) => {
+        const table = get().tables.find(t => t.id === tableId)
+        if (!table) return false
+        const impaye = table.covers.some(c => !c.paidAt && c.items.length > 0)
+        if (impaye && (status === 'dirty' || status === 'available')) return false
+        set(s => ({
+          tables: s.tables.map(t => t.id !== tableId ? t : { ...t, status })
+        }))
+        return true
+      },
 
       moveTable: (tableId, x, y) => set(s => ({
         tables: s.tables.map(t => t.id !== tableId ? t : { ...t, x, y })
@@ -755,24 +864,59 @@ export const usePOS = create<POSStore>()(
        * lignes, la vente est inscrite au journal, et la table ne se libère que
        * lorsque plus rien n'est dû.
        */
-      processPayment: (tableId, method, tip, coverIds) => {
+      processPayment: (tableId, method, tip, coverIds, options) => {
         const etat = get()
         const table = etat.tables.find(t => t.id === tableId)
-        if (!table) return
+        if (!table) return null
 
         // Sans sélection : on règle tout ce qui reste dû.
         const cibles = table.covers.filter(c =>
           !c.paidAt && (coverIds ? coverIds.includes(c.id) : true)
         )
-        if (cibles.length === 0) return
+        if (cibles.length === 0) return null
 
         const maintenant = Date.now()
         const lignes: LigneVente[] = cibles.flatMap(c =>
           c.items.map(i => ({ name: i.name, qty: i.qty, price: i.price }))
         )
-        const totalTTC = centimes(cibles.reduce((s, c) => s + totalCouvert(c), 0))
+        const brut = centimes(cibles.reduce((s, c) => s + totalCouvert(c), 0))
+
+        // Les remises sont plafonnées au brut : une carte cadeau de 50 € sur
+        // une addition de 30 € ne crée pas un « TTC négatif ». Le solde non
+        // consommé n'est pas l'affaire de la vente.
+        const remises = (options?.remises ?? [])
+          .map(r => ({ ...r, montant: centimes(Math.max(0, r.montant)) }))
+          .filter(r => r.montant > 0)
+        const totalRemises = Math.min(brut, centimes(remises.reduce((s, r) => s + r.montant, 0)))
+        const totalTTC = centimes(brut - totalRemises)
+
+        // La TVA se calcule sur ce qui est réellement facturé, remises
+        // déduites — c'est la base imposable, pas le prix affiché.
         const { ht, tva } = ventilationTva(totalTTC, etat.settings.taxRate)
         const pourboire = centimes(tip || 0)
+        const arrondiCaritatif = centimes(Math.max(0, options?.arrondiCaritatif ?? 0))
+        const total = centimes(totalTTC + pourboire + arrondiCaritatif)
+
+        // Ventilation par méthode. Un règlement mixte incohérent (somme des
+        // parts ≠ total) est REFUSÉ : mieux vaut un encaissement bloqué qu'un
+        // ticket Z dont les colonnes ne s'additionnent pas.
+        let reglements: Reglement[]
+        if (options?.reglements && options.reglements.length > 0) {
+          const parts = options.reglements
+            .map(r => ({ methode: r.methode, montant: centimes(r.montant) }))
+            .filter(r => r.montant > 0)
+          const somme = centimes(parts.reduce((s, r) => s + r.montant, 0))
+          if (Math.abs(somme - total) > 0.011) {
+            throw new Error(
+              `Règlement mixte incohérent : les parts font ${somme.toFixed(2)} € pour un total de ${total.toFixed(2)} €.`
+            )
+          }
+          reglements = parts
+        } else {
+          reglements = [{ methode: method, montant: total }]
+        }
+        // Méthode principale = la plus grosse part (rétro-compat du journal).
+        const principale = reglements.reduce((a, b) => (b.montant > a.montant ? b : a)).methode
 
         const derniere = etat.ventes[0]
         const vente: Vente = {
@@ -786,8 +930,12 @@ export const usePOS = create<POSStore>()(
           sousTotal: ht,
           tva,
           pourboire,
-          total: centimes(totalTTC + pourboire),
-          methode: method,
+          brut,
+          remises,
+          arrondiCaritatif,
+          total,
+          reglements,
+          methode: principale,
           vendeur: etat.currentStaff?.name || 'Inconnu',
         }
 
@@ -798,7 +946,7 @@ export const usePOS = create<POSStore>()(
           tables: s.tables.map(t => t.id !== tableId ? t : {
             ...t,
             covers: t.covers.map(c => idsRegles.has(c.id)
-              ? { ...c, paidAt: maintenant, paidMethod: method }
+              ? { ...c, paidAt: maintenant, paidMethod: principale }
               : c),
           }),
         }))
@@ -808,6 +956,7 @@ export const usePOS = create<POSStore>()(
         if (apres && apres.covers.every(c => c.paidAt || c.items.length === 0)) {
           get().closeTable(tableId)
         }
+        return vente
       },
 
       /**
@@ -819,18 +968,29 @@ export const usePOS = create<POSStore>()(
         const ventes = get().ventes
         if (ventes.length === 0) return null
 
+        // Ventilation par les RÈGLEMENTS, pas par la méthode principale : un
+        // paiement mixte 30 € espèces + 50 € carte tombe dans les deux
+        // colonnes, pas entièrement dans « carte ». Les ventes antérieures à
+        // ce champ (magasin migré) retombent sur leur méthode unique.
         const parMethode: Record<PayMethod, number> = { cash: 0, card: 0, contactless: 0 }
-        for (const v of ventes) parMethode[v.methode] = centimes(parMethode[v.methode] + v.total)
+        for (const v of ventes) {
+          const parts = v.reglements?.length ? v.reglements : [{ methode: v.methode, montant: v.total }]
+          for (const p of parts) parMethode[p.methode] = centimes(parMethode[p.methode] + p.montant)
+        }
 
         const cloture: Cloture = {
           id: uid(),
           horodatage: Date.now(),
           debut: ventes[ventes.length - 1].horodatage,
           nbVentes: ventes.length,
-          totalTTC: centimes(ventes.reduce((s, v) => s + v.total - v.pourboire, 0)),
+          // TTC = chiffre d'affaires facturé : ni pourboire ni arrondi
+          // caritatif, qui sont encaissés mais ne sont pas du chiffre.
+          totalTTC: centimes(ventes.reduce((s, v) => s + v.total - v.pourboire - (v.arrondiCaritatif ?? 0), 0)),
           totalHT: centimes(ventes.reduce((s, v) => s + v.sousTotal, 0)),
           totalTva: centimes(ventes.reduce((s, v) => s + v.tva, 0)),
           totalPourboires: centimes(ventes.reduce((s, v) => s + v.pourboire, 0)),
+          totalRemises: centimes(ventes.reduce((s, v) => s + (v.remises ?? []).reduce((a, r) => a + r.montant, 0), 0)),
+          totalArrondisCaritatifs: centimes(ventes.reduce((s, v) => s + (v.arrondiCaritatif ?? 0), 0)),
           parMethode,
           ventes,
         }
@@ -932,20 +1092,8 @@ export const usePOS = create<POSStore>()(
        * inexistant). Toute modification de forme doit désormais incrémenter ce
        * numéro et compléter `migrate`.
        */
-      version: 1,
-      migrate: (etat: any, versionPrecedente: number) => {
-        if (!etat) return etat
-        // v0 → v1 : arrivée du journal des ventes et des clôtures. Les couverts
-        // existants n'ont pas de marqueur de règlement : on les laisse impayés,
-        // ce qui est le comportement sûr (on ne déclare pas payé ce qu'on
-        // ignore) — au pire un serveur réencaisse une table déjà réglée, ce qui
-        // se voit, alors qu'une table déclarée payée à tort ne se voit pas.
-        if (versionPrecedente < 1) {
-          etat.ventes = Array.isArray(etat.ventes) ? etat.ventes : []
-          etat.clotures = Array.isArray(etat.clotures) ? etat.clotures : []
-        }
-        return etat
-      },
+      version: 2,
+      migrate: migrerEtatPersistant,
     }
   )
 )

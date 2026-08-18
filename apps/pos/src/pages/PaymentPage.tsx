@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { usePOS, Cover, PayMethod, coverTotal, tableTotal } from '../store/posStore'
+import { usePOS, Cover, PayMethod, Remise, coverTotal, tableTotal } from '../store/posStore'
 
 interface Props {
   tableId: string
@@ -362,6 +362,8 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   const [method, setMethod] = useState<PayMethod>('card')
   const [mixedMode, setMixedMode] = useState(false)
   const [partials, setPartials] = useState<Partial[]>([])
+  // Refus du store (règlement mixte incohérent…) : affiché en clair, jamais avalé.
+  const [erreurEncaissement, setErreurEncaissement] = useState<string | null>(null)
   const [partialAmount, setPartialAmount] = useState('')
   const [partialMethod, setPartialMethod] = useState<PayMethod>('cash')
 
@@ -543,10 +545,49 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
     setShowMemberForm(false)
   }
 
+  /**
+   * Transmet au store EXACTEMENT ce que l'écran affiche au client.
+   *
+   * L'ancienne version n'envoyait que (method, tip) : promos, cartes cadeaux,
+   * points, remise membre et arrondi caritatif étaient soustraits du montant
+   * affiché puis ignorés par processPayment, qui réenregistrait le prix plein
+   * — le ticket Z surévaluait l'encaissé. Même chose pour le règlement mixte,
+   * inscrit sur la seule méthode principale.
+   */
   function handleConfirm() {
     const ids = splitMode === 'by-cover' ? [...selectedCoverIds] : undefined
-    processPayment(tableId, method, tipAmount, ids)
-    setDone(true)
+
+    const remises: Remise[] = []
+    if (appliedPromo && promoDiscount > 0) {
+      remises.push({ type: 'promo', libelle: `Code ${appliedPromo.code} (-${appliedPromo.pct} %)`, montant: promoDiscount })
+    }
+    if (appliedGift && giftDiscount > 0) {
+      remises.push({ type: 'carte_cadeau', libelle: `Carte cadeau ${appliedGift.code}`, montant: giftDiscount })
+    }
+    if (usePoints && pointsDiscount > 0) {
+      remises.push({ type: 'points', libelle: `${clientPoints} points fidélité`, montant: pointsDiscount })
+    }
+    if (memberReduction > 0) {
+      remises.push({ type: 'membre', libelle: `Remise membre (-${memberDiscount} %)`, montant: memberReduction })
+    }
+
+    // Règlement mixte : la ventilation saisie fait foi. Le store REFUSE une
+    // ventilation qui ne fait pas le total — on préfère un blocage visible à
+    // un ticket Z faux.
+    const reglements = mixedMode && partials.length > 0
+      ? partials.map(p => ({ methode: p.method, montant: p.amount }))
+      : undefined
+
+    try {
+      processPayment(tableId, method, tipAmount, ids, {
+        remises,
+        arrondiCaritatif: charityAmount,
+        reglements,
+      })
+      setDone(true)
+    } catch (e) {
+      setErreurEncaissement(e instanceof Error ? e.message : 'Encaissement refusé.')
+    }
   }
 
   function handleFinish(mode: ReceiptMode) {
@@ -1399,6 +1440,19 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
         </div>
 
         <div style={{ padding: '16px 28px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+          {erreurEncaissement && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: 10, padding: '10px 14px', borderRadius: 12, fontSize: 13, fontWeight: 600,
+                color: '#fecaca', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)',
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}
+            >
+              <span style={{ flex: 1 }}>⚠ {erreurEncaissement}</span>
+              <button onClick={() => setErreurEncaissement(null)} style={{ background: 'none', border: 'none', color: '#fecaca', cursor: 'pointer', fontSize: 16 }}>×</button>
+            </div>
+          )}
           {!canPay ? (
             <div style={{ textAlign: 'center' as const, color: '#374151', fontSize: 13, padding: '14px 0' }}>
               Sélectionnez au moins un couvert

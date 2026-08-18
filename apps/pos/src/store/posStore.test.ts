@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { usePOS, ventilationTva, totalCouvert, type Cover } from './posStore'
+import { usePOS, ventilationTva, totalCouvert, migrerEtatPersistant, type Cover } from './posStore'
 
 /**
  * Ces tests couvrent l'endroit exact où la caisse perdait de l'argent.
@@ -224,5 +224,161 @@ describe('TVA', () => {
 
   it('taux a zero : pas de TVA, et le HT vaut le TTC', () => {
     expect(ventilationTva(42.5, 0)).toEqual({ ht: 42.5, tva: 0 })
+  })
+})
+
+/**
+ * Remises, règlements mixtes et fermeture de table — les trois endroits où
+ * ce qui était affiché au client ne correspondait pas à ce qui entrait au
+ * journal. Chaque test échoue sur l'ancien comportement.
+ */
+describe('remises comptabilisees', () => {
+  it('une remise reduit le total ENCAISSE, pas seulement l affichage', () => {
+    // Table de test : 5,60 + 4,50 + 9,00 = 19,10 € brut.
+    const vente = usePOS.getState().processPayment('t-test', 'card', 0, undefined, {
+      remises: [{ type: 'promo', libelle: '-10 %', montant: 1.91 }],
+    })!
+    expect(vente.brut).toBe(19.10)
+    expect(vente.remises).toHaveLength(1)
+    // L'ancien code enregistrait 19,10 : la remise n'existait qu'à l'écran.
+    expect(vente.total).toBe(17.19)
+  })
+
+  it('la TVA est calculee sur le net apres remise (base imposable reelle)', () => {
+    const vente = usePOS.getState().processPayment('t-test', 'cash', 0, undefined, {
+      remises: [{ type: 'carte_cadeau', libelle: 'Bon 10 €', montant: 10 }],
+    })!
+    // 19,10 - 10 = 9,10 TTC -> HT 7,78, TVA 1,32
+    expect(vente.sousTotal + vente.tva).toBeCloseTo(9.10, 2)
+    expect(vente.tva).toBeCloseTo(1.32, 2)
+  })
+
+  it('une remise superieure a l addition ne cree jamais un total negatif', () => {
+    const vente = usePOS.getState().processPayment('t-test', 'cash', 0, undefined, {
+      remises: [{ type: 'carte_cadeau', libelle: 'Bon 50 €', montant: 50 }],
+    })!
+    expect(vente.total).toBe(0)
+    expect(vente.sousTotal).toBe(0)
+  })
+
+  it('l arrondi caritatif est encaisse mais n entre pas dans le chiffre d affaires', () => {
+    const vente = usePOS.getState().processPayment('t-test', 'card', 0, undefined, {
+      arrondiCaritatif: 0.90,
+    })!
+    expect(vente.total).toBe(20.00)
+    const z = usePOS.getState().cloturerJournee()!
+    expect(z.totalTTC).toBe(19.10)            // le CA, sans l'arrondi
+    expect(z.totalArrondisCaritatifs).toBe(0.90)
+  })
+
+  it('le ticket Z totalise les remises accordees dans la journee', () => {
+    usePOS.getState().processPayment('t-test', 'card', 0, undefined, {
+      remises: [{ type: 'membre', libelle: 'Membre -10 %', montant: 1.91 }],
+    })
+    const z = usePOS.getState().cloturerJournee()!
+    expect(z.totalRemises).toBe(1.91)
+    expect(z.totalTTC).toBe(17.19)
+  })
+})
+
+describe('reglement mixte', () => {
+  it('ventile le ticket Z sur chaque moyen de paiement, pas sur le seul principal', () => {
+    usePOS.getState().processPayment('t-test', 'card', 0, undefined, {
+      reglements: [
+        { methode: 'cash', montant: 10 },
+        { methode: 'card', montant: 9.10 },
+      ],
+    })
+    const z = usePOS.getState().cloturerJournee()!
+    // L'ancien code mettait les 19,10 en « carte » et 0 en espèces.
+    expect(z.parMethode.cash).toBe(10)
+    expect(z.parMethode.card).toBe(9.10)
+    expect(z.parMethode.contactless).toBe(0)
+  })
+
+  it('la methode principale est la plus grosse part', () => {
+    const vente = usePOS.getState().processPayment('t-test', 'card', 0, undefined, {
+      reglements: [
+        { methode: 'cash', montant: 15 },
+        { methode: 'card', montant: 4.10 },
+      ],
+    })!
+    expect(vente.methode).toBe('cash')
+  })
+
+  it('refuse un reglement mixte dont les parts ne font pas le total', () => {
+    expect(() =>
+      usePOS.getState().processPayment('t-test', 'card', 0, undefined, {
+        reglements: [{ methode: 'cash', montant: 5 }, { methode: 'card', montant: 5 }],
+      })
+    ).toThrow(/incohérent/)
+    // Et rien n'a été inscrit au journal.
+    expect(usePOS.getState().ventes).toHaveLength(0)
+    expect(table().covers.every(c => !c.paidAt)).toBe(true)
+  })
+})
+
+describe('fermer la table ne contourne plus la protection', () => {
+  it('setTableStatus refuse « dirty » sur une table impayee', () => {
+    const ok = usePOS.getState().setTableStatus('t-test', 'dirty')
+    expect(ok).toBe(false)
+    expect(table().status).toBe('occupied')
+    // Les consommations sont toujours là, encaissables.
+    expect(table().covers.flatMap(c => c.items)).toHaveLength(3)
+  })
+
+  it('setTableStatus refuse « available » sur une table impayee', () => {
+    expect(usePOS.getState().setTableStatus('t-test', 'available')).toBe(false)
+    expect(table().status).toBe('occupied')
+  })
+
+  it('setTableStatus accepte « dirty » une fois tout regle', () => {
+    usePOS.getState().processPayment('t-test', 'card', 0)
+    // processPayment a déjà libéré la table (dirty, covers vidés) ; on
+    // vérifie que le statut reste modifiable librement ensuite.
+    expect(usePOS.getState().setTableStatus('t-test', 'available')).toBe(true)
+    expect(table().status).toBe('available')
+  })
+
+  it('setTableStatus laisse passer « reserved » meme avec des impayes (pas de perte)', () => {
+    expect(usePOS.getState().setTableStatus('t-test', 'reserved')).toBe(true)
+    expect(table().covers.flatMap(c => c.items)).toHaveLength(3)
+  })
+})
+
+describe('migration v1 -> v2 du magasin persistant', () => {
+  it('complete les ventes anciennes sans reecrire leurs montants', () => {
+    // On rejoue la migration telle que zustand l'appellera au chargement.
+    const ancien = {
+      ventes: [{
+        id: 'v-old', numero: 1, horodatage: 1, tableId: 't', tableName: 'T',
+        couverts: ['Couvert 1'], lignes: [], sousTotal: 16.32, tva: 2.78,
+        pourboire: 1, total: 20.10, methode: 'cash', vendeur: 'Lara',
+      }],
+      clotures: [],
+      tables: [],
+    }
+    const migre = migrerEtatPersistant(ancien, 1)
+    const v = migre.ventes[0]
+    expect(v.total).toBe(20.10)                 // inchangé
+    expect(v.brut).toBe(19.10)                  // total - pourboire
+    expect(v.remises).toEqual([])
+    expect(v.arrondiCaritatif).toBe(0)
+    expect(v.reglements).toEqual([{ methode: 'cash', montant: 20.10 }])
+  })
+
+  it('un ticket Z calcule sur des ventes migrees ventile correctement', () => {
+    const migre = migrerEtatPersistant({
+      ventes: [
+        { id: 'a', numero: 1, horodatage: 1, tableId: 't', tableName: 'T', couverts: [], lignes: [], sousTotal: 8.55, tva: 1.45, pourboire: 0, total: 10, methode: 'cash', vendeur: 'L' },
+        { id: 'b', numero: 2, horodatage: 2, tableId: 't', tableName: 'T', couverts: [], lignes: [], sousTotal: 4.27, tva: 0.73, pourboire: 0, total: 5, methode: 'card', vendeur: 'L' },
+      ],
+      clotures: [], tables: [],
+    }, 1)
+    usePOS.setState({ ventes: migre.ventes, clotures: [] })
+    const z = usePOS.getState().cloturerJournee()!
+    expect(z.parMethode.cash).toBe(10)
+    expect(z.parMethode.card).toBe(5)
+    expect(z.totalRemises).toBe(0)
   })
 })
