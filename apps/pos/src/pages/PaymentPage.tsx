@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePOS, Cover, PayMethod, Remise, coverTotal, tableTotal } from '../store/posStore'
+import { useEcranEtroit } from '../lib/ecran'
 
 interface Props {
   tableId: string
@@ -356,6 +357,8 @@ function SuccessOverlay({
 export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   const table = usePOS(s => s.tables.find(t => t.id === tableId))
   const processPayment = usePOS(s => s.processPayment)
+  // Telephone : recap et paiement s'empilent, plus de panneau de 40 % sur 375 px.
+  const etroit = useEcranEtroit()
 
   const [splitMode, setSplitMode] = useState<SplitMode>('full')
   const [selectedCoverIds, setSelectedCoverIds] = useState<Set<string>>(new Set())
@@ -602,7 +605,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   const mixedFullyPaid = mixedMode && paidSoFar >= totalToPay - 0.01
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: '#07070d' }}>
+    <div style={{ display: 'flex', flexDirection: etroit ? 'column' : 'row', height: '100%', overflow: etroit ? 'auto' : 'hidden', background: '#07070d' }}>
 
       <AnimatePresence>
         {done && (
@@ -798,10 +801,11 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
 
       {/* ── LEFT PANEL ── */}
       <div style={{
-        width: '40%', flexShrink: 0,
+        width: etroit ? '100%' : '40%', flexShrink: 0,
         display: 'flex', flexDirection: 'column' as const,
-        borderRight: '1px solid rgba(255,255,255,0.06)',
-        background: '#0a0a14', overflow: 'hidden',
+        borderRight: etroit ? 'none' : '1px solid rgba(255,255,255,0.06)',
+        borderBottom: etroit ? '1px solid rgba(255,255,255,0.06)' : 'none',
+        background: '#0a0a14', overflow: etroit ? 'visible' : 'hidden',
       }}>
         <div style={{ padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
           <div style={labelStyle}>Mode de partage</div>

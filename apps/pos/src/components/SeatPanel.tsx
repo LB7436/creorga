@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useEcranEtroit } from '../lib/ecran'
 import { motion } from 'framer-motion'
 import { useSeats, seatTotal, type Seat } from '../store/seatStore'
 import { usePOS } from '../store/posStore'
@@ -74,6 +75,8 @@ function useCarteCaisse(): { produits: ProduitCaisse[]; pret: boolean } {
 }
 
 export default function SeatPanel({ seatId, onClose }: Props) {
+  // 460 px fixes debordaient d'un telephone de 375 px : plein ecran en etroit.
+  const etroit = useEcranEtroit()
   const seat = useSeats((s) => s.seats.find((x) => x.id === seatId))
   const tables = usePOS((s) => s.tables)
   const {
@@ -97,7 +100,7 @@ export default function SeatPanel({ seatId, onClose }: Props) {
       transition={{ duration: 0.25 }}
       style={{
         position: 'fixed', right: 0, top: 0, bottom: 0,
-        width: 460, background: '#0f0f1f', borderLeft: '1px solid rgba(167,139,250,0.2)',
+        width: etroit ? '100%' : 460, maxWidth: '100vw', background: '#0f0f1f', borderLeft: etroit ? 'none' : '1px solid rgba(167,139,250,0.2)',
         boxShadow: '-12px 0 40px rgba(0,0,0,0.4)',
         zIndex: 200, display: 'flex', flexDirection: 'column', color: '#e2e8f0',
       }}

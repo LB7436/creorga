@@ -181,6 +181,16 @@ const CATEGORY_COLORS: Record<Categorie, { bg: string; text: string }> = {
   'Viande':            { bg: '#fee2e2', text: '#991b1b' },
 }
 
+/**
+ * Couleur d'une catégorie, avec repli neutre pour les inconnues. La page
+ * crashait (« Cannot read properties of undefined (reading 'bg') ») dès qu'une
+ * entrée de stock portait une catégorie hors de ce dictionnaire — or la
+ * réception OCR attribue « Divers » par défaut à tout article sans catégorie :
+ * un simple scan de ticket fournisseur pouvait rendre la page Stock illisible.
+ */
+const COULEUR_INCONNUE = { bg: '#f1f5f9', text: '#475569' }
+const couleurCategorie = (c: string) => CATEGORY_COLORS[c as Categorie] ?? COULEUR_INCONNUE
+
 const STATUT_STYLES: Record<Statut, { bg: string; text: string; dot: string }> = {
   OK:      { bg: '#dcfce7', text: '#166534', dot: '#22c55e' },
   Bas:     { bg: '#fef9c3', text: '#854d0e', dot: '#eab308' },
@@ -902,8 +912,8 @@ export default function StockPage() {
               <button key={c} onClick={() => setCategoryFilter(c)} style={{
                 padding: '6px 12px', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer',
                 border: 'none',
-                background: categoryFilter === c ? CATEGORY_COLORS[c].bg : '#f1f5f9',
-                color: categoryFilter === c ? CATEGORY_COLORS[c].text : '#475569',
+                background: categoryFilter === c ? couleurCategorie(c).bg : '#f1f5f9',
+                color: categoryFilter === c ? couleurCategorie(c).text : '#475569',
               }}>{c}</button>
             ))}
           </div>
@@ -945,7 +955,7 @@ export default function StockPage() {
                   const statut = getStatut(i)
                   const s = STATUT_STYLES[statut]
                   const dluoDays = daysUntil(i.dluo)
-                  const cat = CATEGORY_COLORS[i.categorie]
+                  const cat = couleurCategorie(i.categorie)
                   return (
                     <tr key={i.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '12px 14px' }}>

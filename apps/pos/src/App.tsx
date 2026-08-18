@@ -69,6 +69,59 @@ export default function App() {
     setView('payment')
   }
 
+  /**
+   * Raccourcis clavier globaux (poste de caisse avec clavier) :
+   *   N  nouvelle commande — première table libre, ou la table active
+   *   P  paiement de la table active
+   *   K  écran cuisine
+   *   T  retour au plan de salle (rechercher une table)
+   *   Échap  fermer le panneau / revenir en arrière
+   * Ctrl/Cmd+K est laissé au navigateur et au back-office (recherche
+   * globale) : la caisse ne le capture pas.
+   *
+   * Aucun raccourci ne se déclenche depuis un champ de saisie : taper « n »
+   * dans une note cuisine ne doit pas ouvrir une commande.
+   */
+  useEffect(() => {
+    if (!currentStaff || kioskMode) return
+    const gestionnaire = (e: KeyboardEvent) => {
+      const cible = e.target as HTMLElement | null
+      const saisie = cible && (cible.tagName === 'INPUT' || cible.tagName === 'TEXTAREA' || cible.isContentEditable)
+      if (saisie) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+
+      const touche = e.key.toLowerCase()
+      if (e.key === 'Escape') {
+        if (view !== 'floor') { e.preventDefault(); goBack() }
+        return
+      }
+      if (touche === 'n' && view === 'floor') {
+        e.preventDefault()
+        const libre = tables.find(t => t.status === 'available')
+        if (libre) { usePOS.getState().openTable(libre.id, 2); openOrder(libre.id) }
+        return
+      }
+      if (touche === 'p' && (view === 'order' || view === 'floor') && activeTableId) {
+        e.preventDefault()
+        openPayment(activeTableId)
+        return
+      }
+      if (touche === 'k' && view === 'floor') {
+        e.preventDefault()
+        setView('kitchen')
+        return
+      }
+      if (touche === 't' && view !== 'floor' && view !== 'payment') {
+        e.preventDefault()
+        setActiveTableId(null)
+        setView('floor')
+      }
+    }
+    window.addEventListener('keydown', gestionnaire)
+    return () => window.removeEventListener('keydown', gestionnaire)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStaff, kioskMode, view, activeTableId, tables])
+
   function goBack() {
     if (view === 'payment') {
       setView('order')

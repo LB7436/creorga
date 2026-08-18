@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePOS, Cover, OrderItem, coverTotal, tableTotal, elapsed, MENU_CATEGORIES } from '../store/posStore'
+import { useEcranEtroit } from '../lib/ecran'
 
 interface Props {
   tableId: string
@@ -87,6 +88,9 @@ const isWeighted = (item: { name: string; category?: string }) =>
 
 // ─── Page ─────────────────────────────────────────────────────────────────
 export default function OrderPage({ tableId, onBack, onPay }: Props) {
+  // Telephone : ticket et menu s'empilent au lieu de se partager 30 %/70 %
+  // d'un ecran de 375 px (colonnes de 110 px, panneau hors ecran).
+  const etroit = useEcranEtroit()
   const table = usePOS(s => s.tables.find(t => t.id === tableId))
   const menu = usePOS(s => s.menu)
   const tables = usePOS(s => s.tables)
@@ -232,10 +236,10 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
       color: '#e2e8f0',
       fontFamily: 'Inter, -apple-system, sans-serif',
       display: 'grid',
-      gridTemplateColumns: '30% 70%',
+      gridTemplateColumns: etroit ? 'minmax(0, 1fr)' : 'minmax(0, 30%) minmax(0, 70%)',
     }}>
       {/* ═══ LEFT : TICKET ═══ */}
-      <div style={{ borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div style={{ borderRight: etroit ? 'none' : '1px solid rgba(255,255,255,0.06)', borderBottom: etroit ? '1px solid rgba(255,255,255,0.06)' : 'none', display: 'flex', flexDirection: 'column', minHeight: etroit ? 'auto' : '100vh', order: etroit ? 2 : 0 }}>
         {/* Header */}
         <div style={{ padding: 16, borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -481,7 +485,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
       </div>
 
       {/* ═══ RIGHT : MENU ═══ */}
-      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: etroit ? 'auto' : '100vh', order: etroit ? 1 : 0 }}>
         {/* Top bar: search + course + history + shortcuts */}
         <div style={{ padding: 16, borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 240, position: 'relative' }}>

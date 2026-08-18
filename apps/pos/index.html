@@ -15,6 +15,21 @@
       .pulse-ring { animation: pulse-ring 2s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
       .fade-in { animation: fade-in .2s ease forwards; }
       .slide-up { animation: slide-up .25s ease forwards; }
+      /* Cibles tactiles : 44 px minimum sur les écrans au doigt (tablette,
+         téléphone) — l'audit recensait des boutons de 22 à 36 px dans une
+         caisse pensée pour être touchée. Sur PC à la souris (pointer: fine),
+         la densité d'origine est conservée. Les styles inline ne fixent que
+         padding/taille de police, jamais min-height : aucun conflit. */
+      @media (pointer: coarse) {
+        button, [role="button"], input[type="checkbox"], input[type="radio"], select {
+          min-height: 44px;
+          min-width: 44px;
+        }
+      }
+      /* Le téléphone doit pouvoir faire défiler les écrans empilés. */
+      @media (max-width: 899px) {
+        html, body, #root { overflow: auto; }
+      }
     </style>
   </head>
   <body>
