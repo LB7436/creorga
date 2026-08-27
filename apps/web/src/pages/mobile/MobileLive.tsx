@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { TrendingUp, Users, Coins, AlertTriangle, ArrowRight, RefreshCw, WifiOff, Sparkles, Sun, Camera } from 'lucide-react'
+import { Users, Coins, AlertTriangle, ArrowRight, RefreshCw, WifiOff, Sparkles, Sun } from 'lucide-react'
 import { fetchAuth } from '@/lib/fetchAuth'
 
 /**
@@ -26,21 +26,8 @@ interface LiveData {
   currentRevenueOpen: number
   invoicesOverdue: number
   unpaidTotal: number
-  lowStock: number
   todayShifts: number
-  alerts: { critical: number; warnings: number }
-}
-
-async function runCmd(commandId: string, input?: any) {
-  try {
-    const r = await fetchAuth(`${getBackend()}/api/agent/execute`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ commandId, input }),
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!r.ok) return null
-    return r.json()
-  } catch { return null }
+  alerts: { critical: number }
 }
 
 interface ProactiveSuggestion {
@@ -90,32 +77,20 @@ export default function MobileLive() {
 
   const fetchAll = async () => {
     try {
-      const [day, overdue, unpaid, lowStock, today] = await Promise.all([
-        runCmd('home.day-summary'),
-        runCmd('inv.overdue'),
-        runCmd('inv.unpaid-total'),
-        runCmd('inv.low-stock'),
-        runCmd('hr.who-today'),
-      ])
-      // Si TOUTES les requêtes échouent → mode offline
-      if (!day && !overdue && !unpaid && !lowStock && !today) {
-        setOffline(true)
-        setLoading(false)
-        return
-      }
+      const response = await fetchAuth(`${getBackend()}/api/agent/mobile-summary`, {
+        signal: AbortSignal.timeout(8000),
+      })
+      if (!response.ok) throw new Error(`Backend ${response.status}`)
+      const summary = await response.json()
       setOffline(false)
       setData({
-        occupiedTables: day?.data?.occupiedTables ?? 0,
-        totalTables: 12,
-        currentRevenueOpen: day?.data?.currentRevenueOpen ?? 0,
-        invoicesOverdue: overdue?.ui?.items?.length ?? 0,
-        unpaidTotal: unpaid?.text?.match(/\*\*([\d.]+)/) ? parseFloat(unpaid.text.match(/\*\*([\d.]+)/)[1]) : 0,
-        lowStock: lowStock?.ui?.items?.length ?? 0,
-        todayShifts: today?.ui?.items?.length ?? 0,
-        alerts: {
-          critical: (overdue?.ui?.items?.length ?? 0) > 5 ? 1 : 0,
-          warnings: (lowStock?.ui?.items?.length ?? 0),
-        },
+        occupiedTables: summary.occupiedTables ?? 0,
+        totalTables: summary.totalTables ?? 0,
+        currentRevenueOpen: summary.currentRevenueOpen ?? 0,
+        invoicesOverdue: summary.invoicesOverdue ?? 0,
+        unpaidTotal: summary.unpaidTotal ?? 0,
+        todayShifts: summary.todayShifts ?? 0,
+        alerts: summary.alerts ?? { critical: 0 },
       })
       setLastUpdate(new Date())
     } catch {
@@ -175,8 +150,7 @@ export default function MobileLive() {
         </div>
       )}
 
-      {/* v3.17 — Hero "Brief moi du jour" + Photo magique en grand */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 10, marginBottom: 4 }}>
+      <div style={{ marginBottom: 4 }}>
         <Link to="/m/briefing" style={{
           padding: 14, borderRadius: 14, textDecoration: 'none',
           background: 'linear-gradient(135deg,#fbbf24 0%,#ec4899 60%,#8b5cf6 100%)',
@@ -189,19 +163,6 @@ export default function MobileLive() {
           <div style={{ fontSize: 17, fontWeight: 900, lineHeight: 1.15 }}>Brief moi<br/>aujourd'hui</div>
           <div style={{ fontSize: 10, opacity: 0.85 }}>Voix · 30 sec · 3 priorités</div>
           <Sparkles size={42} style={{ position: 'absolute', right: -6, bottom: -6, opacity: 0.18 }} />
-        </Link>
-        <Link to="/m/magic" style={{
-          padding: 14, borderRadius: 14, textDecoration: 'none',
-          background: 'linear-gradient(135deg,#10b981 0%,#06b6d4 100%)',
-          color: '#fff', display: 'flex', flexDirection: 'column', gap: 6, position: 'relative', overflow: 'hidden',
-          boxShadow: '0 6px 18px rgba(6,182,212,0.25)',
-        }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', opacity: 0.95 }}>
-            <Camera size={12} /> MAGIC
-          </div>
-          <div style={{ fontSize: 17, fontWeight: 900, lineHeight: 1.15 }}>Photo<br/>magique</div>
-          <div style={{ fontSize: 10, opacity: 0.85 }}>Robi détecte tout</div>
-          <Camera size={42} style={{ position: 'absolute', right: -6, bottom: -6, opacity: 0.18 }} />
         </Link>
       </div>
 
@@ -252,8 +213,6 @@ export default function MobileLive() {
           value={`${(data?.currentRevenueOpen ?? 0).toFixed(0)} €`} color="#10b981" to="/m/world" />
         <KpiCard icon={<AlertTriangle size={18} />} label="Impayés"
           value={`${data?.invoicesOverdue ?? 0}`} sub={`${(data?.unpaidTotal ?? 0).toFixed(0)} €`} color="#ef4444" to="/m/alerts" />
-        <KpiCard icon={<TrendingUp size={18} />} label="Stock bas"
-          value={`${data?.lowStock ?? 0}`} color="#f59e0b" to="/m/alerts" />
       </div>
 
       {(data?.alerts.critical || 0) > 0 && (
@@ -277,7 +236,7 @@ export default function MobileLive() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
           <QuickAction emoji="🤖" label="Parler à Robi" to="/m/robi" />
-          <QuickAction emoji="📸" label="OCR Caméra" to="/m/camera" />
+          <QuickAction emoji="📅" label="Planning" to="/hr/planning" />
           <QuickAction emoji="🌍" label="Vue distante" to="/m/world" />
           <QuickAction emoji="🚨" label="Alertes" to="/m/alerts" />
         </div>

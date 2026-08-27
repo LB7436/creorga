@@ -1,1099 +1,330 @@
-import { useState, useMemo } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useMemo, useState } from 'react'
+import { Download, Eye, FileText, Plus, Printer, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, CartesianGrid, Legend,
-} from 'recharts'
-import {
-  FileText, Clock, CheckCircle2, Euro, Plus, X, Trash2, Download, Mail,
-  Save, Eye, Copy, PenTool, RefreshCw, History, GitCompare, BookOpen,
-  Bell, Send, Search, FileCheck2, Sparkles, Image as ImageIcon,
-  ArrowRight, CalendarClock, ScrollText, XCircle, FileClock,
-} from 'lucide-react'
-
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
-
-import {
-  useQuotes, useConvertQuote, useUpdateQuote, useCreateQuote,
-  type Quote, type LigneDocument,
+  type LigneDocument,
+  type Quote,
+  type QuoteStatus,
+  useConvertQuote,
+  useCreateQuote,
+  useDeleteQuote,
+  useQuotes,
+  useUpdateQuote,
 } from '@/hooks/api/useInvoices'
+import { useCustomers } from '@/hooks/api/useCustomers'
+import { downloadCsv } from '@/lib/csv'
+import { toastError, toastSuccess } from '@/lib/toast'
 
-type Statut = 'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED'
-
-interface Devis {
-  /** Identifiant serveur (cuid) — plus un entier fabriqué côté client. */
-  id: string
-  numero: string
-  client: string
-  date: string
-  validite: string
-  montant: number
-  statut: Statut
-  opened?: boolean
-  openedAt?: string
-  signed?: boolean
-  signedAt?: string
-  version?: number
-  reminderScheduled?: boolean
+const euro = new Intl.NumberFormat('fr-LU', { style: 'currency', currency: 'EUR' })
+const statuses: QuoteStatus[] = ['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED']
+const statusLabel: Record<QuoteStatus, string> = {
+  DRAFT: 'Brouillon',
+  SENT: 'Envoyé (suivi manuel)',
+  ACCEPTED: 'Accepté et converti',
+  REJECTED: 'Refusé',
+  EXPIRED: 'Expiré',
+}
+const statusColor: Record<QuoteStatus, { color: string; background: string }> = {
+  DRAFT: { color: '#475569', background: '#f1f5f9' },
+  SENT: { color: '#1d4ed8', background: '#dbeafe' },
+  ACCEPTED: { color: '#047857', background: '#d1fae5' },
+  REJECTED: { color: '#b91c1c', background: '#fee2e2' },
+  EXPIRED: { color: '#a16207', background: '#fef3c7' },
 }
 
-interface LigneArticle {
-  id: number
-  description: string
-  quantite: number
-  prixHT: number
-  tauxTVA: number
+const emptyLine = (): LigneDocument => ({ description: '', quantity: 1, unitPrice: 0, taxRate: 17 })
+
+function quoteTotals(quote: Quote) {
+  const subtotal = quote.items.reduce((sum, line) => sum + Number(line.quantity) * Number(line.unitPrice), 0)
+  const tax = quote.items.reduce((sum, line) => sum + Number(line.quantity) * Number(line.unitPrice) * Number(line.taxRate) / 100, 0)
+  return { subtotal, tax, total: subtotal + tax }
 }
-
-interface QuoteDesign {
-  id: string
-  nom: string
-  headerBg: string
-  headerColor: string
-  accentColor: string
-  fontFamily: string
-  description: string
-}
-
-interface Template {
-  id: string
-  nom: string
-  description: string
-  articles: number
-  montant: number
-}
-
-interface CGVItem {
-  id: string
-  nom: string
-  texte: string
-}
-
-/* ------------------------------------------------------------------ */
-/*  Mock data                                                          */
-/* ------------------------------------------------------------------ */
-
-// Les sept devis d'exemple ont été retirés : la liste vient désormais de
-// `GET /api/invoices/quotes`. Un écran vide est honnête, un écran peuplé de
-// faux clients devant un prospect ne l'est pas.
-
-const statutConfig: Record<Statut, { label: string; color: string }> = {
-  DRAFT: { label: 'Brouillon', color: '#64748b' },
-  SENT: { label: 'Envoyé', color: '#3b82f6' },
-  ACCEPTED: { label: 'Accepté', color: '#10b981' },
-  REJECTED: { label: 'Refusé', color: '#ef4444' },
-  EXPIRED: { label: 'Expiré', color: '#f59e0b' },
-}
-
-const TAUX_TVA = [3, 8, 14, 17]
-
-const DESIGNS: QuoteDesign[] = [
-  { id: 'classique', nom: 'Classique', headerBg: '#ffffff', headerColor: '#1e293b', accentColor: '#1e293b', fontFamily: 'system-ui, sans-serif', description: 'Noir et blanc, lignes nettes' },
-  { id: 'moderne', nom: 'Moderne', headerBg: '#4338ca', headerColor: '#ffffff', accentColor: '#4338ca', fontFamily: 'system-ui, sans-serif', description: 'Accent indigo, contemporain' },
-  { id: 'elegant', nom: 'Élégant', headerBg: '#1a1a2e', headerColor: '#d4af37', accentColor: '#d4af37', fontFamily: 'Georgia, serif', description: 'Serif, accents dorés' },
-  { id: 'compact', nom: 'Compact', headerBg: '#f8fafc', headerColor: '#334155', accentColor: '#64748b', fontFamily: 'system-ui, sans-serif', description: 'Minimal, dense, efficace' },
-  { id: 'luxembourg', nom: 'Luxembourg', headerBg: '#00A1DE', headerColor: '#ffffff', accentColor: '#EF4135', fontFamily: 'system-ui, sans-serif', description: 'Couleurs du Luxembourg' },
-]
-
-const TEMPLATES: Template[] = [
-  { id: 't1', nom: 'Traiteur événement', description: 'Menu complet pour 50 pers.', articles: 8, montant: 2200 },
-  { id: 't2', nom: 'Buffet mariage', description: 'Buffet + vin + service', articles: 12, montant: 4800 },
-  { id: 't3', nom: 'Coffee break entreprise', description: 'Café, viennoiseries, jus', articles: 5, montant: 350 },
-  { id: 't4', nom: 'Menu dégustation', description: '5 plats + accord mets/vins', articles: 10, montant: 1650 },
-]
-
-const CGV_LIBRARY: CGVItem[] = [
-  { id: 'std', nom: 'Standard Luxembourg', texte: 'Devis valable 30 jours. Paiement à 30 jours date de facture. TVA luxembourgeoise applicable. Retard : intérêts légaux + 40€ forfait recouvrement (loi du 18/04/2004).' },
-  { id: 'event', nom: 'Événementiel', texte: 'Acompte 30% à la commande, solde J-7. Annulation : 50% si < 15j, 100% si < 72h. Force majeure : report sans frais.' },
-  { id: 'catering', nom: 'Traiteur', texte: 'Confirmation définitive J-7. Nombre de couverts ajustable ±10% jusque J-3. Vaisselle cassée facturée au prix catalogue.' },
-  { id: 'corporate', nom: 'Corporate B2B', texte: 'Paiement 60 jours fin de mois. Bon de commande requis. Facturation électronique via Peppol acceptée.' },
-]
-
-const ENTREPRISE = {
-  nom: 'Café um Rond-Point',
-  adresse: '12 Rue du Rond-Point, L-3750 Rumelange',
-  tel: '+352 26 56 12 34',
-  tva: 'LU12345678',
-}
-
-const acceptanceMonths = [
-  { mois: 'Nov', envoyes: 12, acceptes: 7, refuses: 3, expires: 2 },
-  { mois: 'Déc', envoyes: 18, acceptes: 11, refuses: 4, expires: 3 },
-  { mois: 'Jan', envoyes: 15, acceptes: 10, refuses: 3, expires: 2 },
-  { mois: 'Fév', envoyes: 22, acceptes: 15, refuses: 4, expires: 3 },
-  { mois: 'Mar', envoyes: 19, acceptes: 13, refuses: 4, expires: 2 },
-  { mois: 'Avr', envoyes: 14, acceptes: 9, refuses: 3, expires: 2 },
-]
-
-/* ------------------------------------------------------------------ */
-/*  Shared styles                                                      */
-/* ------------------------------------------------------------------ */
-
-const cardStyle: React.CSSProperties = {
-  background: '#ffffff',
-  border: '1px solid #e2e8f0',
-  borderRadius: 16,
-  padding: 20,
-}
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  borderRadius: 10,
-  border: '1px solid #e2e8f0',
-  fontSize: 13,
-  color: '#1e293b',
-  background: '#ffffff',
-  outline: 'none',
-  boxSizing: 'border-box',
-}
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: '#475569',
-  marginBottom: 6,
-  display: 'block',
-  textTransform: 'uppercase',
-  letterSpacing: 0.5,
-}
-
-const smallBtnStyle: React.CSSProperties = {
-  padding: '8px 14px',
-  borderRadius: 10,
-  border: '1px solid #e2e8f0',
-  background: '#ffffff',
-  color: '#1e293b',
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: 'pointer',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 6,
-}
-
-const overlay: React.CSSProperties = {
-  position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)',
-  backdropFilter: 'blur(4px)', zIndex: 999, display: 'flex',
-  alignItems: 'center', justifyContent: 'center', padding: 24,
-}
-
-/* ------------------------------------------------------------------ */
-/*  Toast                                                              */
-/* ------------------------------------------------------------------ */
-
-function Toast({ message, onClose }: { message: string; onClose: () => void }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 40 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 20 }}
-      style={{
-        position: 'fixed', bottom: 32, right: 32, background: '#1e293b', color: '#fff',
-        padding: '12px 20px', borderRadius: 12, fontSize: 13, fontWeight: 500,
-        boxShadow: '0 8px 28px rgba(0,0,0,0.18)', zIndex: 10001,
-        display: 'flex', alignItems: 'center', gap: 10,
-      }}
-    >
-      <CheckCircle2 size={15} style={{ color: '#34d399' }} />
-      {message}
-      <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0, marginLeft: 6 }}>
-        <X size={13} />
-      </button>
-    </motion.div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Mini Quote Preview                                                 */
-/* ------------------------------------------------------------------ */
-
-function QuotePreview({ design, client, articles, numero, validite }: {
-  design: QuoteDesign
-  client: { nom: string; adresse: string; email: string }
-  articles: LigneArticle[]
-  numero: string
-  validite: string
-}) {
-  const sousTotal = articles.reduce((s, a) => s + a.quantite * a.prixHT, 0)
-  const totalTVA = articles.reduce((s, a) => s + a.quantite * a.prixHT * (a.tauxTVA / 100), 0)
-  const totalTTC = sousTotal + totalTVA
-  const fmt = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-  return (
-    <div style={{
-      width: '100%', maxWidth: 440, background: '#fff', borderRadius: 10,
-      overflow: 'hidden', fontFamily: design.fontFamily, color: '#1e293b',
-      boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0',
-    }}>
-      <div style={{ background: design.headerBg, color: design.headerColor, padding: '18px 22px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{ENTREPRISE.nom}</div>
-            <div style={{ fontSize: 9, opacity: 0.8, lineHeight: 1.5 }}>
-              {ENTREPRISE.adresse}<br />TVA : {ENTREPRISE.tva}
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 17, fontWeight: 800 }}>DEVIS</div>
-            <div style={{ fontSize: 10, opacity: 0.8, marginTop: 2 }}>{numero}</div>
-          </div>
-        </div>
-      </div>
-      <div style={{ padding: '16px 22px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14, fontSize: 10 }}>
-          <div>
-            <div style={{ color: '#94a3b8', fontSize: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Destiné à</div>
-            <div style={{ fontWeight: 700, fontSize: 12, marginTop: 3 }}>{client.nom || 'Client'}</div>
-            {client.adresse && <div style={{ color: '#64748b', marginTop: 2 }}>{client.adresse}</div>}
-          </div>
-          <div style={{ textAlign: 'right', color: '#64748b' }}>
-            Validité : <strong>{validite || '—'}</strong>
-          </div>
-        </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
-          <thead>
-            <tr style={{ borderBottom: `2px solid ${design.accentColor}` }}>
-              <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: 9, color: design.accentColor }}>Description</th>
-              <th style={{ textAlign: 'right', padding: '6px 4px', fontSize: 9, color: design.accentColor }}>Qté</th>
-              <th style={{ textAlign: 'right', padding: '6px 4px', fontSize: 9, color: design.accentColor }}>Prix</th>
-              <th style={{ textAlign: 'right', padding: '6px 4px', fontSize: 9, color: design.accentColor }}>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {articles.length === 0 && (
-              <tr><td colSpan={4} style={{ padding: 16, textAlign: 'center', color: '#94a3b8' }}>Aucun article</td></tr>
-            )}
-            {articles.map(a => (
-              <tr key={a.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <td style={{ padding: '6px 4px' }}>{a.description || 'Article'}</td>
-                <td style={{ padding: '6px 4px', textAlign: 'right' }}>{a.quantite}</td>
-                <td style={{ padding: '6px 4px', textAlign: 'right' }}>{fmt(a.prixHT)}€</td>
-                <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 600 }}>{fmt(a.quantite * a.prixHT)}€</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={{ width: 180 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b', padding: '3px 0' }}>
-              <span>Sous-total HT</span><span>{fmt(sousTotal)}€</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#94a3b8', padding: '3px 0' }}>
-              <span>TVA</span><span>{fmt(totalTVA)}€</span>
-            </div>
-            <div style={{
-              display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 800,
-              color: design.accentColor, padding: '6px 0 2px', borderTop: `2px solid ${design.accentColor}`, marginTop: 4,
-            }}>
-              <span>Total TTC</span><span>{fmt(totalTTC)}€</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  New Devis Modal                                                    */
-/* ------------------------------------------------------------------ */
-
-function DevisModal({ onClose, onToast, onCreer }: {
-  onClose: () => void
-  onToast: (m: string) => void
-  /** Enregistre réellement le devis. Le numéro est attribué par le serveur. */
-  onCreer: (donnees: { notes: string; items: LigneDocument[] }) => void
-}) {
-  const [client, setClient] = useState({ nom: '', adresse: '', email: '' })
-  const [articles, setArticles] = useState<LigneArticle[]>([{ id: 1, description: '', quantite: 1, prixHT: 0, tauxTVA: 17 }])
-  const [notes, setNotes] = useState('')
-  const [selectedCGV, setSelectedCGV] = useState<string>('std')
-  const [customCGV, setCustomCGV] = useState('')
-  const [selectedDesign, setSelectedDesign] = useState('moderne')
-  const [validityDays, setValidityDays] = useState<number>(30)
-  const [customDate, setCustomDate] = useState('')
-  const [autoRemind, setAutoRemind] = useState(true)
-  const [nextId, setNextId] = useState(2)
-
-  const numero = 'DEV-2026-043'
-  const design = DESIGNS.find(d => d.id === selectedDesign) || DESIGNS[1]
-
-  const validiteDate = useMemo(() => {
-    if (validityDays === -1 && customDate) return customDate
-    const d = new Date()
-    d.setDate(d.getDate() + validityDays)
-    return d.toISOString().slice(0, 10)
-  }, [validityDays, customDate])
-
-  const conditions = selectedCGV === 'custom'
-    ? customCGV
-    : (CGV_LIBRARY.find(c => c.id === selectedCGV)?.texte || '')
-
-  const addArticle = () => {
-    setArticles(prev => [...prev, { id: nextId, description: '', quantite: 1, prixHT: 0, tauxTVA: 17 }])
-    setNextId(n => n + 1)
-  }
-
-  const removeArticle = (id: number) => {
-    if (articles.length <= 1) return
-    setArticles(prev => prev.filter(a => a.id !== id))
-  }
-
-  const updateArticle = (id: number, field: keyof LigneArticle, value: string | number) => {
-    setArticles(prev => prev.map(a => (a.id === id ? { ...a, [field]: value } : a)))
-  }
-
-  const applyTemplate = (t: Template) => {
-    const sample: LigneArticle[] = Array.from({ length: Math.min(t.articles, 4) }, (_, i) => ({
-      id: i + 1,
-      description: `${t.nom} – élément ${i + 1}`,
-      quantite: 1,
-      prixHT: Math.round((t.montant / t.articles) * 100) / 100,
-      tauxTVA: 17,
-    }))
-    setArticles(sample)
-    setNextId(sample.length + 1)
-    onToast(`Template "${t.nom}" appliqué`)
-  }
-
-  const totals = useMemo(() => {
-    const st = articles.reduce((s, a) => s + a.quantite * a.prixHT, 0)
-    const tv = articles.reduce((s, a) => s + a.quantite * a.prixHT * (a.tauxTVA / 100), 0)
-    return { st, tv, tt: st + tv }
-  }, [articles])
-
-  const fmt = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      onClick={onClose} style={overlay}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: '#f8fafc', borderRadius: 20, width: '100%', maxWidth: 1280,
-          maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.22)',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 22px', borderBottom: '1px solid #e2e8f0', background: '#ffffff' }}>
-          <div>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', margin: 0 }}>Nouveau devis</h2>
-            <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>{numero} • Validité : {validiteDate}</p>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {/* « Envoyer » et « PDF » ont été retirés : ni l'envoi par courriel
-                ni la génération PDF n'existent côté serveur aujourd'hui, ils
-                arrivent en phase 3. Un bouton qui n'envoie rien est pire
-                qu'un bouton absent. */}
-            <button
-              onClick={() => {
-                const lignes = articles
-                  .filter((a) => a.description.trim() && a.quantite > 0)
-                  .map((a) => ({
-                    description: a.description.trim(),
-                    quantity: a.quantite,
-                    unitPrice: a.prixHT,
-                    // taxRate est un pourcentage (17), jamais une fraction.
-                    taxRate: a.tauxTVA,
-                  }))
-                if (!lignes.length) {
-                  onToast('Ajoutez au moins une ligne avec une description')
-                  return
-                }
-                // Le nom du client va dans les notes tant qu'il n'y a pas de
-                // sélecteur relié au CRM (prévu avec le reste de la phase 1).
-                const entete = client.nom.trim() ? `Client : ${client.nom.trim()}\n` : ''
-                onCreer({ notes: `${entete}${notes}`.trim(), items: lignes })
-              }}
-              style={{ ...smallBtnStyle, background: '#065F46', color: '#fff', border: 'none' }}
-            >
-              <Save size={13} /> Enregistrer le devis
-            </button>
-            <button onClick={onClose} style={{ ...smallBtnStyle, width: 34, padding: 0, justifyContent: 'center' }}><X size={14} /></button>
-          </div>
-        </div>
-
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <div style={{ flex: 1, overflow: 'auto', padding: 22, display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px', color: '#1e293b' }}>Client</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={labelStyle}>Nom / Société</label>
-                  <input style={inputStyle} value={client.nom} onChange={e => setClient({ ...client, nom: e.target.value })} placeholder="Restaurant Le Pavillon" />
-                </div>
-                <div>
-                  <label style={labelStyle}>Adresse</label>
-                  <input style={inputStyle} value={client.adresse} onChange={e => setClient({ ...client, adresse: e.target.value })} placeholder="Rue principale..." />
-                </div>
-                <div>
-                  <label style={labelStyle}>Email</label>
-                  <input style={inputStyle} value={client.email} onChange={e => setClient({ ...client, email: e.target.value })} placeholder="email@exemple.lu" />
-                </div>
-              </div>
-            </div>
-
-            <div style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <CalendarClock size={14} /> Validité
-              </h3>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {[{ d: 7, l: '7 jours' }, { d: 15, l: '15 jours' }, { d: 30, l: '30 jours' }, { d: 60, l: '60 jours' }, { d: -1, l: 'Personnalisé' }].map(opt => (
-                  <button
-                    key={opt.d}
-                    onClick={() => setValidityDays(opt.d)}
-                    style={{
-                      padding: '6px 14px', borderRadius: 18, fontSize: 12, fontWeight: 600,
-                      border: validityDays === opt.d ? '1px solid #4338ca' : '1px solid #e2e8f0',
-                      background: validityDays === opt.d ? '#eef2ff' : '#ffffff',
-                      color: validityDays === opt.d ? '#4338ca' : '#475569', cursor: 'pointer',
-                    }}
-                  >{opt.l}</button>
-                ))}
-              </div>
-              {validityDays === -1 && (
-                <input type="date" value={customDate} onChange={e => setCustomDate(e.target.value)} style={{ ...inputStyle, marginTop: 10, maxWidth: 200 }} />
-              )}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 12, color: '#475569', cursor: 'pointer' }}>
-                <input type="checkbox" checked={autoRemind} onChange={e => setAutoRemind(e.target.checked)} />
-                <Bell size={13} /> Relance auto 3 jours avant expiration
-              </label>
-            </div>
-
-            <div style={cardStyle}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <h3 style={{ fontSize: 13, fontWeight: 700, margin: 0, color: '#1e293b' }}>Articles</h3>
-                <button onClick={addArticle} style={{ ...smallBtnStyle, padding: '6px 10px' }}><Plus size={12} /> Ajouter</button>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {articles.map(art => (
-                  <div key={art.id} style={{ display: 'grid', gridTemplateColumns: '2fr 70px 90px 80px 30px', gap: 6 }}>
-                    <input style={inputStyle} placeholder="Description" value={art.description} onChange={e => updateArticle(art.id, 'description', e.target.value)} />
-                    <input style={{ ...inputStyle, textAlign: 'center' }} type="number" min={1} value={art.quantite} onChange={e => updateArticle(art.id, 'quantite', Math.max(1, parseInt(e.target.value) || 1))} />
-                    <input style={{ ...inputStyle, textAlign: 'right' }} type="number" step={0.01} value={art.prixHT || ''} onChange={e => updateArticle(art.id, 'prixHT', parseFloat(e.target.value) || 0)} placeholder="0,00" />
-                    <select style={{ ...inputStyle, padding: '10px 6px' }} value={art.tauxTVA} onChange={e => updateArticle(art.id, 'tauxTVA', parseInt(e.target.value))}>
-                      {TAUX_TVA.map(t => <option key={t} value={t}>{t}%</option>)}
-                    </select>
-                    <button onClick={() => removeArticle(art.id)} style={{ background: '#fef2f2', border: 'none', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Trash2 size={12} style={{ color: articles.length <= 1 ? '#cbd5e1' : '#ef4444' }} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b' }}>
-                  <span>Sous-total HT</span><span style={{ fontWeight: 600 }}>{fmt(totals.st)} €</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', marginTop: 3 }}>
-                  <span>TVA</span><span style={{ fontWeight: 600 }}>{fmt(totals.tv)} €</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, color: '#1e293b', marginTop: 8, paddingTop: 8, borderTop: '2px solid #1e293b' }}>
-                  <span>Total TTC</span><span>{fmt(totals.tt)} €</span>
-                </div>
-              </div>
-            </div>
-
-            <div style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 10px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <BookOpen size={14} /> Conditions générales
-              </h3>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-                {CGV_LIBRARY.map(c => (
-                  <button key={c.id} onClick={() => setSelectedCGV(c.id)} style={{
-                    padding: '6px 12px', borderRadius: 16, fontSize: 12, fontWeight: 600,
-                    border: selectedCGV === c.id ? '1px solid #4338ca' : '1px solid #e2e8f0',
-                    background: selectedCGV === c.id ? '#eef2ff' : '#fff',
-                    color: selectedCGV === c.id ? '#4338ca' : '#475569', cursor: 'pointer',
-                  }}>{c.nom}</button>
-                ))}
-                <button onClick={() => setSelectedCGV('custom')} style={{
-                  padding: '6px 12px', borderRadius: 16, fontSize: 12, fontWeight: 600,
-                  border: selectedCGV === 'custom' ? '1px solid #4338ca' : '1px solid #e2e8f0',
-                  background: selectedCGV === 'custom' ? '#eef2ff' : '#fff',
-                  color: selectedCGV === 'custom' ? '#4338ca' : '#475569', cursor: 'pointer',
-                }}>Personnalisé</button>
-              </div>
-              {selectedCGV === 'custom' ? (
-                <textarea style={{ ...inputStyle, minHeight: 80, fontFamily: 'inherit', resize: 'vertical' }} value={customCGV} onChange={e => setCustomCGV(e.target.value)} />
-              ) : (
-                <div style={{ padding: 12, background: '#f8fafc', borderRadius: 10, fontSize: 12, color: '#475569', lineHeight: 1.6 }}>
-                  {conditions}
-                </div>
-              )}
-            </div>
-
-            <div style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 10px', color: '#1e293b' }}>Notes internes</h3>
-              <textarea style={{ ...inputStyle, minHeight: 60, fontFamily: 'inherit', resize: 'vertical' }} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Remarques..." />
-            </div>
-
-            <div style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 10px', color: '#1e293b' }}>Design</h3>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {DESIGNS.map(d => (
-                  <motion.button
-                    key={d.id} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                    onClick={() => setSelectedDesign(d.id)}
-                    style={{
-                      width: 95, padding: 0, borderRadius: 10, overflow: 'hidden',
-                      border: selectedDesign === d.id ? `2px solid ${d.accentColor}` : '2px solid #e2e8f0',
-                      background: '#fff', cursor: 'pointer',
-                      boxShadow: selectedDesign === d.id ? `0 0 0 2px ${d.accentColor}30` : 'none',
-                    }}
-                  >
-                    <div style={{ height: 40, background: d.headerBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Eye size={14} style={{ color: d.headerColor, opacity: 0.7 }} />
-                    </div>
-                    <div style={{ padding: 6 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#1e293b' }}>{d.nom}</div>
-                    </div>
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ width: 500, minWidth: 420, background: '#eef1f6', borderLeft: '1px solid #e2e8f0', overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 18px' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 1 }}>Aperçu en direct</div>
-            <QuotePreview design={design} client={client} articles={articles} numero={numero} validite={validiteDate} />
-          </div>
-        </div>
-      </motion.div>
-    </motion.div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Comparison Modal                                                   */
-/* ------------------------------------------------------------------ */
-
-function CompareModal({ devis, onClose }: { devis: Devis[]; onClose: () => void }) {
-  const [a, setA] = useState<string | null>(devis[0]?.id ?? null)
-  const [b, setB] = useState<string | null>(devis[1]?.id ?? null)
-  const devisA = devis.find(d => d.id === a)
-  const devisB = devis.find(d => d.id === b)
-
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} style={overlay}>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-        onClick={(e) => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 18, maxWidth: 900, width: '100%', maxHeight: '86vh', overflow: 'auto', padding: 28 }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <GitCompare size={18} /> Comparaison côte à côte
-          </h2>
-          <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          {[{ val: a, set: setA, d: devisA, tag: 'A' }, { val: b, set: setB, d: devisB, tag: 'B' }].map(({ val, set, d, tag }) => (
-            <div key={tag} style={{ background: '#f8fafc', borderRadius: 14, padding: 18, border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <div style={{ width: 26, height: 26, borderRadius: 8, background: '#4338ca', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800 }}>{tag}</div>
-                <select value={val ?? ''} onChange={e => set(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
-                  {devis.map(x => <option key={x.id} value={x.id}>{x.numero} – {x.client}</option>)}
-                </select>
-              </div>
-              {d && (
-                <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.9 }}>
-                  <div><strong>Client :</strong> {d.client}</div>
-                  <div><strong>Date :</strong> {d.date}</div>
-                  <div><strong>Validité :</strong> {d.validite}</div>
-                  <div><strong>Statut :</strong> <span style={{ color: statutConfig[d.statut].color, fontWeight: 600 }}>{statutConfig[d.statut].label}</span></div>
-                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
-                    <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1 }}>Montant TTC</div>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: '#1e293b', marginTop: 4 }}>
-                      {d.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-        {devisA && devisB && (
-          <div style={{ marginTop: 16, padding: 14, background: '#f0fdf4', borderRadius: 12, border: '1px solid #bbf7d0' }}>
-            <div style={{ fontSize: 12, color: '#166534', fontWeight: 700, marginBottom: 4 }}>Écart</div>
-            <div style={{ fontSize: 15, color: '#1e293b', fontWeight: 600 }}>
-              {Math.abs(devisA.montant - devisB.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-              ({(devisA.montant > devisB.montant ? 'A' : 'B')} est plus cher de {Math.round(Math.abs(devisA.montant - devisB.montant) / Math.min(devisA.montant, devisB.montant) * 100)}%)
-            </div>
-          </div>
-        )}
-      </motion.div>
-    </motion.div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  History Modal                                                      */
-/* ------------------------------------------------------------------ */
-
-function HistoryModal({ devis, onClose }: { devis: Devis; onClose: () => void }) {
-  const versions = [
-    { v: devis.version || 1, date: devis.date, montant: devis.montant, note: 'Version actuelle' },
-    { v: (devis.version || 1) - 1, date: '2026-04-10', montant: devis.montant - 120, note: 'Révision prix' },
-    { v: (devis.version || 1) - 2, date: '2026-04-08', montant: devis.montant - 300, note: 'Version initiale' },
-  ].filter(v => v.v > 0)
-
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} style={overlay}>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-        onClick={(e) => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 18, maxWidth: 560, width: '100%', padding: 28 }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 800, margin: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <History size={17} /> Historique {devis.numero}
-          </h2>
-          <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
-        </div>
-        <div style={{ position: 'relative', paddingLeft: 24 }}>
-          <div style={{ position: 'absolute', left: 8, top: 8, bottom: 8, width: 2, background: '#e2e8f0' }} />
-          {versions.map((v, i) => (
-            <div key={v.v} style={{ position: 'relative', marginBottom: i < versions.length - 1 ? 18 : 0 }}>
-              <div style={{ position: 'absolute', left: -21, top: 4, width: 14, height: 14, borderRadius: '50%', background: i === 0 ? '#4338ca' : '#cbd5e1', border: '3px solid #fff', boxShadow: '0 0 0 2px ' + (i === 0 ? '#4338ca' : '#cbd5e1') }} />
-              <div style={{ background: '#f8fafc', borderRadius: 12, padding: 14, border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <strong style={{ fontSize: 13, color: '#1e293b' }}>Version {v.v}</strong>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>{v.date}</span>
-                </div>
-                <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>{v.note}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginTop: 6 }}>
-                  {v.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </motion.div>
-    </motion.div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Signature Modal                                                    */
-/* ------------------------------------------------------------------ */
-
-function SignatureModal({ devis, onClose, onSign }: { devis: Devis; onClose: () => void; onSign: () => void }) {
-  const [signed, setSigned] = useState(false)
-  const [name, setName] = useState('')
-
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} style={overlay}>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-        onClick={(e) => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 18, maxWidth: 540, width: '100%', padding: 28 }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 800, margin: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <PenTool size={17} /> Signature électronique
-          </h2>
-          <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
-        </div>
-        <div style={{ padding: 14, background: '#eef2ff', borderRadius: 12, marginBottom: 16, fontSize: 13, color: '#3730a3' }}>
-          <strong>{devis.numero}</strong> • {devis.client} • {devis.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-        </div>
-        <label style={labelStyle}>Nom du signataire</label>
-        <input style={inputStyle} value={name} onChange={e => setName(e.target.value)} placeholder="Jean Dupont" />
-        <div style={{ marginTop: 14 }}>
-          <label style={labelStyle}>Zone de signature</label>
-          <div
-            onClick={() => setSigned(true)}
-            style={{
-              height: 140, border: '2px dashed ' + (signed ? '#10b981' : '#cbd5e1'),
-              borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', background: signed ? '#f0fdf4' : '#f8fafc', transition: 'all 0.2s',
-            }}
-          >
-            {signed ? (
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontFamily: 'cursive', fontSize: 28, color: '#065f46' }}>{name || 'Signé'}</div>
-                <div style={{ fontSize: 11, color: '#10b981', marginTop: 4 }}>Signé le {new Date().toLocaleString('fr-FR')}</div>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', color: '#64748b', fontSize: 13 }}>
-                <PenTool size={24} style={{ marginBottom: 6, color: '#94a3b8' }} /><br />
-                Cliquez ici pour signer
-              </div>
-            )}
-          </div>
-        </div>
-        <button
-          onClick={() => { onSign(); onClose() }}
-          disabled={!signed || !name}
-          style={{
-            width: '100%', marginTop: 16, padding: '12px 18px', borderRadius: 12, border: 'none',
-            background: signed && name ? '#10b981' : '#cbd5e1', color: '#fff',
-            fontSize: 14, fontWeight: 700, cursor: signed && name ? 'pointer' : 'not-allowed',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          }}
-        >
-          <FileCheck2 size={15} /> Valider la signature
-        </button>
-      </motion.div>
-    </motion.div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Templates Modal                                                    */
-/* ------------------------------------------------------------------ */
-
-function TemplatesModal({ onClose, onApply }: { onClose: () => void; onApply: (t: Template) => void }) {
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} style={overlay}>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-        onClick={(e) => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 18, maxWidth: 640, width: '100%', padding: 28 }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 800, margin: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Sparkles size={17} /> Templates de devis
-          </h2>
-          <button onClick={onClose} style={{ ...smallBtnStyle, padding: '6px 10px' }}><X size={14} /></button>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          {TEMPLATES.map(t => (
-            <motion.div
-              key={t.id} whileHover={{ y: -2 }}
-              style={{ padding: 16, border: '1px solid #e2e8f0', borderRadius: 14, cursor: 'pointer', background: '#f8fafc' }}
-              onClick={() => { onApply(t); onClose() }}
-            >
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{t.nom}</div>
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{t.description}</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
-                <span style={{ fontSize: 11, color: '#94a3b8' }}>{t.articles} articles</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#4338ca' }}>{t.montant.toLocaleString('fr-FR')} €</span>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
-    </motion.div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Main Page                                                          */
-/* ------------------------------------------------------------------ */
 
 export default function DevisPage() {
-  const { data: devisApi = [] } = useQuotes()
-  const convertir = useConvertQuote()
-  const majDevis = useUpdateQuote()
-  const creerDevis = useCreateQuote()
+  const { data: quotes = [], isLoading, isError, refetch } = useQuotes()
+  const { data: customers = [] } = useCustomers()
+  const createQuote = useCreateQuote()
+  const updateQuote = useUpdateQuote()
+  const deleteQuote = useDeleteQuote()
+  const convertQuote = useConvertQuote()
 
-  const [filter, setFilter] = useState<Statut | null>(null)
   const [search, setSearch] = useState('')
-  const [showModal, setShowModal] = useState(false)
-  const [showCompare, setShowCompare] = useState(false)
-  const [showTemplates, setShowTemplates] = useState(false)
-  const [historyDevis, setHistoryDevis] = useState<Devis | null>(null)
-  const [signDevis, setSignDevis] = useState<Devis | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
-
-  const showToast = (m: string) => {
-    setToast(m)
-    setTimeout(() => setToast(null), 2800)
-  }
-
-  // Les devis bruts sont indexés à part : les actions ont besoin des lignes,
-  // que la forme d'affichage ne porte pas.
-  const brutParId = useMemo(() => {
-    const m = new Map<string, Quote>()
-    for (const q of devisApi) m.set(q.id, q)
-    return m
-  }, [devisApi])
-
-  const devisList = useMemo<Devis[]>(() => devisApi.map((q) => ({
-    id: q.id,
-    numero: q.number,
-    client: q.customer ? `${q.customer.firstName} ${q.customer.lastName}`.trim() : 'Client non renseigné',
-    date: q.createdAt.slice(0, 10),
-    validite: q.validUntil ? q.validUntil.slice(0, 10) : '',
-    montant: q.total,
-    statut: q.status as Statut,
-  })), [devisApi])
-
-  const stats = useMemo(() => {
-    const total = devisList.length
-    const acceptes = devisList.filter(d => d.statut === 'ACCEPTED').length
-    const refuses = devisList.filter(d => d.statut === 'REJECTED').length
-    const expires = devisList.filter(d => d.statut === 'EXPIRED').length
-    const encours = devisList.filter(d => d.statut === 'SENT').length
-    const montant = devisList.reduce((s, d) => s + (d.statut === 'ACCEPTED' ? d.montant : 0), 0)
-    const tauxAcceptation = total > 0 ? Math.round((acceptes / total) * 100) : 0
-    return { total, acceptes, refuses, expires, encours, montant, tauxAcceptation }
-  }, [devisList])
+  const [filter, setFilter] = useState<QuoteStatus | 'ALL'>('ALL')
+  const [creatorOpen, setCreatorOpen] = useState(false)
+  const [detail, setDetail] = useState<Quote | null>(null)
+  const [customerId, setCustomerId] = useState('')
+  const [validUntil, setValidUntil] = useState('')
+  const [notes, setNotes] = useState('')
+  const [lines, setLines] = useState<LigneDocument[]>([emptyLine()])
 
   const filtered = useMemo(() => {
-    return devisList.filter(d => {
-      if (filter && d.statut !== filter) return false
-      if (search && !d.numero.toLowerCase().includes(search.toLowerCase()) && !d.client.toLowerCase().includes(search.toLowerCase())) return false
-      return true
+    const query = search.trim().toLocaleLowerCase('fr')
+    return quotes.filter((quote) => {
+      if (filter !== 'ALL' && quote.status !== filter) return false
+      if (!query) return true
+      const customer = quote.customer ? `${quote.customer.firstName} ${quote.customer.lastName}` : ''
+      return quote.number.toLocaleLowerCase('fr').includes(query) || customer.toLocaleLowerCase('fr').includes(query)
     })
-  }, [devisList, filter, search])
+  }, [filter, quotes, search])
 
-  /** Conversion réelle : le numéro de la facture vient du serveur. */
-  const convertToInvoice = (d: Devis) => convertir.mutate(d.id)
+  const totals = useMemo(() => ({
+    count: quotes.length,
+    drafts: quotes.filter((quote) => quote.status === 'DRAFT').length,
+    accepted: quotes.filter((quote) => quote.status === 'ACCEPTED').length,
+    acceptedValue: quotes
+      .filter((quote) => quote.status === 'ACCEPTED')
+      .reduce((sum, quote) => sum + quoteTotals(quote).total, 0),
+  }), [quotes])
 
-  /** Duplication réelle : nouveau brouillon avec les mêmes lignes. */
-  const duplicate = (d: Devis) => {
-    const source = brutParId.get(d.id)
-    if (!source) return
-    creerDevis.mutate({
-      customerId: source.customerId ?? null,
-      notes: source.notes ?? null,
-      validUntil: source.validUntil ?? null,
-      items: source.items.map((l) => ({
-        description: l.description,
-        quantity: l.quantity,
-        unitPrice: l.unitPrice,
-        taxRate: l.taxRate,
-      })),
-    })
+  const previewSubtotal = lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unitPrice || 0), 0)
+  const previewTax = lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unitPrice || 0) * Number(line.taxRate || 0) / 100, 0)
+
+  function resetCreator() {
+    setCustomerId('')
+    setValidUntil('')
+    setNotes('')
+    setLines([emptyLine()])
   }
 
-  /**
-   * Passage du devis en « accepté ».
-   *
-   * La signature électronique véritable (lien public, tracé, preuve conservée)
-   * arrive en phase 4 : ici on enregistre seulement le changement de statut,
-   * réellement, en base.
-   */
-  const signDevisHandler = (d: Devis) => {
-    majDevis.mutate({ id: d.id, status: 'ACCEPTED' })
-    setSignDevis(null)
+  function changeLine(index: number, patch: Partial<LigneDocument>) {
+    setLines((current) => current.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line))
   }
 
-  const pieData = [
-    { name: 'Acceptés', value: stats.acceptes, color: '#10b981' },
-    { name: 'En cours', value: stats.encours, color: '#3b82f6' },
-    { name: 'Refusés', value: stats.refuses, color: '#ef4444' },
-    { name: 'Expirés', value: stats.expires, color: '#f59e0b' },
-  ].filter(p => p.value > 0)
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    const cleanLines = lines.map((line) => ({
+      description: line.description.trim(),
+      quantity: Number(line.quantity),
+      unitPrice: Number(line.unitPrice),
+      taxRate: Number(line.taxRate),
+    }))
+    if (cleanLines.some((line) => !line.description || !Number.isFinite(line.quantity) || line.quantity <= 0 || !Number.isFinite(line.unitPrice) || line.unitPrice < 0 || !Number.isFinite(line.taxRate) || line.taxRate < 0 || line.taxRate > 100)) {
+      toastError('Chaque ligne doit avoir une description, une quantité positive, un prix valide et une TVA entre 0 et 100 %.')
+      return
+    }
+    try {
+      await createQuote.mutateAsync({
+        customerId: customerId || null,
+        validUntil: validUntil || null,
+        notes: notes.trim() || null,
+        items: cleanLines,
+      })
+      setCreatorOpen(false)
+      resetCreator()
+    } catch {
+      // Le hook affiche le message précis du serveur.
+    }
+  }
 
-  // Un devis sans date de validité est légitime : afficher « — » plutôt que
-  // le « Invalid Date » que produisait `new Date('')`.
-  const formatDate = (d: string) => {
-    if (!d) return '—'
-    const date = new Date(d)
-    if (Number.isNaN(date.getTime())) return '—'
-    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  async function changeStatus(quote: Quote, status: QuoteStatus) {
+    if (status === quote.status) return
+    try {
+      await updateQuote.mutateAsync({ id: quote.id, status })
+      if (detail?.id === quote.id) setDetail({ ...quote, status })
+    } catch {
+      // Le hook affiche le message précis du serveur.
+    }
+  }
+
+  async function removeQuote(quote: Quote) {
+    if (!window.confirm(`Supprimer définitivement le devis ${quote.number} ?`)) return
+    try {
+      await deleteQuote.mutateAsync(quote.id)
+      if (detail?.id === quote.id) setDetail(null)
+    } catch {
+      // Le hook affiche le message précis du serveur.
+    }
+  }
+
+  async function convert(quote: Quote) {
+    if (quote.status === 'ACCEPTED') return
+    if (!window.confirm(`Créer une facture à partir du devis ${quote.number} ? Le devis sera marqué accepté.`)) return
+    try {
+      const invoice = await convertQuote.mutateAsync(quote.id)
+      setDetail(null)
+      toastSuccess(`Conversion terminée : facture ${invoice.number}.`)
+    } catch {
+      // Le hook affiche le message précis du serveur.
+    }
+  }
+
+  function exportQuotes() {
+    downloadCsv(
+      `devis-creorga-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Numéro', 'Client', 'Statut', 'Créé le', 'Valide jusqu’au', 'HT', 'TVA', 'TTC'],
+      filtered.map((quote) => {
+        const amounts = quoteTotals(quote)
+        return [
+          quote.number,
+          quote.customer ? `${quote.customer.firstName} ${quote.customer.lastName}` : '',
+          statusLabel[quote.status],
+          quote.createdAt.slice(0, 10),
+          quote.validUntil?.slice(0, 10) || '',
+          amounts.subtotal,
+          amounts.tax,
+          amounts.total,
+        ]
+      }),
+    )
+    toastSuccess('Export des devis téléchargé.')
   }
 
   return (
-    <>
-      <div style={{ padding: 28, maxWidth: 1400, margin: '0 auto' }}>
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-          <div>
-            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1e293b', margin: 0 }}>Devis</h1>
-            <p style={{ fontSize: 14, color: '#475569', margin: '4px 0 0' }}>Gestion, suivi et signature électronique des devis clients</p>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setShowTemplates(true)} style={smallBtnStyle}><Sparkles size={13} /> Templates</button>
-            <button onClick={() => setShowCompare(true)} style={smallBtnStyle}><GitCompare size={13} /> Comparer</button>
-            <button onClick={() => setShowModal(true)} style={{ ...smallBtnStyle, background: '#065F46', color: '#fff', border: 'none', padding: '10px 18px', fontSize: 13 }}>
-              <Plus size={14} /> Nouveau devis
-            </button>
-          </div>
-        </motion.div>
+    <main style={{ maxWidth: 1280, margin: '0 auto', padding: '28px 22px 50px', color: '#0f172a' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+        <div>
+          <p style={eyebrow}>Devis enregistrés</p>
+          <h1 style={{ margin: 0, fontSize: 'clamp(27px, 4vw, 38px)', letterSpacing: '-.03em' }}>Devis</h1>
+          <p style={{ margin: '8px 0 0', color: '#64748b' }}>Les numéros, lignes et statuts sont sauvegardés sur le serveur. « Envoyé » est un suivi manuel et n'expédie aucun e-mail.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
+          <button type="button" onClick={exportQuotes} disabled={filtered.length === 0} style={secondaryButton}><Download size={17} /> Exporter</button>
+          <button type="button" onClick={() => setCreatorOpen(true)} style={primaryButton}><Plus size={18} /> Nouveau devis</button>
+        </div>
+      </header>
 
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 20 }}>
-          {[
-            { label: 'Total', value: stats.total, icon: FileText, color: '#64748b' },
-            { label: 'En cours', value: stats.encours, icon: Clock, color: '#3b82f6' },
-            { label: 'Acceptés', value: stats.acceptes, icon: CheckCircle2, color: '#10b981' },
-            { label: 'Taux acceptation', value: `${stats.tauxAcceptation}%`, icon: FileCheck2, color: '#8b5cf6' },
-            { label: 'CA devis acceptés', value: `${Math.round(stats.montant).toLocaleString('fr-FR')} €`, icon: Euro, color: '#4338ca' },
-          ].map(s => (
-            <div key={s.label} style={cardStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <div style={{ width: 34, height: 34, borderRadius: 10, background: `${s.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <s.icon size={16} style={{ color: s.color }} />
-                </div>
-                <span style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>{s.label}</span>
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#1e293b' }}>{s.value}</div>
-            </div>
-          ))}
-        </motion.div>
+      <section className="quote-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 13, marginTop: 24 }}>
+        <Stat label="Devis" value={String(totals.count)} />
+        <Stat label="Brouillons" value={String(totals.drafts)} />
+        <Stat label="Convertis" value={String(totals.accepted)} />
+        <Stat label="Valeur convertie TTC" value={euro.format(totals.acceptedValue)} />
+      </section>
 
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginBottom: 20 }}>
-          <div style={cardStyle}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: '0 0 14px' }}>Évolution envoyés / acceptés</h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={acceptanceMonths}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="mois" stroke="#94a3b8" fontSize={11} />
-                <YAxis stroke="#94a3b8" fontSize={11} />
-                <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="envoyes" fill="#3b82f6" name="Envoyés" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="acceptes" fill="#10b981" name="Acceptés" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="refuses" fill="#ef4444" name="Refusés" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expires" fill="#f59e0b" name="Expirés" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+      <section style={{ marginTop: 18, border: '1px solid #e2e8f0', borderRadius: 20, overflow: 'hidden', background: '#fff', boxShadow: '0 14px 40px rgba(15,23,42,.05)' }}>
+        <div style={{ padding: 15, borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 220, flex: 1, display: 'flex', alignItems: 'center', gap: 9 }}>
+            <Search size={17} color="#64748b" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Rechercher un devis" placeholder="Numéro ou client" style={{ flex: 1, border: 0, outline: 0, fontSize: 14 }} />
           </div>
-          <div style={cardStyle}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: '0 0 14px' }}>Répartition des statuts</h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={80} paddingAngle={3} dataKey="value">
-                  {pieData.map((e, i) => <Cell key={i} fill={e.color} />)}
-                </Pie>
-                <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
+          <select value={filter} onChange={(event) => setFilter(event.target.value as QuoteStatus | 'ALL')} aria-label="Filtrer par statut" style={{ ...field, width: 'auto', minWidth: 180 }}>
+            <option value="ALL">Tous les statuts</option>
+            {statuses.map((status) => <option key={status} value={status}>{statusLabel[status]}</option>)}
+          </select>
+        </div>
 
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: 16, display: 'flex', gap: 10, borderBottom: '1px solid #e2e8f0', flexWrap: 'wrap', alignItems: 'center' }}>
-            <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
-              <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-              <input style={{ ...inputStyle, paddingLeft: 34 }} placeholder="Rechercher numéro ou client..." value={search} onChange={e => setSearch(e.target.value)} />
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button onClick={() => setFilter(null)} style={{
-                padding: '8px 14px', borderRadius: 18, fontSize: 12, fontWeight: 600,
-                border: 'none', background: filter === null ? '#1e293b' : '#f1f5f9', color: filter === null ? '#fff' : '#475569', cursor: 'pointer',
-              }}>Tous ({devisList.length})</button>
-              {(Object.entries(statutConfig) as [Statut, typeof statutConfig.DRAFT][]).map(([key, cfg]) => {
-                const count = devisList.filter(d => d.statut === key).length
-                return (
-                  <button key={key} onClick={() => setFilter(key)} style={{
-                    padding: '8px 14px', borderRadius: 18, fontSize: 12, fontWeight: 600, border: 'none',
-                    background: filter === key ? cfg.color : '#f1f5f9', color: filter === key ? '#fff' : '#475569', cursor: 'pointer',
-                  }}>{cfg.label} ({count})</button>
-                )
-              })}
-            </div>
-          </div>
+        {isLoading ? <Empty title="Chargement des devis…" /> : isError ? (
+          <Empty title="Impossible de charger les devis" action={<button type="button" onClick={() => refetch()} style={primaryButton}><RefreshCw size={16} /> Réessayer</button>} />
+        ) : filtered.length === 0 ? (
+          <Empty title={search || filter !== 'ALL' ? 'Aucun devis ne correspond aux filtres' : 'Aucun devis enregistré'} action={!search && filter === 'ALL' ? <button type="button" onClick={() => setCreatorOpen(true)} style={primaryButton}><Plus size={17} /> Créer un devis</button> : undefined} />
+        ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
-              <thead>
-                <tr style={{ background: '#f8fafc' }}>
-                  {['Numéro', 'Client', 'Date', 'Validité', 'Montant', 'Tracking', 'Statut', 'Actions'].map(h => (
-                    <th key={h} style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: '1px solid #e2e8f0' }}>
-                      {h}
-                    </th>
-                  ))}
+            <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse' }}>
+              <thead><tr>{['Numéro', 'Client', 'Date', 'Validité', 'Statut', 'Total TTC', 'Actions'].map((heading) => <th key={heading} style={tableHead}>{heading}</th>)}</tr></thead>
+              <tbody>{filtered.map((quote) => (
+                <tr key={quote.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                  <td style={tableCell}><strong>{quote.number}</strong></td>
+                  <td style={tableCell}>{quote.customer ? `${quote.customer.firstName} ${quote.customer.lastName}` : 'Sans client lié'}</td>
+                  <td style={tableCell}>{new Date(quote.createdAt).toLocaleDateString('fr-LU')}</td>
+                  <td style={tableCell}>{quote.validUntil ? new Date(quote.validUntil).toLocaleDateString('fr-LU') : 'Non définie'}</td>
+                  <td style={tableCell}>
+                    <select value={quote.status} disabled={quote.status === 'ACCEPTED'} onChange={(event) => changeStatus(quote, event.target.value as QuoteStatus)} aria-label={`Statut de ${quote.number}`} style={{ ...statusColor[quote.status], border: 0, borderRadius: 999, padding: '6px 10px', fontSize: 12, fontWeight: 750 }}>
+                      {statuses.map((status) => <option key={status} value={status} disabled={status === 'ACCEPTED'}>{statusLabel[status]}</option>)}
+                    </select>
+                  </td>
+                  <td style={tableCell}><strong>{euro.format(quoteTotals(quote).total)}</strong></td>
+                  <td style={tableCell}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button type="button" onClick={() => setDetail(quote)} aria-label={`Voir ${quote.number}`} style={iconButton}><Eye size={17} /></button>
+                      {quote.status !== 'ACCEPTED' && <button type="button" onClick={() => convert(quote)} disabled={convertQuote.isPending} aria-label={`Convertir ${quote.number} en facture`} title="Créer la facture" style={{ ...iconButton, color: '#047857' }}><FileText size={17} /></button>}
+                      <button type="button" onClick={() => removeQuote(quote)} disabled={deleteQuote.isPending} aria-label={`Supprimer ${quote.number}`} style={{ ...iconButton, color: '#dc2626' }}><Trash2 size={17} /></button>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                <AnimatePresence>
-                  {filtered.map(devis => {
-                    const cfg = statutConfig[devis.statut]
-                    return (
-                      <motion.tr
-                        key={devis.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        style={{ borderBottom: '1px solid #f1f5f9' }}
-                      >
-                        <td style={{ padding: '12px 16px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <FileText size={13} style={{ color: '#475569' }} />
-                            <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{devis.numero}</span>
-                            {devis.version && devis.version > 1 && (
-                              <span style={{ fontSize: 10, padding: '2px 6px', background: '#eef2ff', color: '#4338ca', borderRadius: 6, fontWeight: 700 }}>v{devis.version}</span>
-                            )}
-                          </div>
-                        </td>
-                        <td style={{ padding: '12px 16px', fontSize: 13, color: '#475569' }}>{devis.client}</td>
-                        <td style={{ padding: '12px 16px', fontSize: 12, color: '#64748b' }}>{formatDate(devis.date)}</td>
-                        <td style={{ padding: '12px 16px', fontSize: 12, color: '#64748b' }}>
-                          {formatDate(devis.validite)}
-                          {devis.reminderScheduled && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: '#f59e0b', marginTop: 2 }}>
-                              <Bell size={9} /> Relance J-3
-                            </div>
-                          )}
-                        </td>
-                        <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
-                          {devis.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-                        </td>
-                        <td style={{ padding: '12px 16px' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            {devis.opened ? (
-                              <span style={{ fontSize: 11, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <Eye size={10} /> Ouvert {devis.openedAt?.split(' ')[0]}
-                              </span>
-                            ) : devis.statut === 'SENT' ? (
-                              <span style={{ fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <Eye size={10} /> Non ouvert
-                              </span>
-                            ) : null}
-                            {devis.signed && (
-                              <span style={{ fontSize: 11, color: '#4338ca', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <PenTool size={10} /> Signé
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td style={{ padding: '12px 16px' }}>
-                          <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, color: cfg.color, background: `${cfg.color}15` }}>
-                            {cfg.label}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 16px' }}>
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            {devis.statut === 'ACCEPTED' && (
-                              <button onClick={() => convertToInvoice(devis)} title="Convertir en facture" style={{ ...smallBtnStyle, padding: '6px 8px', background: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe' }}>
-                                <ArrowRight size={12} /> Facture
-                              </button>
-                            )}
-                            {devis.statut === 'SENT' && !devis.signed && (
-                              <button onClick={() => setSignDevis(devis)} title="Signer" style={{ ...smallBtnStyle, padding: '6px 8px', background: '#f0fdf4', color: '#10b981', border: '1px solid #bbf7d0' }}>
-                                <PenTool size={12} />
-                              </button>
-                            )}
-                            <button onClick={() => duplicate(devis)} title="Dupliquer" style={{ ...smallBtnStyle, padding: '6px 8px' }}>
-                              <Copy size={12} />
-                            </button>
-                            <button onClick={() => setHistoryDevis(devis)} title="Historique" style={{ ...smallBtnStyle, padding: '6px 8px' }}>
-                              <History size={12} />
-                            </button>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    )
-                  })}
-                </AnimatePresence>
-              </tbody>
+              ))}</tbody>
             </table>
           </div>
-        </motion.div>
-      </div>
-
-      <AnimatePresence>
-        {showModal && (
-          <DevisModal
-            onClose={() => setShowModal(false)}
-            onToast={showToast}
-            onCreer={(donnees) => {
-              creerDevis.mutate(donnees, { onSuccess: () => setShowModal(false) })
-            }}
-          />
         )}
-        {showCompare && <CompareModal devis={devisList} onClose={() => setShowCompare(false)} />}
-        {showTemplates && <TemplatesModal onClose={() => setShowTemplates(false)} onApply={(t) => showToast(`Template "${t.nom}" prêt`)} />}
-        {historyDevis && <HistoryModal devis={historyDevis} onClose={() => setHistoryDevis(null)} />}
-        {signDevis && <SignatureModal devis={signDevis} onClose={() => setSignDevis(null)} onSign={() => signDevisHandler(signDevis)} />}
-        {toast && <Toast message={toast} onClose={() => setToast(null)} />}
-      </AnimatePresence>
-    </>
+      </section>
+
+      {creatorOpen && (
+        <div role="dialog" aria-modal="true" aria-label="Nouveau devis" style={overlay} onMouseDown={() => setCreatorOpen(false)}>
+          <form onSubmit={submit} style={modal} onMouseDown={(event) => event.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div><p style={eyebrow}>Enregistrement serveur</p><h2 style={{ margin: 0 }}>Nouveau devis</h2></div>
+              <button type="button" onClick={() => setCreatorOpen(false)} aria-label="Fermer" style={iconButton}><X size={18} /></button>
+            </div>
+            <label style={label}>Client
+              <select value={customerId} onChange={(event) => setCustomerId(event.target.value)} style={field}>
+                <option value="">Sans client lié</option>
+                {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.firstName} {customer.lastName}</option>)}
+              </select>
+            </label>
+            <label style={label}>Valide jusqu'au<input type="date" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} style={field} /></label>
+
+            <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <strong>Lignes</strong>
+              <button type="button" onClick={() => setLines((current) => [...current, emptyLine()])} style={secondaryButton}><Plus size={15} /> Ajouter</button>
+            </div>
+            <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+              {lines.map((line, index) => (
+                <div key={index} className="quote-line" style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 12, display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) 78px 100px 78px 38px', gap: 8, alignItems: 'end' }}>
+                  <label style={{ ...label, marginTop: 0 }}>Description<input value={line.description} onChange={(event) => changeLine(index, { description: event.target.value })} style={field} /></label>
+                  <label style={{ ...label, marginTop: 0 }}>Qté<input type="number" min="0.01" step="0.01" value={line.quantity} onChange={(event) => changeLine(index, { quantity: Number(event.target.value) })} style={field} /></label>
+                  <label style={{ ...label, marginTop: 0 }}>Prix HT<input type="number" min="0" step="0.01" value={line.unitPrice} onChange={(event) => changeLine(index, { unitPrice: Number(event.target.value) })} style={field} /></label>
+                  <label style={{ ...label, marginTop: 0 }}>TVA %<input type="number" min="0" max="100" step="1" value={line.taxRate} onChange={(event) => changeLine(index, { taxRate: Number(event.target.value) })} style={field} /></label>
+                  <button type="button" onClick={() => setLines((current) => current.filter((_, lineIndex) => lineIndex !== index))} disabled={lines.length === 1} aria-label={`Supprimer la ligne ${index + 1}`} style={{ ...iconButton, color: '#dc2626' }}><Trash2 size={16} /></button>
+                </div>
+              ))}
+            </div>
+            <label style={label}>Notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} style={{ ...field, resize: 'vertical' }} /></label>
+            <div style={{ marginTop: 16, padding: 14, borderRadius: 12, display: 'grid', gap: 5, background: '#f8fafc', fontSize: 13 }}>
+              <span>HT : {euro.format(previewSubtotal)}</span>
+              <span>TVA : {euro.format(previewTax)}</span>
+              <strong style={{ fontSize: 16 }}>TTC : {euro.format(previewSubtotal + previewTax)}</strong>
+            </div>
+            <button type="submit" disabled={createQuote.isPending} style={{ ...primaryButton, width: '100%', marginTop: 16 }}>
+              {createQuote.isPending ? 'Création…' : 'Créer le devis'}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {detail && (
+        <div role="dialog" aria-modal="true" aria-label={`Devis ${detail.number}`} style={overlay} onMouseDown={() => setDetail(null)}>
+          <section style={{ ...modal, width: 'min(calc(100% - 32px), 700px)' }} onMouseDown={(event) => event.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              <div><p style={eyebrow}>Devis enregistré</p><h2 style={{ margin: 0 }}>{detail.number}</h2></div>
+              <button type="button" onClick={() => setDetail(null)} aria-label="Fermer" style={iconButton}><X size={18} /></button>
+            </div>
+            <p style={{ color: '#64748b' }}>{detail.customer ? `${detail.customer.firstName} ${detail.customer.lastName}` : 'Sans client lié'} · {statusLabel[detail.status]}</p>
+            <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>{['Description', 'Qté', 'Prix HT', 'TVA'].map((heading) => <th key={heading} style={tableHead}>{heading}</th>)}</tr></thead>
+              <tbody>{detail.items.map((line, index) => <tr key={line.id || index} style={{ borderTop: '1px solid #f1f5f9' }}><td style={tableCell}>{line.description}</td><td style={tableCell}>{line.quantity}</td><td style={tableCell}>{euro.format(line.unitPrice)}</td><td style={tableCell}>{line.taxRate}%</td></tr>)}</tbody>
+            </table></div>
+            {(() => { const amounts = quoteTotals(detail); return <div style={{ marginTop: 16, textAlign: 'right' }}><div>HT : {euro.format(amounts.subtotal)}</div><div>TVA : {euro.format(amounts.tax)}</div><strong style={{ display: 'block', marginTop: 5, fontSize: 20 }}>TTC : {euro.format(amounts.total)}</strong></div> })()}
+            {detail.notes && <p style={{ padding: 12, borderRadius: 10, background: '#f8fafc', whiteSpace: 'pre-wrap' }}>{detail.notes}</p>}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 18 }}>
+              <button type="button" onClick={() => window.print()} style={secondaryButton}><Printer size={17} /> Imprimer</button>
+              {detail.status !== 'ACCEPTED' && <button type="button" onClick={() => convert(detail)} disabled={convertQuote.isPending} style={primaryButton}><FileText size={17} /> Convertir en facture</button>}
+            </div>
+          </section>
+        </div>
+      )}
+
+      <style>{`
+        @media (max-width: 760px) {
+          .quote-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+          .quote-line { grid-template-columns: 1fr 1fr !important; }
+        }
+      `}</style>
+    </main>
   )
 }
+
+function Stat({ label: statLabel, value }: { label: string; value: string }) {
+  return <div style={{ padding: 17, border: '1px solid #e2e8f0', borderRadius: 16, background: '#fff' }}><div style={{ fontSize: 12, color: '#64748b' }}>{statLabel}</div><strong style={{ display: 'block', marginTop: 6, fontSize: 22 }}>{value}</strong></div>
+}
+
+function Empty({ title, action }: { title: string; action?: React.ReactNode }) {
+  return <div style={{ padding: '54px 20px', textAlign: 'center', color: '#64748b' }}><FileText size={36} style={{ marginBottom: 12 }} /><div style={{ fontWeight: 750, color: '#334155' }}>{title}</div>{action && <div style={{ marginTop: 16 }}>{action}</div>}</div>
+}
+
+const eyebrow: React.CSSProperties = { margin: '0 0 5px', color: '#047857', fontSize: 12, fontWeight: 850, letterSpacing: '.1em', textTransform: 'uppercase' }
+const primaryButton: React.CSSProperties = { minHeight: 42, padding: '0 15px', border: 0, borderRadius: 11, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, color: '#fff', background: '#065f46', fontWeight: 750, cursor: 'pointer' }
+const secondaryButton: React.CSSProperties = { minHeight: 42, padding: '0 15px', border: '1px solid #cbd5e1', borderRadius: 11, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, color: '#334155', background: '#fff', fontWeight: 700, cursor: 'pointer' }
+const iconButton: React.CSSProperties = { width: 38, height: 38, border: '1px solid #e2e8f0', borderRadius: 10, display: 'inline-grid', placeItems: 'center', color: '#334155', background: '#fff', cursor: 'pointer' }
+const field: React.CSSProperties = { width: '100%', minHeight: 42, marginTop: 7, padding: '9px 11px', border: '1px solid #cbd5e1', borderRadius: 10, boxSizing: 'border-box', font: 'inherit', background: '#fff' }
+const label: React.CSSProperties = { display: 'block', marginTop: 14, color: '#475569', fontSize: 12, fontWeight: 750 }
+const tableHead: React.CSSProperties = { padding: '12px 14px', textAlign: 'left', color: '#64748b', background: '#f8fafc', fontSize: 11, letterSpacing: '.05em', textTransform: 'uppercase' }
+const tableCell: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: '#334155' }
+const overlay: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 10000, padding: 16, display: 'grid', placeItems: 'center', overflowY: 'auto', background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(5px)' }
+const modal: React.CSSProperties = { width: 'min(calc(100% - 32px), 880px)', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', padding: 22, borderRadius: 20, background: '#fff', boxShadow: '0 28px 80px rgba(15,23,42,.25)' }

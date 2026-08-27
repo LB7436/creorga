@@ -1,5 +1,10 @@
 # Guide de déploiement Creorga OS
 
+> **Attention — guide générique/historique.** L'instance active
+> `creorga.n8nautomatisations.org` n'est pas déployée sur Vercel : elle utilise
+> Caddy, systemd et PostgreSQL sur le VPS Contabo. Pour cette instance, suivre
+> exclusivement [`docs/deployment/contabo-creorga-runbook.md`](docs/deployment/contabo-creorga-runbook.md).
+
 Ce document décrit la procédure complète pour déployer Creorga OS sur Vercel, de la configuration initiale jusqu'à la mise en production sur le domaine `creorga.lu`.
 
 ## 1. Prérequis

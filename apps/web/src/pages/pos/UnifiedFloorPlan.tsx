@@ -10,10 +10,13 @@ import { computeHeat, HeatmapPicker, type HeatMode, type HeatValue } from '@/com
 import { PresetPicker, FLOOR_PRESETS, type FloorPreset } from '@/components/FloorPresets'
 import RoomManager from '@/components/RoomManager'
 import { useTheme, THEMES } from '@/stores/themeStore'
+import { fetchAuth } from '@/lib/fetchAuth'
+import { toastError, toastSuccess } from '@/lib/toast'
+import { useProducts } from '@/hooks/api/useProducts'
 
 /**
  * Unified Floor Plan — visual, real-time, admin-side.
- * - 100% synced with POS :5175 via /api/floor-state
+ * - Synced through the authenticated /api/floor-state endpoint
  * - Shows section zones (Salle / Bar / Terrasse) with colored frames
  * - Tables positioned by their x/y coordinates
  * - Chair dots around each table (click → open order)
@@ -23,9 +26,20 @@ import { useTheme, THEMES } from '@/stores/themeStore'
  * This view is for the PATRON. Waiters work on :5175 which is simplified.
  */
 
-/** Adresse de la caisse (apps/pos), qui héberge l'éditeur de plan complet.
- *  Définie au build par VITE_POS_URL ; en développement, le port 5175. */
-const POS_URL = (import.meta as any).env?.VITE_POS_URL || 'http://localhost:5175'
+/** Adresse de la caisse tactile séparée. En production, on la déduit du
+ * sous-domaine du back-office ; en développement, elle tourne sur le port 5175. */
+function urlCaisse(): string {
+  const configuree = (import.meta as any).env?.VITE_POS_URL || (import.meta as any).env?.VITE_CAISSE_URL
+  if (configuree) return configuree
+  if (typeof window === 'undefined') return '#'
+  const hote = window.location.hostname
+  if (hote.startsWith('creorga.')) {
+    return `${window.location.protocol}//caisse.${hote.slice('creorga.'.length)}`
+  }
+  return 'http://localhost:5175'
+}
+
+const POS_URL = urlCaisse()
 
 const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
   LIBRE:     { bg: 'rgba(16,185,129,0.12)',  border: 'rgba(16,185,129,0.55)',  text: '#6ee7b7', dot: '#10b981' },
@@ -40,22 +54,12 @@ const SECTION_COLORS: Record<string, { label: string; bg: string; border: string
   Terrasse: { label: '🌿  TERRASSE',         bg: 'rgba(16,185,129,0.05)', border: 'rgba(16,185,129,0.28)', glow: '#10b981' },
 }
 
-const QUICK_MENU = [
-  { id: 'q1', name: 'Café',     price: 2.80 },
-  { id: 'q2', name: 'Espresso', price: 2.50 },
-  { id: 'q3', name: 'Bière',    price: 3.20 },
-  { id: 'q4', name: 'Vin',      price: 4.40 },
-  { id: 'q5', name: 'Crémant',  price: 6.70 },
-  { id: 'q6', name: 'Burger',   price: 4.50 },
-  { id: 'q7', name: 'Frites',   price: 4.50 },
-  { id: 'q8', name: 'Plancha',  price: 25.50 },
-]
-
 // Action handlers — defined inside component below. Declared here for typing.
 type FloorActions = ReturnType<typeof useFloorState>
 
 export default function UnifiedFloorPlan() {
   const floor = useFloorState(1500)
+  const productsQuery = useProducts()
   const themeId = useTheme((s) => s.themeId)
   const setTheme = useTheme((s) => s.setTheme)
   const theme = THEMES.find((t) => t.id === themeId) || THEMES[0]
@@ -74,13 +78,20 @@ export default function UnifiedFloorPlan() {
   const [view3D, setView3D] = useState(false)
   const [showRuler, setShowRuler] = useState(false)
   const [draggingTableId, setDraggingTableId] = useState<string | null>(null)
+  const [creatingTableSection, setCreatingTableSection] = useState<string | null>(null)
   const dragOffset = useRef<{ dx: number; dy: number } | null>(null)
   const sectionRef = useRef<HTMLDivElement>(null)
 
   const tables = floor.state?.tables || []
   const chairs = floor.state?.chairs || []
   const photos = floor.state?.photos || []
+  const zones = floor.state?.zones || []
   const globalBg = floor.state?.globalBackground
+  const quickMenu = useMemo(() => (productsQuery.data ?? [])
+    .filter((product) => product.isActive !== false && Number.isFinite(Number(product.price)))
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
+    .slice(0, 8)
+    .map((product) => ({ id: product.id, name: product.name, price: Number(product.price) })), [productsQuery.data])
 
   // A chair can be selected independently (standalone) or through a table.
   const selectedChairObj = chairs.find((c) => c.id === selectedChair) || null
@@ -97,12 +108,22 @@ export default function UnifiedFloorPlan() {
     const newTables = preset.tables.map((t) => ({
       ...t, items: [], status: 'LIBRE' as const,
     }))
-    await fetch((import.meta as any).env?.VITE_BACKEND_URL ?
+    const couleurs = ['#8b5cf6', '#f59e0b', '#10b981', '#3b82f6', '#ec4899']
+    const sectionNames = Array.from(new Set(newTables.map((table) => table.section)))
+    const newZones = sectionNames.map((name, index) => {
+      const existing = floor.state?.zones.find((zone) => zone.name === name)
+      return existing || {
+        id: `preset-${name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${index + 1}`,
+        name,
+        color: couleurs[index % couleurs.length],
+      }
+    })
+    await fetchAuth((import.meta as any).env?.VITE_BACKEND_URL ?
       `${(import.meta as any).env.VITE_BACKEND_URL}/api/floor-state` :
       'http://localhost:3002/api/floor-state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tables: newTables, chairs: [] }),
+      body: JSON.stringify({ tables: newTables, chairs: [], zones: newZones }),
     })
     floor.refresh()
   }, [floor])
@@ -146,10 +167,34 @@ export default function UnifiedFloorPlan() {
     dragOffset.current = null
   }
 
+  // Une salle nouvellement créée doit être visible même avant d'avoir une
+  // table. L'ancienne vue ne dérivait ses sections que depuis les tables et
+  // donnait donc l'impression que la création n'avait rien sauvegardé.
   const sections = useMemo(
-    () => Array.from(new Set(tables.map((t) => t.section))),
-    [tables]
+    () => Array.from(new Set([...zones.map((zone) => zone.name), ...tables.map((table) => table.section)])),
+    [tables, zones],
   )
+
+  const addTableToSection = async (section: string) => {
+    if (creatingTableSection) return
+    const sectionTables = tables.filter((table) => table.section === section)
+    setCreatingTableSection(section)
+    try {
+      await floor.addTable({
+        name: `Table ${sectionTables.length + 1}`,
+        seats: 4,
+        section,
+        shape: 'round',
+        x: 160 + (sectionTables.length % 4) * 180,
+        y: 150 + Math.floor(sectionTables.length / 4) * 180,
+      })
+      toastSuccess(`Table ajoutée dans « ${section} »`)
+    } catch (error: any) {
+      toastError(error?.message || 'Impossible d’ajouter la table')
+    } finally {
+      setCreatingTableSection(null)
+    }
+  }
 
   const current = tables.find((t) => t.id === selectedTable) || null
 
@@ -175,8 +220,8 @@ export default function UnifiedFloorPlan() {
   }, [tables])
 
   if (!floor.state) {
-    return <div style={{ padding: 60, textAlign: 'center', color: '#94a3b8' }}>
-      🔄 Chargement du plan de salle…
+    return <div role={floor.error ? 'alert' : undefined} style={{ padding: 60, textAlign: 'center', color: floor.error ? '#fca5a5' : '#94a3b8' }}>
+      {floor.error ? `Plan de salle indisponible : ${floor.error}` : '🔄 Chargement du plan de salle…'}
     </div>
   }
 
@@ -189,7 +234,7 @@ export default function UnifiedFloorPlan() {
   const showSidePanel = !!(current || selectedChairObj)
 
   return (
-    <div style={{
+    <div className="floor-plan-layout" style={{
       display: 'grid',
       gridTemplateColumns: showSidePanel ? '1fr 420px' : '1fr',
       minHeight: '100vh',
@@ -205,7 +250,7 @@ export default function UnifiedFloorPlan() {
               Plan de salle <span style={{ fontSize: 11, color: theme.textMuted, fontWeight: 500 }}>— vue patron</span>
             </h1>
             <p style={{ fontSize: 12, color: theme.textMuted, margin: '2px 0 0' }}>
-              🔗 Synchronisé temps réel avec POS 5175 · màj {new Date(floor.state.updatedAt).toLocaleTimeString()}
+              🔗 Données enregistrées pour cet établissement · màj {new Date(floor.state.updatedAt).toLocaleTimeString()}
             </p>
           </div>
 
@@ -325,6 +370,16 @@ export default function UnifiedFloorPlan() {
           </button>
         </header>
 
+        {floor.error && (
+          <div role="alert" style={{
+            padding: '10px 12px', marginBottom: 14, borderRadius: 10,
+            color: '#fecaca', background: 'rgba(127,29,29,0.35)', border: '1px solid rgba(248,113,113,0.5)',
+            fontSize: 12, fontWeight: 650,
+          }}>
+            Plan non synchronisé avec le serveur. Les dernières données reçues restent affichées ; réessayez avant de modifier la salle.
+          </div>
+        )}
+
         {/* AI planner panel (collapsible) */}
         {showAI && (
           <AIFloorPlanner onGenerate={floor.aiGeneratePlan} theme={theme} />
@@ -394,7 +449,15 @@ export default function UnifiedFloorPlan() {
             position: 'relative',
           }}>
           {sections.map((sectionName) => {
-            const sec = SECTION_COLORS[sectionName] || SECTION_COLORS.Salle
+            const zone = zones.find((item) => item.name === sectionName)
+            const fallback = SECTION_COLORS[sectionName] || SECTION_COLORS.Salle
+            const zoneColor = zone?.color || fallback.glow
+            const sec = zone ? {
+              label: `🏛  ${zone.name.toLocaleUpperCase()}`,
+              bg: `${zoneColor}0d`,
+              border: `${zoneColor}55`,
+              glow: zoneColor,
+            } : fallback
             const bounds = sectionBounds[sectionName]
             const secTables = tables.filter((t) => t.section === sectionName)
 
@@ -411,10 +474,28 @@ export default function UnifiedFloorPlan() {
               }}>
                 {/* Section title */}
                 <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
                   fontSize: 11, fontWeight: 800, letterSpacing: 2,
-                  color: sec.glow, opacity: 0.9, marginBottom: 20,
+                  color: sec.glow, opacity: 0.95, marginBottom: 20,
+                  position: 'relative', zIndex: 6,
                 }}>
-                  {sec.label} · {secTables.length} table{secTables.length > 1 ? 's' : ''}
+                  <span>{sec.label} · {secTables.length} table{secTables.length > 1 ? 's' : ''}</span>
+                  {configMode && (
+                    <button
+                      type="button"
+                      aria-label={`Ajouter une table à ${sectionName}`}
+                      onClick={() => void addTableToSection(sectionName)}
+                      disabled={creatingTableSection !== null}
+                      style={{
+                        border: `1px solid ${sec.glow}66`, borderRadius: 8,
+                        background: `${sec.glow}20`, color: sec.glow,
+                        padding: '7px 10px', fontSize: 11, fontWeight: 800,
+                        cursor: creatingTableSection ? 'wait' : 'pointer', letterSpacing: 0,
+                      }}
+                    >
+                      {creatingTableSection === sectionName ? 'Ajout…' : '+ Ajouter une table'}
+                    </button>
+                  )}
                 </div>
 
                 {/* Grid background */}
@@ -423,6 +504,11 @@ export default function UnifiedFloorPlan() {
 
                 {/* Tables positioned */}
                 <div style={{ position: 'relative', minHeight: 200 }}>
+                  {secTables.length === 0 && (
+                    <div style={{ display: 'grid', placeItems: 'center', minHeight: 180, color: theme.textMuted, fontSize: 13, textAlign: 'center' }}>
+                      Salle vide — activez le mode Config puis ajoutez votre première table.
+                    </div>
+                  )}
                   {secTables.map((t) => {
                     const offsetX = t.x - (bounds?.x || 0) - 20
                     const offsetY = t.y - (bounds?.y || 0) - 20
@@ -457,7 +543,7 @@ export default function UnifiedFloorPlan() {
                             setSelectedTable(null)
                           }
                         }}
-                        onAddChair={() => floor.addChair(t.id)}
+                        onAddChair={() => void floor.addChair(t.id).catch((error: any) => toastError(error?.message || 'Impossible d’ajouter la chaise'))}
                         configMode={configMode}
                         theme={theme}
                       />
@@ -485,7 +571,7 @@ export default function UnifiedFloorPlan() {
 
       {/* ═══ RIGHT — side panel (table OR chair) ═══ */}
       {showSidePanel && (
-        <aside style={{
+        <aside className="floor-plan-side" style={{
           background: 'rgba(0,0,0,0.25)', borderLeft: `1px solid ${theme.primary}30`,
           padding: 18, overflowY: 'auto', backdropFilter: 'blur(14px)',
         }}>
@@ -498,6 +584,9 @@ export default function UnifiedFloorPlan() {
               onClose={() => setSelectedChair(null)}
               onTransfer={() => setModalOpen('transfer')}
               onSplit={() => setModalOpen('split')}
+              quickMenu={quickMenu}
+              catalogLoading={productsQuery.isLoading}
+              catalogError={productsQuery.isError}
             />
           ) : current && (
             <TablePanel
@@ -511,6 +600,9 @@ export default function UnifiedFloorPlan() {
               onClose={() => { setSelectedTable(null); setSelectedChair(null) }}
               onTransfer={() => setModalOpen('transfer')}
               onSplit={() => setModalOpen('split')}
+              quickMenu={quickMenu}
+              catalogLoading={productsQuery.isLoading}
+              catalogError={productsQuery.isError}
             />
           )}
         </aside>
@@ -555,10 +647,19 @@ export default function UnifiedFloorPlan() {
             currentChairCount={currentChairs.length}
             onSelect={handleSetCount}
             onClose={() => setChairPickerTableId(null)}
-            onAddOne={() => floor.addChair(pickerTable.id)}
-            onRemoveOne={() => {
+            onAddOne={async () => { await floor.addChair(pickerTable.id) }}
+            onRemoveOne={async () => {
               const last = currentChairs[currentChairs.length - 1]
-              if (last) floor.removeChair(last.id)
+              if (last) await floor.removeChair(last.id)
+            }}
+            zones={zones.map((zone) => zone.name)}
+            onUpdate={async (data) => {
+              await floor.patchTable(pickerTable.id, data)
+              toastSuccess('Table sauvegardée')
+            }}
+            onDelete={async () => {
+              await floor.deleteTable(pickerTable.id)
+              toastSuccess('Table supprimée')
             }}
           />
         )
@@ -659,6 +760,7 @@ function TableVisual({
 
       {/* Table itself */}
       <button
+        aria-label={`${configMode ? 'Configurer' : 'Ouvrir'} la table ${table.name}`}
         onClick={onClick}
         onPointerDown={configMode ? onDragStart : undefined}
         style={{
@@ -776,7 +878,7 @@ function getChairDotPositions(shape: string, size: { w: number; h: number }, n: 
 // ═══════════════════════════════════════════════════════════════════════════
 function TablePanel({
   table, chairs, total, selectedChair, onSelectChair, floor, theme,
-  onClose, onTransfer, onSplit,
+  onClose, onTransfer, onSplit, quickMenu, catalogLoading, catalogError,
 }: any) {
   const cfg = STATUS_COLORS[table.status]
 
@@ -814,9 +916,9 @@ function TablePanel({
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 14 }}>
         <ActionBtn emoji="🔀" label="Transférer" onClick={onTransfer} color="#8b5cf6" />
         <ActionBtn emoji="✂️" label="Splitter"   onClick={onSplit}    color="#06b6d4" />
-        <ActionBtn emoji="💳" label={`Payer ${total > 0 ? total.toFixed(2) + ' €' : ''}`}
-                   onClick={() => alert(`Paiement ${total.toFixed(2)} €`)} color="#10b981" disabled={total === 0} />
-        <ActionBtn emoji="🚪" label="Fermer"     onClick={() => floor.closeTable(table.id)} color="#ef4444" />
+        <ActionBtn emoji="💳" label={`Caisse ${total > 0 ? '· ' + total.toFixed(2) + ' €' : ''}`}
+                   onClick={() => window.open(POS_URL, '_blank', 'noopener,noreferrer')} color="#10b981" disabled={total === 0} />
+        <ActionBtn emoji="🚪" label="Fermer" onClick={() => void floor.closeTable(table.id).catch((error: any) => toastError(error?.message || 'Impossible de fermer la table'))} color="#ef4444" />
       </div>
 
       {/* Chairs */}
@@ -825,7 +927,7 @@ function TablePanel({
           🪑 CHAISES ({chairs.length})
         </span>
         <button
-          onClick={() => floor.addChair(table.id)}
+          onClick={() => void floor.addChair(table.id).catch((error: any) => toastError(error?.message || 'Impossible d’ajouter la chaise'))}
           style={{
             padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
             background: `linear-gradient(135deg, ${theme.primary}, ${theme.primaryLight})`,
@@ -872,7 +974,12 @@ function TablePanel({
                       {chTotal.toFixed(2)} €
                     </div>
                     <button
-                      onClick={(e) => { e.stopPropagation(); if (confirm('Supprimer la chaise ?')) floor.removeChair(ch.id) }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (confirm('Supprimer la chaise ?')) {
+                          void floor.removeChair(ch.id).catch((error: any) => toastError(error?.message || 'Impossible de supprimer la chaise'))
+                        }
+                      }}
                       style={{ background: 'transparent', border: 'none', color: theme.textMuted, fontSize: 11, cursor: 'pointer' }}>
                       🗑
                     </button>
@@ -908,7 +1015,7 @@ function TablePanel({
             + AJOUTER À LA CHAISE
           </div>
           <div style={{ display: 'grid', gap: 4, gridTemplateColumns: 'repeat(2, 1fr)' }}>
-            {QUICK_MENU.map((m) => (
+            {quickMenu.map((m: { id: string; name: string; price: number }) => (
               <button key={m.id}
                 onClick={() => floor.addItemToChair(selectedChair, { name: m.name, price: m.price, qty: 1 })}
                 style={{
@@ -921,6 +1028,11 @@ function TablePanel({
               </button>
             ))}
           </div>
+          {catalogLoading && <CatalogMessage>Chargement du catalogue…</CatalogMessage>}
+          {catalogError && <CatalogMessage>Catalogue indisponible. Vérifiez la connexion avant de saisir une commande.</CatalogMessage>}
+          {!catalogLoading && !catalogError && quickMenu.length === 0 && (
+            <CatalogMessage>Aucun produit actif. Ajoutez vos produits dans Administration → Catalogue.</CatalogMessage>
+          )}
         </div>
       )}
     </>
@@ -930,7 +1042,7 @@ function TablePanel({
 // ═══════════════════════════════════════════════════════════════════════════
 // Chair-level panel — same feature set as TablePanel but for a single chair
 // ═══════════════════════════════════════════════════════════════════════════
-function ChairPanel({ chair, parentTable, floor, theme, onClose, onTransfer, onSplit }: any) {
+function ChairPanel({ chair, parentTable, floor, theme, onClose, onTransfer, onSplit, quickMenu, catalogLoading, catalogError }: any) {
   const total = chair.items.reduce((s: number, i: any) => s + i.price * i.qty, 0)
   return (
     <>
@@ -981,10 +1093,10 @@ function ChairPanel({ chair, parentTable, floor, theme, onClose, onTransfer, onS
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 14 }}>
         <ActionBtn emoji="🔀" label="Transférer" onClick={onTransfer} color="#8b5cf6" />
         <ActionBtn emoji="✂️" label="Splitter"   onClick={onSplit}    color="#06b6d4" />
-        <ActionBtn emoji="💳" label={`Payer ${total > 0 ? total.toFixed(2) + ' €' : ''}`}
-                   onClick={() => alert(`Paiement chaise ${chair.label}: ${total.toFixed(2)} €`)}
+        <ActionBtn emoji="💳" label={`Caisse ${total > 0 ? '· ' + total.toFixed(2) + ' €' : ''}`}
+                   onClick={() => window.open(POS_URL, '_blank', 'noopener,noreferrer')}
                    color="#10b981" disabled={total === 0} />
-        <ActionBtn emoji="🚪" label="Libérer" onClick={() => floor.closeChair(chair.id)} color="#ef4444" />
+        <ActionBtn emoji="🚪" label="Libérer" onClick={() => void floor.closeChair(chair.id).catch((error: any) => toastError(error?.message || 'Impossible de libérer la chaise'))} color="#ef4444" />
       </div>
 
       {/* Items list */}
@@ -1026,7 +1138,7 @@ function ChairPanel({ chair, parentTable, floor, theme, onClose, onTransfer, onS
           + AJOUTER
         </div>
         <div style={{ display: 'grid', gap: 4, gridTemplateColumns: 'repeat(2, 1fr)' }}>
-          {QUICK_MENU.map((m) => (
+          {quickMenu.map((m: { id: string; name: string; price: number }) => (
             <button key={m.id}
               onClick={() => floor.addItemToChair(chair.id, { name: m.name, price: m.price, qty: 1 })}
               style={{
@@ -1039,9 +1151,18 @@ function ChairPanel({ chair, parentTable, floor, theme, onClose, onTransfer, onS
             </button>
           ))}
         </div>
+        {catalogLoading && <CatalogMessage>Chargement du catalogue…</CatalogMessage>}
+        {catalogError && <CatalogMessage>Catalogue indisponible. Vérifiez la connexion avant de saisir une commande.</CatalogMessage>}
+        {!catalogLoading && !catalogError && quickMenu.length === 0 && (
+          <CatalogMessage>Aucun produit actif. Ajoutez vos produits dans Administration → Catalogue.</CatalogMessage>
+        )}
       </div>
     </>
   )
+}
+
+function CatalogMessage({ children }: { children: React.ReactNode }) {
+  return <p style={{ margin: '8px 0 0', color: '#94a3b8', fontSize: 11, lineHeight: 1.4 }}>{children}</p>
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -3,50 +3,107 @@ import { Play, Plus, Trash2 } from 'lucide-react'
 import api from '@/lib/api'
 
 type Macro = { id: string; name: string; icon: string; intents: string[] }
+type Feedback = { kind: 'success' | 'error' | 'info'; text: string }
 
 export default function MacrosPage() {
   const [macros, setMacros] = useState<Macro[]>([])
-  const [name, setName] = useState('Fin de service')
-  const [icon, setIcon] = useState('🏁')
-  const [intents, setIntents] = useState('pos.close-all-tables\nacc.cloture-caisse\ndaily-briefing.evening')
-  const [status, setStatus] = useState('')
+  const [name, setName] = useState('')
+  const [icon, setIcon] = useState('⚡')
+  const [intents, setIntents] = useState('')
+  const [status, setStatus] = useState<Feedback | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [pending, setPending] = useState<string | null>(null)
 
-  const load = () => { api.get('/owner/macros').then((r) => setMacros(Array.isArray(r.data) ? r.data : [])).catch(() => setMacros([])) }
+  const load = async () => {
+    setLoading(true)
+    try {
+      const response = await api.get('/owner/macros')
+      setMacros(Array.isArray(response.data) ? response.data : [])
+    } catch {
+      setMacros([])
+      setStatus({ kind: 'error', text: 'Impossible de charger les macros sauvegardées.' })
+    } finally {
+      setLoading(false)
+    }
+  }
   useEffect(() => { load() }, [])
 
   const save = async () => {
-    const body = { name, icon, intents: intents.split('\n').map((line) => line.trim()).filter(Boolean) }
-    await api.post('/owner/macros', body)
-    setStatus('Macro enregistree')
-    load()
+    const actions = intents.split('\n').map((line) => line.trim()).filter(Boolean)
+    if (!name.trim() || actions.length === 0) {
+      setStatus({ kind: 'error', text: 'Donnez un nom et au moins une action à la macro.' })
+      return
+    }
+    setPending('save')
+    setStatus({ kind: 'info', text: 'Enregistrement en cours…' })
+    try {
+      await api.post('/owner/macros', { name: name.trim(), icon, intents: actions })
+      setName('')
+      setIcon('⚡')
+      setIntents('')
+      setStatus({ kind: 'success', text: 'Macro enregistrée sur le serveur.' })
+      await load()
+    } catch {
+      setStatus({ kind: 'error', text: "La macro n'a pas pu être enregistrée." })
+    } finally {
+      setPending(null)
+    }
   }
 
   const execute = async (macro: Macro) => {
-    setStatus(`Execution: ${macro.name}`)
-    await api.post('/assistant/workflow', { text: macro.intents.join(' et ') }).catch(() => undefined)
-    setStatus(`Workflow lance: ${macro.name}`)
+    setPending(`run:${macro.id}`)
+    setStatus({ kind: 'info', text: `Exécution de « ${macro.name} »…` })
+    try {
+      const response = await api.post('/assistant/workflow', {
+        text: macro.intents.join(' puis '),
+        currentPath: window.location.pathname,
+      })
+      if (response.data?.success === false || response.data?.kind === 'error') {
+        throw new Error(response.data?.summary || response.data?.text || 'Échec du workflow')
+      }
+      setStatus({ kind: 'success', text: response.data?.summary || `Macro « ${macro.name} » exécutée.` })
+    } catch (error: any) {
+      setStatus({ kind: 'error', text: error?.response?.data?.message || error?.message || `Échec de « ${macro.name} ».` })
+    } finally {
+      setPending(null)
+    }
   }
 
-  const remove = async (id: string) => {
-    await api.delete(`/owner/macros/${id}`)
-    load()
+  const remove = async (macro: Macro) => {
+    if (!window.confirm(`Supprimer définitivement la macro « ${macro.name} » ?`)) return
+    setPending(`delete:${macro.id}`)
+    try {
+      await api.delete(`/owner/macros/${macro.id}`)
+      setStatus({ kind: 'success', text: `Macro « ${macro.name} » supprimée.` })
+      await load()
+    } catch {
+      setStatus({ kind: 'error', text: "La macro n'a pas pu être supprimée." })
+    } finally {
+      setPending(null)
+    }
   }
 
   return (
     <div style={{ padding: 28, maxWidth: 1180, margin: '0 auto' }}>
-      <h1 style={{ color: '#f8fafc', fontSize: 30, margin: 0 }}>Stickers d'action patron</h1>
-      <p style={{ color: '#94a3b8', marginTop: 6 }}>Creez des macros qui enchainent plusieurs intents Robi en un geste.</p>
+      <h1 style={{ color: '#f8fafc', fontSize: 30, margin: 0 }}>Macros d'action</h1>
+      <p style={{ color: '#94a3b8', marginTop: 6 }}>Créez une suite d'instructions Robi, sauvegardée uniquement pour votre établissement.</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 18, marginTop: 22 }}>
         <div style={card}>
           <h2 style={title}>Nouvelle macro</h2>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom" style={input} />
           <input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="Emoji" style={input} />
-          <textarea value={intents} onChange={(e) => setIntents(e.target.value)} rows={8} style={{ ...input, resize: 'vertical' }} />
-          <button onClick={save} style={primary}><Plus size={15} /> Enregistrer</button>
-          {status && <p style={{ color: '#86efac', fontSize: 12, fontWeight: 800 }}>{status}</p>}
+          <textarea value={intents} onChange={(e) => setIntents(e.target.value)} rows={8} placeholder={'Une instruction par ligne\nEx. Ferme la table 4'} style={{ ...input, resize: 'vertical' }} />
+          <button onClick={save} disabled={pending === 'save'} style={{ ...primary, opacity: pending === 'save' ? .65 : 1 }}><Plus size={15} /> {pending === 'save' ? 'Enregistrement…' : 'Enregistrer'}</button>
+          {status && <p role="status" style={{ color: status.kind === 'error' ? '#fca5a5' : status.kind === 'success' ? '#86efac' : '#bfdbfe', fontSize: 12, fontWeight: 800 }}>{status.text}</p>}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14 }}>
+          {!loading && macros.length === 0 && (
+            <div style={{ ...card, color: '#94a3b8', minHeight: 140, display: 'grid', placeItems: 'center', textAlign: 'center' }}>
+              Aucune macro enregistrée. Créez la première à gauche.
+            </div>
+          )}
+          {loading && <div style={{ ...card, color: '#94a3b8' }}>Chargement des macros…</div>}
           {macros.map((macro) => (
             <div key={macro.id} style={card}>
               <div style={{ fontSize: 34 }}>{macro.icon}</div>
@@ -55,8 +112,8 @@ export default function MacrosPage() {
                 {macro.intents.map((intent) => <li key={intent}>{intent}</li>)}
               </ul>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => execute(macro)} style={primary}><Play size={14} /> Execute</button>
-                <button onClick={() => remove(macro.id)} style={danger}><Trash2 size={14} /></button>
+                <button onClick={() => execute(macro)} disabled={pending !== null} style={{ ...primary, opacity: pending ? .65 : 1 }}><Play size={14} /> {pending === `run:${macro.id}` ? 'Exécution…' : 'Exécuter'}</button>
+                <button onClick={() => remove(macro)} disabled={pending !== null} aria-label={`Supprimer ${macro.name}`} style={{ ...danger, opacity: pending ? .65 : 1 }}><Trash2 size={14} /></button>
               </div>
             </div>
           ))}

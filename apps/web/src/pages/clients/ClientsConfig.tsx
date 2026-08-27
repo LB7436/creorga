@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { useAuthStore } from '@/stores/authStore'
 import LogoUploader from '@/components/LogoUploader'
@@ -6,7 +6,7 @@ import QRCodeCanvas from '@/components/QRCodeCanvas'
 import PhotoWall from '@/components/PhotoWall'
 import { useBrand } from '@/stores/brandStore'
 import { usePortalConfig } from '@/hooks/usePortalConfig'
-import { GUEST_GAMES, estCasino, estJouable, libelleJoueurs } from '@/pages/guest/games/catalog'
+import { JEUX_SELECTIONNES, estCasino, estJouable, libelleJoueurs } from '@/pages/guest/games/catalog'
 import { toastError } from '@/lib/toast'
 
 // ---------------------------------------------------------------------------
@@ -44,21 +44,17 @@ interface PortalSettings {
 // Data
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = 'creorga-guest-portal-settings'
-
 const PORTAL_TOGGLES: PortalToggle[] = [
   { id: 'menu', label: 'Afficher le menu', description: 'Les clients peuvent consulter votre carte', emoji: '\u{1F4CB}', previewTab: 'menu' },
   { id: 'order', label: 'Commande en ligne', description: 'Permettre la commande depuis la table', emoji: '\u{1F6D2}', previewTab: 'order' },
   { id: 'games', label: 'Activer les jeux', description: 'Section divertissement pour les clients', emoji: '\u{1F3AE}', previewTab: 'games' },
-  { id: 'chat', label: 'Activer le chat', description: 'Communication directe avec le personnel', emoji: '\u{1F4AC}', previewTab: 'chat' },
   { id: 'reviews', label: 'Demander les avis', description: 'Formulaire de notation après la visite', emoji: '⭐', previewTab: 'reviews' },
-  { id: 'announcements', label: 'Afficher les annonces', description: 'Promotions et actualités', emoji: '\u{1F4E2}', previewTab: 'annonces' },
 ]
 
 // Même registre que le portail client : un jeu « bientôt » n'est pas proposé,
 // un jeu bêta ou casino est signalé comme tel au restaurateur avant qu'il ne
 // l'active pour ses clients.
-const GAMES: GameEntry[] = GUEST_GAMES
+const GAMES: GameEntry[] = JEUX_SELECTIONNES
   .filter(estJouable)
   .map((game) => ({
     id: game.id,
@@ -90,11 +86,12 @@ function createDefaults(): PortalSettings {
   return { toggles, games, welcomeMessage: '', accentColor: '#6366f1', tableNumber: '1', themeMode: 'dark' }
 }
 
-function getPortalPreviewUrl(settings: PortalSettings) {
+function getPortalPreviewUrl(settings: PortalSettings, companyId: string | null) {
   const origin = typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:5174'
   const url = new URL('/c', origin)
   url.searchParams.set('table', settings.tableNumber || '1')
   url.searchParams.set('preview', 'admin')
+  if (companyId) url.searchParams.set('companyId', companyId)
   return url.toString()
 }
 
@@ -164,11 +161,11 @@ function Section({ title, delay, children }: { title: string; delay: number; chi
 // Phone Preview
 // ---------------------------------------------------------------------------
 
-function PhonePreview({ settings }: { settings: PortalSettings }) {
+function PhonePreview({ settings, companyId }: { settings: PortalSettings; companyId: string | null }) {
   const accent = settings.accentColor || '#6366f1'
   const dark = settings.themeMode !== 'light'
   const phoneBg = dark ? '#060513' : '#f8fafc'
-  const previewUrl = getPortalPreviewUrl(settings)
+  const previewUrl = getPortalPreviewUrl(settings, companyId)
 
   return (
     <div style={{ width: '100%', maxWidth: 430, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -235,7 +232,7 @@ function PhonePreview({ settings }: { settings: PortalSettings }) {
         </span>
       </div>
       <p style={{ margin: '10px 0 0', fontSize: 11, color: '#94a3b8', textAlign: 'center', lineHeight: 1.5 }}>
-        Les changements sont sauvegardes et visibles dans ce localhost comme sur un vrai telephone client.
+        Les changements sont sauvegardés et visibles immédiatement sur le portail client.
       </p>
     </div>
   )
@@ -247,41 +244,35 @@ function PhonePreview({ settings }: { settings: PortalSettings }) {
 
 export default function ClientsConfig() {
   const company = useAuthStore((s) => s.company)
+  const companyId = useAuthStore((s) => s.companyId)
   const [settings, setSettings] = useState<PortalSettings>(createDefaults)
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<PortalSettings>
-        const parsedGames = parsed.games ?? {}
-        const hasAnyGameEnabled = Object.values(parsedGames).some(Boolean)
-        if (!hasAnyGameEnabled) {
-          const migrated = {
-            ...createDefaults(),
-            ...parsed,
-            toggles: { ...createDefaults().toggles, ...(parsed.toggles ?? {}) },
-            games: createDefaults().games,
-          }
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated))
-        }
-        setSettings((prev) => ({
-          ...prev, ...parsed,
-          toggles: { ...prev.toggles, ...(parsed.toggles ?? {}) },
-          games: hasAnyGameEnabled ? { ...prev.games, ...parsedGames } : prev.games,
-        }))
-      }
-    } catch { /* ignore */ }
-  }, [])
-
-  const { config: configServeur, update: updateRemoteConfig } = usePortalConfig(0) // no polling here, we're the writer
+  const {
+    config: configServeur,
+    error: erreurConfig,
+    update: updateRemoteConfig,
+    refresh: rechargerConfig,
+  } = usePortalConfig(0) // no polling here, we're the writer
   const [enregistrement, setEnregistrement] = useState(false)
+  const [configSynchronisee, setConfigSynchronisee] = useState(false)
+  const settingsRef = useRef(settings)
+  const settingsConfirmesRef = useRef(settings)
+  const enregistrementRef = useRef(false)
 
-  // v5.0 — La valeur affichée est celle du serveur : c'est elle que voit le
-  // portail des clients. Le localStorage ne sert plus que de repli hors ligne.
   useEffect(() => {
-    if (!configServeur) return
-    setSettings((prev) => ({
+    settingsRef.current = settings
+  }, [settings])
+
+  useEffect(() => {
+    setConfigSynchronisee(false)
+  }, [companyId])
+
+  // La valeur affichée est celle du serveur : c'est elle que voit le portail
+  // des clients. Un cache local global mélangerait les réglages de deux
+  // restaurants utilisant le même navigateur, il n'est donc pas utilisé ici.
+  useEffect(() => {
+    if (!configServeur || enregistrementRef.current) return
+    const prev = settingsRef.current
+    const synchronise: PortalSettings = {
       ...prev,
       toggles: { ...prev.toggles, ...(configServeur.toggles ?? {}) },
       games: Object.keys(configServeur.games ?? {}).length ? { ...prev.games, ...configServeur.games } : prev.games,
@@ -289,15 +280,21 @@ export default function ClientsConfig() {
       accentColor: configServeur.accentColor || prev.accentColor,
       tableNumber: configServeur.tableNumber || prev.tableNumber,
       themeMode: configServeur.themeMode ?? prev.themeMode,
-    }))
+    }
+    settingsRef.current = synchronise
+    settingsConfirmesRef.current = synchronise
+    setSettings(synchronise)
+    setConfigSynchronisee(true)
   }, [configServeur])
 
   const persist = useCallback((next: PortalSettings) => {
-    // Écriture optimiste, ANNULÉE si le serveur refuse : un interrupteur ne
-    // reste jamais allumé alors que l'enregistrement a échoué (le PATCH est
-    // réservé au propriétaire ; il finissait en 401 avalé).
-    let precedent: PortalSettings | null = null
-    setSettings((prev) => { precedent = prev; return next })
+    // La valeur visible ne change qu'après confirmation du serveur. C'est plus
+    // sûr qu'un état optimiste : un GET concurrent ne peut pas réappliquer une
+    // valeur pendant le rollback d'un PATCH refusé.
+    const precedent = settingsConfirmesRef.current
+    settingsRef.current = next
+    setSettings(next)
+    enregistrementRef.current = true
     setEnregistrement(true)
     updateRemoteConfig({
       toggles: next.toggles,
@@ -309,36 +306,84 @@ export default function ClientsConfig() {
     })
       .then((serveur) => {
         // Le serveur a le dernier mot sur ce qui est réellement enregistré.
-        setSettings((prev) => ({
-          ...prev,
-          toggles: { ...prev.toggles, ...(serveur.toggles ?? {}) },
-          games: Object.keys(serveur.games ?? {}).length ? { ...prev.games, ...serveur.games } : prev.games,
-        }))
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch { /* quota */ }
+        const confirme: PortalSettings = {
+          toggles: { ...next.toggles, ...(serveur.toggles ?? {}) },
+          games: Object.keys(serveur.games ?? {}).length ? { ...next.games, ...serveur.games } : next.games,
+          welcomeMessage: serveur.welcomeMessage ?? next.welcomeMessage,
+          accentColor: serveur.accentColor || next.accentColor,
+          tableNumber: serveur.tableNumber || next.tableNumber,
+          themeMode: serveur.themeMode ?? next.themeMode,
+        }
+        settingsConfirmesRef.current = confirme
+        settingsRef.current = confirme
+        setSettings(confirme)
       })
       .catch((e: any) => {
-        if (precedent) setSettings(precedent)
+        settingsRef.current = precedent
+        setSettings(precedent)
         toastError(e?.message || 'Enregistrement refusé par le serveur — le réglage a été annulé.')
       })
-      .finally(() => setEnregistrement(false))
+      .finally(() => {
+        enregistrementRef.current = false
+        setEnregistrement(false)
+      })
   }, [updateRemoteConfig])
 
-  const toggleFeature = (id: string) => persist({ ...settings, toggles: { ...settings.toggles, [id]: !settings.toggles[id] } })
-  const toggleGame = (id: string) => persist({ ...settings, games: { ...settings.games, [id]: !settings.games[id] } })
-  const setWelcome = (msg: string) => persist({ ...settings, welcomeMessage: msg })
-  const setAccent = (c: string) => persist({ ...settings, accentColor: c })
-  const setTable = (n: string) => persist({ ...settings, tableNumber: n })
-  const setThemeMode = (mode: 'dark' | 'light') => persist({ ...settings, themeMode: mode })
+  const toggleFeature = (id: string) => {
+    const current = settingsRef.current
+    persist({ ...current, toggles: { ...current.toggles, [id]: !current.toggles[id] } })
+  }
+  const toggleGame = (id: string) => {
+    const current = settingsRef.current
+    persist({ ...current, games: { ...current.games, [id]: !current.games[id] } })
+  }
+  const setWelcome = (msg: string) => {
+    const next = { ...settingsRef.current, welcomeMessage: msg }
+    settingsRef.current = next
+    setSettings(next)
+  }
+  const setAccent = (c: string) => persist({ ...settingsRef.current, accentColor: c })
+  const setTable = (n: string) => {
+    const next = { ...settingsRef.current, tableNumber: n }
+    settingsRef.current = next
+    setSettings(next)
+  }
+  const setThemeMode = (mode: 'dark' | 'light') => persist({ ...settingsRef.current, themeMode: mode })
+
+  if (!configSynchronisee) {
+    return (
+      <div style={{ minHeight: '70vh', display: 'grid', placeItems: 'center', padding: 32 }}>
+        <div role="status" style={{ maxWidth: 460, textAlign: 'center', color: '#475569' }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>{erreurConfig ? '⚠️' : '⏳'}</div>
+          <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+            {erreurConfig ? 'Configuration indisponible' : 'Chargement de la configuration…'}
+          </p>
+          <p style={{ margin: '8px 0 0', fontSize: 13, lineHeight: 1.6 }}>
+            {erreurConfig || 'Les commandes seront disponibles dès que les réglages enregistrés auront été vérifiés.'}
+          </p>
+          {erreurConfig && (
+            <button
+              type="button"
+              onClick={() => void rechargerConfig()}
+              style={{ marginTop: 16, border: 0, borderRadius: 10, padding: '10px 16px', background: '#4f46e5', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+            >
+              Réessayer
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   const selectAllGames = () => {
     const g: Record<string, boolean> = {}
     GAMES.forEach((game) => { g[game.id] = true })
-    persist({ ...settings, games: g })
+    persist({ ...settingsRef.current, games: g })
   }
   const deselectAllGames = () => {
     const g: Record<string, boolean> = {}
     GAMES.forEach((game) => { g[game.id] = false })
-    persist({ ...settings, games: g })
+    persist({ ...settingsRef.current, games: g })
   }
 
   const activeGamesCount = GAMES.filter((game) => settings.games[game.id]).length
@@ -351,6 +396,7 @@ export default function ClientsConfig() {
     }}>
       {/* Header */}
       <motion.header
+        className="portal-config-header"
         initial={{ opacity: 0, y: -16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
@@ -376,10 +422,10 @@ export default function ClientsConfig() {
       </motion.header>
 
       {/* Two-panel layout */}
-      <div style={{ display: 'flex', gap: 32, padding: '0 32px 60px', alignItems: 'flex-start' }}>
+      <div className="portal-config-layout" style={{ display: 'flex', gap: 32, padding: '0 32px 60px', alignItems: 'flex-start' }}>
 
         {/* LEFT — Config (60%) */}
-        <div style={{ flex: '0 0 60%', display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div className="portal-config-controls" style={{ flex: '0 0 60%', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
           {/* Toggles */}
           <Section title="Fonctionnalités du portail" delay={0}>
@@ -435,7 +481,7 @@ export default function ClientsConfig() {
                 ))}
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+            <div className="portal-config-games" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
               {GAMES.map((game, i) => {
                 const checked = !!settings.games[game.id]
                 return (
@@ -506,6 +552,7 @@ export default function ClientsConfig() {
                 <textarea
                   value={settings.welcomeMessage}
                   onChange={(e) => setWelcome(e.target.value)}
+                  disabled={enregistrement}
                   placeholder="Ex: Bienvenue chez nous ! Scannez le QR code pour découvrir notre carte..."
                   rows={3}
                   style={{
@@ -517,12 +564,22 @@ export default function ClientsConfig() {
                   onFocus={(e) => { e.currentTarget.style.borderColor = '#6366f1' }}
                   onBlur={(e) => { e.currentTarget.style.borderColor = '#e2e8f0' }}
                 />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => persist(settingsRef.current)}
+                    disabled={enregistrement || settings.welcomeMessage === settingsConfirmesRef.current.welcomeMessage}
+                    style={{ border: 0, borderRadius: 9, padding: '8px 13px', background: '#4f46e5', color: '#fff', fontSize: 12, fontWeight: 800, cursor: enregistrement ? 'progress' : 'pointer', opacity: enregistrement || settings.welcomeMessage === settingsConfirmesRef.current.welcomeMessage ? 0.5 : 1 }}
+                  >
+                    {enregistrement ? 'Enregistrement…' : 'Enregistrer le message'}
+                  </button>
+                </div>
               </div>
 
               {/* Theme */}
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 10, color: '#334155' }}>
-                  Design de l'expÃ©rience client
+                  Design de l'expérience client
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
                   {([
@@ -592,12 +649,20 @@ export default function ClientsConfig() {
 
           {/* QR Code — real QR generator */}
           <Section title="QR Code" delay={0.3}>
-            <QRSection tableNumber={settings.tableNumber} onTableChange={setTable} />
+            <QRSection
+              tableNumber={settings.tableNumber}
+              onTableChange={setTable}
+              onSave={() => persist(settingsRef.current)}
+              saving={enregistrement}
+              hasChanges={settings.tableNumber !== settingsConfirmesRef.current.tableNumber}
+              companyId={companyId}
+            />
           </Section>
         </div>
 
         {/* RIGHT — Live Preview (40%) */}
         <motion.div
+          className="portal-config-preview"
           initial={{ opacity: 0, x: 24 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.2, duration: 0.5 }}
@@ -606,7 +671,7 @@ export default function ClientsConfig() {
             display: 'flex', justifyContent: 'center', paddingTop: 8,
           }}
         >
-          <PhonePreview settings={settings} />
+          <PhonePreview settings={settings} companyId={companyId} />
         </motion.div>
       </div>
 
@@ -619,9 +684,26 @@ export default function ClientsConfig() {
 }
 
 // ─── QR Section ─────────────────────────────────────────────────────────────
-function QRSection({ tableNumber, onTableChange }: { tableNumber: string; onTableChange: (v: string) => void }) {
+function QRSection({
+  tableNumber,
+  onTableChange,
+  onSave,
+  saving,
+  hasChanges,
+  companyId,
+}: {
+  tableNumber: string
+  onTableChange: (v: string) => void
+  onSave: () => void
+  saving: boolean
+  hasChanges: boolean
+  companyId: string | null
+}) {
   const portalBase = useBrand((s) => s.portalBaseUrl)
-  const url = `${portalBase}${portalBase.includes('?') ? '&' : '?'}table=${encodeURIComponent(tableNumber || '1')}`
+  const portalUrl = new URL(portalBase, window.location.origin)
+  portalUrl.searchParams.set('table', tableNumber || '1')
+  if (companyId) portalUrl.searchParams.set('companyId', companyId)
+  const url = portalUrl.toString()
   return (
     <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start', flexWrap: 'wrap' }}>
       <QRCodeCanvas value={url} size={200} label={`table-${tableNumber || '1'}`} />
@@ -634,19 +716,27 @@ function QRSection({ tableNumber, onTableChange }: { tableNumber: string; onTabl
             type="text"
             value={tableNumber}
             onChange={(e) => onTableChange(e.target.value)}
+            disabled={saving}
             placeholder="1"
             style={{
               width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10,
               padding: '10px 14px', color: '#1e293b', fontSize: 13, outline: 'none', boxSizing: 'border-box',
             }}
           />
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving || !hasChanges || !tableNumber.trim()}
+            style={{ marginTop: 8, border: 0, borderRadius: 9, padding: '8px 13px', background: '#4f46e5', color: '#fff', fontSize: 12, fontWeight: 800, cursor: saving ? 'progress' : 'pointer', opacity: saving || !hasChanges || !tableNumber.trim() ? 0.5 : 1 }}
+          >
+            {saving ? 'Enregistrement…' : 'Enregistrer la table'}
+          </button>
         </div>
         <div style={{ fontSize: 12, color: '#64748b', wordBreak: 'break-all', padding: 10, background: '#f8fafc', borderRadius: 8 }}>
           <strong>URL :</strong> {url}
         </div>
         <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
-          Le QR code redirige les clients vers le portail avec la table {tableNumber || '1'} pré-sélectionnée.
-          Modifiez l'URL de base dans Paramètres → Marque.
+          Le QR code redirige les clients vers le portail de cet établissement avec la table {tableNumber || '1'} pré-sélectionnée.
         </p>
       </div>
     </div>

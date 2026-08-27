@@ -49,11 +49,21 @@ const createProductSchema = z.object({
   allergens: z.array(z.string()).default([]),
   sortOrder: z.number().int().default(0),
   stock: z.number().int().nullable().optional(),
+}).strict()
+
+const updateProductSchema = createProductSchema.partial().refine((data) => Object.keys(data).length > 0, {
+  message: 'Au moins un champ doit être fourni',
 })
 
 router.post('/', validate(createProductSchema), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = (req as any).companyId as string
+
+    const category = await prisma.category.findFirst({ where: { id: req.body.categoryId, companyId, isActive: true }, select: { id: true } })
+    if (!category) {
+      res.status(400).json({ message: 'Catégorie inconnue pour cette société' })
+      return
+    }
 
     const product = await prisma.product.create({
       data: { companyId, ...req.body },
@@ -68,14 +78,19 @@ router.post('/', validate(createProductSchema), async (req: AuthRequest, res: Re
 
 // ─── PUT /api/products/:id ─────────────────────────────
 
-router.put('/:id', async (req: AuthRequest, res: Response) => {
+router.put('/:id', validate(updateProductSchema), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = (req as any).companyId as string
-    // Le corps ne doit pas pouvoir réaffecter le produit à une autre société.
-    const { companyId: _societe, id: _id, ...donnees } = req.body ?? {}
+    if (req.body.categoryId) {
+      const category = await prisma.category.findFirst({ where: { id: req.body.categoryId, companyId, isActive: true }, select: { id: true } })
+      if (!category) {
+        res.status(400).json({ message: 'Catégorie inconnue pour cette société' })
+        return
+      }
+    }
     const { count } = await prisma.product.updateMany({
       where: { id: req.params.id, companyId },
-      data: donnees,
+      data: req.body,
     })
     if (count === 0) {
       res.status(404).json({ message: 'Produit non trouvé' })

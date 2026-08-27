@@ -68,11 +68,9 @@ import stripeRoutes, { stripeWebhook } from './routes/stripe'
 import emailRoutes from './routes/email'
 import paymentsRoutes from './routes/payments'
 import portalConfigRoutes from './routes/portalConfig'
-import floorStateRoutes from './routes/floorState'
+import floorStateRoutes, { floorCompanyContext } from './routes/floorState'
 import moduleConfigRoutes from './routes/moduleConfig'
-import inventoryAIRoutes from './routes/inventory-ai'
-import stockVentesRoutes from './routes/stock-ventes'
-import adsRoutes from './routes/ads'
+import adsRoutes, { liveAdsPublicRouter } from './routes/ads'
 import affichageRoutes, { mediasPublicRouter, maintenantPublicRouter } from './routes/affichage'
 import rhDossierRoutes from './routes/rh-dossier'
 import aiActionsRoutes from './routes/ai-actions'
@@ -81,7 +79,6 @@ import helpFeedbackRoutes from './routes/help-feedback'
 import assistantRoutes from './routes/assistant'
 import assistantAdvancedRoutes from './routes/assistant-advanced'
 import ownerRoutes from './routes/owner'
-import backupRoutes from './routes/backup'
 import gameScoresRoutes from './routes/gameScores'
 import guestRoutes from './routes/guest'
 import { auditLog } from './middleware/audit-log'
@@ -126,8 +123,15 @@ const io = new SocketServer(httpServer, { cors: corsOptions })
 const liveNs = io.of('/live')
 liveNs.on('connection', (socket) => {
   socket.emit('hello', { ts: Date.now(), version: 'v3.12' })
-  socket.on('subscribe', (channels: string[]) => {
-    channels.forEach((c) => socket.join(c))
+  socket.on('subscribe', (channels: unknown) => {
+    if (!Array.isArray(channels)) return
+    // Ce namespace est public pour le suivi QR. Seuls les canaux publics,
+    // bornés et cloisonnés par société peuvent être rejoints. Les boîtes
+    // internes (`inbox-*`, etc.) restent accessibles uniquement par API JWT.
+    const publicChannel = /^(?:table-[a-zA-Z0-9_-]{1,100}-[\w .-]{1,40}|games-[a-zA-Z0-9_-]{1,100}|floor-[a-zA-Z0-9_-]{1,100})$/
+    channels.slice(0, 10).forEach((channel) => {
+      if (typeof channel === 'string' && publicChannel.test(channel)) socket.join(channel)
+    })
   })
 })
 // Broadcast helper used by routes (assistant, floor-state, invoices, etc.)
@@ -235,7 +239,7 @@ app.use('/api/events', authenticate, requireCompany, eventsRoutes)
 // d'abonnement, lecture client) étaient montées en accès public — IDOR de
 // facturation. Le webhook n'est pas utilisé en prod (clé mock, handlers no-op).
 app.use('/api/stripe', authenticate, stripeRoutes)
-app.use('/api/email', authenticate, emailRoutes)
+app.use('/api/email', authenticate, requireCompany, requireRole('OWNER', 'MANAGER'), emailRoutes)
 app.use('/api/payments', deviceOrUserAuth, paymentsRoutes)
 // Le portail client reste public pour les lectures QR et l'inscription client,
 // mais sa configuration et son journal d'événements sont des données de gestion.
@@ -264,34 +268,47 @@ function portalConfigManagementGuard(req: express.Request, res: express.Response
 app.use('/api/portal-config', publicLimiter, portalConfigManagementGuard, portalConfigRoutes) // portail client public (QR)
 app.use('/api/game-scores', publicLimiter, gameScoresRoutes) // scores jeux guest (public)
 app.use('/api/guest', publicLimiter, guestRoutes) // suivi commande, appel serveur, paiement (public)
-app.use('/api/floor-state', deviceOrUserAuth, floorStateRoutes)
-// Pont caisse -> stock : decrement a la vente, alerte de rupture immediate (v4.8).
-app.use('/api/stock-ventes', deviceOrUserAuth, stockVentesRoutes)
-app.use('/api/module-config', deviceOrUserAuth, moduleConfigRoutes)
-// Mounted on /api/inventory-ocr to avoid clash with the auth-protected /api/inventory
-app.use('/api/inventory-ocr', authenticate, inventoryAIRoutes)
-app.use('/api/ads', authenticate, adsRoutes)
+app.use('/api/floor-state', deviceOrUserAuth, requireCompany, floorCompanyContext, floorStateRoutes)
+// L'ancien pont caisse → stock et l'ancien OCR s'appuyaient sur un fichier
+// partagé par toutes les entreprises. Ils restent fermés jusqu'à leur migration
+// vers les tables Prisma multi-locataires.
+const inventoryUnavailable = (_req: express.Request, res: express.Response) => {
+  res.status(503).json({
+    code: 'INVENTORY_MIGRATION_REQUIRED',
+    message: "L'inventaire est temporairement indisponible pendant sa migration sécurisée par entreprise.",
+  })
+}
+app.use('/api/stock-ventes', deviceOrUserAuth, requireCompany, inventoryUnavailable)
+app.use('/api/module-config', deviceOrUserAuth, requireCompany, moduleConfigRoutes)
+app.use('/api/inventory-ocr', authenticate, requireCompany, inventoryUnavailable)
+app.use('/api/ads', liveAdsPublicRouter)
+app.use('/api/ads', authenticate, requireCompany, adsRoutes)
 // Programmation de l'affichage TV : médiathèque, séquences, grille horaire.
 // AVANT la version authentifiée : Express résout dans l'ordre d'enregistrement.
 // `/ads/tv` est la page ouverte sur la télévision de la salle, sans session —
 // derrière `authenticate` elle recevait un 401 et l'écran restait vide.
 app.use('/api/affichage', maintenantPublicRouter)
-app.use('/api/affichage', authenticate, affichageRoutes)
+app.use('/api/affichage', authenticate, requireCompany, affichageRoutes)
 // Service des fichiers médias — volontairement PUBLIC : <img> et <video>
 // n'envoient pas d'en-tête Authorization. L'identifiant de 128 bits tiré au
 // sort fait office de jeton, et il s'agit de visuels destinés à être projetés
 // en salle, pas de données personnelles.
 app.use('/api/media-affichage', mediasPublicRouter)
 app.use('/api/ai', authenticate, aiLimiter, aiActionsRoutes)
-app.use('/api/agent', authenticate, aiLimiter, agentRoutes)
+app.use('/api/agent', authenticate, requireCompany, floorCompanyContext, aiLimiter, agentRoutes)
 app.use('/api/help/feedback', helpFeedbackRoutes)
 // Rôle OWNER exigé : journal d'audit global (avec mots de passe) et purge RGPD
 // destructive étaient ouverts à tout membre. Sauvegardes intégrales idem.
 app.use('/api/owner', authenticate, requireCompany, requireRole('OWNER'), ownerRoutes)
-app.use('/api/backup', authenticate, requireCompany, requireRole('OWNER'), backupRoutes)
+app.use('/api/backup', authenticate, requireCompany, requireRole('OWNER'), (_req, res) => {
+  res.status(503).json({
+    code: 'COMPANY_BACKUP_MIGRATION_REQUIRED',
+    message: "Les exports et restaurations sont temporairement indisponibles jusqu'à leur isolation par entreprise.",
+  })
+})
 // v3.9 — assistantRoutes MUST be before agentRoutes to take precedence on /intent
-app.use('/api/agent', authenticate, aiLimiter, assistantRoutes)
-app.use('/api/agent', authenticate, aiLimiter, assistantAdvancedRoutes)
+app.use('/api/agent', authenticate, requireCompany, floorCompanyContext, aiLimiter, assistantRoutes)
+app.use('/api/agent', authenticate, requireCompany, floorCompanyContext, aiLimiter, assistantAdvancedRoutes)
 
 // Console créateur — auth totalement disjointe des comptes sociétés : jamais
 // authenticate ni requireCompany ici. En production, la console n'est montée
@@ -332,23 +349,20 @@ httpServer.listen(PORT, () => {
     logger.info('[janitor] auto-close stale floor sessions activé (toutes les 30 min, > 8h)')
   }).catch((e) => logger.warn('[janitor] non démarré:', e?.message))
 
-  // v3.19 F1 — Scheduler (rappels + tâches planifiées, check toutes les 60s)
-  import('./jobs/scheduler').then(({ startScheduler }) => {
-    startScheduler()
-    logger.info('[scheduler] rappels + tâches planifiées activés (check 60s)')
-  }).catch((e) => logger.warn('[scheduler] non démarré:', e?.message))
+  // L'ancien planificateur utilisait un unique scheduled-tasks.json et un
+  // canal « inbox » commun. Il reste fermé tant que les tâches ne portent pas
+  // une entreprise et que leur diffusion n'est pas cloisonnée.
+  logger.info('[scheduler] worker désactivé — migration multi-locataire requise')
 
-  // v3.19 F3 — Proactive worker (scan anomalies toutes les 10 min)
-  import('./jobs/proactive-worker').then(({ startProactiveWorker }) => {
-    startProactiveWorker()
-    logger.info('[proactive] worker démarré — alertes auto (10 min)')
-  }).catch((e) => logger.warn('[proactive] non démarré:', e?.message))
+  // L'ancien worker proactif lisait des fichiers JSON globaux (stock,
+  // factures, équipe et avis) puis diffusait les alertes à tous les clients.
+  // Il est volontairement désactivé tant que ses lectures ne sont pas
+  // intégralement filtrées par entreprise.
+  logger.info('[proactive] worker désactivé — migration multi-locataire requise')
 
-  // v4.6 — Détecteur de doublons clients (scan toutes les 24h)
-  import('./jobs/duplicate-detector').then(({ startDuplicateDetector }) => {
-    startDuplicateDetector()
-    logger.info('[duplicate-detector] worker démarré — scan customers.json (24h)')
-  }).catch((e) => logger.warn('[duplicate-detector] non démarré:', e?.message))
+  // Même règle pour le détecteur historique : customers.json n'est pas une
+  // source multi-locataire et ne doit plus produire de notifications.
+  logger.info('[duplicate-detector] worker désactivé — migration Prisma par entreprise requise')
 
   // v4.7 — Sauvegarde ZIP complète de data/ (60s après boot, puis toutes les 6h)
   import('./jobs/backup-worker').then(({ startBackupWorker }) => {

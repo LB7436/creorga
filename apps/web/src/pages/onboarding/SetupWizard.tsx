@@ -1,12 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBrand } from '@/stores/brandStore'
+import { useAuthStore } from '@/stores/authStore'
 import LogoUploader from '@/components/LogoUploader'
+import UnifiedFloorPlan from '@/pages/pos/UnifiedFloorPlan'
+import api from '@/lib/api'
+import { setOnboardingComplete } from '@/lib/onboarding'
+import toast from 'react-hot-toast'
 
 /**
  * First-run setup wizard — a client launches the app and is guided through:
  *   1) restaurant name + logo + accent color
- *   2) room layout designer (embedded from the POS 5175 FloorPlanEditor)
+ *   2) vrai plan de salle partagé avec la caisse
  *   3) Ollama AI configuration
  *   4) done → admin panel
  */
@@ -14,19 +19,46 @@ type Step = 1 | 2 | 3 | 4
 
 export default function SetupWizard() {
   const [step, setStep] = useState<Step>(1)
-  const [restaurantName, setRestaurantName] = useState('Café um Rond-Point')
+  const company = useAuthStore((s) => s.company)
+  const companyId = useAuthStore((s) => s.companyId)
+  const updateActiveCompany = useAuthStore((s) => s.updateActiveCompany)
+  const [restaurantName, setRestaurantName] = useState(company?.name || '')
+  const [savingCompany, setSavingCompany] = useState(false)
   const brand = useBrand()
   const nav = useNavigate()
 
   const finish = () => {
-    localStorage.setItem('creorga-onboarded', '1')
+    setOnboardingComplete(companyId)
     nav('/modules')
+  }
+
+  const saveCompanyAndContinue = async () => {
+    const name = restaurantName.trim()
+    if (!name || !companyId) {
+      toast.error('Indiquez le nom de votre établissement.')
+      return
+    }
+    setSavingCompany(true)
+    try {
+      const { data } = await api.put(`/companies/${companyId}`, {
+        name,
+        logo: brand.logoDataUrl,
+        portalAccentColor: brand.accentColor,
+      })
+      updateActiveCompany(data)
+      toast.success('Établissement enregistré')
+      setStep(2)
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Impossible d’enregistrer l’établissement')
+    } finally {
+      setSavingCompany(false)
+    }
   }
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(145deg, #0a0a1a 0%, #1a0a2e 50%, #0d0b24 100%)', color: '#f1f5f9', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <header style={{ padding: '24px 32px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header className="setup-wizard-header" style={{ padding: '24px 32px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #8b5cf6, #ec4899)' }} />
           <div>
@@ -35,7 +67,7 @@ export default function SetupWizard() {
           </div>
         </div>
         <button onClick={finish} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(148,163,184,0.3)', background: 'transparent', color: '#cbd5e1', cursor: 'pointer', fontSize: 13 }}>
-          Passer cette étape
+          Configurer plus tard
         </button>
       </header>
 
@@ -45,11 +77,12 @@ export default function SetupWizard() {
       </div>
 
       {/* Content */}
-      <main style={{ flex: 1, padding: '40px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start' }}>
+      <main className="setup-wizard-main" style={{ flex: 1, padding: '40px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start' }}>
         {step === 1 && (
           <Card title="👋 Bienvenue !" subtitle="Commençons par quelques informations sur votre établissement.">
-            <label style={label}>Nom du restaurant / café</label>
+            <label htmlFor="setup-restaurant-name" style={label}>Nom du restaurant / café</label>
             <input
+              id="setup-restaurant-name"
               value={restaurantName}
               onChange={(e) => setRestaurantName(e.target.value)}
               style={input}
@@ -61,29 +94,27 @@ export default function SetupWizard() {
               {['#10b981', '#6366f1', '#8b5cf6', '#f59e0b', '#ec4899', '#0ea5e9'].map((c) => (
                 <button key={c}
                   onClick={() => brand.setAccent(c)}
+                  aria-label={`Couleur ${c}`}
+                  aria-pressed={brand.accentColor === c}
                   style={{ width: 44, height: 44, borderRadius: 10, border: brand.accentColor === c ? '3px solid #fff' : '2px solid rgba(255,255,255,0.1)', background: c, cursor: 'pointer' }}
                 />
               ))}
             </div>
-            <Footer onNext={() => setStep(2)} onBack={null} nextLabel="Suivant →" />
+            <Footer onNext={saveCompanyAndContinue} onBack={null} nextLabel={savingCompany ? 'Enregistrement…' : 'Enregistrer et continuer →'} disabled={savingCompany} />
           </Card>
         )}
 
         {step === 2 && (
-          <Card title="🏛 Configurez votre salle" subtitle="Dessinez les murs, fenêtres, comptoir, tables et chaises. L'éditeur visuel du POS 5175 s'ouvre dans la fenêtre ci-dessous." wide>
+          <Card title="🏛 Configurez votre salle" subtitle="Le plan ci-dessous est le vrai plan utilisé par la caisse. Chaque modification est enregistrée sur votre espace." wide>
             <div style={{
-              width: '100%', height: 600, borderRadius: 14, overflow: 'hidden',
-              border: '1px solid rgba(139,92,246,0.3)', background: '#000',
+              width: '100%', height: '68vh', minHeight: 560, borderRadius: 14, overflow: 'auto',
+              border: '1px solid rgba(139,92,246,0.3)', background: '#0f172a',
               boxShadow: '0 8px 32px rgba(139,92,246,0.2)',
             }}>
-              <iframe
-                src="http://localhost:5175/"
-                title="Éditeur de plan de salle"
-                style={{ width: '100%', height: '100%', border: 'none' }}
-              />
+              <UnifiedFloorPlan />
             </div>
             <p style={{ color: '#94a3b8', fontSize: 13, marginTop: 10, textAlign: 'center' }}>
-              💡 Utilisez les boutons « Ronde / Carrée / Rectangle / Comptoir » pour ajouter des éléments. Les modifications sont enregistrées automatiquement.
+              💡 Activez « Mode Config » pour déplacer les tables, gérer les salles, les chaises, les photos et les modèles de plan.
             </p>
             <Footer onNext={() => setStep(3)} onBack={() => setStep(1)} nextLabel="Configurer l'IA →" />
           </Card>
@@ -92,7 +123,7 @@ export default function SetupWizard() {
         {step === 3 && <OllamaStep onNext={() => setStep(4)} onBack={() => setStep(2)} />}
 
         {step === 4 && (
-          <Card title="🎉 Tout est prêt !" subtitle="Votre établissement est configuré. Vous pouvez maintenant explorer les 33 modules.">
+          <Card title="🎉 Tout est prêt !" subtitle="Votre établissement est configuré. Les modules opérationnels sont prêts à être vérifiés avec vos données.">
             <div style={{ padding: 20, background: 'rgba(139,92,246,0.1)', borderRadius: 14, border: '1px solid rgba(139,92,246,0.3)', marginBottom: 20 }}>
               <div style={{ fontWeight: 700, marginBottom: 8 }}>✅ Configuration terminée</div>
               <ul style={{ margin: 0, paddingLeft: 20, color: '#cbd5e1', fontSize: 14, lineHeight: 1.8 }}>
@@ -111,12 +142,12 @@ export default function SetupWizard() {
 
 function OllamaStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const [status, setStatus] = useState<'checking' | 'online' | 'offline'>('checking')
-  useState(() => {
+  useEffect(() => {
     fetch('http://localhost:11434/api/tags').then((r) => r.ok ? setStatus('online') : setStatus('offline')).catch(() => setStatus('offline'))
-  })
+  }, [])
 
   return (
-    <Card title="🤖 Configuration de l'IA locale" subtitle="Ollama fait tourner Gemma directement sur votre machine — 100 % privé, zéro dépendance au cloud.">
+    <Card title="🤖 Assistant local facultatif" subtitle="Si Ollama est installé sur cet appareil, Creorga peut utiliser un modèle local. Sans lui, les commandes concernées restent clairement indisponibles.">
       <div style={{
         padding: 20, borderRadius: 14, marginBottom: 20,
         background: status === 'online' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)',
@@ -162,7 +193,7 @@ function InstallRow({ title, emoji, cmd, link, note }: { title: string; emoji: s
 
 function Card({ children, title, subtitle, wide }: { children: React.ReactNode; title: string; subtitle: string; wide?: boolean }) {
   return (
-    <div style={{
+    <div className="setup-wizard-card" style={{
       width: '100%', maxWidth: wide ? 1100 : 560,
       background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(14px)',
       border: '1px solid rgba(139,92,246,0.2)', borderRadius: 20,
@@ -175,7 +206,7 @@ function Card({ children, title, subtitle, wide }: { children: React.ReactNode; 
   )
 }
 
-function Footer({ onNext, onBack, nextLabel }: { onNext: () => void; onBack: (() => void) | null; nextLabel: string }) {
+function Footer({ onNext, onBack, nextLabel, disabled = false }: { onNext: () => void; onBack: (() => void) | null; nextLabel: string; disabled?: boolean }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, gap: 10 }}>
       {onBack ? (
@@ -183,7 +214,7 @@ function Footer({ onNext, onBack, nextLabel }: { onNext: () => void; onBack: (()
           ← Retour
         </button>
       ) : <div />}
-      <button onClick={onNext} style={{ padding: '12px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #8b5cf6, #ec4899)', color: '#fff', cursor: 'pointer', fontWeight: 700 }}>
+      <button onClick={onNext} disabled={disabled} style={{ padding: '12px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #8b5cf6, #ec4899)', color: '#fff', cursor: disabled ? 'wait' : 'pointer', fontWeight: 700, opacity: disabled ? 0.65 : 1 }}>
         {nextLabel}
       </button>
     </div>

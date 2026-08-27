@@ -3,18 +3,18 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, Legend,
+  ResponsiveContainer,
 } from 'recharts'
 import {
-  Monitor, CalendarDays, Package, Star,
+  Monitor, CalendarDays, QrCode, BookOpen,
   ChefHat, Clock, Users, TrendingUp,
   ArrowUpRight, ShoppingBag, CreditCard, AlertTriangle,
-  Mic, Sparkles, Plus, X, Settings, Cloud, CloudRain, Sun,
+  Bot, Sparkles, Plus, X, Settings,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
-import { useSocketEvent } from '@/hooks/useSocket'
-import { toastInfo, toastSuccess, toastError } from '@/lib/toast'
+import { toastError } from '@/lib/toast'
 import { useTodayStats, useWeekStats, useTopProductsToday } from '@/hooks/api/useStats'
+import { useOrders } from '@/hooks/api/useOrders'
 
 /* ────────────────── DONNÉES RÉELLES (/api/stats) ────────────────── */
 //
@@ -24,9 +24,8 @@ import { useTodayStats, useWeekStats, useTopProductsToday } from '@/hooks/api/us
 //
 // Désormais : ce que /api/stats fournit réellement est affiché (CA du jour,
 // commandes payées, tables occupées, panier moyen, CA des 7 derniers jours,
-// top 5 produits). Tout le reste est un tableau VIDE — les sections
-// correspondantes n'affichent plus rien plutôt qu'une fausse valeur.
-// « Un écran vide ne ment pas. »
+// top 5 produits). Les sections sans source serveur indiquent clairement
+// qu'elles ne sont pas encore connectées, au lieu d'inventer des valeurs.
 
 const JOURS_COURT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
 
@@ -34,35 +33,11 @@ function formatEuros(n: number) {
   return `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 }
 
-// Sections sans source de données côté serveur : vides, jamais inventées.
-const revenueBreakdown: Array<{ name: string; value: number; color: string }> = []
-const alerts: Array<{ type: 'red' | 'orange' | 'blue' | 'green' | 'yellow'; icon: string; text: string }> = []
-const staffOnDuty: Array<{ name: string; role: string; task: string; since: string; hours: string; color: string }> = []
-const upcomingEvents: Array<{ when: string; title: string; kind: string; party: string; color: string }> = []
-const floorTables: Array<{ id: string; x: number; y: number; status: string }> = []
-const forecast: Array<{ h: string; t: number; icon: string }> = []
-const aiInsights: Array<{ icon: string; text: string; tone: string }> = []
-const sparkData: number[] = []
-
 /* ─────────────────────── HELPERS ─────────────────────── */
 
-const alertColors: Record<string, { bg: string; border: string; text: string }> = {
-  red:    { bg: '#fef2f2', border: '#fecaca', text: '#991b1b' },
-  orange: { bg: '#fff7ed', border: '#fed7aa', text: '#9a3412' },
-  blue:   { bg: '#eff6ff', border: '#bfdbfe', text: '#1e40af' },
-  green:  { bg: '#f0fdf4', border: '#bbf7d0', text: '#166534' },
-  yellow: { bg: '#fefce8', border: '#fde68a', text: '#854d0e' },
-}
-
-const tableStatusColor: Record<string, { fill: string; stroke: string; glow: string }> = {
-  free:     { fill: '#dcfce7', stroke: '#22c55e', glow: 'rgba(34,197,94,0.25)' },
-  occupied: { fill: '#fee2e2', stroke: '#ef4444', glow: 'rgba(239,68,68,0.25)' },
-  reserved: { fill: '#fef3c7', stroke: '#f59e0b', glow: 'rgba(245,158,11,0.25)' },
-}
-
 function statusColor(status: string) {
-  if (status === 'Prêt') return { bg: '#dcfce7', text: '#166534' }
-  if (status === 'Servi') return { bg: '#dbeafe', text: '#1e40af' }
+  if (status === 'Prête') return { bg: '#dcfce7', text: '#166534' }
+  if (status === 'Servie') return { bg: '#dbeafe', text: '#1e40af' }
   return { bg: '#fef3c7', text: '#92400e' }
 }
 
@@ -81,33 +56,6 @@ function formatDate() {
 
 function formatTime(d: Date) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-/* ─────────────────── MINI SPARKLINE (SVG) ─────────────────── */
-
-function MiniSparkline({ data, color }: { data: number[]; color: string }) {
-  const max = Math.max(...data)
-  const min = Math.min(...data)
-  const w = 80
-  const h = 28
-  const points = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w
-    const y = h - ((v - min) / (max - min)) * h
-    return `${x},${y}`
-  }).join(' ')
-
-  return (
-    <svg width={w} height={h} style={{ display: 'block' }}>
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
 }
 
 /* ──────────────────── PROGRESS RING ──────────────────── */
@@ -130,164 +78,31 @@ function ProgressRing({ value, max, color }: { value: number; max: number; color
   )
 }
 
-/* ─────────────────── WEATHER WIDGET ─────────────────── */
-
-function WeatherWidget({ now }: { now: Date }) {
-  const hour = now.getHours()
-  const isDay = hour >= 7 && hour < 20
-  const temp = 12
-  const condition = 'Partiellement nuageux'
-  const Icon = isDay ? Sun : Cloud
-
+/* La météo n'est pas simulée : tant qu'aucun fournisseur n'est configuré,
+   cette carte affiche uniquement l'heure locale certaine. */
+function ClockWidget({ now }: { now: Date }) {
   return (
     <motion.div
       initial={{ opacity: 0, x: 12 }}
       animate={{ opacity: 1, x: 0 }}
       style={{
-        background: isDay
-          ? 'linear-gradient(135deg, #fef3c7, #fde68a)'
-          : 'linear-gradient(135deg, #1e293b, #334155)',
-        color: isDay ? '#78350f' : '#f1f5f9',
-        borderRadius: 16,
-        padding: '14px 18px',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-        display: 'flex', alignItems: 'center', gap: 14,
-        minWidth: 280,
+        background: 'linear-gradient(135deg, #1e293b, #334155)',
+        color: '#f8fafc', borderRadius: 16, padding: '14px 18px',
+        boxShadow: '0 4px 16px rgba(15,23,42,0.14)',
+        display: 'flex', alignItems: 'center', gap: 14, minWidth: 0,
       }}
     >
       <div style={{
-        width: 48, height: 48, borderRadius: 12,
-        background: isDay ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.08)',
+        width: 48, height: 48, borderRadius: 12, background: 'rgba(255,255,255,0.08)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <Icon size={28} color={isDay ? '#d97706' : '#cbd5e1'} />
+        <Clock size={26} color="#c7d2fe" />
       </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-          <span style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em' }}>{temp}°</span>
-          <span style={{ fontSize: 12, opacity: 0.85, fontWeight: 600 }}>{formatTime(now)}</span>
-        </div>
-        <div style={{ fontSize: 11, opacity: 0.8, fontWeight: 500 }}>{condition} · Rumelange</div>
-      </div>
-      <div style={{
-        display: 'flex', gap: 8, paddingLeft: 12,
-        borderLeft: `1px solid ${isDay ? 'rgba(120,53,15,0.15)' : 'rgba(241,245,249,0.15)'}`,
-      }}>
-        {forecast.map((f, i) => (
-          <div key={i} style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 9, fontWeight: 600, opacity: 0.7 }}>{f.h}</div>
-            <div style={{ fontSize: 14 }}>{f.icon}</div>
-            <div style={{ fontSize: 10, fontWeight: 700 }}>{f.t}°</div>
-          </div>
-        ))}
+      <div>
+        <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em' }}>{formatTime(now)}</div>
+        <div style={{ fontSize: 11, color: '#cbd5e1', fontWeight: 600 }}>Heure locale · mise à jour automatique</div>
       </div>
     </motion.div>
-  )
-}
-
-/* ─────────────────── FLOOR PLAN SVG ─────────────────── */
-
-function FloorPlanMini() {
-  const occupied = floorTables.filter(t => t.status === 'occupied').length
-  const free = floorTables.filter(t => t.status === 'free').length
-  const reserved = floorTables.filter(t => t.status === 'reserved').length
-
-  return (
-    <div>
-      <div style={{
-        position: 'relative', width: '100%', height: 170,
-        background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)',
-        borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden',
-      }}>
-        <svg viewBox="0 0 100 90" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
-          {/* walls */}
-          <rect x={2} y={2} width={96} height={86} fill="none" stroke="#cbd5e1" strokeWidth={0.4} strokeDasharray="1 1" rx={2} />
-          {/* bar zone */}
-          <rect x={6} y={78} width={88} height={6} fill="#e0e7ff" stroke="#6366f1" strokeWidth={0.3} rx={1} />
-          <text x={50} y={82.5} fontSize={2.6} fill="#4338ca" textAnchor="middle" fontWeight={700}>BAR</text>
-          {/* tables */}
-          {floorTables.map(t => {
-            const c = tableStatusColor[t.status]
-            return (
-              <g key={t.id}>
-                <circle
-                  cx={t.x} cy={t.y} r={6}
-                  fill={c.fill} stroke={c.stroke} strokeWidth={0.5}
-                />
-                <text x={t.x} y={t.y + 1} fontSize={2.5} fill={c.stroke} textAnchor="middle" fontWeight={700}>
-                  {t.id}
-                </text>
-              </g>
-            )
-          })}
-        </svg>
-      </div>
-      <div style={{ display: 'flex', gap: 10, marginTop: 10, fontSize: 11 }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} />
-          <span style={{ color: '#64748b' }}>Libre ({free})</span>
-        </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }} />
-          <span style={{ color: '#64748b' }}>Occupée ({occupied})</span>
-        </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} />
-          <span style={{ color: '#64748b' }}>Réservée ({reserved})</span>
-        </span>
-      </div>
-    </div>
-  )
-}
-
-/* ─────────────────── TARGET GAUGE ─────────────────── */
-
-function TargetGauge({ actual, target }: { actual: number; target: number }) {
-  const pct = Math.min(100, (actual / target) * 100)
-  const remaining = Math.max(0, target - actual)
-
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#1e293b', letterSpacing: '-0.02em' }}>
-            {actual.toLocaleString('fr-FR')} €
-          </div>
-          <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>
-            Objectif : {target.toLocaleString('fr-FR')} €
-          </div>
-        </div>
-        <div style={{
-          padding: '4px 10px', borderRadius: 12,
-          background: pct >= 100 ? '#dcfce7' : '#eef2ff',
-          color: pct >= 100 ? '#166534' : '#4338ca',
-          fontSize: 12, fontWeight: 700,
-        }}>
-          {pct.toFixed(0)}%
-        </div>
-      </div>
-      <div style={{
-        height: 10, borderRadius: 6, background: '#f1f5f9',
-        overflow: 'hidden', position: 'relative',
-      }}>
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 1.1, ease: 'easeOut' }}
-          style={{
-            height: '100%', borderRadius: 6,
-            background: pct >= 100
-              ? 'linear-gradient(90deg, #10b981, #22c55e)'
-              : 'linear-gradient(90deg, #6366f1, #8b5cf6)',
-          }}
-        />
-      </div>
-      <div style={{ fontSize: 11, color: '#64748b', marginTop: 8, fontWeight: 500 }}>
-        {remaining > 0
-          ? <>Plus que <strong style={{ color: '#1e293b' }}>{remaining.toLocaleString('fr-FR')} €</strong> pour atteindre l'objectif</>
-          : <><strong style={{ color: '#16a34a' }}>🎉 Objectif atteint !</strong></>}
-      </div>
-    </div>
   )
 }
 
@@ -334,25 +149,41 @@ const DEFAULT_SECTIONS: Record<SectionKey, boolean> = {
 }
 
 const SECTION_LABELS: Record<SectionKey, string> = {
-  weather: 'Météo', stats: 'KPIs', orders: 'Commandes', alerts: 'Alertes',
-  events: 'Événements', floor: 'Plan de salle', target: 'Objectif jour',
-  charts: 'Graphiques CA', ai: 'AI Insights', voice: 'Commandes vocales',
+  weather: 'Heure locale', stats: 'Indicateurs', orders: 'Commandes', alerts: 'Alertes',
+  events: 'Événements', floor: 'Occupation des tables', target: 'Encaissements',
+  charts: 'Graphique du CA', ai: 'Assistant', voice: 'Ouvrir Robi',
   quick: 'Accès rapides', top: 'Top produits', staff: 'Équipe en service',
 }
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const { user } = useAuthStore()
+  const { user, companyId } = useAuthStore()
   const [now, setNow] = useState(new Date())
   const [sections, setSections] = useState<Record<SectionKey, boolean>>(DEFAULT_SECTIONS)
   const [showCustomize, setShowCustomize] = useState(false)
   const [showFab, setShowFab] = useState(false)
-  const [voicePulse, setVoicePulse] = useState(false)
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 30_000)
     return () => clearInterval(t)
   }, [])
+
+  const dashboardStorageKey = `creorga:dashboard-sections:${companyId ?? user?.id ?? 'local'}`
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(dashboardStorageKey)
+      if (!stored) return
+      const parsed = JSON.parse(stored) as Partial<Record<SectionKey, unknown>>
+      const safe = { ...DEFAULT_SECTIONS }
+      for (const key of Object.keys(DEFAULT_SECTIONS) as SectionKey[]) {
+        if (typeof parsed[key] === 'boolean') safe[key] = parsed[key] as boolean
+      }
+      setSections(safe)
+    } catch {
+      localStorage.removeItem(dashboardStorageKey)
+    }
+  }, [dashboardStorageKey])
 
   // ── Statistiques réelles (/api/stats) ─────────────────────────
   const { data: today, isLoading: loadingToday, isError: errorToday } = useTodayStats()
@@ -381,7 +212,7 @@ export default function Dashboard() {
       revenue: tp.product!.price * (tp.totalQuantity ?? 0),
     }))
 
-  // ── Commandes en direct (socket réel order:new / order:updated) ──
+  // ── Commandes réelles, rafraîchies par le hook authentifié ──
   interface LiveOrder {
     id: number | string
     table: string
@@ -390,49 +221,30 @@ export default function Dashboard() {
     elapsed: number
     status: string
   }
-  const [realtimeOrders, setRealtimeOrders] = useState<LiveOrder[]>([])
-
-  useSocketEvent<{ id: number | string; table?: string; total?: number; items?: number }>(
-    'order:new',
-    (data) => {
-      toastSuccess(`Nouvelle commande reçue${data?.table ? ` — ${data.table}` : ''}`)
-      setRealtimeOrders((prev) => {
-        const incoming = {
-          id: Number(data?.id) || Date.now(),
-          table: data?.table ?? 'Table ?',
-          items: data?.items ?? 1,
-          total: data?.total ?? 0,
-          elapsed: 0,
-          status: 'En préparation',
-        }
-        return [incoming, ...prev].slice(0, 10)
-      })
-    },
-  )
-
-  useSocketEvent<{ id: number | string; status?: string }>('order:updated', (data) => {
-    if (data?.status) toastInfo(`Commande #${data.id} — ${data.status}`)
-    setRealtimeOrders((prev) =>
-      prev.map((o) =>
-        String(o.id) === String(data?.id) && data?.status
-          ? { ...o, status: data.status as string }
-          : o,
-      ),
-    )
-  })
-
-  // Plus de repli sur une liste fictive : tant qu'aucun événement temps réel
-  // n'est arrivé, la liste reste vide.
-  const ordersToDisplay = realtimeOrders.slice(0, 8)
+  const { data: ordersData } = useOrders()
+  const statusLabel: Record<string, string> = {
+    OPEN: 'Ouverte', PREPARING: 'En préparation', READY: 'Prête', SERVED: 'Servie',
+  }
+  const ordersToDisplay: LiveOrder[] = (ordersData ?? [])
+    .filter((order) => !['PAID', 'CANCELLED'].includes(order.status))
+    .slice(0, 8)
+    .map((order) => ({
+      id: order.orderNumber ?? order.id,
+      table: order.table?.name || order.tableId || 'Sans table',
+      items: order.items.reduce((sum, item: any) => sum + Number(item.quantity ?? item.qty ?? 1), 0),
+      total: Number(order.total || 0),
+      elapsed: order.createdAt ? Math.max(0, Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60_000)) : 0,
+      status: statusLabel[order.status] || order.status,
+    }))
 
   const greeting = now.getHours() < 12 ? 'Bonjour' : now.getHours() < 18 ? 'Bon après-midi' : 'Bonsoir'
   const firstName = user?.firstName ?? 'Admin'
 
   const toggleSection = (k: SectionKey) => setSections(s => ({ ...s, [k]: !s[k] }))
 
-  const triggerVoice = () => {
-    setVoicePulse(true)
-    setTimeout(() => setVoicePulse(false), 2200)
+  const saveSections = () => {
+    localStorage.setItem(dashboardStorageKey, JSON.stringify(sections))
+    setShowCustomize(false)
   }
 
   return (
@@ -441,11 +253,18 @@ export default function Dashboard() {
       background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     }}>
+      <style>{`
+        @media (max-width: 640px) {
+          .dashboard-header-label { display: none; }
+          .dashboard-order-row { align-items: flex-start !important; flex-wrap: wrap; gap: 10px; }
+          .dashboard-order-meta { width: 100%; justify-content: space-between; padding-left: 54px; }
+        }
+      `}</style>
       {/* ── HEADER BAR ── */}
       <header style={{
         position: 'sticky', top: 0, zIndex: 50,
         height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 32px',
+        padding: '0 clamp(12px, 3vw, 32px)',
         background: 'rgba(255,255,255,0.85)',
         backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
         borderBottom: '1px solid #e2e8f0',
@@ -467,23 +286,23 @@ export default function Dashboard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <HeaderBtn label="Modules" icon="▦" onClick={() => navigate('/modules')} />
           <HeaderBtn label="Admin" icon="⚙" onClick={() => navigate('/admin')} />
-          <div style={{
+          <button onClick={() => navigate('/admin/company')} aria-label="Ouvrir les paramètres de l'entreprise" style={{
             width: 38, height: 38, borderRadius: '50%',
             background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer',
+            cursor: 'pointer', border: 'none',
           }}>
             <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>
               {user?.firstName?.[0]}{user?.lastName?.[0] ?? ''}
             </span>
-          </div>
+          </button>
         </div>
       </header>
 
       {/* ── CONTENT ── */}
       <motion.div
         variants={stagger} initial="hidden" animate="show"
-        style={{ maxWidth: 1360, margin: '0 auto', padding: '28px 32px 100px' }}
+        style={{ maxWidth: 1360, margin: '0 auto', padding: 'clamp(18px, 3vw, 28px) clamp(12px, 3vw, 32px) 100px' }}
       >
         {/* ════════ ROW 1: Welcome + Weather ════════ */}
         <motion.div variants={fadeUp} style={{ marginBottom: 24 }}>
@@ -503,7 +322,7 @@ export default function Dashboard() {
                   background: '#dcfce7', color: '#166534', fontSize: 12, fontWeight: 600,
                 }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
-                  Restaurant ouvert
+                  Données de votre entreprise
                 </span>
                 &nbsp;·&nbsp;
                 <button
@@ -516,11 +335,11 @@ export default function Dashboard() {
                 >Personnaliser le dashboard</button>
               </p>
             </div>
-            {sections.weather && <WeatherWidget now={now} />}
+            {sections.weather && <ClockWidget now={now} />}
           </div>
 
           {sections.stats && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 16 }}>
               {/* Valeurs réelles de /api/stats/today. Aucune comparaison
                   « vs hier » : le serveur ne la fournit pas. */}
               <StatCard
@@ -562,17 +381,27 @@ export default function Dashboard() {
           )}
         </motion.div>
 
-        {/* ════════ ROW 2: Target + AI Insights + Voice ════════ */}
+        {/* ════════ ROW 2: encaissements + assistant ════════ */}
         <motion.div variants={fadeUp} style={{
-          display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr', gap: 16, marginBottom: 24,
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(250px, 100%), 1fr))', gap: 16, marginBottom: 24,
         }}>
           {sections.target && (
             <div style={card}>
               <h2 style={{ ...sectionTitle, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <TrendingUp size={16} color="#6366f1" />
-                Objectif du jour
+                Encaissements du jour
               </h2>
-              <TargetGauge actual={1847} target={2500} />
+              <div style={{ fontSize: 28, fontWeight: 800, color: '#1e293b', letterSpacing: '-0.03em' }}>
+                {loadingToday ? '…' : today ? formatEuros(today.revenue) : '—'}
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
+                {today
+                  ? `${today.orderCount} commande${today.orderCount > 1 ? 's' : ''} payée${today.orderCount > 1 ? 's' : ''} aujourd'hui`
+                  : 'Statistiques indisponibles'}
+              </div>
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 12 }}>
+                Aucun objectif n'est inventé : un réglage dédié pourra l'activer plus tard.
+              </div>
             </div>
           )}
 
@@ -584,27 +413,15 @@ export default function Dashboard() {
             }}>
               <h2 style={{ ...sectionTitle, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Sparkles size={16} color="#8b5cf6" />
-                AI Insights
-                <span style={{
-                  fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
-                  background: '#8b5cf6', color: '#fff', letterSpacing: '0.05em',
-                }}>BETA</span>
+                Assistant Robi
               </h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                {aiInsights.map((ins, i) => (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 10,
-                    padding: '10px 12px', borderRadius: 10,
-                    background: 'rgba(255,255,255,0.7)',
-                    border: '1px solid rgba(139,92,246,0.12)',
-                  }}>
-                    <span style={{ fontSize: 16, flexShrink: 0, lineHeight: '20px' }}>{ins.icon}</span>
-                    <span style={{ fontSize: 12.5, fontWeight: 500, color: '#4c1d95', lineHeight: '18px' }}>
-                      {ins.text}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <p style={{ fontSize: 12.5, color: '#5b21b6', lineHeight: 1.55, margin: '0 0 12px' }}>
+                Robi répond à vos questions et ouvre les écrans disponibles. Les actions non migrées sont signalées honnêtement.
+              </p>
+              <button onClick={() => navigate('/ai')} style={{
+                border: 'none', borderRadius: 10, padding: '9px 13px', cursor: 'pointer',
+                background: '#7c3aed', color: '#fff', fontSize: 12, fontWeight: 700,
+              }}>Ouvrir l'assistant</button>
             </div>
           )}
 
@@ -618,30 +435,25 @@ export default function Dashboard() {
               justifyContent: 'center', textAlign: 'center',
             }}>
               <motion.button
-                onClick={triggerVoice}
+                onClick={() => navigate('/ai')}
                 whileTap={{ scale: 0.93 }}
-                animate={voicePulse ? { scale: [1, 1.12, 1] } : {}}
-                transition={{ repeat: voicePulse ? Infinity : 0, duration: 1 }}
                 style={{
                   width: 64, height: 64, borderRadius: '50%',
                   border: 'none', cursor: 'pointer',
-                  background: voicePulse
-                    ? 'linear-gradient(135deg, #ef4444, #dc2626)'
-                    : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                  boxShadow: voicePulse
-                    ? '0 0 32px rgba(239,68,68,0.5)'
-                    : '0 8px 24px rgba(99,102,241,0.4)',
+                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  boxShadow: '0 8px 24px rgba(99,102,241,0.4)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   marginBottom: 12,
                 }}
+                aria-label="Ouvrir Robi"
               >
-                <Mic size={26} color="#fff" />
+                <Bot size={26} color="#fff" />
               </motion.button>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>
-                {voicePulse ? 'À l\'écoute…' : 'Commandes vocales'}
+                Ouvrir Robi
               </div>
               <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.5, maxWidth: 220 }}>
-                Dites <em style={{ color: '#a5b4fc' }}>« Afficher tables »</em> ou <em style={{ color: '#a5b4fc' }}>« Chiffre du jour »</em>
+                Accédez au véritable assistant. Aucun microphone fictif ne s'active ici.
               </div>
             </div>
           )}
@@ -649,7 +461,7 @@ export default function Dashboard() {
 
         {/* ════════ ROW 3: Live Orders + Alerts ════════ */}
         <motion.div variants={fadeUp} style={{
-          display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20, marginBottom: 24,
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 20, marginBottom: 24,
         }}>
           {sections.orders && (
             <div style={card}>
@@ -661,14 +473,17 @@ export default function Dashboard() {
                 <span style={{
                   fontSize: 12, fontWeight: 600, color: '#6366f1',
                   background: '#eef2ff', padding: '4px 10px', borderRadius: 12,
-                }}>6 actives</span>
+                }}>{ordersToDisplay.length} active{ordersToDisplay.length > 1 ? 's' : ''}</span>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {ordersToDisplay.length === 0 && (
+                  <DataEmptyState text="Aucune commande active pour le moment." />
+                )}
                 {ordersToDisplay.map((o) => {
                   const sc = statusColor(o.status)
                   return (
-                    <div key={o.id} style={{
+                    <div key={o.id} className="dashboard-order-row" style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '12px 16px', borderRadius: 12,
                       background: '#f8fafc', borderLeft: urgencyBorder(o.elapsed),
@@ -687,7 +502,7 @@ export default function Dashboard() {
                           <div style={{ fontSize: 12, color: '#94a3b8' }}>{o.items} articles</div>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div className="dashboard-order-meta" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>{o.total.toFixed(2)} €</div>
                           <div style={{
@@ -716,28 +531,14 @@ export default function Dashboard() {
                 <AlertTriangle size={18} color="#ef4444" />
                 Alertes &amp; Rappels
               </h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {alerts.map((a, i) => {
-                  const c = alertColors[a.type]
-                  return (
-                    <div key={i} style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 12,
-                      padding: '12px 14px', borderRadius: 12,
-                      background: c.bg, border: `1px solid ${c.border}`,
-                    }}>
-                      <span style={{ fontSize: 16, flexShrink: 0, lineHeight: '20px' }}>{a.icon}</span>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: c.text, lineHeight: '20px' }}>{a.text}</span>
-                    </div>
-                  )
-                })}
-              </div>
+              <DataEmptyState text="Aucune source d'alertes n'est connectée. Aucune alerte simulée n'est affichée." />
             </div>
           )}
         </motion.div>
 
         {/* ════════ ROW 4: Events Timeline + Floor Plan ════════ */}
         <motion.div variants={fadeUp} style={{
-          display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 20, marginBottom: 24,
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 20, marginBottom: 24,
         }}>
           {sections.events && (
             <div style={card}>
@@ -749,55 +550,9 @@ export default function Dashboard() {
                 <span style={{
                   fontSize: 12, fontWeight: 600, color: '#8b5cf6',
                   background: '#f5f3ff', padding: '4px 10px', borderRadius: 12,
-                }}>{upcomingEvents.length} à venir</span>
+                }}>Non connecté</span>
               </div>
-              <div style={{ position: 'relative' }}>
-                {/* timeline line */}
-                <div style={{
-                  position: 'absolute', left: 9, top: 6, bottom: 6,
-                  width: 2, background: 'linear-gradient(180deg, #e9d5ff, #ddd6fe, transparent)',
-                }} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {upcomingEvents.map((e, i) => (
-                    <div key={i} style={{
-                      display: 'flex', alignItems: 'center', gap: 14, paddingLeft: 0,
-                    }}>
-                      <div style={{
-                        width: 20, height: 20, borderRadius: '50%',
-                        background: '#fff', border: `3px solid ${e.color}`,
-                        flexShrink: 0, zIndex: 1,
-                      }} />
-                      <div style={{
-                        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '10px 14px', borderRadius: 10,
-                        background: '#f8fafc', border: '1px solid #e2e8f0',
-                      }}>
-                        <div>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: e.color, letterSpacing: '0.02em' }}>
-                            {e.when}
-                          </div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', marginTop: 2 }}>
-                            {e.title}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{
-                            fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 8,
-                            background: e.kind === 'evenement' ? '#fef3c7' : '#eef2ff',
-                            color: e.kind === 'evenement' ? '#92400e' : '#4338ca',
-                            textTransform: 'uppercase', letterSpacing: '0.05em',
-                          }}>
-                            {e.kind === 'evenement' ? 'Événement' : 'Réservation'}
-                          </span>
-                          <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>
-                            {e.party}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <DataEmptyState text="Le calendrier des réservations n'est pas encore connecté au dashboard." />
             </div>
           )}
 
@@ -805,23 +560,39 @@ export default function Dashboard() {
             <div style={card}>
               <h2 style={{ ...sectionTitle, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Users size={18} color="#0ea5e9" />
-                Plan de salle — temps réel
+                Occupation des tables
               </h2>
-              <FloorPlanMini />
+              {today ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div style={{ padding: 18, borderRadius: 12, background: '#fef2f2' }}>
+                    <div style={{ fontSize: 27, fontWeight: 800, color: '#b91c1c' }}>{today.tablesOccupied}</div>
+                    <div style={{ fontSize: 12, color: '#991b1b' }}>occupée{today.tablesOccupied > 1 ? 's' : ''}</div>
+                  </div>
+                  <div style={{ padding: 18, borderRadius: 12, background: '#f0fdf4' }}>
+                    <div style={{ fontSize: 27, fontWeight: 800, color: '#15803d' }}>{today.tablesFree}</div>
+                    <div style={{ fontSize: 12, color: '#166534' }}>libre{today.tablesFree > 1 ? 's' : ''}</div>
+                  </div>
+                  <button onClick={() => navigate('/pos/floor')} style={{
+                    gridColumn: '1 / -1', border: 'none', borderRadius: 10, padding: 10,
+                    background: '#e0f2fe', color: '#0369a1', cursor: 'pointer', fontWeight: 700,
+                  }}>Ouvrir le plan réel</button>
+                </div>
+              ) : <DataEmptyState text="Occupation indisponible." />}
             </div>
           )}
         </motion.div>
 
-        {/* ════════ ROW 5: Revenue Chart + Pie ════════ */}
+        {/* ════════ ROW 5: Revenue Chart ════════ */}
         {sections.charts && (
           <motion.div variants={fadeUp} style={{
-            display: 'grid', gridTemplateColumns: '1.85fr 1fr', gap: 20, marginBottom: 24,
+            marginBottom: 24,
           }}>
             <div style={card}>
               <h2 style={sectionTitle}>CA des 7 derniers jours</h2>
               <div style={{ width: '100%', height: 260 }}>
-                <ResponsiveContainer>
-                  <AreaChart data={weekChartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                {weekChartData.length > 0 ? (
+                  <ResponsiveContainer>
+                    <AreaChart data={weekChartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="caGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#6366f1" stopOpacity={0.25} />
@@ -840,51 +611,17 @@ export default function Dashboard() {
                       labelFormatter={(l: string) => `${l}`}
                     />
                     <Area
-                      type="monotone" dataKey="prev" stroke="#cbd5e1"
-                      strokeWidth={2} strokeDasharray="6 4"
-                      fill="none" dot={false} name="Sem. précédente"
-                    />
-                    <Area
                       type="monotone" dataKey="ca" stroke="#6366f1"
                       strokeWidth={2.5} fill="url(#caGrad)"
                       dot={{ fill: '#6366f1', r: 4, strokeWidth: 0 }}
                       activeDot={{ r: 6, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }}
                       name="Cette semaine"
                     />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div style={card}>
-              <h2 style={sectionTitle}>Répartition</h2>
-              <div style={{ width: '100%', height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ResponsiveContainer>
-                  <PieChart>
-                    <Pie
-                      data={revenueBreakdown} dataKey="value" nameKey="name"
-                      cx="50%" cy="45%" innerRadius={52} outerRadius={80}
-                      paddingAngle={3} strokeWidth={0}
-                    >
-                      {revenueBreakdown.map((entry, idx) => (
-                        <Cell key={idx} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Legend
-                      verticalAlign="bottom" iconType="circle" iconSize={8}
-                      formatter={(val: string) => (
-                        <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500 }}>{val}</span>
-                      )}
-                    />
-                    <RTooltip
-                      contentStyle={{
-                        background: '#1e293b', border: 'none', borderRadius: 10,
-                        fontSize: 13, color: '#f8fafc',
-                      }}
-                      formatter={(v: number) => [`${v}%`, '']}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <DataEmptyState text="Aucune donnée d'encaissement disponible pour cette semaine." />
+                )}
               </div>
             </div>
           </motion.div>
@@ -893,47 +630,50 @@ export default function Dashboard() {
         {/* ════════ ROW 6: Quick Access ════════ */}
         {sections.quick && (
           <motion.div variants={fadeUp} style={{
-            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24,
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 16, marginBottom: 24,
           }}>
             <QuickCard
               title="Ouvrir le POS"
-              subtitle="5 commandes actives"
+              subtitle={`${ordersToDisplay.length} commande${ordersToDisplay.length > 1 ? 's' : ''} active${ordersToDisplay.length > 1 ? 's' : ''}`}
               gradient="linear-gradient(135deg, #6366f1, #818cf8)"
               icon={<Monitor size={28} color="#fff" />}
               onClick={() => navigate('/pos/dashboard')}
             />
             <QuickCard
               title="Voir le planning"
-              subtitle="4 employés en service"
+              subtitle="Consulter, modifier et publier"
               gradient="linear-gradient(135deg, #f97316, #fb923c)"
               icon={<CalendarDays size={28} color="#fff" />}
               onClick={() => navigate('/hr/planning')}
             />
             <QuickCard
-              title="Gérer le stock"
-              subtitle="1 alerte stock bas"
+              title="Configurer le menu"
+              subtitle="Catalogue et catégories"
               gradient="linear-gradient(135deg, #d97706, #fbbf24)"
-              icon={<Package size={28} color="#fff" />}
-              onClick={() => navigate('/inventory/stock')}
+              icon={<BookOpen size={28} color="#fff" />}
+              onClick={() => navigate('/admin/catalog')}
             />
             <QuickCard
-              title="Voir les avis"
-              subtitle="4.7 / 5 moyenne"
+              title="Portail QR client"
+              subtitle="Configurer et prévisualiser"
               gradient="linear-gradient(135deg, #0ea5e9, #38bdf8)"
-              icon={<Star size={28} color="#fff" />}
-              onClick={() => navigate('/reputation/avis')}
+              icon={<QrCode size={28} color="#fff" />}
+              onClick={() => navigate('/qrmenu')}
             />
           </motion.div>
         )}
 
         {/* ════════ ROW 7: Top Products + Staff ════════ */}
         <motion.div variants={fadeUp} style={{
-          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20,
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 20,
         }}>
           {sections.top && (
             <div style={card}>
               <h2 style={sectionTitle}>Top 5 Produits</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {topProductsView.length === 0 && (
+                  <DataEmptyState text="Aucune vente payée aujourd'hui : le classement est vide." />
+                )}
                 {topProductsView.map((p, i) => {
                   const maxRev = Math.max(1, ...topProductsView.map(x => x.revenue))
                   const pct = (p.revenue / maxRev) * 100
@@ -971,42 +711,11 @@ export default function Dashboard() {
           {sections.staff && (
             <div style={card}>
               <h2 style={sectionTitle}>Équipe en service</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {staffOnDuty.map((s, i) => (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '12px 14px', borderRadius: 12, background: '#f8fafc',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ position: 'relative' }}>
-                        <div style={{
-                          width: 42, height: 42, borderRadius: '50%',
-                          background: `${s.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontWeight: 700, fontSize: 14, color: s.color,
-                        }}>
-                          {s.name.split(' ').map(n => n[0]).join('')}
-                        </div>
-                        <span style={{
-                          position: 'absolute', bottom: -1, right: -1,
-                          width: 12, height: 12, borderRadius: '50%',
-                          background: '#22c55e', border: '2px solid #fff',
-                        }} />
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 13.5, color: '#1e293b' }}>{s.name}</div>
-                        <div style={{ fontSize: 11, color: s.color, fontWeight: 600, marginTop: 1 }}>{s.role}</div>
-                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, fontStyle: 'italic' }}>
-                          ↳ {s.task}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: '#1e293b' }}>{s.hours}</div>
-                      <div style={{ fontSize: 11, color: '#94a3b8' }}>depuis {s.since}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <DataEmptyState
+                text="Les présences ne sont pas reliées au dashboard. Ouvrez l'équipe pour consulter les membres enregistrés."
+                action="Ouvrir l'équipe"
+                onAction={() => navigate('/hr/equipe')}
+              />
             </div>
           )}
         </motion.div>
@@ -1027,12 +736,12 @@ export default function Dashboard() {
               }}
             >
               <FabItem
-                label="Nouvelle réservation" icon="📅" color="#6366f1"
-                onClick={() => { navigate('/pos/reservations'); setShowFab(false) }}
+                label="Nouvelle commande" icon="🍽️" color="#6366f1"
+                onClick={() => { navigate('/pos/floor'); setShowFab(false) }}
               />
               <FabItem
-                label="Envoyer newsletter" icon="📧" color="#ec4899"
-                onClick={() => { navigate('/marketing/newsletter'); setShowFab(false) }}
+                label="Nouveau devis" icon="🧾" color="#ec4899"
+                onClick={() => { navigate('/invoices/devis'); setShowFab(false) }}
               />
               <FabItem
                 label="Ajouter dépense" icon="💸" color="#f59e0b"
@@ -1089,7 +798,7 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setShowCustomize(false)}
+                  onClick={saveSections}
                   style={{
                     width: 34, height: 34, borderRadius: 10, border: 'none',
                     background: '#f1f5f9', color: '#64748b', cursor: 'pointer',
@@ -1100,7 +809,7 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
                 {(Object.keys(SECTION_LABELS) as SectionKey[]).map(k => (
                   <label key={k} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
@@ -1153,6 +862,24 @@ export default function Dashboard() {
 
 /* ─────────────────── SUB-COMPONENTS ─────────────────── */
 
+function DataEmptyState({ text, action, onAction }: { text: string; action?: string; onAction?: () => void }) {
+  return (
+    <div style={{
+      padding: '24px 18px', borderRadius: 12, background: '#f8fafc',
+      border: '1px dashed #cbd5e1', textAlign: 'center', color: '#64748b',
+      fontSize: 12.5, lineHeight: 1.55,
+    }}>
+      <div>{text}</div>
+      {action && onAction && (
+        <button onClick={onAction} style={{
+          marginTop: 12, border: 'none', borderRadius: 9, padding: '8px 12px',
+          background: '#e0e7ff', color: '#4338ca', cursor: 'pointer', fontWeight: 700,
+        }}>{action}</button>
+      )}
+    </div>
+  )
+}
+
 function HeaderBtn({ label, icon, onClick }: { label: string; icon: string; onClick: () => void }) {
   const [hovered, setHovered] = useState(false)
   return (
@@ -1171,7 +898,7 @@ function HeaderBtn({ label, icon, onClick }: { label: string; icon: string; onCl
       }}
     >
       <span style={{ fontSize: 14 }}>{icon}</span>
-      {label}
+      <span className="dashboard-header-label">{label}</span>
     </button>
   )
 }

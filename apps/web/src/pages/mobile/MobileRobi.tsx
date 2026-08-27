@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Mic, MicOff, Send, Volume2, VolumeX, X, Check,
-  Menu, Plus, Archive, Trash2, MessageSquare, ImageIcon, Paperclip, ScanLine, Camera, Video, Edit2,
+  Menu, Plus, Archive, Trash2, MessageSquare, Paperclip, Video, Edit2,
 } from 'lucide-react'
 import AssistantMascot from '@/components/AssistantMascot'
 import { useAssistant, type AssistantAttachment } from '@/stores/assistantStore'
@@ -18,26 +18,15 @@ function getBackend() {
       || 'http://localhost:3002'
 }
 
-async function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((res, rej) => {
-    const r = new FileReader()
-    r.onload = () => res(String(r.result))
-    r.onerror = rej
-    r.readAsDataURL(file)
-  })
-}
-
 /**
- * v3.18 — Robi mobile, multi-conversations + multimodal.
+ * Robi mobile, multi-conversations, texte et voix.
  *
  * Features :
  *   - Drawer gauche : liste conversations actives + archives
  *   - "+ Nouvelle" : ouvre conversation vide
  *   - Archive / supprimer / renommer une conversation
- *   - Pièces jointes : image, scan OCR, fichier, vidéo
- *   - Si attachement = scan ticket → route vers vision-OCR + ajout stock
- *   - Si attachement = image planning → route vers planning-OCR
- *   - Sinon → joint à la requête Robi avec contexte
+ * Les anciens boutons de pièce jointe sont retirés tant que les fichiers ne
+ * sont pas réellement transmis et stockés de façon isolée par entreprise.
  */
 
 export default function MobileRobi() {
@@ -51,9 +40,6 @@ export default function MobileRobi() {
   const [showArchived, setShowArchived] = useState(false)
   const recognitionRef = useRef<any>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const scanInputRef = useRef<HTMLInputElement>(null)
-  const docInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -104,75 +90,24 @@ export default function MobileRobi() {
     a.setMode('idle')
   }
 
-  // ─── ATTACHMENTS ──────────────────────────────────────────────────────
-  async function handleAttach(file: File, kind: AssistantAttachment['kind']) {
-    if (file.size > 20 * 1024 * 1024) {
-      alert('Fichier trop gros (max 20 MB)')
-      return
-    }
-    const dataUrl = file.type.startsWith('image') || file.type.startsWith('video')
-      ? await fileToDataUrl(file)
-      : undefined
-    a.addAttachment({
-      kind,
-      name: file.name,
-      mimeType: file.type,
-      size: file.size,
-      dataUrl,
-    })
-  }
-
   // ─── SEND ─────────────────────────────────────────────────────────────
   async function ask(text: string) {
-    const attached = [...a.attachments]
-    if (!text.trim() && attached.length === 0) return
+    if (!text.trim()) return
 
-    const finalText = text.trim() || `[${attached.length} fichier(s) joint(s)]`
-    a.addMessage({ role: 'user', text: finalText, attachments: attached })
+    const finalText = text.trim()
+    a.addMessage({ role: 'user', text: finalText })
     setInput('')
-    a.clearAttachments()
     a.setMode('thinking')
 
-    // Si une seule pièce jointe = scan/image → router vers vision-OCR
-    const onlyImage = attached.length === 1 && (attached[0].kind === 'scan' || attached[0].kind === 'image') && attached[0].dataUrl
-    if (onlyImage) {
-      try {
-        const b64 = attached[0].dataUrl!.replace(/^data:image\/\w+;base64,/, '')
-        // Si l'utilisateur a écrit "planning" → route planning-OCR ; sinon photo-magic
-        const isPlanning = /planning|horaire|shift|emploi du temps/i.test(text)
-        const endpoint = isPlanning
-          ? `${getBackend()}/api/inventory-ocr/vision-parse-receipt` // TODO add /planning-ocr
-          : `${getBackend()}/api/agent/photo-magic`
-        const r = await fetch(endpoint, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: b64 }),
-          signal: AbortSignal.timeout(180_000),
-        })
-        if (r.ok) {
-          const d = await r.json()
-          const summary = d.title
-            ? `${d.emoji || '📋'} ${d.title}\n${d.summary}`
-            : `📋 OCR : ${d.supplier || '?'} · ${d.items?.length || 0} articles · Total ${d.total || 0} €`
-          a.addMessage({ role: 'bot', text: summary, ui: d })
-          speak(summary)
-          if (d.cta?.route) setTimeout(() => navigate(d.cta.route), 1500)
-        } else {
-          a.addMessage({ role: 'bot', text: '❌ OCR a échoué. Essaie une photo plus nette.' })
-        }
-      } catch (e: any) {
-        a.addMessage({ role: 'bot', text: `❌ ${e?.message || 'erreur OCR'}` })
-      } finally {
-        a.setMode('idle')
-      }
-      return
-    }
-
-    // Sinon : appel Robi standard
     try {
       const r = await fetchAuth(`${getBackend()}/api/agent/workflow`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: finalText, currentPath: location.pathname, userId: 'default' }),
       })
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({}))
+        throw new Error(error?.message || error?.error || `Assistant indisponible (HTTP ${r.status})`)
+      }
       const data = await r.json()
       if (data.kind === 'workflow') {
         const stepCount = data.steps?.length || 0
@@ -207,10 +142,11 @@ export default function MobileRobi() {
   async function confirmPreview() {
     if (!pendingPreview) return
     try {
-      const r = await fetch(`${getBackend()}${pendingPreview.confirmEndpoint}`, {
+      const r = await fetchAuth(`${getBackend()}${pendingPreview.confirmEndpoint}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pendingPreview.confirmPayload),
       })
+      if (!r.ok) throw new Error(`Validation refusée (HTTP ${r.status})`)
       const data = await r.json()
       a.addMessage({ role: 'bot', text: data.summary || '✅ Action validée.' })
       speak(data.summary || 'Action validée')
@@ -254,7 +190,7 @@ export default function MobileRobi() {
           {a.mode === 'listening' ? '🎤 J\'écoute…'
             : a.mode === 'thinking' ? '🤔 Je réfléchis…'
             : a.mode === 'speaking' ? '💬 Je parle…'
-            : '😊 Tape, parle, ou joins une photo'}
+            : '😊 Tape ou parle'}
         </div>
       </div>
 
@@ -266,9 +202,7 @@ export default function MobileRobi() {
         {a.messages.length === 0 && (
           <div style={{ padding: 16, fontSize: 12, color: '#94a3b8', textAlign: 'center', maxWidth: 320, margin: '0 auto' }}>
             <div style={{ fontWeight: 700, color: '#cbd5e1', marginBottom: 8 }}>💡 Essaie :</div>
-            "Mets 3 cafés sur la table 1" · "Qui travaille demain ?" ·
-            "Crée une facture pour Brasserie de 850€" · "Active le mode sombre" ·
-            "Prends cette photo et mets dans le stock" (avec une pièce jointe)
+            "Ouvre le planning" · "Montre-moi la caisse" · "Active le mode sombre"
           </div>
         )}
         {a.messages.slice(-20).map((m) => (
@@ -327,44 +261,12 @@ export default function MobileRobi() {
         </AnimatePresence>
       </div>
 
-      {/* Pending attachments */}
-      {a.attachments.length > 0 && (
-        <div style={{
-          flexShrink: 0, padding: '8px 14px', display: 'flex', gap: 6, overflowX: 'auto',
-          background: 'rgba(139,92,246,0.05)', borderTop: '1px solid rgba(139,92,246,0.2)',
-        }}>
-          {a.attachments.map((att) => (
-            <div key={att.id} style={{ position: 'relative', flexShrink: 0 }}>
-              <AttachThumb att={att} large />
-              <button onClick={() => a.removeAttachment(att.id)} style={{
-                position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: 999,
-                background: '#ef4444', color: '#fff', border: '2px solid #0a0a14', cursor: 'pointer',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0,
-              }}><X size={11} /></button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* BIG mic + multimodal input bar */}
+      {/* Micro + saisie texte */}
       <div style={{
         flexShrink: 0, padding: '8px 14px calc(10px + env(safe-area-inset-bottom, 0))',
         background: 'rgba(0,0,0,0.4)', borderTop: '1px solid rgba(255,255,255,0.06)',
       }}>
-        {/* Multimodal toolbar */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8, justifyContent: 'space-between' }}>
-          <button onClick={() => fileInputRef.current?.click()} style={modalityBtn} title="Image">
-            <ImageIcon size={16} />
-          </button>
-          <button onClick={() => scanInputRef.current?.click()} style={modalityBtn} title="Scan / Caméra">
-            <Camera size={16} />
-          </button>
-          <button onClick={() => docInputRef.current?.click()} style={modalityBtn} title="Document / fichier">
-            <Paperclip size={16} />
-          </button>
-          <button onClick={() => navigate('/m/magic')} style={{ ...modalityBtn, color: '#a78bfa' }} title="Photo magique">
-            <ScanLine size={16} />
-          </button>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
           <motion.button
             whileTap={{ scale: 0.92 }}
             onClick={() => a.mode === 'listening' ? stopListening() : startListening()}
@@ -383,34 +285,13 @@ export default function MobileRobi() {
           </motion.button>
         </div>
 
-        {/* Hidden file inputs */}
-        <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }}
-          onChange={async (e) => {
-            const files = Array.from(e.target.files || [])
-            for (const f of files) await handleAttach(f, f.type.startsWith('video') ? 'video' : 'image')
-            e.target.value = ''
-          }} />
-        <input ref={scanInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
-          onChange={async (e) => {
-            const f = e.target.files?.[0]
-            if (f) await handleAttach(f, 'scan')
-            e.target.value = ''
-          }} />
-        <input ref={docInputRef} type="file" accept=".pdf,.doc,.docx,.txt,.csv,.xlsx" style={{ display: 'none' }}
-          onChange={async (e) => {
-            const f = e.target.files?.[0]
-            if (f) await handleAttach(f, 'file')
-            e.target.value = ''
-          }} />
-
         {/* Text input + send */}
         <form onSubmit={(e) => { e.preventDefault(); ask(input) }} style={{ display: 'flex', gap: 6 }}>
           <input
             value={input} onChange={(e) => setInput(e.target.value)}
             placeholder={
               a.mode === 'listening' ? '🎤 Parlez…'
-                : a.attachments.length > 0 ? `${a.attachments.length} fichier(s) joint(s) — décrire l'action…`
-                : 'Tape, ou colle une photo…'
+                : 'Écrivez votre demande…'
             }
             style={{
               flex: 1, padding: '12px 14px', borderRadius: 12,
@@ -418,10 +299,10 @@ export default function MobileRobi() {
               color: '#fff', fontSize: 14, outline: 'none',
             }}
           />
-          <button type="submit" disabled={!input.trim() && a.attachments.length === 0}
+          <button type="submit" disabled={!input.trim()}
             style={{
               width: 48, borderRadius: 12, border: 'none', cursor: 'pointer',
-              background: (!input.trim() && a.attachments.length === 0) ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#8b5cf6,#ec4899)',
+              background: !input.trim() ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#8b5cf6,#ec4899)',
               color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
             <Send size={16} />
@@ -605,11 +486,6 @@ const iconBtn: React.CSSProperties = {
   width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)',
   background: 'rgba(255,255,255,0.04)', color: '#cbd5e1', cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0,
-}
-const modalityBtn: React.CSSProperties = {
-  width: 38, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)',
-  background: 'rgba(255,255,255,0.04)', color: '#cbd5e1', cursor: 'pointer',
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
 }
 const miniBtn: React.CSSProperties = {
   width: 24, height: 24, borderRadius: 6, border: 'none', cursor: 'pointer',

@@ -15,6 +15,18 @@ import { internalHeaders } from '../lib/security'
 const router = Router()
 const DATA_DIR = path.resolve(process.cwd(), 'data')
 
+// Les fonctions historiques ci-dessous (undo, mémoire, alias, audit, sites)
+// stockent des fichiers globaux. Le chaînage `/workflow` ne persiste rien et
+// délègue aux intents désormais filtrés ; toutes les autres routes restent
+// fermées jusqu'à leur migration par entreprise.
+router.use((req, res, next) => {
+  if (req.path === '/workflow') return next()
+  res.status(503).json({
+    code: 'ASSISTANT_ADVANCED_MIGRATION_REQUIRED',
+    message: "Cette fonction avancée de Robi est temporairement indisponible pendant son isolation par entreprise.",
+  })
+})
+
 function loadJson<T = any>(filename: string, fallback: T): T {
   const p = path.join(DATA_DIR, filename)
   if (!fs.existsSync(p)) return fallback
@@ -72,14 +84,19 @@ function hasDependency(stepA: string, stepB: string): boolean {
   return false
 }
 
-router.post('/workflow', async (req, res) => {
+router.post('/workflow', async (req: any, res) => {
   const { text, currentPath, userId = 'default' } = req.body || {}
   if (!text) return res.status(400).json({ error: 'text required' })
   const steps = splitWorkflow(text)
   const port = process.env.PORT || 3002
   const callIntent = (step: string): Promise<any> =>
     fetch(`http://localhost:${port}/api/agent/intent`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(req.headers.authorization ? { Authorization: req.headers.authorization } : internalHeaders()),
+        ...(req.companyId ? { 'X-Company-Id': req.companyId } : {}),
+      },
       body: JSON.stringify({ text: step, currentPath, userId }),
     }).then((r) => r.json()).catch((e: any) => ({ kind: 'error', text: e?.message }))
 

@@ -13,6 +13,7 @@ import { useAuthStore } from '@/stores/authStore'
  *    à l'appelant d'annuler son affichage optimiste, jamais de le garder.
  */
 export interface PortalConfig {
+  companyId: string
   toggles: Record<string, boolean>
   games: Record<string, boolean>
   welcomeMessage: string
@@ -43,13 +44,19 @@ export class PortalConfigError extends Error {
   }
 }
 
-export function usePortalConfig(pollMs = 2000) {
+export function usePortalConfig(pollMs = 2000, explicitCompanyId?: string | null) {
   const [config, setConfig] = useState<PortalConfig | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const fetchConfig = useCallback(async () => {
     try {
-      const r = await fetch(`${BACKEND}/api/portal-config`)
+      const companyId = explicitCompanyId
+        || useAuthStore.getState().companyId
+        || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('companyId') : null)
+      if (!companyId) throw new Error('QR sans identifiant d’entreprise')
+      const url = new URL(`${BACKEND}/api/portal-config`)
+      url.searchParams.set('companyId', companyId)
+      const r = await fetch(url, { headers: enTetesSession() })
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       const data = await r.json()
       setConfig(data)
@@ -57,12 +64,21 @@ export function usePortalConfig(pollMs = 2000) {
     } catch (e: any) {
       setError(e.message)
     }
-  }, [])
+  }, [explicitCompanyId])
 
   const update = useCallback(async (patch: Partial<PortalConfig>): Promise<PortalConfig> => {
+    const companyId = explicitCompanyId || useAuthStore.getState().companyId
+    if (!companyId) {
+      const missingCompany = new PortalConfigError(0, 'Aucune entreprise active.')
+      setError(missingCompany.message)
+      throw missingCompany
+    }
+
     let r: Response
     try {
-      r = await fetch(`${BACKEND}/api/portal-config`, {
+      const url = new URL(`${BACKEND}/api/portal-config`)
+      url.searchParams.set('companyId', companyId)
+      r = await fetch(url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...enTetesSession() },
         body: JSON.stringify(patch),
@@ -83,7 +99,7 @@ export function usePortalConfig(pollMs = 2000) {
     setConfig(data)
     setError(null)
     return data
-  }, [])
+  }, [explicitCompanyId])
 
   useEffect(() => {
     fetchConfig()

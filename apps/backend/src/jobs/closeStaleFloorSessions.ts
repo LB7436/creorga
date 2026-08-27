@@ -15,7 +15,7 @@
 
 import fs from 'fs'
 import path from 'path'
-import { getFloorState, sauvegarderPlanDeSalle } from '../routes/floorState'
+import { getLoadedFloorStates, sauvegarderPlanDeSalle } from '../routes/floorState'
 
 const MAX_HOURS = Number(process.env.STALE_TABLE_MAX_HOURS) || 8
 const TICK_MS = 30 * 60 * 1000 // 30 min
@@ -27,6 +27,7 @@ interface AuditEntry {
   ts: number
   iso: string
   source: 'janitor.closeStaleFloorSessions'
+  companyId: string
   tableId: string
   reason: 'auto-closed-stale'
   hoursOpen: number
@@ -47,34 +48,35 @@ function appendAudit(entry: AuditEntry) {
 export function startStaleSessionJanitor() {
   const tick = () => {
     try {
-      const state = getFloorState()
-      if (!state || !Array.isArray(state.tables)) return
       const now = Date.now()
       const cutoff = now - MAX_HOURS * 3600_000
-      let closedCount = 0
-      for (const t of state.tables) {
-        if (t.openedAt && t.status === 'OCCUPEE' && t.openedAt < cutoff) {
-          const hoursOpen = (now - t.openedAt) / 3600_000
-          t.status = 'NETTOYAGE'
-          t.items = []
-          t.openedAt = undefined
-          state.chairs = state.chairs.filter((c: any) => c.tableId !== t.id)
-          state.updatedAt = now
-          appendAudit({
-            ts: now, iso: new Date(now).toISOString(),
-            source: 'janitor.closeStaleFloorSessions',
-            tableId: t.id, reason: 'auto-closed-stale',
-            hoursOpen: Math.round(hoursOpen * 10) / 10,
-          })
-          closedCount++
+      for (const { companyId, state } of getLoadedFloorStates()) {
+        if (!state || !Array.isArray(state.tables)) continue
+        let closedCount = 0
+        for (const t of state.tables) {
+          if (t.openedAt && t.status === 'OCCUPEE' && t.openedAt < cutoff) {
+            const hoursOpen = (now - t.openedAt) / 3600_000
+            t.status = 'NETTOYAGE'
+            t.items = []
+            t.openedAt = undefined
+            state.chairs = state.chairs.filter((c: any) => c.tableId !== t.id)
+            state.updatedAt = now
+            appendAudit({
+              ts: now, iso: new Date(now).toISOString(),
+              source: 'janitor.closeStaleFloorSessions', companyId,
+              tableId: t.id, reason: 'auto-closed-stale',
+              hoursOpen: Math.round(hoursOpen * 10) / 10,
+            })
+            closedCount++
+          }
         }
-      }
-      if (closedCount > 0) {
-        // Ce travail modifie l'état hors du routeur : il doit persister lui-même,
-        // sinon les fermetures automatiques seraient perdues au redémarrage.
-        sauvegarderPlanDeSalle()
-        // eslint-disable-next-line no-console
-        console.log(`[janitor] auto-closed ${closedCount} stale table session(s) (> ${MAX_HOURS}h)`)
+        if (closedCount > 0) {
+          // Ce travail modifie l'état hors du routeur : il doit persister lui-même,
+          // sinon les fermetures automatiques seraient perdues au redémarrage.
+          sauvegarderPlanDeSalle(companyId)
+          // eslint-disable-next-line no-console
+          console.log(`[janitor] auto-closed ${closedCount} stale table session(s) for ${companyId} (> ${MAX_HOURS}h)`)
+        }
       }
     } catch (e: any) {
       // eslint-disable-next-line no-console

@@ -13,7 +13,12 @@ export interface Company {
   name: string
   legalName: string | null
   vatNumber: string | null
+  address?: string | null
+  phone?: string | null
+  email?: string | null
+  logo?: string | null
   currency: string
+  timezone?: string
 }
 
 export interface UserCompany {

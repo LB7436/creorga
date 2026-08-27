@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { fetchAuth } from '@/lib/fetchAuth'
 
 export type TableStatus = 'LIBRE' | 'OCCUPEE' | 'RESERVEE' | 'NETTOYAGE'
 
@@ -66,34 +67,15 @@ export interface FloorState {
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 const BASE = `${BACKEND}/api/floor-state`
 
-const DEFAULT_FLOOR_STATE: FloorState = {
-  tables: [
-    { id: 'T1', name: 'T1', seats: 2, section: 'Salle', shape: 'round', status: 'LIBRE', x: 120, y: 120, items: [] },
-    { id: 'T2', name: 'T2', seats: 4, section: 'Salle', shape: 'round', status: 'LIBRE', x: 300, y: 120, items: [] },
-    { id: 'T3', name: 'T3', seats: 4, section: 'Salle', shape: 'square', status: 'LIBRE', x: 500, y: 130, items: [] },
-    { id: 'T4', name: 'T4', seats: 2, section: 'Salle', shape: 'round', status: 'LIBRE', x: 160, y: 310, items: [] },
-    { id: 'T5', name: 'T5', seats: 6, section: 'Salle', shape: 'rect', status: 'LIBRE', x: 380, y: 310, items: [] },
-    { id: 'B1', name: 'Bar 1', seats: 1, section: 'Bar', shape: 'bar', status: 'LIBRE', x: 110, y: 520, items: [] },
-    { id: 'B2', name: 'Bar 2', seats: 1, section: 'Bar', shape: 'bar', status: 'LIBRE', x: 230, y: 520, items: [] },
-    { id: 'TE1', name: 'Terrasse 1', seats: 4, section: 'Terrasse', shape: 'round', status: 'LIBRE', x: 560, y: 500, items: [] },
-    { id: 'TE2', name: 'Terrasse 2', seats: 4, section: 'Terrasse', shape: 'round', status: 'LIBRE', x: 740, y: 500, items: [] },
-  ],
-  chairs: [],
-  photos: [],
-  zones: [
-    { id: 'Salle', name: 'Salle', color: '#2563eb' },
-    { id: 'Bar', name: 'Bar', color: '#9333ea' },
-    { id: 'Terrasse', name: 'Terrasse', color: '#16a34a' },
-  ],
-  updatedAt: Date.now(),
-}
-
-function cloneDefaultFloorState(): FloorState {
-  return JSON.parse(JSON.stringify({ ...DEFAULT_FLOOR_STATE, updatedAt: Date.now() }))
-}
-
 function isUsableFloorState(data: FloorState | null | undefined) {
-  return Boolean(data?.tables?.length && data?.zones?.length)
+  return Boolean(
+    data
+    && Array.isArray(data.tables)
+    && Array.isArray(data.chairs)
+    && Array.isArray(data.photos)
+    && Array.isArray(data.zones)
+    && typeof data.updatedAt === 'number',
+  )
 }
 
 export function useFloorState(pollMs = 2000) {
@@ -103,10 +85,11 @@ export function useFloorState(pollMs = 2000) {
 
   const fetchState = useCallback(async () => {
     try {
-      const r = await fetch(BASE)
+      const r = await fetchAuth(BASE)
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       const data = await r.json() as FloorState
-      const next = isUsableFloorState(data) ? data : cloneDefaultFloorState()
+      if (!isUsableFloorState(data)) throw new Error('Réponse du plan de salle invalide')
+      const next = data
       // Only update if remote is newer (prevent clobbering optimistic edits)
       if (next.updatedAt >= lastUpdate.current) {
         setState(next)
@@ -115,7 +98,6 @@ export function useFloorState(pollMs = 2000) {
       setError(null)
     } catch (e: any) {
       setError(e.message)
-      setState((current) => current ?? cloneDefaultFloorState())
     }
   }, [])
 
@@ -129,7 +111,15 @@ export function useFloorState(pollMs = 2000) {
 
   // ── Actions ────────────────────────────────────────────────────────────────
   const apply = useCallback(async (res: Response) => {
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) {
+      const raw = await res.text()
+      let message = raw
+      try {
+        const payload = JSON.parse(raw)
+        message = payload.error || raw
+      } catch { /* réponse non JSON */ }
+      throw new Error(message || `HTTP ${res.status}`)
+    }
     const data = await res.json() as FloorState
     setState(data)
     lastUpdate.current = data.updatedAt
@@ -137,7 +127,7 @@ export function useFloorState(pollMs = 2000) {
   }, [])
 
   async function fetchFn(url: string, method: string, body?: any) {
-    return fetch(url, {
+    return fetchAuth(url, {
       method,
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
@@ -145,6 +135,12 @@ export function useFloorState(pollMs = 2000) {
   }
 
   const actions = {
+    addTable: async (data: { name: string; seats: number; section: string; shape: FloorTable['shape']; x?: number; y?: number }) =>
+      apply(await fetchFn(`${BASE}/tables`, 'POST', data)),
+    patchTable: async (id: string, data: Partial<Pick<FloorTable, 'name' | 'seats' | 'section' | 'shape'>>) =>
+      apply(await fetchFn(`${BASE}/tables/${id}`, 'PATCH', data)),
+    deleteTable: async (id: string) =>
+      apply(await fetchFn(`${BASE}/tables/${id}`, 'DELETE')),
     openTable: async (id: string) => apply(await fetchFn(`${BASE}/tables/${id}/open`, 'POST')),
     closeTable: async (id: string) => apply(await fetchFn(`${BASE}/tables/${id}/close`, 'POST')),
     setStatus: async (id: string, status: TableStatus) =>

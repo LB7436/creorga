@@ -4,14 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Loader2, Check,
   UtensilsCrossed, MessageSquare, X, Megaphone,
-  Globe, Gamepad2, MessagesSquare,
+  Globe, Gamepad2,
   ShoppingCart, Plus, Minus, ChevronDown, ChevronUp,
   Star,
 } from 'lucide-react'
 import GamesSection from './GamesSection'
-import ChatSection from './ChatSection'
 import { useAuthStore } from '@/stores/authStore'
-import api from '@/lib/api'
 import { usePortalConfig } from '@/hooks/usePortalConfig'
 import GuestRegistrationModal from './GuestRegistrationModal'
 import {
@@ -123,28 +121,21 @@ function LangPicker({ lang, setLang }: { lang: string; setLang: (l: string) => v
 
 // ─── Main ────────────────────────────────────────────────
 
-type Tab = 'jeux' | 'menu' | 'chat' | 'avis'
-const QR_MENU_DOCUMENT_KEY = 'creorga-qr-menu-document'
-
-type QrMenuDocument = {
-  name: string
-  dataUrl?: string
-  restaurantName?: string
-  fullUrl?: string
-  updatedAt?: string
-}
+type Tab = 'jeux' | 'menu' | 'avis'
 
 export default function GuestHome() {
   const company = useAuthStore((s) => s.company)
-  const { config } = usePortalConfig(2500)
+  const authCompanyId = useAuthStore((s) => s.companyId)
   const [searchParams] = useSearchParams()
+  const portalCompanyId = searchParams.get('companyId') || (searchParams.get('preview') === 'admin' ? authCompanyId : null)
+  const { config, error: configError } = usePortalConfig(2500, portalCompanyId)
   const tableId = searchParams.get('table')
   const embed = searchParams.get('embed')
 
   const [tab, setTab] = useState<Tab>('jeux')
   const { lang, setLang, t } = useGuestLang()
   const [announcements] = useState<Announcement[]>([])
-  const [guestClient, setGuestClient] = useState<GuestClientProfile | null>(() => loadGuestClient())
+  const [guestClient, setGuestClient] = useState<GuestClientProfile | null>(() => loadGuestClient(portalCompanyId))
   const [registrationOpen, setRegistrationOpen] = useState(false)
   const [registrationReason, setRegistrationReason] = useState('Creorga crée votre fiche client pour les commandes, les avis et les records de jeux.')
 
@@ -161,17 +152,17 @@ export default function GuestHome() {
   }, [cart])
 
   useEffect(() => {
-    const refreshGuest = () => setGuestClient(loadGuestClient())
+    const refreshGuest = () => setGuestClient(loadGuestClient(portalCompanyId))
     window.addEventListener('creorga-guest-client-updated', refreshGuest)
     window.addEventListener('storage', refreshGuest)
     return () => {
       window.removeEventListener('creorga-guest-client-updated', refreshGuest)
       window.removeEventListener('storage', refreshGuest)
     }
-  }, [])
+  }, [portalCompanyId])
 
   const requireGuestClient = (reason: string) => {
-    const current = loadGuestClient()
+    const current = loadGuestClient(portalCompanyId)
     if (current) {
       setGuestClient(current)
       return true
@@ -204,10 +195,22 @@ export default function GuestHome() {
   const restaurantName = config?.restaurantName || company?.name || 'Creorga'
   const theme = guestTheme(config?.themeMode)
 
+  if (!portalCompanyId) {
+    return <GuestPortalError title="QR incomplet" message="Ce lien ne contient pas l’identifiant de l’établissement. Scannez à nouveau le QR affiché sur votre table." />
+  }
+
+  if (configError && !config) {
+    return <GuestPortalError title="Portail indisponible" message="Impossible de charger cet établissement pour le moment. Vérifiez le QR ou réessayez plus tard." />
+  }
+
+  if (!config) {
+    return <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: BG, color: TEXT }}><Loader2 className="h-7 w-7 animate-spin" /></main>
+  }
+
   if (embed === 'games') {
     return (
       <div style={{ minHeight: '100vh', background: theme.bg, color: theme.text }}>
-        <GamesSection />
+        <GamesSection companyId={portalCompanyId} />
       </div>
     )
   }
@@ -215,17 +218,10 @@ export default function GuestHome() {
   const tabs: { id: Tab; icon: React.ReactNode; label: string; badge?: number; visible: boolean }[] = [
     { id: 'jeux', icon: <Gamepad2 className="h-5 w-5" />, label: t('tab_games'), visible: toggles.games !== false },
     { id: 'menu', icon: <UtensilsCrossed className="h-5 w-5" />, label: t('tab_menu'), badge: cartCount || undefined, visible: toggles.menu !== false },
-    { id: 'chat', icon: <MessagesSquare className="h-5 w-5" />, label: t('tab_chat'), visible: toggles.chat !== false },
     { id: 'avis', icon: <MessageSquare className="h-5 w-5" />, label: t('tab_reviews'), visible: toggles.reviews !== false },
   ]
   const visibleTabs = tabs.filter((item) => item.visible)
-
-  useEffect(() => {
-    const current = tabs.find((item) => item.id === tab)
-    if (current && !current.visible) {
-      setTab(visibleTabs[0]?.id ?? 'jeux')
-    }
-  }, [tab, toggles.games, toggles.menu, toggles.chat, toggles.reviews])
+  const activeTab = visibleTabs.some((item) => item.id === tab) ? tab : (visibleTabs[0]?.id ?? 'jeux')
 
   return (
     <div className="flex min-h-screen flex-col" style={{ background: theme.bg, color: theme.text }}>
@@ -254,15 +250,15 @@ export default function GuestHome() {
       {/* Main */}
       <main className="flex-1 overflow-y-auto px-4 py-4 pb-24">
         <AnnouncementsBanner items={announcements} />
-        {guestClient?.phone && <GuestLoyaltyCard phone={guestClient.phone} />}
+        {guestClient?.phone && <GuestLoyaltyCard phone={guestClient.phone} companyId={portalCompanyId} />}
 
         {/* JEUX */}
-        {tab === 'jeux' && toggles.games !== false && (
-          <GamesSection />
+        {activeTab === 'jeux' && toggles.games !== false && (
+          <GamesSection companyId={portalCompanyId} />
         )}
 
         {/* MENU */}
-        {tab === 'menu' && toggles.menu !== false && (
+        {activeTab === 'menu' && toggles.menu !== false && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <GuestMenu
               cart={cart}
@@ -274,25 +270,20 @@ export default function GuestHome() {
               guestClient={guestClient}
               requireGuestClient={requireGuestClient}
               tableNumber={tableId}
+              companyId={portalCompanyId}
               t={t}
             />
           </motion.div>
         )}
 
-        {/* CHAT */}
-        {tab === 'chat' && toggles.chat !== false && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <ChatSection onBack={() => setTab('jeux')} />
-          </motion.div>
-        )}
-
         {/* AVIS */}
-        {tab === 'avis' && toggles.reviews !== false && (
+        {activeTab === 'avis' && toggles.reviews !== false && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <GuestFeedback
               onBack={() => setTab('jeux')}
               guestClient={guestClient}
               requireGuestClient={requireGuestClient}
+              companyId={portalCompanyId}
             />
           </motion.div>
         )}
@@ -308,7 +299,7 @@ export default function GuestHome() {
             key={t.id}
             onClick={() => setTab(t.id)}
             className="flex-1 flex flex-col items-center gap-0.5 py-3 transition-colors relative"
-            style={{ color: tab === t.id ? accent : theme.muted }}
+            style={{ color: activeTab === t.id ? accent : theme.muted }}
           >
             {t.icon}
             <span className="text-[10px] font-medium">{t.label}</span>
@@ -342,9 +333,21 @@ export default function GuestHome() {
         reason={registrationReason}
         onClose={() => setRegistrationOpen(false)}
         onSaved={(profile) => setGuestClient(profile)}
+        companyId={portalCompanyId}
       />
 
     </div>
+  )
+}
+
+function GuestPortalError({ title, message }: { title: string; message: string }) {
+  return (
+    <main style={{ minHeight: '100vh', padding: 24, display: 'grid', placeItems: 'center', background: BG, color: TEXT }}>
+      <section style={{ maxWidth: 460, padding: 28, border: `1px solid ${BORDER}`, borderRadius: 20, background: SURFACE, textAlign: 'center' }}>
+        <h1 style={{ margin: 0, fontSize: 24 }}>{title}</h1>
+        <p style={{ margin: '12px 0 0', color: MUTED, lineHeight: 1.6 }}>{message}</p>
+      </section>
+    </main>
   )
 }
 
@@ -381,44 +384,10 @@ interface MenuCategory {
   products: MenuProduct[]
 }
 
-const MOCK_MENU: MenuCategory[] = [
-  {
-    id: 'boissons', name: 'Boissons', emoji: '\🍹',
-    products: [
-      { id: 'b1', name: 'Eau minérale', price: 2.50, description: 'Plate ou gazeuse, 50cl', emoji: '\💧' },
-      { id: 'b2', name: 'Coca-Cola', price: 3.00, description: 'Classique, 33cl bien frais', emoji: '\🥤' },
-      { id: 'b3', name: 'Jus d\'orange frais', price: 3.50, description: 'Pressé minute, 100% fruits', emoji: '\🍊' },
-      { id: 'b4', name: 'Bière pression', price: 4.50, description: 'Blonde locale, 25cl', emoji: '\🍺' },
-      { id: 'b5', name: 'Cocktail maison', price: 8.00, description: 'Mojito, Spritz ou Margarita', emoji: '\🍸' },
-    ],
-  },
-  {
-    id: 'cuisine', name: 'Cuisine', emoji: '\🍔',
-    products: [
-      { id: 'c1', name: 'Burger classique', price: 12.50, description: 'Bœuf 180g, cheddar, salade, tomate', emoji: '\🍔' },
-      { id: 'c2', name: 'Pizza Margherita', price: 11.00, description: 'Tomate, mozzarella, basilic frais', emoji: '\🍕' },
-      { id: 'c3', name: 'Salade César', price: 9.50, description: 'Poulet grillé, parmesan, croûtons', emoji: '\🥗' },
-      { id: 'c4', name: 'Fish & Chips', price: 13.00, description: 'Cabillaud pané, frites maison', emoji: '\🍟' },
-      { id: 'c5', name: 'Poke Bowl saumon', price: 14.00, description: 'Riz, saumon cru, avocat, édamame', emoji: '\🍣' },
-      { id: 'c6', name: 'Nachos & Guacamole', price: 7.50, description: 'Tortilla chips, guac maison, crème', emoji: '\🌮' },
-    ],
-  },
-  {
-    id: 'desserts', name: 'Desserts', emoji: '\🍰',
-    products: [
-      { id: 'd1', name: 'Brownie chocolat', price: 5.50, description: 'Coulant au cœur, glace vanille', emoji: '\🍫' },
-      { id: 'd2', name: 'Crème brûlée', price: 6.00, description: 'Vanille de Madagascar', emoji: '\🍮' },
-      { id: 'd3', name: 'Tiramisu', price: 6.50, description: 'Recette italienne traditionnelle', emoji: '\☕' },
-      { id: 'd4', name: 'Glace artisanale 3 boules', price: 5.00, description: 'Chocolat, vanille, fraise', emoji: '\🍨' },
-    ],
-  },
-]
-
-const TVA_RATE = 0.17 // Luxembourg standard TVA
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
 function GuestMenu({
-  cart, addToCart, updateQty, clearCart, cartCount, cartTotal, guestClient, requireGuestClient, tableNumber, t,
+  cart, addToCart, updateQty, clearCart, cartCount, cartTotal, guestClient, requireGuestClient, tableNumber, companyId, t,
 }: {
   cart: CartItem[]
   addToCart: (p: { id: string; name: string; price: number; emoji: string }) => void
@@ -429,11 +398,12 @@ function GuestMenu({
   guestClient: GuestClientProfile | null
   requireGuestClient: (reason: string) => boolean
   tableNumber: string | null
+  companyId: string
   t: (key: string) => string
 }) {
-  const companyId = useAuthStore((s) => s.companyId)
   const [categories, setCategories] = useState<MenuCategory[]>([])
   const [loading, setLoading] = useState(true)
+  const [menuError, setMenuError] = useState<string | null>(null)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
   const [orderState, setOrderState] = useState<'idle' | 'sending' | 'success'>('idle')
@@ -443,60 +413,12 @@ function GuestMenu({
   // Addition telle que calculée par le serveur (prix de la base, pas du panier).
   const [lastOrderTotal, setLastOrderTotal] = useState<number | null>(null)
   const [addedId, setAddedId] = useState<string | null>(null)
-  const [qrMenuDocument, setQrMenuDocument] = useState<QrMenuDocument | null>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(QR_MENU_DOCUMENT_KEY) || 'null')
-    } catch { return null }
-  })
 
   useEffect(() => {
-    if (!companyId) {
-      setCategories(MOCK_MENU)
-      setActiveCategory('boissons')
-      setLoading(false)
-      return
-    }
-    const headers = { 'x-company-id': companyId }
-    Promise.all([
-      api.get('/categories', { headers }).then((r) => r.data),
-      api.get('/products', { headers }).then((r) => r.data),
-    ]).then(([cats, prods]) => {
-      const enriched = cats.map((c: any) => ({
-        id: c.id,
-        name: c.name,
-        emoji: c.icon || '\🍽\️',
-        products: prods.filter((p: any) => p.categoryId === c.id && p.isActive).map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          price: p.price,
-          description: p.description || '',
-          emoji: '\🍽\️',
-        })),
-      }))
-      setCategories(enriched)
-      if (enriched.length) setActiveCategory(enriched[0].id)
-    }).catch(() => {
-      setCategories(MOCK_MENU)
-      setActiveCategory('boissons')
-    }).finally(() => setLoading(false))
-  }, [companyId])
-
-  useEffect(() => {
-    const refreshQrMenu = () => {
-      try {
-        setQrMenuDocument(JSON.parse(localStorage.getItem(QR_MENU_DOCUMENT_KEY) || 'null'))
-      } catch {
-        setQrMenuDocument(null)
-      }
-    }
-    window.addEventListener('storage', refreshQrMenu)
-    return () => window.removeEventListener('storage', refreshQrMenu)
-  }, [])
-
-  useEffect(() => {
-    if (companyId) return
     let cancelled = false
-    fetch(`${BACKEND}/api/portal-config/menu`)
+    setLoading(true)
+    setMenuError(null)
+    fetch(`${BACKEND}/api/portal-config/menu?companyId=${encodeURIComponent(companyId)}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
@@ -516,17 +438,17 @@ function GuestMenu({
             emoji: p.emoji || p.icon || c.icon || '🍽️',
           })),
         })).filter((cat: MenuCategory) => cat.products.length)
-        if (enriched.length) {
-          setCategories(enriched)
-          setActiveCategory(enriched[0].id)
-        }
+        setCategories(enriched)
+        setActiveCategory(enriched[0]?.id ?? null)
       })
       .catch(() => {
         if (!cancelled) {
-          setCategories(MOCK_MENU)
-          setActiveCategory('boissons')
+          setCategories([])
+          setActiveCategory(null)
+          setMenuError('La carte ne peut pas être chargée pour le moment.')
         }
       })
+      .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [companyId])
 
@@ -549,7 +471,7 @@ function GuestMenu({
     fetch(`${(import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'}/api/guest/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tableId: tableNumber || 'sans-table', items: orderItems.map(({ productId, qty }) => ({ productId, qty })) }),
+      body: JSON.stringify({ companyId, tableId: tableNumber || 'sans-table', items: orderItems.map(({ productId, qty }) => ({ productId, qty })) }),
     })
       .then(async (r) => {
         const data = await r.json().catch(() => ({}))
@@ -559,14 +481,12 @@ function GuestMenu({
       .then((data) => {
         if (data?.id) setLastOrderId(data.id)
         setLastOrderTotal(typeof data?.total === 'number' ? data.total : null)
-        recordGuestEvent('order', guestClient ?? loadGuestClient(), {
+        recordGuestEvent('order', guestClient ?? loadGuestClient(companyId), {
           items: orderItems,
-          subtotal,
-          tva,
           total: typeof data?.total === 'number' ? data.total : total,
           tableNumber,
           orderId: data?.id,
-        })
+        }, companyId)
         setOrderState('success')
         clearCart()
       })
@@ -578,13 +498,25 @@ function GuestMenu({
       })
   }
 
-  const subtotal = cartTotal
-  const tva = subtotal * TVA_RATE
-  const total = subtotal + tva
+  // Les prix de la carte publique sont les prix finaux affichés au client.
+  // Le serveur recalcule toujours ce total depuis sa propre base.
+  const total = cartTotal
 
   if (loading) return (
     <div className="flex justify-center py-16">
       <Loader2 className="h-6 w-6 animate-spin" style={{ color: ACCENT }} />
+    </div>
+  )
+
+  if (menuError) return (
+    <div role="alert" style={{ padding: 24, borderRadius: 16, border: `1px solid ${BORDER}`, background: SURFACE, color: '#fca5a5', textAlign: 'center' }}>
+      {menuError}
+    </div>
+  )
+
+  if (categories.length === 0) return (
+    <div style={{ padding: 24, borderRadius: 16, border: `1px solid ${BORDER}`, background: SURFACE, color: MUTED, textAlign: 'center' }}>
+      Aucun produit n'est publié dans la carte pour le moment.
     </div>
   )
 
@@ -658,9 +590,9 @@ function GuestMenu({
 
       {tableNumber && (
         <div style={{ width: '100%', maxWidth: 340 }}>
-          {lastOrderId && <OrderTracking orderId={lastOrderId} tableId={tableNumber} />}
+          {lastOrderId && <OrderTracking orderId={lastOrderId} tableId={tableNumber} companyId={companyId} />}
           {/* Montant réellement enregistré par le serveur, pas le panier local. */}
-          <GuestCallButtons tableId={tableNumber} billTotal={lastOrderTotal ?? undefined} />
+          <GuestCallButtons tableId={tableNumber} companyId={companyId} billTotal={lastOrderTotal ?? undefined} />
         </div>
       )}
     </motion.div>
@@ -682,7 +614,7 @@ function GuestMenu({
         marginBottom: 12,
       }}>
         <div>
-          <p style={{ fontSize: 12, fontWeight: 800, color: TEXT }}>Menu connecté POS + stock</p>
+          <p style={{ fontSize: 12, fontWeight: 800, color: TEXT }}>Carte publiée par l'établissement</p>
           <p style={{ fontSize: 10.5, color: MUTED, marginTop: 2 }}>
             Profil: {guestClient ? guestDisplayName(guestClient) : 'inscription requise pour commander'}
           </p>
@@ -696,51 +628,6 @@ function GuestMenu({
           </button>
         )}
       </div>
-      {qrMenuDocument && (
-        <div style={{
-          borderRadius: 14,
-          border: `1px solid ${BORDER}`,
-          background: 'linear-gradient(135deg, rgba(6,182,212,0.16), rgba(168,85,247,0.14))',
-          padding: 12,
-          marginBottom: 12,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-        }}>
-          <div style={{
-            width: 42,
-            height: 42,
-            borderRadius: 12,
-            background: 'rgba(255,255,255,0.08)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 22,
-          }}>
-            📄
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 13, fontWeight: 800, color: TEXT }}>QR Menu publié</p>
-            <p style={{ fontSize: 11, color: MUTED, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {qrMenuDocument.name}
-            </p>
-          </div>
-          {qrMenuDocument.dataUrl ? (
-            <a
-              href={qrMenuDocument.dataUrl}
-              target="_blank"
-              rel="noreferrer"
-              style={{ borderRadius: 10, padding: '8px 10px', background: ACCENT2, color: '#04111a', fontSize: 11, fontWeight: 900, textDecoration: 'none' }}
-            >
-              Ouvrir
-            </a>
-          ) : (
-            <span style={{ borderRadius: 10, padding: '8px 10px', background: SURFACE2, color: MUTED, fontSize: 11, fontWeight: 800 }}>
-              Sync POS
-            </span>
-          )}
-        </div>
-      )}
       {/* Category tabs */}
       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, marginBottom: 16 }}>
         {categories.map((cat) => (
@@ -1004,17 +891,9 @@ function GuestMenu({
               {/* Totals and send */}
               {cart.length > 0 && (
                 <div style={{ padding: '12px 20px 16px', borderTop: `1px solid ${BORDER}` }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: 13, color: MUTED }}>Sous-total</span>
-                    <span style={{ fontSize: 13, color: TEXT }}>{subtotal.toFixed(2)} €</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span style={{ fontSize: 13, color: MUTED }}>TVA (17%)</span>
-                    <span style={{ fontSize: 13, color: TEXT }}>{tva.toFixed(2)} €</span>
-                  </div>
                   <div style={{
                     display: 'flex', justifyContent: 'space-between',
-                    paddingTop: 8, borderTop: `1px solid ${BORDER}`, marginBottom: 14,
+                    marginBottom: 14,
                   }}>
                     <span style={{ fontSize: 16, fontWeight: 700, color: TEXT }}>Total</span>
                     <span style={{ fontSize: 16, fontWeight: 700, color: ACCENT }}>{total.toFixed(2)} €</span>
@@ -1080,24 +959,6 @@ const CATEGORY_RATINGS = [
   { key: 'value', label: 'Rapport qualité-prix', emoji: '\💰' },
 ]
 
-const MOCK_REVIEWS = [
-  {
-    id: 'r1', name: 'Marie L.', rating: 5, date: 'Il y a 2 jours',
-    comment: 'Excellent service et ambiance au top ! Les jeux de société rendent l\'expérience unique.',
-    avatar: '\👩',
-  },
-  {
-    id: 'r2', name: 'Thomas K.', rating: 4, date: 'Il y a 5 jours',
-    comment: 'Très bonne cuisine, portions généreuses. Le staff est sympa et attentif.',
-    avatar: '\👨',
-  },
-  {
-    id: 'r3', name: 'Sophie M.', rating: 5, date: 'Il y a 1 semaine',
-    comment: 'On adore venir ici entre amis. Le concept est génial, on revient bientôt !',
-    avatar: '\👧',
-  },
-]
-
 const STAR_LABELS = ['', 'Très insatisfait', 'Insatisfait', 'Correct', 'Satisfait', 'Excellent !']
 
 function MiniStars({ rating, onRate, size = 18 }: { rating: number; onRate: (n: number) => void; size?: number }) {
@@ -1161,10 +1022,12 @@ function GuestFeedback({
   onBack,
   guestClient,
   requireGuestClient,
+  companyId,
 }: {
   onBack: () => void
   guestClient: GuestClientProfile | null
   requireGuestClient: (reason: string) => boolean
+  companyId: string
 }) {
   const [rating, setRating] = useState(0)
   const [hovered, setHovered] = useState(0)
@@ -1180,33 +1043,27 @@ function GuestFeedback({
 
   const submit = async () => {
     if (!rating) return
-    const profile = loadGuestClient() ?? guestClient
+    const profile = loadGuestClient(companyId) ?? guestClient
     if (!profile && !requireGuestClient('Inscrivez-vous pour envoyer un avis: il sera rattaché à votre fiche client Creorga.')) return
     setState('submitting')
     setErrorMsg('')
     try {
-      const res = await fetch('/api/feedback', {
+      const res = await fetch(`${BACKEND}/api/portal-config/client-events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          rating,
-          categoryRatings: catRatings,
-          comment: comment.trim() || null,
-          customer: profile ? {
-            id: profile.id,
-            name: profile.displayName,
-            email: profile.email,
-            phone: profile.phone,
-          } : null,
+          companyId,
+          type: 'review',
+          profile,
+          payload: { rating, categoryRatings: catRatings, comment: comment.trim() || null },
         }),
       })
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Erreur') }
-      recordGuestEvent('review', profile, { rating, categoryRatings: catRatings, comment: comment.trim() || null })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.persisted) throw new Error(data?.message || 'Avis non enregistré')
       setState('success')
-    } catch (err: unknown) {
-      // In demo mode, just succeed
-      recordGuestEvent('review', profile, { rating, categoryRatings: catRatings, comment: comment.trim() || null, offline: true })
-      setState('success')
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Votre avis n’a pas pu être enregistré. Réessayez.')
+      setState('error')
     }
   }
 
@@ -1427,54 +1284,6 @@ function GuestFeedback({
           </>
         ) : 'Envoyer mon avis'}
       </motion.button>
-
-      {/* ── Derniers avis ── */}
-      <div style={{ marginTop: 8 }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
-        }}>
-          <div style={{ width: 3, height: 16, borderRadius: 2, background: ACCENT }} />
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: TEXT }}>Derniers avis</h3>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {MOCK_REVIEWS.map((review, idx) => (
-            <motion.div
-              key={review.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.1 }}
-              style={{
-                background: SURFACE, borderRadius: 14, padding: 14,
-                border: `1px solid ${BORDER}`,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  background: 'rgba(168,85,247,0.12)', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', fontSize: 18,
-                }}>
-                  {review.avatar}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: TEXT }}>{review.name}</p>
-                  <p style={{ fontSize: 10, color: MUTED }}>{review.date}</p>
-                </div>
-                <div style={{ display: 'flex', gap: 1 }}>
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <span key={i} style={{ fontSize: 12, color: i < review.rating ? '#facc15' : 'rgba(255,255,255,0.1)' }}>
-                      ★
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <p style={{ fontSize: 13, color: MUTED, lineHeight: 1.5 }}>
-                {review.comment}
-              </p>
-            </motion.div>
-          ))}
-        </div>
-      </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>

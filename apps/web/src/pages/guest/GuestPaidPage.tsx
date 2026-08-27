@@ -12,13 +12,14 @@ const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:
 export default function GuestPaidPage() {
   const [searchParams] = useSearchParams()
   const tableId = searchParams.get('table')
+  const companyId = searchParams.get('companyId')
   // Stripe ajoute `session_id` à l'URL de retour : c'est la seule preuve.
   const sessionId = searchParams.get('session_id')
   const [etat, setEtat] = useState<'verification' | 'confirme' | 'refuse'>('verification')
   const [motif, setMotif] = useState('')
 
   useEffect(() => {
-    if (!tableId) { setEtat('refuse'); setMotif('Table inconnue.'); return }
+    if (!tableId || !companyId) { setEtat('refuse'); setMotif('Établissement ou table inconnue.'); return }
     if (!sessionId) {
       // Ouvrir /c/paid?table=5 à la main ne prouve rien. La page ne doit pas
       // annoncer « Paiement reçu » dans ce cas — c'est ce qu'elle faisait, et
@@ -30,7 +31,7 @@ export default function GuestPaidPage() {
     fetch(`${BACKEND}/api/guest/paid-confirm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tableId, sessionId }),
+      body: JSON.stringify({ companyId, tableId, sessionId }),
     })
       .then(async (r) => {
         if (r.ok) { setEtat('confirme'); return }
@@ -42,7 +43,7 @@ export default function GuestPaidPage() {
         setEtat('refuse')
         setMotif('Serveur injoignable — impossible de confirmer le paiement.')
       })
-  }, [tableId, sessionId])
+  }, [tableId, companyId, sessionId])
 
   if (etat !== 'confirme') {
     return (

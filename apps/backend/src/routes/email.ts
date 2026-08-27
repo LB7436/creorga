@@ -1,7 +1,12 @@
 import { Router, Request, Response } from 'express'
-import { sendEmail, emailTemplates } from '../lib/email'
+import { sendEmail, emailTemplates, EmailNotConfiguredError } from '../lib/email'
 
 const router = Router()
+
+function emailFailure(res: Response, err: any) {
+  const status = err instanceof EmailNotConfiguredError ? 503 : 502
+  res.status(status).json({ error: err?.message || 'Échec de l’envoi email' })
+}
 
 // Endpoint test générique
 router.post('/test', async (req: Request, res: Response) => {
@@ -14,9 +19,7 @@ router.post('/test', async (req: Request, res: Response) => {
     const html = builder(data || {})
     const result = await sendEmail({ to, subject: `[Test] ${template}`, html })
     res.json({ ok: true, result })
-  } catch (err: any) {
-    res.status(500).json({ error: err?.message })
-  }
+  } catch (err: any) { emailFailure(res, err) }
 })
 
 // Endpoints spécifiques
@@ -25,7 +28,7 @@ router.post('/welcome', async (req: Request, res: Response) => {
   try {
     const result = await sendEmail({ to, subject: `Bienvenue sur Creorga, ${name}`, html: emailTemplates.welcome(name) })
     res.json({ ok: true, result })
-  } catch (err: any) { res.status(500).json({ error: err?.message }) }
+  } catch (err: any) { emailFailure(res, err) }
 })
 
 router.post('/password-reset', async (req: Request, res: Response) => {
@@ -39,7 +42,7 @@ router.post('/password-reset', async (req: Request, res: Response) => {
     }
     const result = await sendEmail({ to, subject: 'Réinitialisation mot de passe', html: emailTemplates.passwordReset(link) })
     res.json({ ok: true, result })
-  } catch (err: any) { res.status(500).json({ error: err?.message }) }
+  } catch (err: any) { emailFailure(res, err) }
 })
 
 router.post('/invoice-paid', async (req: Request, res: Response) => {
@@ -47,7 +50,7 @@ router.post('/invoice-paid', async (req: Request, res: Response) => {
   try {
     const result = await sendEmail({ to, subject: `Paiement reçu - ${invoice.number}`, html: emailTemplates.invoicePaid(invoice) })
     res.json({ ok: true, result })
-  } catch (err: any) { res.status(500).json({ error: err?.message }) }
+  } catch (err: any) { emailFailure(res, err) }
 })
 
 router.post('/trial-ending', async (req: Request, res: Response) => {
@@ -55,7 +58,7 @@ router.post('/trial-ending', async (req: Request, res: Response) => {
   try {
     const result = await sendEmail({ to, subject: `Essai se termine dans ${daysLeft} jours`, html: emailTemplates.trialEnding(daysLeft) })
     res.json({ ok: true, result })
-  } catch (err: any) { res.status(500).json({ error: err?.message }) }
+  } catch (err: any) { emailFailure(res, err) }
 })
 
 router.get('/templates', (_req: Request, res: Response) => {

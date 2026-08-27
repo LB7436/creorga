@@ -164,11 +164,34 @@ export const useAssistant = create<AssistantState>()(
       },
       selectConversation: (id) => set((s) => {
         const conv = s.conversations.find((c) => c.id === id)
-        return { currentConversationId: id, attachments: [], messages: conv?.messages || [] }
+        if (!conv) return s
+        return { currentConversationId: id, attachments: [], messages: conv.messages }
       }),
-      archiveConversation: (id) => set((s) => ({
-        conversations: s.conversations.map((c) => c.id === id ? { ...c, archived: true } : c),
-      })),
+      archiveConversation: (id) => set((s) => {
+        const conversations = s.conversations.map((c) => c.id === id ? { ...c, archived: true } : c)
+        if (s.currentConversationId !== id) return { conversations }
+
+        const replacement = conversations.find((c) => !c.archived)
+        if (replacement) {
+          return {
+            conversations,
+            currentConversationId: replacement.id,
+            messages: replacement.messages,
+            attachments: [],
+          }
+        }
+
+        const fresh: AssistantConversation = {
+          id: newId(), title: 'Nouvelle discussion', messages: [],
+          createdAt: Date.now(), updatedAt: Date.now(), archived: false,
+        }
+        return {
+          conversations: [fresh, ...conversations],
+          currentConversationId: fresh.id,
+          messages: [],
+          attachments: [],
+        }
+      }),
       unarchiveConversation: (id) => set((s) => ({
         conversations: s.conversations.map((c) => c.id === id ? { ...c, archived: false } : c),
       })),
@@ -177,9 +200,13 @@ export const useAssistant = create<AssistantState>()(
         const next = remaining.length === 0
           ? [{ id: newId(), title: 'Nouvelle discussion', messages: [], createdAt: Date.now(), updatedAt: Date.now(), archived: false }]
           : remaining
+        if (s.currentConversationId !== id) return { conversations: next }
+        const replacement = next.find((c) => !c.archived) ?? next[0]
         return {
           conversations: next,
-          currentConversationId: s.currentConversationId === id ? next[0].id : s.currentConversationId,
+          currentConversationId: replacement.id,
+          messages: replacement.messages,
+          attachments: [],
         }
       }),
       renameConversation: (id, title) => set((s) => ({

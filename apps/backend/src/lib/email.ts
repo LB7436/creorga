@@ -1,33 +1,107 @@
+import { Resend } from 'resend'
+import nodemailer, { type Transporter } from 'nodemailer'
+
 const BRAND_PRIMARY = '#0EA5E9'
 const BRAND_DARK = '#0F172A'
 const BRAND_BG = '#F8FAFC'
 
+export class EmailNotConfiguredError extends Error {
+  code = 'EMAIL_NOT_CONFIGURED' as const
+  constructor() {
+    super('Envoi email non configuré : renseignez SMTP_USER, SMTP_PASS et EMAIL_FROM (Zoho), ou RESEND_API_KEY et EMAIL_FROM')
+  }
+}
+
+let resend: Resend | null = null
+let smtpTransporter: Transporter | null = null
+let smtpFingerprint = ''
+
+function smtpConfigured(): boolean {
+  return Boolean(
+    process.env.SMTP_USER?.trim()
+    && process.env.SMTP_PASS?.trim()
+    && process.env.EMAIL_FROM?.trim(),
+  )
+}
+
+export function emailConfigured(): boolean {
+  return smtpConfigured()
+    || Boolean(process.env.RESEND_API_KEY?.trim() && process.env.EMAIL_FROM?.trim())
+}
+
+function transportSmtp(): Transporter {
+  const host = process.env.SMTP_HOST?.trim() || 'smtp.zoho.com'
+  const port = Number(process.env.SMTP_PORT || 465)
+  const user = process.env.SMTP_USER!.trim()
+  const pass = process.env.SMTP_PASS!
+  const secure = process.env.SMTP_SECURE
+    ? process.env.SMTP_SECURE === 'true'
+    : port === 465
+  const fingerprint = `${host}:${port}:${secure}:${user}`
+  if (!smtpTransporter || smtpFingerprint !== fingerprint) {
+    smtpTransporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user, pass },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
+    })
+    smtpFingerprint = fingerprint
+  }
+  return smtpTransporter
+}
+
 /**
- * Envoi d'e-mails — DÉSACTIVÉ.
- *
- * Le domaine d'expédition (creorga.lu) n'est pas détenu : aucun message ne peut
- * partir sans qu'un fournisseur (Resend, etc.) rejette l'expéditeur ou que le
- * courriel finisse en indésirable. `sendEmail` est donc un no-op journalisé —
- * il ne contacte aucun service externe et n'expose aucune adresse @creorga.lu.
- *
- * Pour réactiver un jour : rebrancher un client d'envoi ici, et surtout
- * configurer une adresse d'expédition sur un domaine réellement vérifié
- * (variable `EMAIL_FROM`), pas creorga.lu.
- *
- * Les gabarits ci-dessous sont conservés (référencés par routes/email.ts et
- * prévus pour la facturation), débarrassés de toute adresse creorga.lu.
+ * Envoi réel. Zoho SMTP est prioritaire pour utiliser la boîte professionnelle
+ * existante ; Resend reste un repli optionnel. Aucun faux identifiant n'est
+ * renvoyé quand aucun fournisseur ne confirme l'envoi.
  */
 export async function sendEmail({
   to,
   subject,
+  html,
+  from,
 }: {
   to: string
   subject: string
   html?: string
   from?: string
 }) {
-  console.warn('[Email] désactivé (aucun domaine d\'expédition configuré) — non envoyé :', subject, '→', to)
-  return { id: 'disabled_' + Date.now(), disabled: true as const }
+  const expediteur = from?.trim() || process.env.EMAIL_FROM?.trim()
+  const replyTo = process.env.EMAIL_REPLY_TO?.trim() || 'contact@n8nautomatisations.org'
+  if (!expediteur) throw new EmailNotConfiguredError()
+
+  if (smtpConfigured()) {
+    const info = await transportSmtp().sendMail({
+      from: expediteur,
+      to,
+      subject,
+      html: html || '<p></p>',
+      replyTo,
+    })
+    if (!info.messageId || (info.rejected?.length ?? 0) > 0) {
+      throw new Error(`Zoho SMTP n’a pas confirmé l’envoi${info.rejected?.length ? ` à ${info.rejected.join(', ')}` : ''}`)
+    }
+    return { id: info.messageId, provider: 'zoho-smtp' as const, disabled: false as const }
+  }
+
+  const apiKey = process.env.RESEND_API_KEY?.trim()
+  if (!apiKey) throw new EmailNotConfiguredError()
+  if (!resend) resend = new Resend(apiKey)
+
+  const { data, error } = await resend.emails.send({
+    from: expediteur,
+    to,
+    subject,
+    html: html || '<p></p>',
+    reply_to: replyTo,
+  })
+  if (error || !data?.id) {
+    throw new Error(error?.message || 'Le fournisseur email n’a pas confirmé l’envoi')
+  }
+  return { id: data.id, provider: 'resend' as const, disabled: false as const }
 }
 
 // --- Layout commun pour tous les emails ---
@@ -178,6 +252,36 @@ export const emailTemplates = {
     <p style="font-size:14px;color:#475569;">Plat star de la semaine : <strong>${stats.topItem}</strong></p>
     <div style="margin:24px 0;">${button(APP_URL, 'Voir le rapport complet')}</div>
   `, `Rapport hebdo Creorga`),
+
+  planningPublished: (data: {
+    employeeName: string
+    companyName: string
+    period: string
+    shifts: Array<{ date: string; start: string; end: string; role: string; section?: string }>
+  }) => layout(`
+    <h1 style="margin:0 0 16px;font-size:22px;">Votre planning est disponible</h1>
+    <p style="font-size:15px;color:#475569;">Bonjour ${escapeHtml(data.employeeName)},</p>
+    <p style="font-size:15px;color:#475569;">${escapeHtml(data.companyName)} vient de publier votre planning pour ${escapeHtml(data.period)}.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;">
+      ${data.shifts.length > 0 ? data.shifts.map((shift) => `
+        <tr>
+          <td style="padding:12px;border-bottom:1px solid #E2E8F0;font-weight:600;">${escapeHtml(shift.date)}</td>
+          <td style="padding:12px;border-bottom:1px solid #E2E8F0;">${escapeHtml(shift.start)} – ${escapeHtml(shift.end)}</td>
+          <td style="padding:12px;border-bottom:1px solid #E2E8F0;color:#64748B;">${escapeHtml(shift.role)}${shift.section ? ` · ${escapeHtml(shift.section)}` : ''}</td>
+        </tr>`).join('') : '<tr><td style="padding:16px;color:#64748B;">Aucun shift sur cette période.</td></tr>'}
+    </table>
+    <div style="margin:24px 0;">${button(APP_URL, 'Ouvrir mon planning')}</div>
+    <p style="font-size:13px;color:#94A3B8;">Une question ? Répondez simplement à cet email.</p>
+  `, `Nouveau planning ${data.period}`),
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
 }
 
 export default { sendEmail, emailTemplates }

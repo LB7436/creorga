@@ -38,6 +38,10 @@ const createCategorySchema = z.object({
   icon: z.string().nullable().optional(),
   color: z.string().nullable().optional(),
   sortOrder: z.number().int().default(0),
+}).strict()
+
+const updateCategorySchema = createCategorySchema.partial().refine((data) => Object.keys(data).length > 0, {
+  message: 'Au moins un champ doit être fourni',
 })
 
 router.post('/', validate(createCategorySchema), async (req: AuthRequest, res: Response) => {
@@ -57,14 +61,12 @@ router.post('/', validate(createCategorySchema), async (req: AuthRequest, res: R
 
 // ─── PUT /api/categories/:id ───────────────────────────
 
-router.put('/:id', async (req: AuthRequest, res: Response) => {
+router.put('/:id', validate(updateCategorySchema), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = (req as any).companyId as string
-    // Le corps ne doit pas pouvoir réaffecter la catégorie à une autre société.
-    const { companyId: _societe, id: _id, ...donnees } = req.body ?? {}
     const { count } = await prisma.category.updateMany({
       where: { id: req.params.id, companyId },
-      data: donnees,
+      data: req.body,
     })
     if (count === 0) {
       res.status(404).json({ message: 'Catégorie non trouvée' })

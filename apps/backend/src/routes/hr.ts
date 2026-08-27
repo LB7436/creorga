@@ -1,6 +1,8 @@
 import { Router, type Response } from 'express'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
+import { emailConfigured, emailTemplates, sendEmail } from '../lib/email'
+import { requireRole } from '../middleware/requireCompany'
 
 const router = Router()
 
@@ -112,6 +114,111 @@ router.delete('/shifts/:id', async (req: any, res: Response) => {
   } catch (error) {
     logger.error('Erreur DELETE /shifts/:id:', error)
     res.status(500).json({ message: 'Erreur serveur' })
+  }
+})
+
+// ─── PUBLICATION DU PLANNING ─────────────────────────
+
+router.post('/planning/publish', requireRole('OWNER', 'MANAGER'), async (req: any, res: Response) => {
+  try {
+    const début = new Date(req.body?.startDate)
+    const fin = new Date(req.body?.endDate)
+    if (Number.isNaN(début.getTime()) || Number.isNaN(fin.getTime()) || fin < début) {
+      res.status(400).json({ message: 'Période de planning invalide' })
+      return
+    }
+    if (!emailConfigured()) {
+      res.status(503).json({
+        message: 'Envoi email non configuré. Ajoutez SMTP_USER, SMTP_PASS et EMAIL_FROM pour Zoho, ou RESEND_API_KEY et EMAIL_FROM.',
+      })
+      return
+    }
+
+    const [membres, shifts] = await Promise.all([
+      prisma.userCompany.findMany({
+        where: { companyId: req.companyId, isActive: true },
+        include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
+      }),
+      prisma.shift.findMany({
+        where: {
+          companyId: req.companyId,
+          startTime: { gte: début, lte: fin },
+        },
+        orderBy: { startTime: 'asc' },
+      }),
+    ])
+    if (shifts.length === 0) {
+      res.status(409).json({ message: 'Aucun shift à publier sur cette période' })
+      return
+    }
+
+    const société = String(req.company?.name || 'Votre établissement')
+    const période = `${début.toLocaleDateString('fr-LU')} – ${fin.toLocaleDateString('fr-LU')}`
+    const destinataires = membres.filter((membre) => shifts.some((shift) => shift.userId === membre.userId))
+    if (destinataires.length === 0) {
+      res.status(409).json({ message: 'Aucun salarié actif n’est associé aux shifts de cette période' })
+      return
+    }
+
+    // Un échec individuel ne doit ni faire croire que tout a été envoyé, ni
+    // provoquer au prochain essai un doublon chez les destinataires déjà servis.
+    const tentatives = await Promise.allSettled(destinataires.map(async (membre) => {
+      const personnels = shifts.filter((shift) => shift.userId === membre.userId)
+      const html = emailTemplates.planningPublished({
+        employeeName: `${membre.user.firstName} ${membre.user.lastName}`.trim(),
+        companyName: société,
+        period: période,
+        shifts: personnels.map((shift) => ({
+          date: shift.startTime.toLocaleDateString('fr-LU', { weekday: 'long', day: '2-digit', month: '2-digit' }),
+          start: shift.startTime.toLocaleTimeString('fr-LU', { hour: '2-digit', minute: '2-digit' }),
+          end: shift.endTime.toLocaleTimeString('fr-LU', { hour: '2-digit', minute: '2-digit' }),
+          role: shift.role,
+        })),
+      })
+      const résultat = await sendEmail({
+        to: membre.user.email,
+        subject: `Votre planning ${société} · ${période}`,
+        html,
+      })
+      return { userId: membre.userId, email: membre.user.email, messageId: résultat.id, provider: résultat.provider }
+    }))
+
+    const résultats = tentatives
+      .filter((résultat): résultat is PromiseFulfilledResult<Awaited<ReturnType<typeof sendEmail>> & { userId: string; email: string; messageId: string }> => résultat.status === 'fulfilled')
+      .map((résultat) => résultat.value)
+    const échecs = tentatives
+      .map((résultat, index) => ({ résultat, membre: destinataires[index] }))
+      .filter((entrée): entrée is { résultat: PromiseRejectedResult; membre: typeof destinataires[number] } => entrée.résultat.status === 'rejected')
+      .map(({ résultat, membre }) => ({
+        userId: membre.userId,
+        email: membre.user.email,
+        message: résultat.reason instanceof Error ? résultat.reason.message : 'Échec non précisé',
+      }))
+
+    if (résultats.length > 0) {
+      await prisma.shift.updateMany({
+        where: {
+          companyId: req.companyId,
+          userId: { in: résultats.map((résultat) => résultat.userId) },
+          id: { in: shifts.map((shift) => shift.id) },
+        },
+        data: { status: 'CONFIRMED' },
+      })
+    }
+
+    const payload = {
+      ok: échecs.length === 0,
+      recipients: résultats.length,
+      failedRecipients: échecs.length,
+      shifts: shifts.length,
+      confirmedShifts: shifts.filter((shift) => résultats.some((résultat) => résultat.userId === shift.userId)).length,
+      deliveries: résultats,
+      failures: échecs,
+    }
+    res.status(échecs.length > 0 ? 207 : 200).json(payload)
+  } catch (error: any) {
+    logger.error('Erreur POST /planning/publish:', error)
+    res.status(502).json({ message: error?.message || 'Échec de publication du planning' })
   }
 })
 
@@ -242,7 +349,10 @@ router.get('/team', async (req: any, res: Response) => {
   try {
     const team = await prisma.userCompany.findMany({
       where: { companyId: req.companyId, isActive: true },
-      include: { user: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true } } },
+      include: {
+        profile: true,
+        user: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true } },
+      },
       orderBy: { createdAt: 'asc' },
     })
     res.json(team)

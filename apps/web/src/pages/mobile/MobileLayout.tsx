@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Home, Bell, Bot, Activity, Settings, Globe, Sparkles, Camera, Mic } from 'lucide-react'
+import { Bot, Activity, Settings, Sparkles, Mic } from 'lucide-react'
 import { useAssistant } from '@/stores/assistantStore'
 import AssistantMascot from '@/components/AssistantMascot'
 import GeolocPunchIn from '@/components/GeolocPunchIn'
@@ -23,7 +23,6 @@ const NAV = [
   { to: '/m',           label: 'Live',     icon: Activity, end: true },
   { to: '/m/briefing',  label: 'Brief',    icon: Sparkles },
   { to: '/m/robi',      label: 'Robi',     icon: Bot },
-  { to: '/m/magic',     label: 'Magic',    icon: Camera },
   { to: '/m/settings',  label: 'Réglages', icon: Settings },
 ]
 

@@ -37,16 +37,30 @@ function appartient(metadata: Stripe.Metadata | null | undefined, companyId: str
 
 // Créer une session de paiement Stripe Checkout (propriétaire de la société)
 router.post('/create-checkout', requireCompany, requireRole('OWNER'), async (req: Request, res: Response) => {
+  // Le webhook journalise les paiements mais aucun modèle ne persiste encore
+  // l'abonnement. Encaisser dans cet état laisserait le client payé affiché
+  // comme gratuit : la création de Checkout reste donc fermée.
+  return res.status(503).json({
+    code: 'BILLING_PERSISTENCE_REQUIRED',
+    error: "Souscription désactivée jusqu'à la persistance et au test complet des webhooks Stripe.",
+  })
+
   const { plan, email } = req.body as { plan: PlanKey; email: string }
   const companyId = societeDe(req)
   const prices: Record<PlanKey, string> = {
-    starter: process.env.STRIPE_PRICE_STARTER || 'price_starter_39',
-    pro: process.env.STRIPE_PRICE_PRO || 'price_pro_79',
-    business: process.env.STRIPE_PRICE_BUSINESS || 'price_business_149',
+    starter: process.env.STRIPE_PRICE_STARTER || '',
+    pro: process.env.STRIPE_PRICE_PRO || '',
+    business: process.env.STRIPE_PRICE_BUSINESS || '',
   }
 
-  if (!prices[plan]) {
+  if (!['starter', 'pro', 'business'].includes(plan)) {
     return res.status(400).json({ error: `Plan inconnu: ${plan}` })
+  }
+  if (!process.env.STRIPE_SECRET_KEY || !prices[plan]) {
+    return res.status(503).json({ error: 'Paiement Stripe non configuré' })
+  }
+  if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+    return res.status(400).json({ error: 'Email de facturation invalide' })
   }
 
   try {
@@ -56,8 +70,8 @@ router.post('/create-checkout', requireCompany, requireRole('OWNER'), async (req
       line_items: [{ price: prices[plan], quantity: 1 }],
       customer_email: email,
       client_reference_id: companyId,
-      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5174'}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5174'}/billing`,
+      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5174'}/owner/abonnement?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5174'}/owner/abonnement`,
       locale: 'fr',
       subscription_data: {
         trial_period_days: 14,

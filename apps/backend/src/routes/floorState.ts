@@ -1,4 +1,6 @@
-import { Router } from 'express'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { createHash } from 'node:crypto'
+import { Router, type NextFunction, type Request, type Response } from 'express'
 import { safeReadJson, safeWriteJson } from '../lib/safe-json'
 import { dataPath } from '../middleware/audit-log'
 import logger from '../lib/logger'
@@ -11,6 +13,9 @@ import logger from '../lib/logger'
  * L'état vit sur DISQUE. Avant ce correctif il n'existait qu'en mémoire : le plan
  * de salle déplacé, les chaises créées et surtout LES ADDITIONS EN COURS étaient
  * perdus à chaque redémarrage du service.
+ *
+ * Depuis v5.2, cet état est strictement cloisonné par société. L'ancienne
+ * variable globale permettait à deux clients de lire et modifier le même plan.
  */
 
 export type TableStatus = 'LIBRE' | 'OCCUPEE' | 'RESERVEE' | 'NETTOYAGE'
@@ -80,37 +85,79 @@ export interface FloorState {
 const uid = () => Math.random().toString(36).slice(2, 10)
 
 const DEFAULT_STATE: FloorState = {
-  tables: [
-    { id: 't1',  name: 'T1',  seats: 2, section: 'Salle',    status: 'LIBRE',   shape: 'round',  x: 160, y: 150, items: [] },
-    { id: 't2',  name: 'T2',  seats: 4, section: 'Salle',    status: 'LIBRE',   shape: 'square', x: 320, y: 150, items: [] },
-    { id: 't3',  name: 'T3',  seats: 4, section: 'Salle',    status: 'LIBRE',   shape: 'square', x: 480, y: 150, items: [] },
-    { id: 't4',  name: 'T4',  seats: 6, section: 'Salle',    status: 'LIBRE',   shape: 'rect',   x: 160, y: 330, items: [] },
-    { id: 't5',  name: 'T5',  seats: 4, section: 'Salle',    status: 'LIBRE',   shape: 'square', x: 320, y: 330, items: [] },
-    { id: 't6',  name: 'T6',  seats: 2, section: 'Salle',    status: 'LIBRE',   shape: 'round',  x: 480, y: 330, items: [] },
-    { id: 't7',  name: 'T7',  seats: 6, section: 'Salle',    status: 'LIBRE',   shape: 'rect',   x: 220, y: 500, items: [] },
-    { id: 't8',  name: 'T8',  seats: 8, section: 'Salle',    status: 'LIBRE',   shape: 'rect',   x: 470, y: 500, items: [] },
-    { id: 'bar', name: 'Bar', seats: 6, section: 'Bar',      status: 'LIBRE',   shape: 'bar',    x: 840, y: 155, items: [] },
-    { id: 't9',  name: 'Te1', seats: 4, section: 'Terrasse', status: 'LIBRE',   shape: 'round',  x: 790, y: 400, items: [] },
-    { id: 't10', name: 'Te2', seats: 4, section: 'Terrasse', status: 'LIBRE',   shape: 'round',  x: 930, y: 400, items: [] },
-    { id: 't11', name: 'Te3', seats: 2, section: 'Terrasse', status: 'LIBRE',   shape: 'round',  x: 860, y: 550, items: [] },
-  ],
+  // Un nouvel établissement ne doit pas hériter d'un faux restaurant. Il part
+  // d'une salle vide, qu'il peut compléter ou remplacer par un modèle.
+  tables: [],
   chairs: [],
   photos: [],
   zones: [
-    { id: 'salle',    name: 'Salle',    color: '#8b5cf6' },
-    { id: 'bar',      name: 'Bar',      color: '#f59e0b' },
-    { id: 'terrasse', name: 'Terrasse', color: '#10b981' },
+    { id: 'salle-principale', name: 'Salle principale', color: '#8b5cf6' },
   ],
   updatedAt: Date.now(),
 }
 
-const FICHIER = 'floor-state.json'
+const FICHIER_HISTORIQUE = 'floor-state.json'
+const floorContext = new AsyncLocalStorage<string>()
 
-/** Relu au démarrage : on repart du plan de salle laissé par la dernière session. */
-let state: FloorState = safeReadJson<FloorState>(
-  dataPath(FICHIER),
-  JSON.parse(JSON.stringify(DEFAULT_STATE)),
-)
+/** Société portée par la requête courante (routes montées derrière floorCompanyContext). */
+export function currentFloorCompanyId(): string | undefined {
+  return floorContext.getStore()
+}
+const states = new Map<string, FloorState>()
+
+function cloneDefaultState(): FloorState {
+  const plan = JSON.parse(JSON.stringify(DEFAULT_STATE)) as FloorState
+  plan.updatedAt = Date.now()
+  return plan
+}
+
+/** Nom sûr et stable : aucun identifiant de société ne peut sortir de data/. */
+export function companyFloorFilename(companyId: string): string {
+  const readable = companyId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48) || 'company'
+  const digest = createHash('sha256').update(companyId).digest('hex').slice(0, 12)
+  return `floor-state.${readable}.${digest}.json`
+}
+
+function chargerPlanDeSalle(companyId: string): FloorState {
+  const propre = safeReadJson<FloorState | null>(dataPath(companyFloorFilename(companyId)), null)
+  if (propre) return propre
+
+  // L'ancien fichier global n'est repris QUE pour la société explicitement
+  // désignée au déploiement. Il ne doit jamais servir de repli à un nouveau
+  // client, sans quoi le défaut de fuite inter-sociétés réapparaîtrait.
+  if (process.env.LEGACY_FLOOR_COMPANY_ID?.trim() === companyId) {
+    return safeReadJson<FloorState>(dataPath(FICHIER_HISTORIQUE), cloneDefaultState())
+  }
+  return cloneDefaultState()
+}
+
+function companyIdCourante(companyId?: string): string {
+  const resolved = companyId || floorContext.getStore()
+  if (!resolved) throw new Error('Contexte société absent pour le plan de salle')
+  return resolved
+}
+
+/** Retourne uniquement le plan de la société courante (ou explicitement fournie). */
+export function getFloorState(companyId?: string): FloorState {
+  const resolved = companyIdCourante(companyId)
+  let plan = states.get(resolved)
+  if (!plan) {
+    plan = chargerPlanDeSalle(resolved)
+    states.set(resolved, plan)
+  }
+  return plan
+}
+
+export function remplacerPlanDeSalle(plan: FloorState, companyId?: string): FloorState {
+  const resolved = companyIdCourante(companyId)
+  states.set(resolved, plan)
+  return plan
+}
+
+/** États déjà utilisés depuis le démarrage, pour le travail de nettoyage. */
+export function getLoadedFloorStates(): Array<{ companyId: string; state: FloorState }> {
+  return [...states.entries()].map(([companyId, plan]) => ({ companyId, state: plan }))
+}
 
 /**
  * Écrit l'état sur disque (atomique, avec .bak — cf. safe-json).
@@ -118,33 +165,94 @@ let state: FloorState = safeReadJson<FloorState>(
  * l'état sans passer par le routeur (closeStaleFloorSessions).
  * Un échec est journalisé, jamais avalé : une sauvegarde muette est un défaut.
  */
-export function sauvegarderPlanDeSalle(): void {
+export function sauvegarderPlanDeSalle(companyId?: string): void {
+  const resolved = companyIdCourante(companyId)
+  const plan = getFloorState(resolved)
+  const fichier = companyFloorFilename(resolved)
   try {
-    safeWriteJson(dataPath(FICHIER), state)
+    safeWriteJson(dataPath(fichier), plan)
   } catch (err) {
-    logger.error(`[floor-state] échec de la sauvegarde de ${FICHIER}`, err)
+    logger.error(`[floor-state] échec de la sauvegarde de ${fichier}`, err)
   }
 }
 
-const router = Router()
-
-// v5.1 — Broadcast léger après toute mutation, pour que LiveCustomerCount
-// (topbar) se mette à jour en temps réel au lieu de poller en continu.
-const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
-router.use((req, res, next) => {
-  if (MUTATING.has(req.method)) {
-    res.on('finish', () => {
-      // Persistance d'abord : la diffusion temps réel peut échouer sans
-      // conséquence, la perte du plan de salle non.
-      sauvegarderPlanDeSalle()
-      try {
-        const broadcast = (globalThis as any).liveBroadcast
-        if (typeof broadcast === 'function') broadcast('floor', 'floor-updated', { updatedAt: state.updatedAt })
-      } catch { /* broadcast indisponible */ }
-    })
+/**
+ * À monter après requireCompany. AsyncLocalStorage permet aussi aux actions de
+ * l'assistant, qui appellent getFloorState() profondément, de rester dans la
+ * bonne société. Toute mutation réussie est persistée automatiquement.
+ */
+export function floorCompanyContext(req: Request, res: Response, next: NextFunction): void {
+  const companyId = (req as any).companyId
+  if (!companyId || typeof companyId !== 'string') {
+    res.status(500).json({ error: 'Contexte société absent pour le plan de salle' })
+    return
   }
-  next()
+
+  floorContext.run(companyId, () => {
+    if (MUTATING.has(req.method)) {
+      res.on('finish', () => {
+        if (res.statusCode >= 200 && res.statusCode < 400 && states.has(companyId)) {
+          sauvegarderPlanDeSalle(companyId)
+          try {
+            const broadcast = (globalThis as any).liveBroadcast
+            if (typeof broadcast === 'function') {
+              broadcast(`floor-${companyId}`, 'floor-updated', {
+                companyId,
+                updatedAt: getFloorState(companyId).updatedAt,
+              })
+            }
+          } catch { /* broadcast indisponible */ }
+        }
+      })
+    }
+    next()
+  })
+}
+
+// Proxy de compatibilité : les nombreuses actions ci-dessous et l'assistant
+// manipulent `state`, mais la cible est résolue à chaque requête via le contexte.
+const state = new Proxy({} as FloorState, {
+  get: (_target, property) => {
+    if (property === 'toJSON') return () => getFloorState()
+    return Reflect.get(getFloorState(), property)
+  },
+  set: (_target, property, value) => Reflect.set(getFloorState(), property, value),
+  ownKeys: () => Reflect.ownKeys(getFloorState()),
+  getOwnPropertyDescriptor: (_target, property) => {
+    const descriptor = Object.getOwnPropertyDescriptor(getFloorState(), property)
+    return descriptor ? { ...descriptor, configurable: true } : undefined
+  },
 })
+
+const router = Router()
+const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+const TABLE_SHAPES = new Set<FloorTable['shape']>(['round', 'square', 'rect', 'bar'])
+const TABLE_STATUSES = new Set<TableStatus>(['LIBRE', 'OCCUPEE', 'RESERVEE', 'NETTOYAGE'])
+
+function texteCourt(value: unknown, max = 80): string | null {
+  if (typeof value !== 'string') return null
+  const text = value.trim()
+  return text && text.length <= max ? text : null
+}
+
+function nombreBorne(value: unknown, min: number, max: number): number | null {
+  const number = Number(value)
+  return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : null
+}
+
+function articleValide(body: any): Omit<FloorItem, 'id' | 'addedAt'> | null {
+  const name = texteCourt(body?.name, 120)
+  const price = nombreBorne(body?.price, 0, 100_000)
+  const qty = nombreBorne(body?.qty ?? 1, 1, 99)
+  if (!name || price === null || qty === null) return null
+  let note: string | undefined
+  if (body?.note !== undefined && body?.note !== null && body?.note !== '') {
+    const safeNote = texteCourt(body.note, 500)
+    if (!safeNote) return null
+    note = safeNote
+  }
+  return { name, price, qty: Math.round(qty), note }
+}
 
 // Full state read (public)
 router.get('/', (_req, res) => res.json(state))
@@ -152,18 +260,90 @@ router.get('/', (_req, res) => res.json(state))
 // Full replace
 router.put('/', (req, res) => {
   const body = req.body as Partial<FloorState>
-  state = { ...state, ...body, updatedAt: Date.now() }
-  res.json(state)
+  const plan = remplacerPlanDeSalle({ ...getFloorState(), ...body, updatedAt: Date.now() })
+  res.json(plan)
 })
 
 // Partial update
 router.patch('/', (req, res) => {
   const body = req.body as Partial<FloorState>
-  state = { ...state, ...body, updatedAt: Date.now() }
-  res.json(state)
+  const plan = remplacerPlanDeSalle({ ...getFloorState(), ...body, updatedAt: Date.now() })
+  res.json(plan)
 })
 
 // ─── Table actions ──────────────────────────────────────────────────────────
+router.post('/tables', (req, res) => {
+  if (state.tables.length >= 200) return res.status(400).json({ error: '200 tables maximum' })
+  const name = texteCourt(req.body?.name, 60)
+  const section = texteCourt(req.body?.section, 80)
+  const shape = req.body?.shape as FloorTable['shape']
+  const seats = nombreBorne(req.body?.seats, 1, 30)
+  const x = nombreBorne(req.body?.x ?? 160, 0, 2000)
+  const y = nombreBorne(req.body?.y ?? 150, 0, 2000)
+  if (!name || !section || !TABLE_SHAPES.has(shape) || seats === null || x === null || y === null) {
+    return res.status(400).json({ error: 'Table invalide' })
+  }
+  if (!state.zones.some((zone) => zone.name === section)) {
+    return res.status(400).json({ error: 'Salle inconnue' })
+  }
+  const table: FloorTable = {
+    id: `table-${uid()}`,
+    name,
+    seats: Math.round(seats),
+    section,
+    shape,
+    status: 'LIBRE',
+    x,
+    y,
+    items: [],
+  }
+  state.tables.push(table)
+  state.updatedAt = Date.now()
+  res.status(201).json(state)
+})
+
+router.patch('/tables/:id', (req, res) => {
+  const table = state.tables.find((item) => item.id === req.params.id)
+  if (!table) return res.status(404).json({ error: 'table not found' })
+  const body = req.body || {}
+  if (body.name !== undefined) {
+    const name = texteCourt(body.name, 60)
+    if (!name) return res.status(400).json({ error: 'Nom de table invalide' })
+    table.name = name
+  }
+  if (body.section !== undefined) {
+    const section = texteCourt(body.section, 80)
+    if (!section || !state.zones.some((zone) => zone.name === section)) {
+      return res.status(400).json({ error: 'Salle inconnue' })
+    }
+    table.section = section
+  }
+  if (body.shape !== undefined) {
+    if (!TABLE_SHAPES.has(body.shape)) return res.status(400).json({ error: 'Forme de table invalide' })
+    table.shape = body.shape
+  }
+  if (body.seats !== undefined) {
+    const seats = nombreBorne(body.seats, 1, 30)
+    if (seats === null) return res.status(400).json({ error: 'Nombre de places invalide' })
+    table.seats = Math.round(seats)
+  }
+  state.updatedAt = Date.now()
+  res.json(state)
+})
+
+router.delete('/tables/:id', (req, res) => {
+  const table = state.tables.find((item) => item.id === req.params.id)
+  if (!table) return res.status(404).json({ error: 'table not found' })
+  const chairs = state.chairs.filter((chair) => chair.tableId === table.id)
+  if (table.items.length || chairs.some((chair) => chair.items.length)) {
+    return res.status(409).json({ error: 'Table non vide — encaissez ou retirez les articles avant de la supprimer' })
+  }
+  state.chairs = state.chairs.filter((chair) => chair.tableId !== table.id)
+  state.tables = state.tables.filter((item) => item.id !== table.id)
+  state.updatedAt = Date.now()
+  res.json(state)
+})
+
 router.post('/tables/:id/open', (req, res) => {
   const t = state.tables.find((x) => x.id === req.params.id)
   if (!t) return res.status(404).json({ error: 'table not found' })
@@ -176,8 +356,11 @@ router.post('/tables/:id/open', (req, res) => {
 router.post('/tables/:id/close', (req, res) => {
   const t = state.tables.find((x) => x.id === req.params.id)
   if (!t) return res.status(404).json({ error: 'table not found' })
+  const relatedChairs = state.chairs.filter((chair) => chair.tableId === t.id)
+  if (t.items.length || relatedChairs.some((chair) => chair.items.length)) {
+    return res.status(409).json({ error: 'Addition non vide — encaissez ou retirez les articles avant de fermer la table' })
+  }
   t.status = 'NETTOYAGE'
-  t.items = []
   t.openedAt = undefined
   // Also clear chairs of this table
   state.chairs = state.chairs.filter((c) => c.tableId !== req.params.id)
@@ -210,7 +393,8 @@ router.patch('/chairs/:id/position', (req, res) => {
 router.post('/tables/:id/status', (req, res) => {
   const t = state.tables.find((x) => x.id === req.params.id)
   if (!t) return res.status(404).json({ error: 'table not found' })
-  t.status = (req.body?.status || 'LIBRE') as TableStatus
+  if (!TABLE_STATUSES.has(req.body?.status)) return res.status(400).json({ error: 'Statut invalide' })
+  t.status = req.body.status
   state.updatedAt = Date.now()
   res.json(state)
 })
@@ -219,19 +403,36 @@ router.post('/tables/:id/status', (req, res) => {
 router.post('/chairs', (req, res) => {
   const { tableId, label, customerName } = req.body || {}
   if (!tableId) return res.status(400).json({ error: 'tableId required' })
+  const t = state.tables.find((x) => x.id === tableId)
+  if (!t) return res.status(404).json({ error: 'table not found' })
+  if (state.chairs.filter((chair) => chair.tableId === tableId).length >= 30) {
+    return res.status(400).json({ error: '30 chaises maximum par table' })
+  }
+  const safeLabel = label === undefined ? null : texteCourt(label, 60)
+  let safeCustomer: string | undefined
+  if (customerName !== undefined && customerName !== '') {
+    const customer = texteCourt(customerName, 120)
+    if (!customer) return res.status(400).json({ error: 'Chaise invalide' })
+    safeCustomer = customer
+  }
+  if (label !== undefined && !safeLabel) {
+    return res.status(400).json({ error: 'Chaise invalide' })
+  }
   const chair: FloorChair = {
     id: uid(),
-    label: label || `Ch${state.chairs.filter((c) => c.tableId === tableId).length + 1}`,
-    tableId, customerName, items: [],
+    label: safeLabel || `Ch${state.chairs.filter((c) => c.tableId === tableId).length + 1}`,
+    tableId, customerName: safeCustomer, items: [],
   }
   state.chairs.push(chair)
-  const t = state.tables.find((x) => x.id === tableId)
-  if (t && t.status === 'LIBRE') { t.status = 'OCCUPEE'; t.openedAt = Date.now() }
+  if (t.status === 'LIBRE') { t.status = 'OCCUPEE'; t.openedAt = Date.now() }
   state.updatedAt = Date.now()
   res.json(state)
 })
 
 router.delete('/chairs/:id', (req, res) => {
+  const chair = state.chairs.find((item) => item.id === req.params.id)
+  if (!chair) return res.status(404).json({ error: 'chair not found' })
+  if (chair.items.length) return res.status(409).json({ error: 'Chaise non vide — retirez ou transférez ses articles' })
   state.chairs = state.chairs.filter((c) => c.id !== req.params.id)
   state.updatedAt = Date.now()
   res.json(state)
@@ -240,7 +441,19 @@ router.delete('/chairs/:id', (req, res) => {
 router.patch('/chairs/:id', (req, res) => {
   const c = state.chairs.find((x) => x.id === req.params.id)
   if (!c) return res.status(404).json({ error: 'chair not found' })
-  Object.assign(c, req.body)
+  if (req.body?.label !== undefined) {
+    const label = texteCourt(req.body.label, 60)
+    if (!label) return res.status(400).json({ error: 'Nom de chaise invalide' })
+    c.label = label
+  }
+  if (req.body?.customerName !== undefined) {
+    if (req.body.customerName === '') c.customerName = undefined
+    else {
+      const customerName = texteCourt(req.body.customerName, 120)
+      if (!customerName) return res.status(400).json({ error: 'Nom client invalide' })
+      c.customerName = customerName
+    }
+  }
   state.updatedAt = Date.now()
   res.json(state)
 })
@@ -249,8 +462,9 @@ router.patch('/chairs/:id', (req, res) => {
 router.post('/chairs/:id/items', (req, res) => {
   const c = state.chairs.find((x) => x.id === req.params.id)
   if (!c) return res.status(404).json({ error: 'chair not found' })
-  const { name, price, qty = 1, note } = req.body || {}
-  c.items.push({ id: uid(), name, price, qty, note, addedAt: Date.now() })
+  const item = articleValide(req.body)
+  if (!item) return res.status(400).json({ error: 'Article invalide' })
+  c.items.push({ id: uid(), ...item, addedAt: Date.now() })
   state.updatedAt = Date.now()
   res.json(state)
 })
@@ -267,8 +481,9 @@ router.delete('/chairs/:chairId/items/:itemId', (req, res) => {
 router.post('/tables/:id/items', (req, res) => {
   const t = state.tables.find((x) => x.id === req.params.id)
   if (!t) return res.status(404).json({ error: 'table not found' })
-  const { name, price, qty = 1, note } = req.body || {}
-  t.items.push({ id: uid(), name, price, qty, note, addedAt: Date.now() })
+  const item = articleValide(req.body)
+  if (!item) return res.status(400).json({ error: 'Article invalide' })
+  t.items.push({ id: uid(), ...item, addedAt: Date.now() })
   if (t.status === 'LIBRE') { t.status = 'OCCUPEE'; t.openedAt = Date.now() }
   state.updatedAt = Date.now()
   res.json(state)
@@ -280,9 +495,10 @@ router.post('/transfer/chair', (req, res) => {
   const { chairId, toTableId } = req.body || {}
   const c = state.chairs.find((x) => x.id === chairId)
   if (!c) return res.status(404).json({ error: 'chair not found' })
-  c.tableId = toTableId
   const t = state.tables.find((x) => x.id === toTableId)
-  if (t && t.status === 'LIBRE') { t.status = 'OCCUPEE'; t.openedAt = Date.now() }
+  if (!t) return res.status(404).json({ error: 'destination table not found' })
+  c.tableId = toTableId
+  if (t.status === 'LIBRE') { t.status = 'OCCUPEE'; t.openedAt = Date.now() }
   state.updatedAt = Date.now()
   res.json(state)
 })
@@ -346,7 +562,7 @@ router.post('/split/table', (req, res) => {
 router.post('/chairs/:id/close', (req, res) => {
   const c = state.chairs.find((x) => x.id === req.params.id)
   if (!c) return res.status(404).json({ error: 'chair not found' })
-  c.items = []
+  if (c.items.length) return res.status(409).json({ error: 'Addition non vide — encaissez ou retirez les articles avant de libérer la chaise' })
   c.customerName = undefined
   c.status = 'LIBRE'
   c.openedAt = undefined
@@ -475,9 +691,15 @@ Demande : ${prompt}`
 // ─── Zones (salles) — CRUD ─────────────────────────────────────────────────
 router.post('/zones', (req, res) => {
   const { name, color, emoji } = req.body || {}
-  if (!name || typeof name !== 'string') return res.status(400).json({ error: 'name required' })
-  const id = name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 32) + '-' + uid().slice(0, 4)
-  state.zones.push({ id, name, color: color || '#8b5cf6', backgroundImage: undefined })
+  const safeName = texteCourt(name, 80)
+  const safeColor = typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color) ? color : '#8b5cf6'
+  if (!safeName) return res.status(400).json({ error: 'Nom de salle requis' })
+  if (state.zones.length >= 50) return res.status(400).json({ error: '50 salles maximum' })
+  if (state.zones.some((zone) => zone.name.toLocaleLowerCase() === safeName.toLocaleLowerCase())) {
+    return res.status(409).json({ error: 'Une salle porte déjà ce nom' })
+  }
+  const id = safeName.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 32) + '-' + uid().slice(0, 4)
+  state.zones.push({ id, name: safeName, color: safeColor, backgroundImage: undefined })
   state.updatedAt = Date.now()
   res.json(state)
 })
@@ -485,7 +707,26 @@ router.post('/zones', (req, res) => {
 router.patch('/zones/:id', (req, res) => {
   const z = state.zones.find((x) => x.id === req.params.id)
   if (!z) return res.status(404).json({ error: 'zone not found' })
-  Object.assign(z, req.body)
+  if (req.body?.name !== undefined) {
+    const nextName = texteCourt(req.body.name, 80)
+    if (!nextName) return res.status(400).json({ error: 'Nom de salle invalide' })
+    if (state.zones.some((zone) => zone.id !== z.id && zone.name.toLocaleLowerCase() === nextName.toLocaleLowerCase())) {
+      return res.status(409).json({ error: 'Une salle porte déjà ce nom' })
+    }
+    const previousName = z.name
+    z.name = nextName
+    // Renommer une salle déplace aussi ses tables : sans cela elles restaient
+    // dans une section orpheline invisible dans le gestionnaire.
+    for (const table of state.tables) {
+      if (table.section === previousName) table.section = nextName
+    }
+  }
+  if (req.body?.color !== undefined) {
+    if (typeof req.body.color !== 'string' || !/^#[0-9a-f]{6}$/i.test(req.body.color)) {
+      return res.status(400).json({ error: 'Couleur invalide' })
+    }
+    z.color = req.body.color
+  }
   state.updatedAt = Date.now()
   res.json(state)
 })
@@ -503,11 +744,8 @@ router.delete('/zones/:id', (req, res) => {
 
 // ─── Reset (dev helper) ────────────────────────────────────────────────────
 router.post('/reset', (_req, res) => {
-  state = JSON.parse(JSON.stringify(DEFAULT_STATE))
-  res.json(state)
+  const plan = remplacerPlanDeSalle(cloneDefaultState())
+  res.json(plan)
 })
-
-// Exposed for the janitor (closeStaleFloorSessions) — direct memory access.
-export function getFloorState(): FloorState { return state }
 
 export default router

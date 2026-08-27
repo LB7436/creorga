@@ -19,6 +19,7 @@ import {
   CATEGORY_META,
   GAME_ID_ALIASES,
   GUEST_GAMES,
+  JEUX_SELECTIONNES,
   JEUX_RECOMMANDES,
   difficultyLabel,
   estCasino,
@@ -179,7 +180,7 @@ function makeLazyGame(loader: () => Promise<GameModule>): GameComponent {
  * à tenir à jour ici.
  */
 const GAME_COMPONENTS: Record<string, GameComponent> = Object.fromEntries(
-  GUEST_GAMES.flatMap((game) => (game.chargeur ? [[game.id, makeLazyGame(game.chargeur)] as const] : [])),
+  JEUX_SELECTIONNES.flatMap((game) => (game.chargeur ? [[game.id, makeLazyGame(game.chargeur)] as const] : [])),
 )
 
 function gameEnabled(configured: Record<string, boolean>, gameId: string) {
@@ -1060,8 +1061,11 @@ function ActiveGameView({
   )
 }
 
-export default function GamesSection() {
-  const { config } = usePortalConfig(2500)
+export default function GamesSection({ companyId: explicitCompanyId }: { companyId?: string }) {
+  const companyId = explicitCompanyId || (() => {
+    try { return new URLSearchParams(window.location.search).get('companyId') || '' } catch { return '' }
+  })()
+  const { config } = usePortalConfig(2500, companyId || null)
   const [activeGame, setActiveGame] = useState<string | null>(null)
   const [activeCategory, setActiveCategory] = useState<GameCategory>('all')
   const [search, setSearch] = useState('')
@@ -1075,7 +1079,7 @@ export default function GamesSection() {
   const [launchGame, setLaunchGame] = useState<GuestGameDef | null>(null)
   const [launchMode, setLaunchMode] = useState<PlayMode>(() => loadPlayMode())
   const [launchDifficulty, setLaunchDifficulty] = useState<GameDifficulty>(() => loadPlayDifficulty())
-  const [guestClient, setGuestClient] = useState<GuestClientProfile | null>(() => loadGuestClient())
+  const [guestClient, setGuestClient] = useState<GuestClientProfile | null>(() => loadGuestClient(companyId))
   const [registrationOpen, setRegistrationOpen] = useState(false)
   const [launchingGameId, setLaunchingGameId] = useState<string | null>(null)
 
@@ -1086,20 +1090,20 @@ export default function GamesSection() {
   }, [])
 
   useEffect(() => {
-    const refreshGuest = () => setGuestClient(loadGuestClient())
+    const refreshGuest = () => setGuestClient(loadGuestClient(companyId))
     window.addEventListener('creorga-guest-client-updated', refreshGuest)
     window.addEventListener('storage', refreshGuest)
     return () => {
       window.removeEventListener('creorga-guest-client-updated', refreshGuest)
       window.removeEventListener('storage', refreshGuest)
     }
-  }, [])
+  }, [companyId])
 
   const accent = config?.accentColor || ACCENT
   const ui = createGameTheme(config?.themeMode === 'light' ? 'light' : 'dark', accent)
   const visibleGames = useMemo(() => {
     const enabled = config?.games ?? {}
-    return GUEST_GAMES
+    return JEUX_SELECTIONNES
       .filter((game) => estJouable(game) && GAME_COMPONENTS[game.id])
       .filter((game) => gameEnabled(enabled, game.id))
   }, [config?.games])
@@ -1531,6 +1535,7 @@ export default function GamesSection() {
         onNeedProfile={() => setRegistrationOpen(true)}
       />
       <GuestRegistrationModal
+        companyId={companyId}
         open={registrationOpen}
         reason="Creorga garde votre pseudo, email et mobile pour les commandes, les records et les succès."
         onClose={() => setRegistrationOpen(false)}

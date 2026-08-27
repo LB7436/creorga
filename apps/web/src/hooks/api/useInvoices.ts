@@ -59,7 +59,7 @@ export interface Quote {
   number: string
   status: QuoteStatus
   validUntil?: string | null
-  /** Attention : côté serveur ce total est encore HORS TAXES (corrigé en phase 2). */
+  /** Total TTC calculé et arrondi par le serveur à partir des lignes. */
   total: number
   notes?: string | null
   createdAt: string

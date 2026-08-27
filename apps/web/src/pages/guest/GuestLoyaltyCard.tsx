@@ -7,17 +7,17 @@ const REWARD_THRESHOLD = 500
 /**
  * v5.0.5 — Points fidélité visibles côté client (lookup par téléphone).
  */
-export default function GuestLoyaltyCard({ phone }: { phone: string }) {
+export default function GuestLoyaltyCard({ phone, companyId }: { phone: string; companyId: string }) {
   const [points, setPoints] = useState<number | null>(null)
 
   useEffect(() => {
     let alive = true
-    fetch(`${BACKEND}/api/guest/loyalty/${encodeURIComponent(phone)}`)
+    fetch(`${BACKEND}/api/guest/loyalty/${encodeURIComponent(phone)}?companyId=${encodeURIComponent(companyId)}`)
       .then((r) => r.json())
       .then((data) => { if (alive) setPoints(data.points ?? 0) })
       .catch(() => { if (alive) setPoints(null) })
     return () => { alive = false }
-  }, [phone])
+  }, [phone, companyId])
 
   if (!points) return null
 

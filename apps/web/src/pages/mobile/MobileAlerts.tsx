@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Clock, Package, Bell, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, Clock, Bell, ArrowRight, CheckCircle2 } from 'lucide-react'
 import { fetchAuth } from '@/lib/fetchAuth'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
@@ -44,18 +44,6 @@ export default function MobileAlerts() {
           title: `${overdue.ui.items.length} factures en retard`,
           description: overdue.text || '',
           href: '/invoices/factures',
-          ts: Date.now(),
-        })
-      }
-      const lowStock = await runCmd('inv.low-stock')
-      if (lowStock?.ui?.items?.length > 0) {
-        list.push({
-          id: 'lowstock',
-          level: 'warning',
-          icon: Package,
-          title: `Stock bas — ${lowStock.ui.items.length} article(s)`,
-          description: 'Articles sous le seuil minimum',
-          href: '/inventory/stock',
           ts: Date.now(),
         })
       }

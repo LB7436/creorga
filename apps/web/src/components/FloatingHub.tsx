@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Plus, Search, Bot, Boxes, Receipt, Users, CalendarDays, Camera,
-  Megaphone, PackageSearch, Sparkles, X, Zap, LifeBuoy, ChevronLeft,
+  Plus, Search, Bot, Boxes, Receipt, Users, CalendarDays,
+  Sparkles, X, Zap, LifeBuoy, ChevronLeft,
 } from 'lucide-react'
 import { useModuleStore } from '@/stores/moduleStore'
 import { useAssistant } from '@/stores/assistantStore'
@@ -57,28 +57,26 @@ export default function FloatingHub() {
       return [
         { label: 'Nouvelle commande', icon: <Receipt size={16} />, run: () => navigate('/pos/floor') },
         { label: 'Encaisser table', icon: <Plus size={16} />, run: () => navigate('/pos/floor?checkout=1') },
-        { label: 'Stock cafe', icon: <Boxes size={16} />, run: () => navigate('/inventory/stock?filter=cafe') },
+        { label: 'Gérer le catalogue', icon: <Boxes size={16} />, run: () => navigate('/admin/catalog') },
       ]
     }
     if (path.startsWith('/hr') || activeModule === 'hr') {
       return [
         { label: 'Pointer entree', icon: <Plus size={16} />, run: () => askAgent('je commence') },
         { label: 'Qui travaille', icon: <Users size={16} />, run: () => navigate('/hr/planning') },
-        { label: 'Nouveau conge', icon: <CalendarDays size={16} />, run: () => navigate('/hr/conges') },
+        { label: 'Gérer l’équipe', icon: <CalendarDays size={16} />, run: () => navigate('/hr/equipe') },
       ]
     }
     if (path.startsWith('/inventory') || activeModule === 'inventory') {
       return [
-        { label: 'Scanner ticket', icon: <Camera size={16} />, run: () => navigate('/m/camera') },
-        { label: 'Stock bas', icon: <PackageSearch size={16} />, run: () => navigate('/inventory/stock?filter=low') },
-        { label: 'Commander Metro', icon: <Boxes size={16} />, run: () => navigate('/inventory/commandes?supplier=metro') },
+        { label: 'Gérer le catalogue', icon: <Boxes size={16} />, run: () => navigate('/admin/catalog') },
+        { label: 'Choisir un module', icon: <Sparkles size={16} />, run: () => navigate('/modules') },
       ]
     }
     if (path.startsWith('/crm') || activeModule === 'marketing') {
       return [
         { label: 'Nouveau client', icon: <Users size={16} />, run: () => navigate('/crm/clients?action=new') },
-        { label: 'Avis du jour', icon: <Search size={16} />, run: () => navigate('/crm/avis?filter=today') },
-        { label: 'Lancer campagne', icon: <Megaphone size={16} />, run: () => navigate('/crm/campagnes?action=new') },
+        { label: 'Rechercher un client', icon: <Search size={16} />, run: () => navigate('/crm/clients') },
       ]
     }
     return [

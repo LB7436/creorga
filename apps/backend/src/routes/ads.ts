@@ -7,11 +7,10 @@ import path from 'path'
  * displayed on TV screens in the venue.
  *
  * Each ad: image (data-URL), title, subtitle, price, CTA, durationSec, isLive.
- * Storage: apps/backend/data/ads.json
+ * Storage: data/companies/<companyId>/ads.json
  */
 
-const STORE_DIR = path.resolve(process.cwd(), 'data')
-const ADS_FILE = path.join(STORE_DIR, 'ads.json')
+const STORE_DIR = path.resolve(process.cwd(), 'data', 'companies')
 
 export interface Ad {
   id: string
@@ -30,33 +29,56 @@ export interface Ad {
   updatedAt: number
 }
 
-let ads: Ad[] = []
+function safeCompanyId(value: unknown) {
+  const id = String(value || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100)
+  return id || null
+}
 
-function loadAds(): Ad[] {
-  if (!fs.existsSync(STORE_DIR)) fs.mkdirSync(STORE_DIR, { recursive: true })
-  if (!fs.existsSync(ADS_FILE)) return []
-  try { return JSON.parse(fs.readFileSync(ADS_FILE, 'utf8')) } catch { return [] }
+function adsFile(companyId: string) {
+  return path.join(STORE_DIR, companyId, 'ads.json')
 }
-function saveAds() {
-  if (!fs.existsSync(STORE_DIR)) fs.mkdirSync(STORE_DIR, { recursive: true })
-  fs.writeFileSync(ADS_FILE, JSON.stringify(ads, null, 2), 'utf8')
+
+function loadAds(companyId: string): Ad[] {
+  const file = adsFile(companyId)
+  if (!fs.existsSync(file)) return []
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return [] }
 }
-ads = loadAds()
+function saveAds(companyId: string, ads: Ad[]) {
+  const dir = path.dirname(adsFile(companyId))
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(adsFile(companyId), JSON.stringify(ads, null, 2), 'utf8')
+}
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 const router = Router()
 
+// La télévision de salle fonctionne sans session utilisateur. Seule la liste
+// des visuels déjà marqués « en direct » est publique ; le CRUD reste protégé.
+export const liveAdsPublicRouter = Router()
+liveAdsPublicRouter.get('/live', (req, res) => {
+  const companyId = safeCompanyId(req.query.companyId)
+  if (!companyId) return res.status(400).json({ message: 'companyId requis pour cet écran TV' })
+  const ads = loadAds(companyId)
+  const live = ads.filter((ad) => ad.isLive)
+  res.json({ ads: live, total: live.length })
+})
+
 // List all
-router.get('/', (_req, res) => res.json({ ads, total: ads.length }))
+router.get('/', (req: any, res) => {
+  const ads = loadAds(req.companyId)
+  res.json({ ads, total: ads.length })
+})
 
 // Get only live ads (TV display polls this)
-router.get('/live', (_req, res) => {
+router.get('/live', (req: any, res) => {
+  const ads = loadAds(req.companyId)
   res.json({ ads: ads.filter((a) => a.isLive), total: ads.filter((a) => a.isLive).length })
 })
 
 // Create
-router.post('/', (req, res) => {
+router.post('/', (req: any, res) => {
   const body = req.body || {}
+  const ads = loadAds(req.companyId)
   const ad: Ad = {
     id: uid(),
     imageDataUrl: body.imageDataUrl,
@@ -74,33 +96,49 @@ router.post('/', (req, res) => {
     updatedAt: Date.now(),
   }
   ads.push(ad)
-  saveAds()
+  saveAds(req.companyId, ads)
   res.json(ad)
 })
 
 // Update
-router.patch('/:id', (req, res) => {
+router.patch('/:id', (req: any, res) => {
+  const ads = loadAds(req.companyId)
   const ad = ads.find((a) => a.id === req.params.id)
   if (!ad) return res.status(404).json({ error: 'not found' })
-  Object.assign(ad, req.body, { updatedAt: Date.now() })
-  saveAds()
+  const body = req.body || {}
+  if (body.imageDataUrl !== undefined) ad.imageDataUrl = body.imageDataUrl ? String(body.imageDataUrl) : undefined
+  if (body.title !== undefined) ad.title = String(body.title).trim().slice(0, 200) || 'Sans titre'
+  if (body.subtitle !== undefined) ad.subtitle = body.subtitle ? String(body.subtitle).trim().slice(0, 500) : undefined
+  if (body.price !== undefined) ad.price = Number.isFinite(Number(body.price)) ? Number(body.price) : undefined
+  if (body.currency !== undefined) ad.currency = String(body.currency).trim().slice(0, 10)
+  if (body.cta !== undefined) ad.cta = body.cta ? String(body.cta).trim().slice(0, 120) : undefined
+  if (body.durationSec !== undefined) ad.durationSec = Math.max(3, Math.min(60, Number(body.durationSec) || 8))
+  if (body.isLive !== undefined) ad.isLive = !!body.isLive
+  if (body.audience !== undefined) ad.audience = body.audience ? String(body.audience).trim().slice(0, 120) : undefined
+  if (body.bgColor !== undefined) ad.bgColor = String(body.bgColor).slice(0, 30)
+  if (body.textColor !== undefined) ad.textColor = String(body.textColor).slice(0, 30)
+  ad.updatedAt = Date.now()
+  saveAds(req.companyId, ads)
   res.json(ad)
 })
 
 // Delete
-router.delete('/:id', (req, res) => {
-  ads = ads.filter((a) => a.id !== req.params.id)
-  saveAds()
-  res.json({ ok: true, total: ads.length })
+router.delete('/:id', (req: any, res) => {
+  const ads = loadAds(req.companyId)
+  const restants = ads.filter((a) => a.id !== req.params.id)
+  if (restants.length === ads.length) return res.status(404).json({ error: 'not found' })
+  saveAds(req.companyId, restants)
+  res.json({ ok: true, total: restants.length })
 })
 
 // Toggle live
-router.post('/:id/toggle-live', (req, res) => {
+router.post('/:id/toggle-live', (req: any, res) => {
+  const ads = loadAds(req.companyId)
   const ad = ads.find((a) => a.id === req.params.id)
   if (!ad) return res.status(404).json({ error: 'not found' })
   ad.isLive = !ad.isLive
   ad.updatedAt = Date.now()
-  saveAds()
+  saveAds(req.companyId, ads)
   res.json(ad)
 })
 

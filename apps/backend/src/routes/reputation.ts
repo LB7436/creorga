@@ -3,6 +3,11 @@ import prisma from '../lib/prisma'
 import logger from '../lib/logger'
 
 const router = Router()
+const PLATFORMS = new Set(['INTERNAL', 'GOOGLE', 'TRIPADVISOR', 'FACEBOOK'])
+
+async function clientDeLaSociete(companyId: string, customerId: string) {
+  return prisma.customer.findFirst({ where: { id: customerId, companyId }, select: { id: true } })
+}
 
 // ─── GET /api/reputation/reviews ──────────────────────
 
@@ -31,13 +36,22 @@ router.get('/reviews', async (req: any, res: Response) => {
 router.post('/reviews', async (req: any, res: Response) => {
   try {
     const { customerId, platform, rating, comment } = req.body
+    const note = Number(rating)
+    const plateforme = String(platform || 'INTERNAL').toUpperCase()
+    if (!Number.isInteger(note) || note < 1 || note > 5) {
+      return res.status(400).json({ message: 'La note doit être un entier de 1 à 5' })
+    }
+    if (!PLATFORMS.has(plateforme)) return res.status(400).json({ message: 'Plateforme invalide' })
+    if (customerId && !await clientDeLaSociete(req.companyId, String(customerId))) {
+      return res.status(400).json({ message: 'Client invalide pour cette société' })
+    }
     const review = await prisma.review.create({
       data: {
         companyId: req.companyId,
         customerId: customerId || null,
-        platform: platform || 'INTERNAL',
-        rating: parseInt(rating),
-        comment: comment || null,
+        platform: plateforme,
+        rating: note,
+        comment: comment ? String(comment).trim().slice(0, 4000) : null,
       },
     })
     res.status(201).json(review)
@@ -53,9 +67,11 @@ router.put('/reviews/:id/reply', async (req: any, res: Response) => {
   try {
     const existing = await prisma.review.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Avis non trouvé' }); return }
+    const replyText = String(req.body.replyText || '').trim()
+    if (!replyText) return res.status(400).json({ message: 'Réponse requise' })
     const review = await prisma.review.update({
       where: { id: req.params.id },
-      data: { replied: true, replyText: req.body.replyText },
+      data: { replied: true, replyText: replyText.slice(0, 4000) },
     })
     res.json(review)
   } catch (error) {

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { fileToDataUrl } from '@/stores/brandStore'
 import { fetchAuth } from '@/lib/fetchAuth'
+import { useAuthStore } from '@/stores/authStore'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -25,6 +26,7 @@ interface Ad {
 
 export default function AdsAdminPage() {
   const navigate = useNavigate()
+  const companyId = useAuthStore((state) => state.companyId)
   const [ads, setAds] = useState<Ad[]>([])
   const [editing, setEditing] = useState<Ad | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -37,7 +39,7 @@ export default function AdsAdminPage() {
       setAds(data.ads || [])
     } catch { /* offline */ }
   }
-  useEffect(() => { fetchAds() }, [])
+  useEffect(() => { fetchAds() }, [companyId])
 
   const save = async (ad: Partial<Ad>) => {
     if (editing) {
@@ -73,7 +75,7 @@ export default function AdsAdminPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => navigate('/ads/tv')} style={btnSecondary}>
+          <button onClick={() => navigate(`/ads/tv?companyId=${encodeURIComponent(companyId || '')}`)} style={btnSecondary}>
             🖥 Ouvrir l'écran TV
           </button>
           <button onClick={() => { setEditing(null); setShowForm(true) }} style={btnPrimary}>

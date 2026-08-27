@@ -5,8 +5,6 @@ import { Search, ArrowRight, X, Hash, FileText, Users, Package, BookOpen, Zap, C
 import { HELP_CONTENT } from '@/lib/help-content'
 import { fetchAuth } from '@/lib/fetchAuth'
 
-const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
-
 /**
  * Événement d'ouverture de la recherche avancée.
  *
@@ -25,7 +23,7 @@ export function ouvrirRechercheAvancee() {
  * Universal Cmd+K Search — searches across :
  *   - Modules (35+)
  *   - Help articles (50+)
- *   - Live data : invoices, customers, products (via /api/agent/execute on demand)
+ *   - Données réelles : factures, clients et produits via leurs API métier
  *
  * Keyboard : Cmd/Ctrl+K opens, ↑/↓ navigates, ↵ selects, Esc closes.
  */
@@ -43,13 +41,8 @@ const MODULES: { id: string; name: string; emoji: string; route: string }[] = [
   { id: 'pos',        name: 'Caisse POS',        emoji: '💳', route: '/pos' },
   { id: 'crm',        name: 'CRM Clients',       emoji: '👥', route: '/crm/clients' },
   { id: 'invoices',   name: 'Factures & Devis',  emoji: '📋', route: '/invoices/factures' },
-  { id: 'inventory',  name: 'Stocks',            emoji: '📦', route: '/inventory/stock' },
   { id: 'hr',         name: 'Planning RH',       emoji: '🗓️', route: '/hr/planning' },
   { id: 'accounting', name: 'Comptabilité',      emoji: '💶', route: '/accounting/depenses' },
-  { id: 'reputation', name: 'Avis',              emoji: '⭐', route: '/reputation/avis' },
-  { id: 'marketing',  name: 'Marketing',         emoji: '📣', route: '/marketing' },
-  { id: 'agenda',     name: 'Réservations',      emoji: '📅', route: '/agenda/calendrier' },
-  { id: 'haccp',      name: 'HACCP',             emoji: '🛡️', route: '/haccp/journee' },
   { id: 'ai',         name: 'Assistant IA',      emoji: '🤖', route: '/ai' },
   { id: 'qrmenu',     name: 'QR Menu',           emoji: '📱', route: '/qrmenu' },
   { id: 'ads',        name: 'Pub TV',            emoji: '📺', route: '/ads' },
@@ -92,31 +85,47 @@ export default function UniversalSearch() {
     else { setQuery(''); setSelectedIdx(0); setLiveResults([]) }
   }, [open])
 
-  // Search live data when query starts with $ (invoice), @ (customer), # (product)
+  // Recherche directe : $ facture, @ client, # produit. Ces raccourcis parlent
+  // aux API métier, pas à une commande d'assistant partiellement migrée.
   useEffect(() => {
     if (!query.trim()) { setLiveResults([]); return }
-    const prefixes: Record<string, { commandId: string; field: string }> = {
-      '$': { commandId: 'inv.find-by-number',  field: 'number' },
-      '@': { commandId: 'crm.find-customer',   field: 'query'  },
-      '#': { commandId: 'inv.find-product',    field: 'name'   },
-    }
     const first = query[0]
-    if (prefixes[first]) {
+    if (['$', '@', '#'].includes(first)) {
       const rest = query.slice(1).trim()
-      if (!rest) return
-      const cfg = prefixes[first]
+      if (!rest) { setLiveResults([]); return }
       const t = setTimeout(() => {
-        fetchAuth(`${BACKEND}/api/agent/execute`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ commandId: cfg.commandId, input: { [cfg.field]: rest } }),
-        })
-          .then((r) => r.json())
+        const endpoint = first === '$'
+          ? '/api/invoices'
+          : first === '@'
+            ? `/api/crm/customers?limit=20&search=${encodeURIComponent(rest)}`
+            : '/api/products'
+        fetchAuth(endpoint)
+          .then(async (r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
           .then((data) => {
-            const items = (data?.ui?.items || []) as any[]
-            setLiveResults(items.map((it) => ({
+            const source = (data?.customers || data?.invoices || data || []) as any[]
+            const needle = rest.toLowerCase()
+            const trouves = source.filter((item) => {
+              if (first === '$') return String(item.number || item.id || '').toLowerCase().includes(needle)
+              if (first === '@') return String(`${item.firstName || ''} ${item.lastName || ''} ${item.email || ''}`).toLowerCase().includes(needle)
+              return String(item.name || '').toLowerCase().includes(needle)
+            }).slice(0, 10)
+            setLiveResults(trouves.map((item) => ({
               type: first === '$' ? 'invoice' : first === '@' ? 'customer' : 'product',
-              label: it.label, sublabel: it.value, icon: first === '$' ? FileText : first === '@' ? Users : Package,
-              action: () => { if (it.href) { navigate(it.href); setOpen(false) } },
+              label: first === '$'
+                ? `Facture ${item.number || item.id}`
+                : first === '@'
+                  ? `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.email || 'Client'
+                  : item.name || 'Produit',
+              sublabel: first === '$'
+                ? `${item.customer?.firstName || ''} ${item.customer?.lastName || ''} · ${Number(item.total || 0).toFixed(2)} €`
+                : first === '@'
+                  ? item.email || item.phone || 'Fiche client'
+                  : `${Number(item.price || 0).toFixed(2)} € · ${item.category?.name || 'Catalogue'}`,
+              icon: first === '$' ? FileText : first === '@' ? Users : Package,
+              action: () => {
+                navigate(first === '$' ? '/invoices/factures' : first === '@' ? '/crm/clients' : '/admin/catalog')
+                setOpen(false)
+              },
             })))
           })
           .catch(() => setLiveResults([]))
@@ -144,14 +153,14 @@ export default function UniversalSearch() {
           label: `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.email || 'Client',
           sublabel: c.email || c.phone || 'Fiche client',
           icon: Users,
-          action: () => { navigate(`/crm/clients/${c.id || ''}`); setOpen(false) },
+          action: () => { navigate('/crm/clients'); setOpen(false) },
         }))
         const invoiceItems = ((invoices?.invoices || invoices || []) as any[]).slice(0, 3).map((inv) => ({
           type: 'invoice' as const,
           label: `Facture ${inv.number || inv.id}`,
           sublabel: `${inv.customerName || inv.status || ''}`,
           icon: FileText,
-          action: () => { navigate(`/invoices/factures/${inv.number || inv.id}`); setOpen(false) },
+          action: () => { navigate('/invoices/factures'); setOpen(false) },
         }))
         const shiftItems = ((shifts?.shifts || shifts || []) as any[]).slice(0, 2).map((shift) => ({
           type: 'command' as const,
@@ -203,8 +212,6 @@ export default function UniversalSearch() {
 
     results.push(
       { type: 'command', label: '🤖 Robi peut verifier les ventes du jour', sublabel: 'Commande IA', icon: Zap, action: () => { navigate('/ai?intent=ventes-du-jour'); setOpen(false) } },
-      { type: 'command', label: '🤖 Robi peut relancer les clients inactifs', sublabel: 'CRM + SMS', icon: Users, action: () => { navigate('/crm/fidelite'); setOpen(false) } },
-      { type: 'command', label: '🤖 Robi peut detecter les ruptures stock', sublabel: 'Inventaire', icon: Package, action: () => { navigate('/inventory/stock?filter=low'); setOpen(false) } },
     )
 
     // Truncate

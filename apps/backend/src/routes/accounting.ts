@@ -1,6 +1,8 @@
 import { Router, type Response } from 'express'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
+import { z } from 'zod'
+import { validate } from '../middleware/validate'
 
 const router = Router()
 
@@ -150,7 +152,16 @@ router.get('/expenses', async (req: any, res: Response) => {
   }
 })
 
-router.post('/expenses', async (req: any, res: Response) => {
+const expenseSchema = z.object({
+  category: z.enum(['FOOD_COST', 'STAFF', 'UTILITIES', 'SUPPLIES', 'OTHER']),
+  amount: z.number().positive(),
+  taxRate: z.number().min(0).max(100).default(17),
+  description: z.string().trim().min(1).max(500),
+  receiptUrl: z.string().url().nullable().optional(),
+  date: z.string().datetime().optional(),
+})
+
+router.post('/expenses', validate(expenseSchema), async (req: any, res: Response) => {
   try {
     const { category, amount, taxRate, description, receiptUrl, date } = req.body
 
@@ -193,11 +204,15 @@ router.post('/expenses', async (req: any, res: Response) => {
   }
 })
 
-router.put('/expenses/:id', async (req: any, res: Response) => {
+router.put('/expenses/:id', validate(expenseSchema.partial().refine((value) => Object.keys(value).length > 0, { message: 'Aucune modification demandée' })), async (req: any, res: Response) => {
   try {
     const existing = await prisma.expense.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Dépense non trouvée' }); return }
-    const expense = await prisma.expense.update({ where: { id: req.params.id }, data: req.body })
+    const data = {
+      ...req.body,
+      ...(req.body.date ? { date: new Date(req.body.date) } : {}),
+    }
+    const expense = await prisma.expense.update({ where: { id: req.params.id }, data })
     res.json(expense)
   } catch (error) {
     logger.error('Erreur PUT /expenses/:id:', error)

@@ -430,7 +430,7 @@ export const GUEST_GAMES: GuestGameDef[] = [
   },
   {
     id: 'maxiburger', name: 'Maxi Burger', icon: '🍔', miniature: 'arcade',
-    categories: ['arcade'],
+    categories: ['arcade', 'multi'],
     description: 'Empilez le plus haut burger possible : timing et découpes.',
     regles: 'Touchez au bon moment pour poser chaque étage ; ce qui dépasse est coupé. Un étage parfait relance le combo. À plusieurs, chacun joue à son tour sur la même série.',
     estTime: '3 min', difficulty: 1, niveau: 'lanceur',
@@ -555,6 +555,28 @@ export const GAME_ID_ALIASES: Record<string, string> = {
   rummikub3d: 'rummikub',
 }
 
+/**
+ * Sélection publique resserrée : cinq jeux maximum par catégorie visible.
+ * Les anciennes définitions restent dans GUEST_GAMES pour préserver les
+ * scores, favoris et configurations existants, mais elles ne sont plus
+ * proposées aux nouveaux clients. On peut ainsi revenir en arrière sans perte.
+ */
+export const GAME_SELECTION_BY_CATEGORY: Record<Exclude<GameCategory, 'all'>, readonly string[]> = {
+  famille: ['mensch', 'scoopa', 'memory', 'connect4', 'rummikub'],
+  cartes: ['scoopa', 'solitaire', 'run21', 'tritowers', 'bataille'],
+  reflexion: ['memory', 'connect4', 'rummikub', 'chess', 'reversi'],
+  arcade: ['run21', 'tritowers', 'snake', 'towerdefense', 'maxiburger'],
+  multi: ['mensch', 'scoopa', 'maxiburger'],
+  tournois: ['mensch'],
+  casino: ['blackjack', 'poker'],
+}
+
+const SELECTED_GAME_IDS = new Set(Object.values(GAME_SELECTION_BY_CATEGORY).flat())
+
+export const JEUX_SELECTIONNES: GuestGameDef[] = GUEST_GAMES.filter(
+  (game) => SELECTED_GAME_IDS.has(game.id) && estJouable(game),
+)
+
 export function difficultyLabel(value: GuestGameDef['difficulty']) {
   return value === 1 ? 'facile' : value === 2 ? 'moyen' : 'difficile'
 }
@@ -598,6 +620,6 @@ export function libelleAge(game: GuestGameDef) {
  * Jeux mis en avant : famille, jouables (pas bêta), hors casino. La liste est
  * dérivée du registre — pas de liste parallèle à oublier de tenir à jour.
  */
-export const JEUX_RECOMMANDES: GuestGameDef[] = GUEST_GAMES.filter(
+export const JEUX_RECOMMANDES: GuestGameDef[] = JEUX_SELECTIONNES.filter(
   (game) => game.recommande && game.statut === 'jouable' && game.categories.includes('famille') && !estCasino(game),
 )

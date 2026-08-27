@@ -59,12 +59,12 @@ router.post('/campaigns/:id/send', async (req: any, res: Response) => {
   try {
     const existing = await prisma.campaign.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Campagne non trouvée' }); return }
-    const campaign = await prisma.campaign.update({
-      where: { id: req.params.id },
-      data: { status: 'SENT', sentAt: new Date() },
+    // Ne jamais marquer SENT sans fournisseur ni liste de destinataires :
+    // l'ancienne route répondait succès tout en n'envoyant absolument rien.
+    res.status(503).json({
+      code: 'CAMPAIGN_SENDING_NOT_CONFIGURED',
+      message: "Envoi non effectué : le ciblage et le fournisseur d'e-mail/SMS ne sont pas encore configurés.",
     })
-    // Stub: in production, trigger actual send (SMS/Email/Push)
-    res.json({ ...campaign, stub: true, message: 'Envoi déclenché (stub)' })
   } catch (error) {
     logger.error('Erreur POST /campaigns/:id/send:', error)
     res.status(500).json({ message: 'Erreur serveur' })

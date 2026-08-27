@@ -12,8 +12,11 @@ interface Props {
   currentChairCount: number
   onSelect: (count: number) => Promise<void> | void
   onClose: () => void
-  onAddOne: () => void
-  onRemoveOne: () => void
+  onAddOne: () => Promise<void> | void
+  onRemoveOne: () => Promise<void> | void
+  zones: string[]
+  onUpdate: (data: Pick<FloorTable, 'name' | 'seats' | 'section' | 'shape'>) => Promise<void>
+  onDelete: () => Promise<void>
 }
 
 const PRESETS = [
@@ -24,32 +27,84 @@ const PRESETS = [
   { n: 8, label: '8 chaises',   emoji: '🪑×8' },
 ]
 
-export default function ChairCountPicker({ table, currentChairCount, onSelect, onClose, onAddOne, onRemoveOne }: Props) {
+export default function ChairCountPicker({ table, currentChairCount, onSelect, onClose, onAddOne, onRemoveOne, zones, onUpdate, onDelete }: Props) {
   const [custom, setCustom] = useState(currentChairCount || table.seats || 4)
   const [busy, setBusy] = useState<number | null>(null)
+  const [name, setName] = useState(table.name)
+  const [seats, setSeats] = useState(table.seats)
+  const [section, setSection] = useState(table.section)
+  const [shape, setShape] = useState<FloorTable['shape']>(table.shape)
+  const [error, setError] = useState<string | null>(null)
 
   const handlePreset = async (n: number) => {
-    setBusy(n)
+    setBusy(n); setError(null)
     try {
       await onSelect(n)
       onClose()
+    } catch (e: any) {
+      setError(e?.message || 'Impossible de modifier les chaises.')
+    } finally { setBusy(null) }
+  }
+
+  const saveTable = async () => {
+    const safeName = name.trim()
+    if (!safeName) { setError('Le nom de la table est requis.'); return }
+    setBusy(-1); setError(null)
+    try {
+      await onUpdate({ name: safeName, seats, section, shape })
+      onClose()
+    } catch (e: any) {
+      setError(e?.message || 'Impossible de sauvegarder la table.')
+    } finally { setBusy(null) }
+  }
+
+  const deleteTable = async () => {
+    if (!window.confirm(`Supprimer la table « ${table.name} » ?`)) return
+    setBusy(-2); setError(null)
+    try {
+      await onDelete()
+      onClose()
+    } catch (e: any) {
+      setError(e?.message || 'Impossible de supprimer la table.')
     } finally { setBusy(null) }
   }
 
   return (
     <div onClick={onClose} style={overlay}>
-      <div onClick={(e) => e.stopPropagation()} style={card}>
+      <div onClick={(e) => e.stopPropagation()} style={card} role="dialog" aria-modal="true" aria-labelledby="table-config-title">
         <header style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: '#64748b', letterSpacing: 1, textTransform: 'uppercase', fontWeight: 700 }}>
             Configuration des chaises
           </div>
-          <h2 style={{ margin: '6px 0 4px', fontSize: 22, fontWeight: 800 }}>
+          <h2 id="table-config-title" style={{ margin: '6px 0 4px', fontSize: 22, fontWeight: 800 }}>
             🍽 {table.name}
           </h2>
           <div style={{ fontSize: 13, color: '#475569' }}>
             {table.seats} places · forme {table.shape} · {currentChairCount} chaise(s) actuelles
           </div>
         </header>
+
+        <div style={{ marginBottom: 16, padding: 12, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10 }}>
+          <div style={label}>Table et emplacement</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8 }}>
+            <input aria-label="Nom de la table" value={name} onChange={(e) => setName(e.target.value)} style={field} />
+            <input aria-label="Nombre de places" type="number" min={1} max={30} value={seats} onChange={(e) => setSeats(Math.max(1, Math.min(30, Number(e.target.value) || 1)))} style={field} />
+            <select aria-label="Forme de la table" value={shape} onChange={(e) => setShape(e.target.value as FloorTable['shape'])} style={field}>
+              <option value="round">Ronde</option>
+              <option value="square">Carrée</option>
+              <option value="rect">Rectangle</option>
+              <option value="bar">Bar</option>
+            </select>
+            <select aria-label="Salle de la table" value={section} onChange={(e) => setSection(e.target.value)} style={field}>
+              {zones.map((zone) => <option key={zone} value={zone}>{zone}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button type="button" onClick={saveTable} disabled={busy !== null} style={{ ...miniBtn, flex: 1, fontSize: 12 }}>Sauvegarder la table</button>
+            <button type="button" onClick={deleteTable} disabled={busy !== null} style={{ ...miniBtn, color: '#b91c1c', borderColor: '#fecaca', fontSize: 12 }}>Supprimer la table</button>
+          </div>
+          {error && <p role="alert" style={{ color: '#b91c1c', fontSize: 12, margin: '8px 0 0' }}>{error}</p>}
+        </div>
 
         {/* Presets */}
         <div style={{ marginBottom: 14 }}>
@@ -78,10 +133,10 @@ export default function ChairCountPicker({ table, currentChairCount, onSelect, o
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <button onClick={() => setCustom(Math.max(0, custom - 1))}
               style={miniBtn}>−</button>
-            <input type="number" min={0} max={20} value={custom}
+            <input aria-label="Nombre personnalisé de chaises" type="number" min={0} max={20} value={custom}
               onChange={(e) => setCustom(Math.max(0, Math.min(20, +e.target.value || 0)))}
               style={{ width: 80, textAlign: 'center', padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 15, fontWeight: 700 }} />
-            <button onClick={() => setCustom(custom + 1)}
+            <button onClick={() => setCustom(Math.min(20, custom + 1))}
               style={miniBtn}>+</button>
             <button
               onClick={() => handlePreset(custom)}
@@ -101,20 +156,20 @@ export default function ChairCountPicker({ table, currentChairCount, onSelect, o
         }}>
           <div style={label}>Ajout / suppression manuelle</div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={onAddOne} style={{ ...miniBtn, flex: 1, padding: 12, fontSize: 13 }}>
+            <button onClick={() => void onAddOne()} disabled={busy !== null} style={{ ...miniBtn, flex: 1, padding: 12, fontSize: 13 }}>
               ➕ Ajouter une chaise
             </button>
-            <button onClick={onRemoveOne} disabled={currentChairCount === 0}
+            <button onClick={() => void onRemoveOne()} disabled={currentChairCount === 0 || busy !== null}
               style={{ ...miniBtn, flex: 1, padding: 12, fontSize: 13, opacity: currentChairCount === 0 ? 0.4 : 1 }}>
               ➖ Retirer la dernière
             </button>
           </div>
           <p style={{ margin: '10px 0 0', fontSize: 11, color: '#64748b', lineHeight: 1.4 }}>
-            💡 Vous pouvez aussi cliquer directement sur les dots de chaises dans le plan pour ajouter/libérer.
+            💡 Vous pouvez aussi cliquer directement sur les emplacements de chaises dans le plan pour ajouter ou retirer une chaise.
           </p>
         </div>
 
-        <button onClick={onClose} style={{
+        <button type="button" onClick={onClose} style={{
           width: '100%', marginTop: 14, padding: 10, borderRadius: 8,
           border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13,
         }}>Fermer</button>
@@ -130,6 +185,7 @@ const overlay: React.CSSProperties = {
 }
 const card: React.CSSProperties = {
   background: '#fff', borderRadius: 18, padding: 24, width: '100%', maxWidth: 520,
+  maxHeight: '90vh', overflowY: 'auto', boxSizing: 'border-box',
   boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
 }
 const label: React.CSSProperties = {
@@ -139,4 +195,10 @@ const label: React.CSSProperties = {
 const miniBtn: React.CSSProperties = {
   padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0',
   background: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 15,
+}
+
+const field: React.CSSProperties = {
+  width: '100%', minWidth: 0, padding: '8px 9px', borderRadius: 8,
+  border: '1px solid #cbd5e1', background: '#fff', color: '#1e293b',
+  fontSize: 12, boxSizing: 'border-box',
 }

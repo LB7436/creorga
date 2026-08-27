@@ -42,10 +42,13 @@ router.get('/customers', async (req: any, res: Response) => {
       const all: any[] = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : []
       const { search, page = '1', limit = '20' } = req.query
       const q = String(search || '').toLowerCase()
+      // Le fichier historique était global : ne jamais renvoyer les clients
+      // d'une autre société quand PostgreSQL est indisponible.
+      const companyCustomers = all.filter((c) => c.companyId === req.companyId)
       const filtered = q
-        ? all.filter((c) =>
+        ? companyCustomers.filter((c) =>
             [c.firstName, c.lastName, c.email, c.phone].some((v) => String(v || '').toLowerCase().includes(q)))
-        : all
+        : companyCustomers
       const take = parseInt(limit as string)
       const skip = (parseInt(page as string) - 1) * take
       logger.warn('GET /customers: DB indisponible, fallback customers.json')
@@ -84,8 +87,21 @@ router.get('/customers/:id', async (req: any, res: Response) => {
 router.post('/customers', async (req: any, res: Response) => {
   try {
     const { firstName, lastName, email, phone, notes, isGuest } = req.body
+    if (typeof firstName !== 'string' || !firstName.trim() || firstName.trim().length > 80 ||
+        typeof lastName !== 'string' || !lastName.trim() || lastName.trim().length > 80) {
+      res.status(400).json({ message: 'Prénom et nom valides requis (80 caractères maximum)' })
+      return
+    }
     const customer = await prisma.customer.create({
-      data: { companyId: req.companyId, firstName, lastName, email, phone, notes, isGuest: isGuest ?? true },
+      data: {
+        companyId: req.companyId,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: typeof email === 'string' ? email.trim() || null : null,
+        phone: typeof phone === 'string' ? phone.trim() || null : null,
+        notes: typeof notes === 'string' ? notes.trim().slice(0, 2000) || null : null,
+        isGuest: isGuest ?? true,
+      },
     })
     res.status(201).json(customer)
   } catch (error) {
@@ -101,9 +117,20 @@ router.put('/customers/:id', async (req: any, res: Response) => {
     const existing = await prisma.customer.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Client non trouvé' }); return }
     const { firstName, lastName, email, phone, notes } = req.body
+    if (typeof firstName !== 'string' || !firstName.trim() || firstName.trim().length > 80 ||
+        typeof lastName !== 'string' || !lastName.trim() || lastName.trim().length > 80) {
+      res.status(400).json({ message: 'Prénom et nom valides requis (80 caractères maximum)' })
+      return
+    }
     const customer = await prisma.customer.update({
       where: { id: req.params.id },
-      data: { firstName, lastName, email, phone, notes },
+      data: {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: typeof email === 'string' ? email.trim() || null : null,
+        phone: typeof phone === 'string' ? phone.trim() || null : null,
+        notes: typeof notes === 'string' ? notes.trim().slice(0, 2000) || null : null,
+      },
     })
     res.json(customer)
   } catch (error) {

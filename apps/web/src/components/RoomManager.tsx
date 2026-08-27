@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FloorZone } from '@/hooks/useFloorState'
+import { toastError, toastSuccess } from '@/lib/toast'
 
 /**
  * Room (zone) manager modal.
@@ -35,6 +36,7 @@ export default function RoomManager({ open, onClose, zones, onAdd, onPatch, onDe
     try {
       await onAdd({ name: name.trim(), color })
       setName(''); setColor(COLORS[0])
+      toastSuccess('Salle créée et sauvegardée')
     } catch (e: any) {
       setError(e.message || 'Erreur')
     } finally { setBusy(false) }
@@ -45,25 +47,26 @@ export default function RoomManager({ open, onClose, zones, onAdd, onPatch, onDe
     setBusy(true)
     try {
       await onDelete(id)
+      toastSuccess('Salle supprimée')
     } catch (e: any) {
-      alert(e.message || 'Erreur — la salle n\'est peut-être pas vide')
+      toastError(e.message || 'Suppression impossible — la salle n’est peut-être pas vide')
     } finally { setBusy(false) }
   }
 
   return (
     <div onClick={onClose} style={overlay}>
-      <div onClick={(e) => e.stopPropagation()} style={modal}>
+      <div onClick={(e) => e.stopPropagation()} style={modal} role="dialog" aria-modal="true" aria-labelledby="room-manager-title">
         <header style={header}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>🏛 Gérer les salles</h2>
+            <h2 id="room-manager-title" style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>🏛 Gérer les salles</h2>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b' }}>
               Ajoutez, renommez ou supprimez des salles. Chaque salle = sa propre zone sur le plan.
             </p>
           </div>
-          <button onClick={onClose} style={closeBtn}>✕</button>
+          <button type="button" aria-label="Fermer la gestion des salles" onClick={onClose} style={closeBtn}>✕</button>
         </header>
 
-        <div style={{ padding: 20 }}>
+        <div style={{ padding: 20, overflowY: 'auto' }}>
           {/* Existing zones */}
           <div style={{ fontSize: 11, fontWeight: 800, color: '#475569', letterSpacing: 1, marginBottom: 8 }}>
             SALLES ACTUELLES ({zones.length})
@@ -81,8 +84,17 @@ export default function RoomManager({ open, onClose, zones, onAdd, onPatch, onDe
                 }} />
                 <input
                   defaultValue={z.name}
-                  onBlur={(e) => {
-                    if (e.target.value && e.target.value !== z.name) onPatch(z.id, { name: e.target.value })
+                  aria-label={`Nom de la salle ${z.name}`}
+                  onBlur={async (e) => {
+                    const nextName = e.target.value.trim()
+                    if (!nextName || nextName === z.name) return
+                    try {
+                      await onPatch(z.id, { name: nextName })
+                      toastSuccess('Nom de la salle sauvegardé')
+                    } catch (error: any) {
+                      e.target.value = z.name
+                      toastError(error?.message || 'Impossible de renommer la salle')
+                    }
                   }}
                   style={{
                     flex: 1, padding: '6px 10px', border: '1px solid #e2e8f0',
@@ -91,8 +103,10 @@ export default function RoomManager({ open, onClose, zones, onAdd, onPatch, onDe
                 />
                 <code style={{ fontSize: 10, color: '#94a3b8' }}>{z.id}</code>
                 <button
+                  type="button"
                   onClick={() => handleDelete(z.id, z.name)}
                   disabled={busy}
+                  aria-label={`Supprimer la salle ${z.name}`}
                   style={{
                     background: 'transparent', border: 'none', cursor: 'pointer',
                     color: '#ef4444', fontSize: 16, padding: 4,
@@ -115,6 +129,7 @@ export default function RoomManager({ open, onClose, zones, onAdd, onPatch, onDe
               value={name}
               onChange={(e) => { setName(e.target.value); setError(null) }}
               placeholder="Ex: Cave à vins, Salon privé, Mezzanine…"
+              aria-label="Nom de la nouvelle salle"
               style={{
                 width: '100%', padding: '10px 12px', borderRadius: 8,
                 border: '1px solid #c7d2fe', background: '#fff',
@@ -124,7 +139,7 @@ export default function RoomManager({ open, onClose, zones, onAdd, onPatch, onDe
             <div style={{ fontSize: 11, fontWeight: 600, color: '#4338ca', marginBottom: 6 }}>Couleur</div>
             <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
               {COLORS.map((c) => (
-                <button key={c} onClick={() => setColor(c)} style={{
+                <button key={c} type="button" onClick={() => setColor(c)} aria-label={`Couleur ${c}`} aria-pressed={color === c} style={{
                   width: 32, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer',
                   background: c,
                   outline: color === c ? '3px solid #6366f1' : 'none',
@@ -133,7 +148,7 @@ export default function RoomManager({ open, onClose, zones, onAdd, onPatch, onDe
               ))}
             </div>
             {error && <div style={{ color: '#ef4444', fontSize: 12, marginBottom: 8 }}>{error}</div>}
-            <button onClick={handleAdd} disabled={busy || !name.trim()} style={{
+            <button type="button" onClick={handleAdd} disabled={busy || !name.trim()} style={{
               width: '100%', padding: '10px 14px', borderRadius: 8, border: 'none',
               background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
               color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',

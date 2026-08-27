@@ -119,8 +119,10 @@ export const useChairs = create<ChairState>()(
       })),
 
       transferItems: (fromChairId, toChairId) => set((s) => {
+        if (fromChairId === toChairId) return s
         const from = s.chairs.find((c) => c.id === fromChairId)
-        if (!from) return s
+        const to = s.chairs.find((c) => c.id === toChairId)
+        if (!from || !to) return s
         const itemsCopy = from.items.map((i) => ({ ...i, id: uid() }))
         return {
           chairs: s.chairs.map((c) => {

@@ -17,7 +17,7 @@ const STEPS: { key: OrderStatus; emoji: string }[] = [
  * v5.0.1 — Suivi de commande en temps réel via socket.io namespace /live.
  * Fallback poll 20s si le socket n'est pas disponible.
  */
-export default function OrderTracking({ orderId, tableId }: { orderId: string; tableId: string }) {
+export default function OrderTracking({ orderId, tableId, companyId }: { orderId: string; tableId: string; companyId: string }) {
   const [status, setStatus] = useState<OrderStatus>('received')
   const { t } = useGuestLang()
   const socketRef = useRef<any>(null)
@@ -30,7 +30,7 @@ export default function OrderTracking({ orderId, tableId }: { orderId: string; t
 
     const startPoll = () => {
       pollId = window.setInterval(() => {
-        fetch(`${BACKEND}/api/guest/orders/${orderId}`)
+        fetch(`${BACKEND}/api/guest/orders/${orderId}?companyId=${encodeURIComponent(companyId)}`)
           .then((r) => r.json())
           .then((data) => { if (data?.status) applyStatus(data.status) })
           .catch(() => { /* offline — on réessaiera */ })
@@ -40,7 +40,7 @@ export default function OrderTracking({ orderId, tableId }: { orderId: string; t
     try {
       const socket = io(`${BACKEND}/live`, { transports: ['websocket', 'polling'] })
       socketRef.current = socket
-      socket.on('connect', () => socket.emit('subscribe', [`table-${tableId}`]))
+      socket.on('connect', () => socket.emit('subscribe', [`table-${companyId}-${tableId}`]))
       socket.on('order-status', (payload: { orderId: string; status: OrderStatus }) => {
         if (payload.orderId === orderId) applyStatus(payload.status)
       })
@@ -55,7 +55,7 @@ export default function OrderTracking({ orderId, tableId }: { orderId: string; t
       if (pollId) window.clearInterval(pollId)
       socketRef.current?.disconnect()
     }
-  }, [orderId, tableId])
+  }, [orderId, tableId, companyId])
 
   const activeIndex = STEPS.findIndex((s) => s.key === status)
 

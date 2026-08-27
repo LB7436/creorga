@@ -27,8 +27,6 @@ const FLOOR_MENU = [
   { id: 'm10', name: 'Dessert',       price: 5.00 },
 ]
 import { useOrders } from '@/hooks/api/useOrders'
-import { useSocketEvent } from '@/hooks/useSocket'
-import { useQueryClient } from '@tanstack/react-query'
 
 /* ------------------------------------------------------------------ */
 /*  TYPES                                                              */
@@ -163,7 +161,6 @@ function fmtElapsed(ts: number) {
 /*  MAIN COMPONENT                                                     */
 /* ================================================================== */
 export default function FloorPlan() {
-  const qc = useQueryClient()
   const { data: tablesData, isLoading: tablesLoading, isError: tablesError } = useTables()
   const { data: ordersData, isLoading: ordersLoading } = useOrders()
   const updateStatus = useUpdateTableStatus()
@@ -171,18 +168,6 @@ export default function FloorPlan() {
   const setTheme = useTheme((s) => s.setTheme)
   const theme = THEMES.find((t) => t.id === themeId) || THEMES[1]
   const isDark = themeId !== 'indigo'
-
-  // Realtime: any table or order event triggers a cache refresh.
-  useSocketEvent('table:updated', () => {
-    qc.invalidateQueries({ queryKey: ['tables'] })
-  })
-  useSocketEvent('order:new', () => {
-    qc.invalidateQueries({ queryKey: ['orders'] })
-    qc.invalidateQueries({ queryKey: ['tables'] })
-  })
-  useSocketEvent('order:updated', () => {
-    qc.invalidateQueries({ queryKey: ['orders'] })
-  })
 
   // Merge tables with their open orders so the UI sees `orderTotal`/`orderItems`.
   const tables: MockTable[] = useMemo(() => {

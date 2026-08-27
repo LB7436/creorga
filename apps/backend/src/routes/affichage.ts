@@ -28,8 +28,19 @@ import logger from '../lib/logger'
  */
 
 const RACINE = process.cwd()
-const DOSSIER_MEDIAS = path.join(RACINE, 'medias')
-const FICHIER_META = path.join(RACINE, 'data', 'affichage.json')
+
+function safeCompanyId(value: unknown) {
+  const id = String(value || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100)
+  return id || null
+}
+
+function dossierMedias(companyId: string) {
+  return path.join(RACINE, 'medias', 'companies', companyId)
+}
+
+function fichierMeta(companyId: string) {
+  return path.join(RACINE, 'data', 'companies', companyId, 'affichage.json')
+}
 
 /** Taille maximale d'un média téléversé. */
 const TAILLE_MAX = 200 * 1024 * 1024
@@ -100,8 +111,8 @@ const VIDE: Programmation = {
   creneauVide: { mode: 'noir' },
 }
 
-function lire(): Programmation {
-  const p = safeReadJson<Programmation>(FICHIER_META, VIDE)
+function lire(companyId: string): Programmation {
+  const p = safeReadJson<Programmation>(fichierMeta(companyId), VIDE)
   // Un fichier incomplet ne doit pas faire disparaître la programmation :
   // on complète les champs manquants sans rien écraser.
   return {
@@ -112,8 +123,8 @@ function lire(): Programmation {
   }
 }
 
-function ecrire(p: Programmation): void {
-  safeWriteJson(FICHIER_META, p)
+function ecrire(companyId: string, p: Programmation): void {
+  safeWriteJson(fichierMeta(companyId), p)
 }
 
 const identifiant = () => crypto.randomBytes(16).toString('hex')
@@ -129,8 +140,13 @@ const identifiant = () => crypto.randomBytes(16).toString('hex')
 
 export const mediasPublicRouter = Router()
 
-mediasPublicRouter.get('/:id', (req: Request, res: Response) => {
-  const media = lire().medias.find((m) => m.id === req.params.id)
+mediasPublicRouter.get('/:companyId/:id', (req: Request, res: Response) => {
+  const companyId = safeCompanyId(req.params.companyId)
+  if (!companyId) {
+    res.status(400).json({ message: 'Identifiant entreprise invalide' })
+    return
+  }
+  const media = lire(companyId).medias.find((m) => m.id === req.params.id)
   if (!media) {
     res.status(404).json({ message: 'Média introuvable' })
     return
@@ -139,8 +155,9 @@ mediasPublicRouter.get('/:id', (req: Request, res: Response) => {
   // `media.fichier` est construit par le serveur (identifiant tiré au sort +
   // extension issue d'une liste blanche) et jamais repris de l'utilisateur,
   // mais on vérifie tout de même que le chemin reste dans le dossier prévu.
-  const chemin = path.join(DOSSIER_MEDIAS, media.fichier)
-  if (!chemin.startsWith(DOSSIER_MEDIAS + path.sep)) {
+  const dossier = dossierMedias(companyId)
+  const chemin = path.join(dossier, media.fichier)
+  if (!chemin.startsWith(dossier + path.sep)) {
     res.status(400).json({ message: 'Chemin de média invalide' })
     return
   }
@@ -190,8 +207,8 @@ mediasPublicRouter.get('/:id', (req: Request, res: Response) => {
 const router = Router()
 
 /** Programmation complète : médiathèque, séquences, grille et créneau vide. */
-router.get('/', (_req: Request, res: Response) => {
-  res.json(lire())
+router.get('/', (req: any, res: Response) => {
+  res.json(lire(req.companyId))
 })
 
 /**
@@ -209,6 +226,7 @@ router.post(
   '/medias',
   express.raw({ type: '*/*', limit: TAILLE_MAX }),
   (req: Request, res: Response) => {
+    const companyId = (req as any).companyId as string
     const mime = String(req.headers['content-type'] || '').split(';')[0].trim()
     const accepte = TYPES_ACCEPTES[mime]
     if (!accepte) {
@@ -231,10 +249,11 @@ router.post(
     }
 
     try {
-      fs.mkdirSync(DOSSIER_MEDIAS, { recursive: true })
+      const dossier = dossierMedias(companyId)
+      fs.mkdirSync(dossier, { recursive: true })
       const id = identifiant()
       const fichier = `${id}.${accepte.ext}`
-      fs.writeFileSync(path.join(DOSSIER_MEDIAS, fichier), contenu)
+      fs.writeFileSync(path.join(dossier, fichier), contenu)
 
       const media: Media = {
         id,
@@ -247,9 +266,9 @@ router.post(
         creeLe: Date.now(),
       }
 
-      const p = lire()
+      const p = lire(companyId)
       p.medias.push(media)
-      ecrire(p)
+      ecrire(companyId, p)
       res.status(201).json(media)
     } catch (e: any) {
       // Un échec d'écriture ne doit jamais passer inaperçu : sans cela le
@@ -261,8 +280,8 @@ router.post(
 )
 
 /** Renomme un média ou change sa durée par défaut. */
-router.patch('/medias/:id', (req: Request, res: Response) => {
-  const p = lire()
+router.patch('/medias/:id', (req: any, res: Response) => {
+  const p = lire(req.companyId)
   const media = p.medias.find((m) => m.id === req.params.id)
   if (!media) {
     res.status(404).json({ message: 'Média introuvable' })
@@ -272,13 +291,13 @@ router.patch('/medias/:id', (req: Request, res: Response) => {
   if (Number.isFinite(req.body?.dureeParDefautSec)) {
     media.dureeParDefautSec = Math.max(0, Math.min(600, Number(req.body.dureeParDefautSec)))
   }
-  ecrire(p)
+  ecrire(req.companyId, p)
   res.json(media)
 })
 
 /** Supprime un média, son fichier, et toutes ses occurrences en séquence. */
-router.delete('/medias/:id', (req: Request, res: Response) => {
-  const p = lire()
+router.delete('/medias/:id', (req: any, res: Response) => {
+  const p = lire(req.companyId)
   const media = p.medias.find((m) => m.id === req.params.id)
   if (!media) {
     res.status(404).json({ message: 'Média introuvable' })
@@ -294,10 +313,10 @@ router.delete('/medias/:id', (req: Request, res: Response) => {
     sequence.elements = sequence.elements.filter((e) => e.mediaId !== media.id)
     retires += avant - sequence.elements.length
   }
-  ecrire(p)
+  ecrire(req.companyId, p)
 
   try {
-    fs.unlinkSync(path.join(DOSSIER_MEDIAS, media.fichier))
+    fs.unlinkSync(path.join(dossierMedias(req.companyId), media.fichier))
   } catch (e: any) {
     // Un fichier orphelin n'empêche rien, mais il doit être signalé.
     if (e?.code !== 'ENOENT') logger.error(`Fichier média non supprimé (${media.fichier}):`, e)
@@ -307,14 +326,14 @@ router.delete('/medias/:id', (req: Request, res: Response) => {
 })
 
 /** Remplace l'ensemble des séquences. */
-router.put('/sequences', (req: Request, res: Response) => {
+router.put('/sequences', (req: any, res: Response) => {
   const recues = req.body?.sequences
   if (!Array.isArray(recues)) {
     res.status(400).json({ message: 'Le corps doit contenir un tableau « sequences »' })
     return
   }
 
-  const p = lire()
+  const p = lire(req.companyId)
   const mediasConnus = new Set(p.medias.map((m) => m.id))
 
   p.sequences = recues.map((s: any) => ({
@@ -335,19 +354,19 @@ router.put('/sequences', (req: Request, res: Response) => {
   const sequencesConnues = new Set(p.sequences.map((s) => s.id))
   p.creneaux = p.creneaux.filter((c) => sequencesConnues.has(c.sequenceId))
 
-  ecrire(p)
+  ecrire(req.companyId, p)
   res.json({ sequences: p.sequences, creneaux: p.creneaux })
 })
 
 /** Remplace la grille hebdomadaire. */
-router.put('/creneaux', (req: Request, res: Response) => {
+router.put('/creneaux', (req: any, res: Response) => {
   const recus = req.body?.creneaux
   if (!Array.isArray(recus)) {
     res.status(400).json({ message: 'Le corps doit contenir un tableau « creneaux »' })
     return
   }
 
-  const p = lire()
+  const p = lire(req.companyId)
   const sequencesConnues = new Set(p.sequences.map((s) => s.id))
 
   // Une seule séquence par case : la dernière reçue gagne.
@@ -362,19 +381,19 @@ router.put('/creneaux', (req: Request, res: Response) => {
   }
 
   p.creneaux = [...parCase.values()]
-  ecrire(p)
+  ecrire(req.companyId, p)
   res.json({ creneaux: p.creneaux })
 })
 
 /** Configure ce qui passe quand un créneau est vide. */
-router.put('/creneau-vide', (req: Request, res: Response) => {
+router.put('/creneau-vide', (req: any, res: Response) => {
   const mode = req.body?.mode
   if (!['noir', 'sequence', 'message'].includes(mode)) {
     res.status(400).json({ message: 'Mode attendu : noir, sequence ou message' })
     return
   }
 
-  const p = lire()
+  const p = lire(req.companyId)
   const config: CreneauVide = { mode }
   if (mode === 'sequence') {
     if (!p.sequences.some((s) => s.id === req.body?.sequenceId)) {
@@ -386,7 +405,7 @@ router.put('/creneau-vide', (req: Request, res: Response) => {
   if (mode === 'message') config.message = String(req.body?.message || '').slice(0, 240)
 
   p.creneauVide = config
-  ecrire(p)
+  ecrire(req.companyId, p)
   res.json(p.creneauVide)
 })
 
@@ -437,12 +456,16 @@ export function sequenceDuMoment(p: Programmation, maintenant = new Date()) {
  * fonctionnait donc sur aucun écran réel.
  *
  * Ce qui sort d'ici : un nom de séquence, des durées, l'heure, et des URL de
- * médias qui sont DÉJÀ publiques (`/api/media-affichage/:id`, identifiants
+ * médias qui sont DÉJÀ publiques (`/api/media-affichage/:companyId/:id`, identifiants
  * tirés au sort sur 128 bits). Aucune donnée personnelle, aucun chiffre
  * d'affaires. Même niveau de confiance que les médias eux-mêmes.
  */
-function maintenant(_req: Request, res: Response) {
-  const p = lire()
+function maintenant(req: any, res: Response) {
+  const companyId = safeCompanyId(req.companyId || req.query.companyId)
+  if (!companyId) {
+    return res.status(400).json({ message: 'companyId requis pour cet écran TV' })
+  }
+  const p = lire(companyId)
   const { sequence, origine, jour, heure } = sequenceDuMoment(p)
 
   const parId = new Map(p.medias.map((m) => [m.id, m]))
@@ -453,7 +476,7 @@ function maintenant(_req: Request, res: Response) {
       return {
         id: e.id,
         type: media.type,
-        url: `/api/media-affichage/${media.id}`,
+        url: `/api/media-affichage/${companyId}/${media.id}`,
         nom: media.nom,
         dureeSec: e.dureeSec,
       }

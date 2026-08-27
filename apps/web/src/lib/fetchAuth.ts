@@ -21,6 +21,8 @@ export const BACKEND_URL =
 const avecJeton = (init: RequestInit, jeton: string | null): RequestInit => {
   const headers = new Headers(init.headers)
   if (jeton) headers.set('Authorization', `Bearer ${jeton}`)
+  const companyId = useAuthStore.getState().companyId
+  if (companyId && !headers.has('x-company-id')) headers.set('x-company-id', companyId)
   return { ...init, headers, credentials: init.credentials ?? 'include' }
 }
 

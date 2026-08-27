@@ -2,6 +2,7 @@ import { Router } from 'express'
 import fs from 'fs'
 import path from 'path'
 import { internalHeaders } from '../lib/security'
+import { currentFloorCompanyId } from './floorState'
 
 /**
  * Personal Assistant intent engine — parses natural language requests
@@ -16,14 +17,20 @@ import { internalHeaders } from '../lib/security'
 const router = Router()
 const DATA_DIR = path.resolve(process.cwd(), 'data')
 
+function companyAssistantDir() {
+  const companyId = String(currentFloorCompanyId() || 'no-company').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100)
+  return path.join(DATA_DIR, 'companies', companyId, 'assistant')
+}
+
 function loadJson<T = any>(filename: string, fallback: T): T {
-  const p = path.join(DATA_DIR, filename)
+  const p = path.join(companyAssistantDir(), filename)
   if (!fs.existsSync(p)) return fallback
   try { return JSON.parse(fs.readFileSync(p, 'utf8')) as T } catch { return fallback }
 }
 function saveJson(filename: string, data: any) {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
-  fs.writeFileSync(path.join(DATA_DIR, filename), JSON.stringify(data, null, 2), 'utf8')
+  const dir = companyAssistantDir()
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(path.join(dir, filename), JSON.stringify(data, null, 2), 'utf8')
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -478,6 +485,17 @@ function parseIntent(text: string): IntentMatch | null {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function executeIntent(intent: IntentMatch): Promise<{ success: boolean; summary: string; details?: any; uiAction?: any }> {
+  const safeIntents = new Set([
+    'ui.dark-mode', 'ui.navigate', 'web.search', 'help.tutorial', 'help.show-commands',
+    'assistant.set-mode', 'pos.table-summary', 'pos.free-tables', 'pos.occupancy',
+  ])
+  if (!safeIntents.has(intent.intent)) {
+    return {
+      success: false,
+      summary: "Cette action Robi est temporairement indisponible : elle n'est pas encore reliée aux données réelles de cette entreprise.",
+      details: { code: 'ASSISTANT_ACTION_MIGRATION_REQUIRED', intent: intent.intent },
+    }
+  }
 
   switch (intent.intent) {
 
@@ -1901,55 +1919,19 @@ router.get('/web-search', async (req, res) => {
 
 // Phase B v3.10 — Confirm a previewed action
 router.post('/intent/confirm', async (req, res) => {
-  const { intent, proposed, date } = req.body || {}
-  if (!intent) return res.status(400).json({ error: 'intent required' })
-
-  switch (intent) {
-    case 'hr.set-planning.commit': {
-      const shifts = loadJson<any[]>('shifts.json', [])
-      let added = 0
-      for (const p of (proposed || [])) {
-        if (!p.employee || !p.date) continue
-        shifts.push(p)
-        added++
-      }
-      saveJson('shifts.json', shifts)
-      return res.json({
-        kind: 'action', success: true,
-        summary: `✅ ${added} shift(s) enregistré(s) pour ${date}.`,
-      })
-    }
-    case 'invoices.create.commit': {
-      const invoices = loadJson<any[]>('invoices.json', [])
-      const inv = req.body.invoice
-      if (!inv) return res.status(400).json({ error: 'invoice required' })
-      invoices.unshift(inv)
-      saveJson('invoices.json', invoices)
-      return res.json({ kind: 'action', success: true, summary: `✅ Facture ${inv.number} enregistrée.` })
-    }
-    default:
-      return res.status(400).json({ error: 'unknown confirm intent' })
-  }
+  res.status(503).json({
+    kind: 'error',
+    code: 'ASSISTANT_ACTION_MIGRATION_REQUIRED',
+    message: "La validation d'actions Robi est temporairement indisponible jusqu'à sa connexion aux données réelles de l'entreprise.",
+  })
 })
 
 // CRUD : create customer
 router.post('/customers/create', (req, res) => {
-  const customers = loadJson<any[]>('customers.json', [])
-  const c = {
-    id: `c${Date.now()}`,
-    firstName: String(req.body.firstName || '').trim(),
-    lastName: String(req.body.lastName || '').trim(),
-    email: req.body.email || '',
-    phone: req.body.phone || '',
-    tier: req.body.tier || 'Régulier',
-    score: req.body.score ?? 50,
-    totalSpent: 0,
-    lastVisit: null,
-    birthday: req.body.birthday || null,
-  }
-  customers.push(c)
-  saveJson('customers.json', customers)
-  res.json({ ok: true, customer: c })
+  res.status(503).json({
+    code: 'ASSISTANT_ACTION_MIGRATION_REQUIRED',
+    message: 'Créez le client depuis le CRM ; la création par Robi sera réactivée après sa migration.',
+  })
 })
 
 export default router

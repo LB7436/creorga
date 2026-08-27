@@ -49,18 +49,43 @@ export default function HelpChatbot() {
   const [searchQuery, setSearchQuery] = useState('')
   const [globalSearch, setGlobalSearch] = useState(false) // search across all modules
   const [listening, setListening] = useState(false)
+  const [commandesServeur, setCommandesServeur] = useState<Set<string> | null>(null)
   const recognitionRef = useRef<any>(null)
   const location = useLocation()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const help = getHelpForPath(location.pathname)
+  const aidePageIndisponible = [
+    '/inventory', '/haccp', '/backup', '/sites', '/api', '/maintenance',
+    '/sales', '/rgpd', '/community', '/sustainability', '/status',
+  ].some((prefixe) => location.pathname === prefixe || location.pathname.startsWith(`${prefixe}/`))
+    || (location.pathname.startsWith('/crm/') && location.pathname !== '/crm/clients')
+    || (location.pathname.startsWith('/invoices/') && !['/invoices/devis', '/invoices/factures'].includes(location.pathname))
+    || (location.pathname.startsWith('/hr/') && !['/hr/planning', '/hr/equipe'].includes(location.pathname))
+  const articlesDuModule = aidePageIndisponible ? [] : help.articles
+  // Une fiche vidéo sans URL ni tutoriel interactif est une promesse, pas une
+  // action utilisable. Elle n'est donc pas présentée comme un bouton actif.
+  const videosDisponibles = aidePageIndisponible
+    ? []
+    : help.videos.filter((video) => Boolean(video.youtubeId || video.interactiveDemo?.length))
+  const commandesDisponibles = useMemo(
+    () => commandesServeur && !aidePageIndisponible ? help.commands.filter((commande) => commandesServeur.has(commande.id)) : [],
+    [commandesServeur, help, aidePageIndisponible],
+  )
+
+  useEffect(() => {
+    if (!open || commandesServeur) return
+    api.get('/agent/commands')
+      .then((reponse) => setCommandesServeur(new Set(reponse.data?.commands || [])))
+      .catch(() => setCommandesServeur(new Set()))
+  }, [open, commandesServeur])
 
   // Phase 2A.2 — Full-text search in articles (current module by default,
   // or globally if user toggles "Toutes pages")
   const filteredArticles = useMemo(() => {
     const corpus = globalSearch
       ? HELP_CONTENT.flatMap((m) => m.articles.map((a) => ({ ...a, _module: m.title, _emoji: m.emoji })))
-      : help.articles.map((a) => ({ ...a, _module: help.title, _emoji: help.emoji }))
+      : articlesDuModule.map((a) => ({ ...a, _module: help.title, _emoji: help.emoji }))
     if (!searchQuery.trim()) return corpus
     const q = searchQuery.toLowerCase()
     return corpus.filter((a) =>
@@ -68,7 +93,7 @@ export default function HelpChatbot() {
       a.body.toLowerCase().includes(q) ||
       (a.steps || []).some((s: string) => s.toLowerCase().includes(q))
     )
-  }, [searchQuery, globalSearch, help])
+  }, [searchQuery, globalSearch, help, articlesDuModule])
 
   // Phase 2A.3 — Deep link ?help=articleId&autoplay=demo
   useEffect(() => {
@@ -156,8 +181,9 @@ export default function HelpChatbot() {
       const r = await api.post('/agent/execute', { commandId: cmd.id, input })
       const data = r.data
       setMessages((m) => [...m, { role: 'bot', text: data?.text, ui: data?.ui, ts: Date.now() }])
-    } catch {
-      setMessages((m) => [...m, { role: 'bot', text: '⚠️ Erreur serveur agent.', ts: Date.now() }])
+    } catch (e: any) {
+      const message = e?.response?.data?.text || e?.response?.data?.message || '⚠️ Erreur serveur agent.'
+      setMessages((m) => [...m, { role: 'bot', text: message, ts: Date.now() }])
     } finally { setBusy(false) }
   }
 
@@ -230,9 +256,9 @@ export default function HelpChatbot() {
             {/* Tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
               {([
-                { id: 'agent',    label: 'Agent IA', icon: Bot,      count: help.commands.length },
-                { id: 'articles', label: 'Articles', icon: BookOpen, count: help.articles.length },
-                { id: 'videos',   label: 'Vidéos',   icon: Video,    count: help.videos.length },
+                { id: 'agent',    label: 'Agent IA', icon: Bot,      count: commandesDisponibles.length },
+                { id: 'articles', label: 'Articles', icon: BookOpen, count: articlesDuModule.length },
+                { id: 'videos',   label: 'Vidéos',   icon: Video,    count: videosDisponibles.length },
               ] as const).map((t) => {
                 const Icon = t.icon
                 const active = tab === t.id
@@ -277,7 +303,7 @@ export default function HelpChatbot() {
                   {/* Commands grid */}
                   {messages.length === 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
-                      {help.commands.map((cmd) => (
+                      {commandesDisponibles.map((cmd) => (
                         <button key={cmd.id} onClick={() => handleCommandClick(cmd)}
                           disabled={busy}
                           style={{
@@ -298,6 +324,16 @@ export default function HelpChatbot() {
                           <ChevronRight size={14} color="#94a3b8" />
                         </button>
                       ))}
+                      {commandesServeur && commandesDisponibles.length === 0 && (
+                        <div role="status" style={{ padding: 12, borderRadius: 10, background: '#fff', border: '1px solid #e2e8f0', color: '#64748b', fontSize: 12, lineHeight: 1.5 }}>
+                          Aucune commande automatique fiable n’est disponible sur cette page. Utilisez les articles d’aide ou la navigation du module.
+                        </div>
+                      )}
+                      {!commandesServeur && (
+                        <div role="status" style={{ padding: 12, color: '#64748b', fontSize: 12 }}>
+                          Vérification des commandes disponibles…
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -398,13 +434,13 @@ export default function HelpChatbot() {
               {/* ─── VIDEOS TAB ─── */}
               {tab === 'videos' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {help.videos.length === 0 && (
+                  {videosDisponibles.length === 0 && (
                     <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
                       Aucune vidéo pour ce module pour le moment.
                     </div>
                   )}
                   {/* Bonus : démos interactives extraites des articles */}
-                  {help.articles.filter((a) => a.demo && a.demo.length > 0).map((a) => (
+                  {articlesDuModule.filter((a) => a.demo && a.demo.length > 0).map((a) => (
                     <button key={`demo-${a.id}`} onClick={() => { setActiveDemo(a.demo!); setOpen(false) }}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
@@ -420,7 +456,7 @@ export default function HelpChatbot() {
                       <ArrowRight size={14} color="#8b5cf6" />
                     </button>
                   ))}
-                  {help.videos.map((v) => <VideoCard key={v.id} video={v} />)}
+                  {videosDisponibles.map((v) => <VideoCard key={v.id} video={v} />)}
                 </div>
               )}
             </div>

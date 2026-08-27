@@ -8,6 +8,19 @@ import type { User, Company, UserCompany } from '@/types'
 // viewMode='employee' et viewAsEmployeeId=son propre id.
 export type ViewMode = 'owner' | 'employee'
 
+function membershipRole(role: UserCompany['role'] | string | undefined): 'owner' | 'manager' | 'employee' {
+  const normalized = String(role ?? '').toUpperCase()
+  if (normalized === 'OWNER') return 'owner'
+  if (normalized === 'MANAGER') return 'manager'
+  return 'employee'
+}
+
+function userDisplayName(user: User | null): string | null {
+  if (!user) return null
+  const name = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim()
+  return name || user.email || null
+}
+
 interface AuthState {
   accessToken: string | null
   user: User | null
@@ -29,6 +42,7 @@ interface AuthState {
   }) => void
   setAccessToken: (token: string) => void
   setActiveCompany: (companyId: string) => void
+  updateActiveCompany: (company: Company) => void
   setRole: (role: 'owner' | 'manager' | 'employee') => void
   setViewMode: (mode: ViewMode, employeeId?: string, employeeName?: string) => void
   logout: () => void
@@ -58,9 +72,7 @@ export const useAuthStore = create<AuthState>()(
         // en « employee », propriétaires compris, à qui 6 modules étaient masqués
         // (owner, sites, rgpd, backup, api, maintenance). Et ce compte de repli est
         // désactivé en production : plus personne n'était patron.
-        const roleAdhesion = String(companies[0]?.role ?? '').toUpperCase()
-        const userRole: 'owner' | 'manager' | 'employee' =
-          roleAdhesion === 'OWNER' ? 'owner' : roleAdhesion === 'MANAGER' ? 'manager' : 'employee'
+        const userRole = membershipRole(companies[0]?.role)
         set({
           accessToken,
           user,
@@ -71,10 +83,15 @@ export const useAuthStore = create<AuthState>()(
           role: userRole,
           viewMode: userRole === 'employee' ? 'employee' : 'owner',
           viewAsEmployeeId: userRole === 'employee' ? (user as any)?.id : null,
-          viewAsEmployeeName: userRole === 'employee' ? (user as any)?.name : null,
+          viewAsEmployeeName: userRole === 'employee' ? userDisplayName(user) : null,
         })
       },
-      setRole: (role) => set({ role, viewMode: role === 'employee' ? 'employee' : 'owner' }),
+      setRole: (role) => set((state) => ({
+        role,
+        viewMode: role === 'employee' ? 'employee' : 'owner',
+        viewAsEmployeeId: role === 'employee' ? state.user?.id ?? null : null,
+        viewAsEmployeeName: role === 'employee' ? userDisplayName(state.user) : null,
+      })),
       setViewMode: (mode, employeeId, employeeName) => set({
         viewMode: mode,
         viewAsEmployeeId: mode === 'employee' ? (employeeId || null) : null,
@@ -86,12 +103,28 @@ export const useAuthStore = create<AuthState>()(
       },
 
       setActiveCompany: (companyId) => {
-        const { companies } = get()
+        const { companies, user } = get()
         const uc = companies.find((c) => c.companyId === companyId)
         if (uc) {
-          set({ company: uc.company, companyId: uc.companyId })
+          const role = membershipRole(uc.role)
+          set({
+            company: uc.company,
+            companyId: uc.companyId,
+            role,
+            viewMode: role === 'employee' ? 'employee' : 'owner',
+            viewAsEmployeeId: role === 'employee' ? user?.id ?? null : null,
+            viewAsEmployeeName: role === 'employee' ? userDisplayName(user) : null,
+          })
         }
       },
+
+      updateActiveCompany: (company) => set((state) => ({
+        company,
+        companyId: company.id,
+        companies: state.companies.map((membership) =>
+          membership.companyId === company.id ? { ...membership, company } : membership
+        ),
+      })),
 
       logout: () => {
         set({

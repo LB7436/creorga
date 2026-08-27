@@ -1,16 +1,17 @@
 import { Router, type Response } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma'
-import { authenticate, type AuthRequest } from '../middleware/auth'
+import type { AuthRequest } from '../middleware/auth'
 import { requireCompany } from '../middleware/requireCompany'
 import { validate } from '../middleware/validate'
-import { io } from '../index'
 import logger from '../lib/logger'
 
 const router = Router()
-router.use(authenticate)
 // Adhésion vérifiée : le header x-company-id était cru tel quel, et les routes
 // par id (statut, encaissement, articles) n'avaient aucun filtre société.
+// `deviceOrUserAuth` est appliqué dans index.ts AVANT ce routeur : remettre ici
+// `authenticate` refusait systématiquement les vrais terminaux POS, qui ont un
+// X-Device-Token mais aucun Bearer JWT.
 router.use(requireCompany)
 
 /**
@@ -199,9 +200,6 @@ router.post('/', validate(createOrderSchema), async (req: AuthRequest, res: Resp
       return
     }
 
-    // Notifier en temps réel
-    io.emit('order:new', order)
-
     logger.info(`Nouvelle commande #${order.orderNumber} créée`)
     res.status(201).json(order)
   } catch (error) {
@@ -262,7 +260,6 @@ router.put('/:id/status', validate(updateStatusSchema), async (req: AuthRequest,
       include: { items: { include: { product: true } }, table: true },
     })
 
-    io.emit('order:updated', order)
     res.json(order)
   } catch (error) {
     logger.error('Erreur PUT /orders/status:', error)
@@ -324,8 +321,6 @@ router.post('/:id/checkout', validate(checkoutSchema), async (req: AuthRequest, 
       },
       include: { items: { include: { product: true } }, table: true },
     })
-
-    io.emit('order:paid', order)
 
     logger.info(`Commande #${order.orderNumber} encaissée (${paymentMethod})`)
     res.json(order)
@@ -391,7 +386,6 @@ router.post('/:id/items', validate(addItemSchema), async (req: AuthRequest, res:
       include: { items: { include: { product: true } }, table: true },
     })
 
-    io.emit('order:updated', order)
     res.status(201).json(item)
   } catch (error) {
     logger.error('Erreur POST /orders/items:', error)
@@ -443,7 +437,6 @@ router.put('/:id/items/:itemId', async (req: AuthRequest, res: Response) => {
       include: { items: { include: { product: true } }, table: true },
     })
 
-    io.emit('order:updated', order)
     res.json(item)
   } catch (error) {
     logger.error('Erreur PUT /orders/items:', error)
@@ -486,7 +479,6 @@ router.delete('/:id/items/:itemId', async (req: AuthRequest, res: Response) => {
       include: { items: { include: { product: true } }, table: true },
     })
 
-    io.emit('order:updated', order)
     res.json({ message: 'Article supprimé' })
   } catch (error) {
     logger.error('Erreur DELETE /orders/items:', error)

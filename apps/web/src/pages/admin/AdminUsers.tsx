@@ -1,329 +1,157 @@
-import { toastInfo } from '@/lib/toast'
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import toast from 'react-hot-toast'
-import {
-  UserPlus, Search, MoreVertical, Mail, Shield, ShieldCheck,
-  Check, X, Clock, Ban, Users as UsersIcon, Smartphone,
-} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { CheckCircle2, RefreshCw, Search, ShieldCheck, UserRound, UsersRound, XCircle } from 'lucide-react'
+import api from '@/lib/api'
+import { toastError, toastSuccess } from '@/lib/toast'
+import { useAuthStore } from '@/stores/authStore'
 
-type Status = 'active' | 'invited' | 'blocked'
-type Role = 'Owner' | 'Manager' | 'Serveur' | 'Cuisinier' | 'Comptable'
-
-interface User {
+type MemberRole = 'OWNER' | 'MANAGER' | 'EMPLOYEE'
+type Member = {
   id: string
-  firstName: string
-  lastName: string
-  email: string
-  role: Role
-  lastLogin: string
-  status: Status
-  avatarColor: string
+  userId: string
+  companyId: string
+  role: MemberRole | string
+  isActive: boolean
+  createdAt: string
+  user: { id: string; firstName: string; lastName: string; email: string }
 }
 
-const USERS: User[] = [
-  { id: '1', firstName: 'Jean-Pierre',  lastName: 'Weber',       email: 'jp.weber@cafe-rondpoint.lu',   role: 'Owner',     lastLogin: 'il y a 2 min',    status: 'active',  avatarColor: '#3b82f6' },
-  { id: '2', firstName: 'Marie',        lastName: 'Schmit',       email: 'marie.schmit@cafe-rondpoint.lu', role: 'Manager',   lastLogin: 'il y a 1 h',      status: 'active',  avatarColor: '#8b5cf6' },
-  { id: '3', firstName: 'Claude',       lastName: 'Muller',       email: 'claude.muller@cafe-rondpoint.lu', role: 'Serveur',  lastLogin: 'il y a 3 h',      status: 'active',  avatarColor: '#10b981' },
-  { id: '4', firstName: 'Lucas',        lastName: 'Reuter',       email: 'lucas.reuter@cafe-rondpoint.lu', role: 'Cuisinier', lastLogin: 'il y a 15 min',   status: 'active',  avatarColor: '#f59e0b' },
-  { id: '5', firstName: 'Sophie',       lastName: 'Kieffer',      email: 'sophie.kieffer@expert.lu',     role: 'Comptable', lastLogin: 'Jamais',          status: 'invited', avatarColor: '#ec4899' },
-  { id: '6', firstName: 'Tom',          lastName: 'Hoffmann',     email: 'tom.hoffmann@cafe-rondpoint.lu', role: 'Serveur',  lastLogin: 'il y a 14 jours', status: 'blocked', avatarColor: '#64748b' },
-]
-
-const ROLES: Role[] = ['Owner', 'Manager', 'Serveur', 'Cuisinier', 'Comptable']
-const PERMISSIONS = [
-  'Accès POS', 'Modifier menu', 'Voir comptabilité', 'Gérer équipe',
-  'Clôture caisse', 'Exporter données', 'Configuration', 'Admin',
-]
-
-const PERMISSION_MATRIX: Record<Role, boolean[]> = {
-  Owner:     [true, true, true, true, true, true, true, true],
-  Manager:   [true, true, true, true, true, true, false, false],
-  Serveur:   [true, false, false, false, false, false, false, false],
-  Cuisinier: [true, true, false, false, false, false, false, false],
-  Comptable: [false, false, true, false, true, true, false, false],
-}
-
-const statusBadge = (s: Status) => {
-  const map = {
-    active:  { bg: '#dcfce7', color: '#16a34a', label: 'Actif',  icon: <Check size={11} /> },
-    invited: { bg: '#fef3c7', color: '#d97706', label: 'Invité', icon: <Clock size={11} /> },
-    blocked: { bg: '#fee2e2', color: '#dc2626', label: 'Bloqué', icon: <Ban size={11} /> },
-  }
-  return map[s]
-}
-
-const roleColor = (r: Role) => {
-  const map: Record<Role, string> = {
-    Owner: '#8b5cf6', Manager: '#3b82f6', Serveur: '#10b981', Cuisinier: '#f59e0b', Comptable: '#ec4899',
-  }
-  return map[r]
+const ROLE_LABELS: Record<MemberRole, string> = {
+  OWNER: 'Propriétaire', MANAGER: 'Responsable', EMPLOYEE: 'Employé',
 }
 
 export default function AdminUsers() {
-  const [filter, setFilter] = useState<'all' | Status>('all')
+  const currentUser = useAuthStore((state) => state.user)
+  const currentRole = useAuthStore((state) => state.role)
+  const company = useAuthStore((state) => state.company)
+  const [members, setMembers] = useState<Member[]>([])
+  const [loading, setLoading] = useState(true)
+  const [updating, setUpdating] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [showInvite, setShowInvite] = useState(false)
-  const [matrix, setMatrix] = useState(PERMISSION_MATRIX)
-  const [twoFA, setTwoFA] = useState(false)
+  const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('all')
 
-  const [inviteForm, setInviteForm] = useState({
-    email: '', firstName: '', lastName: '', role: 'Serveur' as Role, message: '',
-  })
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const { data } = await api.get<Member[]>('/companies/members')
+      setMembers(data)
+    } catch (error: any) {
+      toastError(error?.response?.data?.message || 'Impossible de charger les utilisateurs')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-  const filtered = USERS.filter((u) => {
-    if (filter !== 'all' && u.status !== filter) return false
-    if (search && !`${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(search.toLowerCase())) return false
-    return true
-  })
+  useEffect(() => { void load() }, [load, company?.id])
 
-  const togglePerm = (role: Role, idx: number) => {
-    if (role === 'Owner') return
-    setMatrix((prev) => ({ ...prev, [role]: prev[role].map((v, i) => i === idx ? !v : v) }))
+  const filtered = useMemo(() => members.filter((member) => {
+    if (status === 'active' && !member.isActive) return false
+    if (status === 'inactive' && member.isActive) return false
+    const haystack = `${member.user.firstName} ${member.user.lastName} ${member.user.email}`.toLowerCase()
+    return haystack.includes(search.trim().toLowerCase())
+  }), [members, search, status])
+
+  const updateMember = async (member: Member, patch: Partial<Pick<Member, 'role' | 'isActive'>>) => {
+    setUpdating(member.userId)
+    try {
+      const { data } = await api.patch<Member>(`/companies/members/${member.userId}`, patch)
+      setMembers((items) => items.map((item) => item.userId === member.userId ? data : item))
+      toastSuccess('Accès enregistré sur le serveur')
+    } catch (error: any) {
+      toastError(error?.response?.data?.message || "Impossible de modifier l'accès")
+    } finally {
+      setUpdating(null)
+    }
   }
 
-  const sendInvite = () => {
-    if (!inviteForm.email) { toast.error('Email requis'); return }
-    toast.success(`Invitation envoyée à ${inviteForm.email}`)
-    setShowInvite(false)
-    setInviteForm({ email: '', firstName: '', lastName: '', role: 'Serveur', message: '' })
-  }
-
-  const counts = {
-    all: USERS.length,
-    active: USERS.filter((u) => u.status === 'active').length,
-    invited: USERS.filter((u) => u.status === 'invited').length,
-    blocked: USERS.filter((u) => u.status === 'blocked').length,
-  }
+  const isOwner = currentRole === 'owner'
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ color: '#1e293b', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
+    <div style={{ color: '#172033', maxWidth: 1120, margin: '0 auto' }}>
+      <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>Utilisateurs & accès</h1>
-          <p style={{ fontSize: 14, color: '#64748b', marginTop: 4 }}>Gérez les accès et permissions de votre équipe</p>
+          <h1 style={{ margin: 0, fontSize: 28, letterSpacing: '-0.03em' }}>Utilisateurs et accès</h1>
+          <p style={{ color: '#64748b', margin: '7px 0 0' }}>Membres réels de {company?.name || "l'établissement"}.</p>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-          onClick={() => setShowInvite(true)}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 18px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-        >
-          <UserPlus size={16} /> Inviter un utilisateur
-        </motion.button>
-      </div>
-
-      {/* Filters + search */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 6, background: '#f1f5f9', padding: 4, borderRadius: 10 }}>
-          {([
-            ['all',     `Tous (${counts.all})`],
-            ['active',  `Actifs (${counts.active})`],
-            ['invited', `Invités (${counts.invited})`],
-            ['blocked', `Bloqués (${counts.blocked})`],
-          ] as [typeof filter, string][]).map(([k, label]) => (
-            <button key={k} onClick={() => setFilter(k)}
-              style={{
-                padding: '7px 14px', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600,
-                background: filter === k ? '#fff' : 'transparent', color: filter === k ? '#1e293b' : '#64748b',
-                cursor: 'pointer', boxShadow: filter === k ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
-                transition: 'all 0.15s',
-              }}
-            >{label}</button>
-          ))}
-        </div>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
-          <Search size={15} style={{ position: 'absolute', left: 12, top: 11, color: '#94a3b8' }} />
-          <input
-            placeholder="Rechercher un utilisateur..."
-            value={search} onChange={(e) => setSearch(e.target.value)}
-            style={{ width: '100%', padding: '9px 12px 9px 36px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13, outline: 'none' }}
-          />
-        </div>
-      </div>
-
-      {/* Table */}
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, overflow: 'hidden', marginBottom: 24 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2.2fr 2fr 1fr 1.2fr 1fr 60px', gap: 12, padding: '12px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          <div>Utilisateur</div><div>Email</div><div>Rôle</div><div>Dernière connexion</div><div>Statut</div><div></div>
-        </div>
-        <AnimatePresence>
-          {filtered.map((u, i) => {
-            const sb = statusBadge(u.status)
-            return (
-              <motion.div key={u.id}
-                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                transition={{ delay: i * 0.03 }}
-                style={{ display: 'grid', gridTemplateColumns: '2.2fr 2fr 1fr 1.2fr 1fr 60px', gap: 12, padding: '14px 20px', borderBottom: i === filtered.length - 1 ? 'none' : '1px solid #f1f5f9', alignItems: 'center' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: u.avatarColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 13 }}>
-                    {u.firstName[0]}{u.lastName[0]}
-                  </div>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{u.firstName} {u.lastName}</div>
-                </div>
-                <div style={{ fontSize: 13, color: '#475569' }}>{u.email}</div>
-                <div>
-                  <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: `${roleColor(u.role)}18`, color: roleColor(u.role) }}>
-                    {u.role}
-                  </span>
-                </div>
-                <div style={{ fontSize: 13, color: '#64748b' }}>{u.lastLogin}</div>
-                <div>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: sb.bg, color: sb.color }}>
-                    {sb.icon} {sb.label}
-                  </span>
-                </div>
-                <button onClick={() => toastInfo('Fiche utilisateur ouverte.')} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8', padding: 6 }}>
-                  <MoreVertical size={16} />
-                </button>
-              </motion.div>
-            )
-          })}
-        </AnimatePresence>
-        {filtered.length === 0 && (
-          <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Aucun utilisateur trouvé</div>
-        )}
-      </div>
-
-      {/* Permission matrix */}
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 24, marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-          <Shield size={18} color="#3b82f6" />
-          <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Matrice des permissions</h2>
-        </div>
-        <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 16px' }}>
-          Les permissions du rôle Owner sont verrouillées et ne peuvent pas être modifiées.
-        </p>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: '#f8fafc' }}>
-                <th style={{ textAlign: 'left', padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', borderRight: '1px solid #e2e8f0' }}>Rôle</th>
-                {PERMISSIONS.map((p) => (
-                  <th key={p} style={{ padding: '10px 8px', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em', textAlign: 'center' }}>{p}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {ROLES.map((role) => (
-                <tr key={role} style={{ borderTop: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '12px 14px', fontWeight: 600, borderRight: '1px solid #e2e8f0' }}>
-                    <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 12, background: `${roleColor(role)}18`, color: roleColor(role) }}>{role}</span>
-                  </td>
-                  {matrix[role].map((v, idx) => (
-                    <td key={idx} style={{ padding: '10px 8px', textAlign: 'center' }}>
-                      <button
-                        onClick={() => togglePerm(role, idx)}
-                        disabled={role === 'Owner'}
-                        style={{
-                          width: 28, height: 28, borderRadius: 6, border: '1px solid ' + (v ? '#3b82f6' : '#e2e8f0'),
-                          background: v ? '#3b82f6' : '#fff', cursor: role === 'Owner' ? 'not-allowed' : 'pointer',
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          opacity: role === 'Owner' ? 0.7 : 1, transition: 'all 0.15s',
-                        }}
-                      >
-                        {v && <Check size={14} color="#fff" />}
-                      </button>
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* 2FA */}
-      <div style={{
-        background: 'linear-gradient(135deg, #eff6ff, #f0f9ff)',
-        border: '1px solid #bfdbfe', borderRadius: 16, padding: 24,
-        display: 'flex', alignItems: 'center', gap: 20,
-      }}>
-        <div style={{ width: 52, height: 52, borderRadius: 12, background: '#3b82f6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <ShieldCheck size={26} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px', color: '#1e293b' }}>Activer l'authentification à deux facteurs</h3>
-          <p style={{ fontSize: 13, color: '#475569', margin: 0, lineHeight: 1.5 }}>
-            Renforcez la sécurité de votre compte en exigeant un code supplémentaire lors de la connexion.
-            Compatible avec Google Authenticator, Authy et les clés de sécurité.
-          </p>
-        </div>
-        <button
-          onClick={() => { setTwoFA(!twoFA); toast.success(twoFA ? '2FA désactivée' : '2FA activée') }}
-          style={{
-            width: 52, height: 28, borderRadius: 14, border: 'none', cursor: 'pointer',
-            background: twoFA ? '#10b981' : '#cbd5e1', position: 'relative', transition: 'background 0.2s',
-          }}
-        >
-          <div style={{
-            position: 'absolute', top: 3, left: twoFA ? 27 : 3, width: 22, height: 22,
-            borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-          }} />
+        <button type="button" onClick={() => void load()} disabled={loading} style={secondaryButton}>
+          <RefreshCw size={15} className={loading ? 'spin' : undefined} /> Actualiser
         </button>
-      </div>
+      </header>
 
-      {/* Invite modal */}
-      <AnimatePresence>
-        {showInvite && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}
-            onClick={() => setShowInvite(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }}
-              style={{ background: '#fff', borderRadius: 16, padding: 28, maxWidth: 480, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Inviter un utilisateur</h2>
-                <button onClick={() => setShowInvite(false)} style={{ border: 'none', background: '#f1f5f9', width: 32, height: 32, borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <X size={16} />
-                </button>
-              </div>
+      <section style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))', gap: 12 }}>
+        <Metric icon={<UsersRound size={18} />} label="Membres" value={members.length} />
+        <Metric icon={<CheckCircle2 size={18} />} label="Actifs" value={members.filter((m) => m.isActive).length} color="#047857" />
+        <Metric icon={<ShieldCheck size={18} />} label="Propriétaires" value={members.filter((m) => m.role === 'OWNER' && m.isActive).length} color="#6d28d9" />
+      </section>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Email</label>
-                  <input type="email" value={inviteForm.email} onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                    placeholder="collaborateur@exemple.lu"
-                    style={{ marginTop: 5, width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Prénom</label>
-                    <input value={inviteForm.firstName} onChange={(e) => setInviteForm({ ...inviteForm, firstName: e.target.value })}
-                      style={{ marginTop: 5, width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+      <section style={cardStyle}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 17 }}>
+          <label style={{ position: 'relative', flex: '1 1 270px' }}>
+            <Search size={16} style={{ position: 'absolute', left: 12, top: 11, color: '#94a3b8' }} />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher par nom ou email" aria-label="Rechercher un utilisateur" style={{ ...inputStyle, paddingLeft: 38 }} />
+          </label>
+          <div style={{ display: 'flex', gap: 5, padding: 4, background: '#f1f5f9', borderRadius: 10 }}>
+            {([['all', 'Tous'], ['active', 'Actifs'], ['inactive', 'Désactivés']] as const).map(([key, label]) => (
+              <button key={key} type="button" onClick={() => setStatus(key)} style={{ ...filterButton, background: status === key ? '#fff' : 'transparent', color: status === key ? '#172033' : '#64748b' }}>{label}</button>
+            ))}
+          </div>
+        </div>
+
+        {loading ? <Empty text="Chargement des utilisateurs…" /> : filtered.length === 0 ? <Empty text="Aucun utilisateur ne correspond à ce filtre." /> : (
+          <div style={{ display: 'grid', gap: 9 }}>
+            {filtered.map((member) => {
+              const self = member.userId === currentUser?.id
+              const disabled = !isOwner || self || updating === member.userId
+              return (
+                <article key={member.id} style={memberRow}>
+                  <div style={avatarStyle}><UserRound size={19} /></div>
+                  <div style={{ minWidth: 0 }}>
+                    <strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.user.firstName} {member.user.lastName}{self ? ' (vous)' : ''}</strong>
+                    <span style={{ color: '#64748b', fontSize: 13, overflowWrap: 'anywhere' }}>{member.user.email}</span>
                   </div>
-                  <div>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Nom</label>
-                    <input value={inviteForm.lastName} onChange={(e) => setInviteForm({ ...inviteForm, lastName: e.target.value })}
-                      style={{ marginTop: 5, width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-                  </div>
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Rôle</label>
-                  <select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value as Role })}
-                    style={{ marginTop: 5, width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, outline: 'none', background: '#fff', boxSizing: 'border-box' }}>
-                    {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Message personnalisé (optionnel)</label>
-                  <textarea value={inviteForm.message} onChange={(e) => setInviteForm({ ...inviteForm, message: e.target.value })}
-                    placeholder="Bienvenue dans l'équipe !" rows={3}
-                    style={{ marginTop: 5, width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                </div>
-                <button onClick={sendInvite}
-                  style={{ marginTop: 8, padding: '12px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                  <Mail size={16} /> Envoyer l'invitation
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+                  <label style={{ display: 'grid', gap: 4, color: '#64748b', fontSize: 11 }}>
+                    Rôle
+                    <select value={normalizeRole(member.role)} disabled={disabled} onChange={(event) => void updateMember(member, { role: event.target.value as MemberRole })} style={selectStyle}>
+                      {Object.entries(ROLE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </label>
+                  <button type="button" disabled={disabled} onClick={() => void updateMember(member, { isActive: !member.isActive })}
+                    style={{ ...statusButton, background: member.isActive ? '#ecfdf5' : '#fef2f2', color: member.isActive ? '#047857' : '#b91c1c', opacity: disabled && !self ? 0.6 : 1 }}>
+                    {member.isActive ? <CheckCircle2 size={15} /> : <XCircle size={15} />}
+                    {updating === member.userId ? 'Enregistrement…' : member.isActive ? 'Actif' : 'Désactivé'}
+                  </button>
+                </article>
+              )
+            })}
+          </div>
         )}
-      </AnimatePresence>
-    </motion.div>
+      </section>
+
+      <aside style={{ ...cardStyle, background: '#f8fafc', color: '#475569', fontSize: 13, lineHeight: 1.55 }}>
+        <strong style={{ color: '#172033' }}>Sécurité des accès</strong><br />
+        Votre propre accès propriétaire et le dernier propriétaire actif sont protégés. Une confirmation de succès apparaît uniquement après l'enregistrement serveur. L'invitation par email n'est pas affichée tant que le lien d'invitation sécurisé n'est pas disponible.
+      </aside>
+    </div>
   )
 }
+
+function normalizeRole(role: string): MemberRole {
+  if (role === 'OWNER' || role === 'MANAGER') return role
+  return 'EMPLOYEE'
+}
+
+function Metric({ icon, label, value, color = '#1d4ed8' }: { icon: React.ReactNode; label: string; value: number; color?: string }) {
+  return <div style={{ padding: 14, borderRadius: 13, background: '#f8fafc', display: 'flex', alignItems: 'center', gap: 11 }}><span style={{ color }}>{icon}</span><div><strong style={{ fontSize: 22 }}>{value}</strong><div style={{ color: '#64748b', fontSize: 12 }}>{label}</div></div></div>
+}
+
+function Empty({ text }: { text: string }) {
+  return <div style={{ padding: 34, textAlign: 'center', color: '#64748b', background: '#f8fafc', borderRadius: 12 }}>{text}</div>
+}
+
+const cardStyle: CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, padding: 20, marginBottom: 18, boxShadow: '0 8px 28px rgba(15,23,42,.05)' }
+const inputStyle: CSSProperties = { width: '100%', boxSizing: 'border-box', border: '1px solid #cbd5e1', borderRadius: 10, padding: '10px 12px', font: 'inherit', outlineColor: '#2563eb' }
+const secondaryButton: CSSProperties = { border: '1px solid #cbd5e1', borderRadius: 10, padding: '10px 13px', background: '#fff', color: '#334155', cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 7 }
+const filterButton: CSSProperties = { border: 0, borderRadius: 7, padding: '7px 11px', cursor: 'pointer', fontWeight: 700, fontSize: 12 }
+const memberRow: CSSProperties = { display: 'grid', gridTemplateColumns: '42px minmax(180px, 1fr) minmax(150px, 190px) minmax(125px, 150px)', gap: 12, alignItems: 'center', border: '1px solid #e2e8f0', borderRadius: 13, padding: 12 }
+const avatarStyle: CSSProperties = { width: 40, height: 40, borderRadius: 12, display: 'grid', placeItems: 'center', color: '#1d4ed8', background: '#eff6ff' }
+const selectStyle: CSSProperties = { border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 9px', background: '#fff', color: '#172033', minWidth: 0 }
+const statusButton: CSSProperties = { border: 0, borderRadius: 9, padding: '9px 11px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', fontWeight: 750 }

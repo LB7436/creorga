@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { fetchAuth } from '@/lib/fetchAuth'
 import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
+import { useAuthStore } from '@/stores/authStore'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -75,6 +76,7 @@ function poids(octets: number): string {
 type Volet = 'mediatheque' | 'sequences' | 'grille'
 
 export default function ProgrammationPage() {
+  const companyId = useAuthStore((state) => state.companyId)
   const [volet, setVolet] = useState<Volet>('grille')
   const [medias, setMedias] = useState<Media[]>([])
   const [sequences, setSequences] = useState<Sequence[]>([])
@@ -110,7 +112,7 @@ export default function ProgrammationPage() {
       }
     }
     charger()
-  }, [])
+  }, [companyId])
 
   // Arrêter la peinture même si le relâchement a lieu hors de la grille.
   useEffect(() => {
@@ -330,7 +332,7 @@ export default function ProgrammationPage() {
           </p>
         </div>
         <a
-          href="/ads/tv"
+          href={`/ads/tv?companyId=${encodeURIComponent(companyId || '')}`}
           target="_blank"
           rel="noreferrer"
           style={{ ...btnSecondaire, textDecoration: 'none' }}
@@ -398,8 +400,8 @@ export default function ProgrammationPage() {
                     display: 'grid', placeItems: 'center',
                   }}>
                     {m.type === 'video'
-                      ? <video src={`${BACKEND}/api/media-affichage/${m.id}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted preload="metadata" />
-                      : <img src={`${BACKEND}/api/media-affichage/${m.id}`} alt={m.nom} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                      ? <video src={`${BACKEND}/api/media-affichage/${encodeURIComponent(companyId || '')}/${m.id}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted preload="metadata" />
+                      : <img src={`${BACKEND}/api/media-affichage/${encodeURIComponent(companyId || '')}/${m.id}`} alt={m.nom} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 10 }}>
                     {m.type === 'video' ? <Film size={14} color="#a5b4fc" /> : <ImageIcon size={14} color="#a5b4fc" />}

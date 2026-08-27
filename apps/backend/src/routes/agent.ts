@@ -1,8 +1,9 @@
 import { Router } from 'express'
 import fs from 'fs'
 import path from 'path'
-import { getFloorState } from './floorState'
+import { currentFloorCompanyId, getFloorState } from './floorState'
 import { internalHeaders } from '../lib/security'
+import prisma from '../lib/prisma'
 
 /**
  * Agent execution endpoint — runs commands defined in the Help Center catalog.
@@ -20,6 +21,24 @@ import { internalHeaders } from '../lib/security'
 const router = Router()
 const DATA_DIR = path.resolve(process.cwd(), 'data')
 
+function safeSegment(value: unknown, fallback = 'unknown') {
+  const clean = String(value || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100)
+  return clean || fallback
+}
+
+/**
+ * L'identité de mémoire vient exclusivement du JWT. Accepter `userId` depuis
+ * le corps ou l'URL permettrait à un membre de lire/écraser les souvenirs d'un
+ * autre membre de la même société.
+ */
+function authenticatedUserId(req: any) {
+  return safeSegment(req.user?.userId, 'authenticated-user')
+}
+
+function companyAgentDir() {
+  return path.join(DATA_DIR, 'companies', safeSegment(currentFloorCompanyId(), 'no-company'), 'assistant')
+}
+
 interface AgentResult {
   kind: 'data' | 'text' | 'error'
   text?: string
@@ -33,7 +52,7 @@ interface AgentResult {
 }
 
 function loadJson<T = any>(filename: string, fallback: T): T {
-  const p = path.join(DATA_DIR, filename)
+  const p = path.join(companyAgentDir(), filename)
   if (!fs.existsSync(p)) return fallback
   try { return JSON.parse(fs.readFileSync(p, 'utf8')) as T } catch { return fallback }
 }
@@ -482,10 +501,22 @@ const HANDLERS: Record<string, (input: any) => AgentResult | Promise<AgentResult
   }) as any,
 }
 
+const SAFE_EXECUTE_COMMANDS = new Set([
+  'home.day-summary', 'pos.day-stats', 'pos.open-tables', 'pos.stale-sessions',
+  'ai.list-actions', 'ai.test-gemma',
+])
+
 router.post('/execute', async (req, res) => {
   const { commandId, input } = req.body || {}
   if (!commandId || !HANDLERS[commandId]) {
     return res.status(400).json({ kind: 'error', text: `Commande inconnue : ${commandId}` })
+  }
+  if (!SAFE_EXECUTE_COMMANDS.has(commandId)) {
+    return res.status(503).json({
+      kind: 'error',
+      code: 'ASSISTANT_COMMAND_MIGRATION_REQUIRED',
+      text: "Cette commande Robi est temporairement indisponible : elle n'est pas encore reliée aux données de cette entreprise.",
+    })
   }
   try {
     const result = await Promise.resolve(HANDLERS[commandId](input || {}))
@@ -496,7 +527,10 @@ router.post('/execute', async (req, res) => {
 })
 
 router.get('/commands', (_req, res) => {
-  res.json({ commands: Object.keys(HANDLERS) })
+  res.json({
+    commands: [...SAFE_EXECUTE_COMMANDS],
+    unavailable: Object.keys(HANDLERS).filter((id) => !SAFE_EXECUTE_COMMANDS.has(id)),
+  })
 })
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -635,15 +669,16 @@ const responseCache = new Map<string, { ts: number; payload: any }>()
 const CACHE_TTL_MS = 60 * 60 * 1000
 
 // Phase 2B#3 — Conversation memory per userId (last 20 exchanges)
-const CHAT_MEMORY_DIR = path.join(DATA_DIR, 'chats')
+const chatMemoryDir = () => path.join(companyAgentDir(), 'chats')
 function loadMemory(userId: string): Array<{ q: string; a: string; ts: number }> {
-  const f = path.join(CHAT_MEMORY_DIR, `${userId}.json`)
+  const f = path.join(chatMemoryDir(), `${safeSegment(userId, 'default')}.json`)
   if (!fs.existsSync(f)) return []
   try { return JSON.parse(fs.readFileSync(f, 'utf8')) } catch { return [] }
 }
 function saveMemory(userId: string, q: string, a: string) {
-  if (!fs.existsSync(CHAT_MEMORY_DIR)) fs.mkdirSync(CHAT_MEMORY_DIR, { recursive: true })
-  const f = path.join(CHAT_MEMORY_DIR, `${userId}.json`)
+  const dir = chatMemoryDir()
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  const f = path.join(dir, `${safeSegment(userId, 'default')}.json`)
   const mem = loadMemory(userId)
   mem.unshift({ q, a, ts: Date.now() })
   if (mem.length > 20) mem.length = 20
@@ -691,7 +726,8 @@ function isContextEmpty(slice: SmartContext): boolean {
 }
 
 router.post('/smart-query', async (req, res) => {
-  const { question, currentPath, userId = 'default' } = req.body || {}
+  const { question, currentPath } = req.body || {}
+  const userId = authenticatedUserId(req)
   if (!question) return res.status(400).json({ kind: 'error', text: 'Question requise.' })
 
   const ctx = loadRelevantContext(currentPath || '/')
@@ -699,7 +735,7 @@ router.post('/smart-query', async (req, res) => {
   const slice = filterContext(ctx, entities)
 
   // Cache check (Phase 2B#5)
-  const cacheKey = `${currentPath}::${userId}::${question.toLowerCase().trim()}`
+  const cacheKey = `${currentFloorCompanyId() || 'no-company'}::${currentPath}::${userId}::${question.toLowerCase().trim()}`
   const cached = responseCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
     return res.json({ ...cached.payload, cached: true })
@@ -1094,7 +1130,7 @@ interface MemoryFact { fact: string; ts: number; source?: string }
 interface MemoryEntry { entity: string; facts: MemoryFact[]; lastSeen: number }
 type MemoryStore = Record<string, MemoryEntry>  // entityKey -> entry
 
-const MEMORY_FILE = (userId: string) => path.join(DATA_DIR, 'robi-memory', `${userId}.json`)
+const MEMORY_FILE = (userId: string) => path.join(companyAgentDir(), 'robi-memory', `${safeSegment(userId, 'default')}.json`)
 
 function loadMemoryStore(userId: string): MemoryStore {
   const f = MEMORY_FILE(userId)
@@ -1112,7 +1148,8 @@ function normalizeEntityKey(raw: string): string {
 }
 
 router.post('/memory/learn', (req, res) => {
-  const { userId = 'default', entity, fact, source } = req.body || {}
+  const { entity, fact, source } = req.body || {}
+  const userId = authenticatedUserId(req)
   if (!entity || !fact) return res.status(400).json({ error: 'entity and fact required' })
   const store = loadMemoryStore(userId)
   const key = normalizeEntityKey(entity)
@@ -1125,7 +1162,7 @@ router.post('/memory/learn', (req, res) => {
 })
 
 router.get('/memory/recall', (req, res) => {
-  const userId = String(req.query.userId || 'default')
+  const userId = authenticatedUserId(req)
   const entity = String(req.query.entity || '')
   const store = loadMemoryStore(userId)
   if (!entity) {
@@ -1144,7 +1181,8 @@ router.get('/memory/recall', (req, res) => {
 })
 
 router.delete('/memory/forget', (req, res) => {
-  const { userId = 'default', entity } = req.body || {}
+  const { entity } = req.body || {}
+  const userId = authenticatedUserId(req)
   if (!entity) return res.status(400).json({ error: 'entity required' })
   const store = loadMemoryStore(userId)
   delete store[normalizeEntityKey(entity)]
@@ -1153,7 +1191,7 @@ router.delete('/memory/forget', (req, res) => {
 })
 
 router.get('/memory/list/:userId', (req, res) => {
-  const store = loadMemoryStore(req.params.userId || 'default')
+  const store = loadMemoryStore(authenticatedUserId(req))
   res.json({ entries: Object.values(store).sort((a, b) => b.lastSeen - a.lastSeen) })
 })
 
@@ -1302,7 +1340,8 @@ function intentToToolSchema(catalogEntry: typeof ROBI_INTENT_CATALOG[number]) {
 }
 
 router.post('/super-ask', async (req, res) => {
-  const { text, currentPath = '/', userId = 'default' } = req.body as { text: string; currentPath?: string; userId?: string }
+  const { text, currentPath = '/' } = req.body as { text: string; currentPath?: string }
+  const userId = authenticatedUserId(req)
   if (!text) return res.status(400).json({ error: 'text required' })
 
   // v3.19 E3 — recall mémoire long-terme pour les entités mentionnées
@@ -1472,6 +1511,58 @@ function pickSuggestions(intent?: string): string[] {
 // ─── v3.17 — DAILY BRIEFING ────────────────────────────────────────────
 // Agrège tout ce qui compte pour le jour J en un seul appel + génère un texte
 // vocal court (<200 caractères) qu'on peut lire à haute voix.
+async function loadCompanyMobileMetrics(companyId: string) {
+  const floor = getFloorState(companyId)
+  const occupiedTables = floor.tables.filter((table) => table.status === 'OCCUPEE').length
+  const revenueOpen = floor.tables.reduce((sum, table) => sum + (table.items || []).reduce((subtotal, item) => subtotal + (item.price || 0) * (item.qty || 1), 0), 0)
+    + floor.chairs.reduce((sum, chair) => sum + (chair.items || []).reduce((subtotal, item) => subtotal + (item.price || 0) * (item.qty || 1), 0), 0)
+  const start = new Date(); start.setHours(0, 0, 0, 0)
+  const end = new Date(start); end.setDate(end.getDate() + 1)
+  const now = new Date()
+  const [shifts, overdueInvoices] = await Promise.all([
+    prisma.shift.findMany({
+      where: { companyId, startTime: { lt: end }, endTime: { gt: start } },
+      select: { user: { select: { firstName: true, lastName: true } } },
+    }),
+    prisma.invoice.findMany({
+      where: {
+        companyId,
+        status: { in: ['SENT', 'OVERDUE'] },
+        dueDate: { lt: now },
+      },
+      select: { total: true },
+    }),
+  ])
+  return {
+    occupiedTables,
+    totalTables: floor.tables.length,
+    revenueOpen,
+    staffNames: shifts.map((shift) => `${shift.user.firstName} ${shift.user.lastName}`.trim()).slice(0, 5),
+    overdue: overdueInvoices.length,
+    unpaidTotal: overdueInvoices.reduce((sum, invoice) => sum + invoice.total, 0),
+  }
+}
+
+router.get('/mobile-summary', async (_req, res) => {
+  const companyId = currentFloorCompanyId()
+  if (!companyId) return res.status(500).json({ message: 'Contexte entreprise absent' })
+  try {
+    const metrics = await loadCompanyMobileMetrics(companyId)
+    res.json({
+      occupiedTables: metrics.occupiedTables,
+      totalTables: metrics.totalTables,
+      currentRevenueOpen: metrics.revenueOpen,
+      invoicesOverdue: metrics.overdue,
+      unpaidTotal: metrics.unpaidTotal,
+      todayShifts: metrics.staffNames.length,
+      alerts: { critical: metrics.overdue > 5 ? 1 : 0 },
+      source: 'prisma-company-scoped',
+    })
+  } catch {
+    res.status(503).json({ message: 'Indicateurs mobiles indisponibles.' })
+  }
+})
+
 router.post('/daily-briefing', async (req, res) => {
   const period = (req.body?.period as 'morning' | 'evening') || 'morning'
   const now = new Date()
@@ -1479,29 +1570,22 @@ router.post('/daily-briefing', async (req, res) => {
   const weekday = now.toLocaleDateString('fr-LU', { weekday: 'long' })
   const heureFmt = now.toLocaleTimeString('fr-LU', { hour: '2-digit', minute: '2-digit' })
 
-  // Aggrège tout en parallèle (best-effort, jamais throw)
-  const safe = async <T>(fn: () => T) => { try { return await fn() } catch { return null } }
-  const [day, today2, low, overdue, unpaid] = await Promise.all([
-    safe(() => HANDLERS['home.day-summary']?.({}) ?? null),
-    safe(() => HANDLERS['hr.who-today']?.({}) ?? null),
-    safe(() => HANDLERS['inv.low-stock']?.({}) ?? null),
-    safe(() => HANDLERS['inv.overdue']?.({}) ?? null),
-    safe(() => HANDLERS['inv.unpaid-total']?.({}) ?? null),
-  ])
-
-  // Extract numbers
-  const occupied = (day as any)?.data?.occupiedTables ?? 0
-  const totalTables = 12
-  const revenueOpen = (day as any)?.data?.currentRevenueOpen ?? 0
-  const staffToday = (today2 as any)?.ui?.items?.length ?? 0
-  const lowStockN = (low as any)?.ui?.items?.length ?? 0
-  const overdueN = (overdue as any)?.ui?.items?.length ?? 0
-  const unpaidM = (unpaid as any)?.text?.match(/\*\*([\d.]+)/)
-  const unpaidTotal = unpaidM ? parseFloat(unpaidM[1]) : 0
-
-  // Liste les noms du staff aujourd'hui
-  // v3.18.1 fix C3 : handler hr.who-today emits {label, value} not {title, text}
-  const staffNames = ((today2 as any)?.ui?.items || []).map((s: any) => s.label || s.title || s.text || '').filter(Boolean).slice(0, 3)
+  const companyId = currentFloorCompanyId()
+  if (!companyId) return res.status(500).json({ message: 'Contexte entreprise absent' })
+  let metrics: Awaited<ReturnType<typeof loadCompanyMobileMetrics>>
+  try {
+    metrics = await loadCompanyMobileMetrics(companyId)
+  } catch {
+    return res.status(503).json({ message: 'Briefing indisponible : données de l’entreprise injoignables.' })
+  }
+  const occupied = metrics.occupiedTables
+  const totalTables = metrics.totalTables
+  const revenueOpen = metrics.revenueOpen
+  const staffNames = metrics.staffNames
+  const staffToday = staffNames.length
+  const lowStockN = 0 // inventaire masqué jusqu'à la fin de sa migration multi-entreprises
+  const overdueN = metrics.overdue
+  const unpaidTotal = metrics.unpaidTotal
 
   // Compose voice briefing (style oral, naturel, fr-LU)
   let voice = ''
@@ -1509,13 +1593,11 @@ router.post('/daily-briefing', async (req, res) => {
     voice = `Bonjour ! Nous sommes ${weekday}, il est ${heureFmt}. `
     if (staffToday > 0) voice += `Aujourd'hui, ${staffToday} personne${staffToday > 1 ? 's' : ''} au planning${staffNames.length ? ' : ' + staffNames.join(', ') : ''}. `
     else voice += `Personne n'est planifié au resto aujourd'hui — vérifie le planning. `
-    if (lowStockN > 0) voice += `Attention, ${lowStockN} produit${lowStockN > 1 ? 's' : ''} en stock bas à recommander. `
     if (overdueN > 0) voice += `${overdueN} facture${overdueN > 1 ? 's' : ''} en retard de paiement, total ${unpaidTotal.toFixed(0)} euros. `
-    if (lowStockN === 0 && overdueN === 0) voice += `Tout est en ordre côté stock et factures, bonne journée ! `
+    if (overdueN === 0) voice += `Aucune facture échue impayée, bonne journée ! `
   } else {
     voice = `Bilan du soir ${weekday} ${heureFmt}. `
     voice += `${occupied} table${occupied > 1 ? 's' : ''} sur ${totalTables} étaient occupées, chiffre d'affaires en cours ${revenueOpen.toFixed(0)} euros. `
-    if (lowStockN > 0) voice += `Il faut prévoir une commande pour ${lowStockN} produit${lowStockN > 1 ? 's' : ''}. `
     if (overdueN > 0) voice += `Pense à relancer ${overdueN} facture${overdueN > 1 ? 's' : ''} en retard. `
     voice += `Bonne soirée !`
   }
@@ -1539,7 +1621,7 @@ router.post('/daily-briefing', async (req, res) => {
       emoji: '💶',
       title: `${overdueN} factures en retard (${unpaidTotal.toFixed(0)} €)`,
       subtitle: 'Voir et envoyer les relances',
-      action: { type: 'navigate', route: '/invoices/relances' },
+      action: { type: 'navigate', route: '/invoices/factures' },
     })
   }
   if (staffToday === 0 && period === 'morning') {
@@ -1559,15 +1641,15 @@ router.post('/daily-briefing', async (req, res) => {
       subtitle: 'Continue ta journée tranquillement',
     })
   }
-  // Toujours inclure la suggestion "envoyer message clients fidèles"
+  // Complément réellement disponible : ouvrir le CRM, sans promettre d'envoi.
   if (priorities.length < 3) {
     // v3.18.1 fix M6 : commandId crm.loyalty-suggest n'a pas de handler → utiliser navigate
     priorities.push({
       id: 'loyalty',
       emoji: '⭐',
-      title: 'Récompense tes clients fidèles',
-      subtitle: 'Voir les top clients pour leur envoyer un message',
-      action: { type: 'navigate', route: '/crm/fidelite' },
+      title: 'Consulte tes clients',
+      subtitle: 'Ouvrir les fiches et les points de fidélité dans le CRM',
+      action: { type: 'navigate', route: '/crm/clients' },
     })
   }
 
@@ -1585,7 +1667,7 @@ router.post('/daily-briefing', async (req, res) => {
     },
     voice,                                 // texte à lire avec TTS
     priorities: priorities.slice(0, 3),    // max 3 actions du jour
-    debug: { handlersFound: { day: !!day, staff: !!today2, low: !!low, overdue: !!overdue, unpaid: !!unpaid } },
+    source: 'prisma-company-scoped',
   })
 })
 
@@ -1593,6 +1675,16 @@ router.post('/daily-briefing', async (req, res) => {
 // Une seule photo, l'IA classifie ce que c'est et exécute la bonne action.
 // Catégories : receipt | fridge | equipment | review | dish | unknown
 router.post('/photo-magic', async (req, res) => {
+  // Cette fonction proposait des CTA vers inventaire/HACCP/marketing alors
+  // qu'aucune de ces écritures n'était réellement raccordée. Elle ne doit pas
+  // accepter ni analyser des photos avant une migration complète et un cadre
+  // de conservation explicite.
+  return res.status(503).json({
+    code: 'FEATURE_MIGRATION_REQUIRED',
+    message: 'Photo magique indisponible : import d’images et destinations métier en cours de migration.',
+  })
+
+  /* istanbul ignore next -- ancien moteur conservé temporairement, inaccessible */
   const { imageBase64 } = req.body as { imageBase64: string }
   if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' })
   const b64 = imageBase64.replace(/^data:image\/\w+;base64,/, '')
@@ -1627,8 +1719,8 @@ Renvoie UNIQUEMENT ce JSON :
     let cls: { type: string; summary: string; confidence: number }
     try { cls = JSON.parse(ai.response || '{}') }
     catch {
-      const m = (ai.response || '').match(/\{[\s\S]*\}/)
-      cls = m ? JSON.parse(m[0]) : { type: 'unknown', summary: 'Image non classifiée', confidence: 0 }
+      const candidate = (ai.response || '').match(/\{[\s\S]*\}/)?.[0]
+      cls = candidate ? JSON.parse(candidate as string) : { type: 'unknown', summary: 'Image non classifiée', confidence: 0 }
     }
 
     const validTypes = ['receipt', 'fridge', 'equipment', 'review', 'dish', 'unknown']
@@ -1661,32 +1753,25 @@ Renvoie UNIQUEMENT ce JSON :
 // ─── v3.17 — PROACTIVE SUGGESTIONS (called from /m live dashboard) ─────
 // Renvoie 1-2 suggestions intelligentes contextuelles sans bloquer
 router.get('/proactive', async (_req, res) => {
-  const safe = async <T>(fn: () => T) => { try { return await fn() } catch { return null } }
-  const [low, overdue, today2] = await Promise.all([
-    safe(() => HANDLERS['inv.low-stock']?.({}) ?? null),
-    safe(() => HANDLERS['inv.overdue']?.({}) ?? null),
-    safe(() => HANDLERS['hr.who-today']?.({}) ?? null),
-  ])
-  const lowStockN = (low as any)?.ui?.items?.length ?? 0
-  const overdueN = (overdue as any)?.ui?.items?.length ?? 0
-  const staffToday = (today2 as any)?.ui?.items?.length ?? 0
+  const companyId = currentFloorCompanyId()
+  if (!companyId) return res.status(500).json({ message: 'Contexte entreprise absent' })
+  let metrics: Awaited<ReturnType<typeof loadCompanyMobileMetrics>>
+  try {
+    metrics = await loadCompanyMobileMetrics(companyId)
+  } catch {
+    return res.status(503).json({ message: 'Suggestions indisponibles : données de l’entreprise injoignables.' })
+  }
+  const overdueN = metrics.overdue
+  const staffToday = metrics.staffNames.length
   const hour = new Date().getHours()
 
   const suggestions: any[] = []
-  if (lowStockN >= 3) {
-    suggestions.push({
-      icon: '📦', tone: 'warning',
-      title: `Stock critique sur ${lowStockN} produits`,
-      detail: 'Robi peut générer la commande fournisseur en 1 tap',
-      cta: 'Préparer la commande', route: '/inventory/stock',
-    })
-  }
   if (overdueN > 0) {
     suggestions.push({
       icon: '💶', tone: 'danger',
       title: `${overdueN} facture(s) en retard`,
-      detail: 'Envoi auto de relances email',
-      cta: 'Relancer maintenant', commandId: 'inv.send-reminders',
+      detail: `${metrics.unpaidTotal.toFixed(2)} € à contrôler dans les factures`,
+      cta: 'Voir les factures', route: '/invoices/factures',
     })
   }
   if (hour >= 16 && hour <= 19 && staffToday > 0) {
@@ -1694,7 +1779,7 @@ router.get('/proactive', async (_req, res) => {
       icon: '🍽', tone: 'info',
       title: 'Pré-service : 30 min avant l\'ouverture',
       detail: `${staffToday} personnes au resto. Vérifier mise en place ?`,
-      cta: 'Checklist HACCP', route: '/m/checklist',
+      cta: 'Voir le planning', route: '/hr/planning',
     })
   }
   if (hour >= 21 && hour <= 23) {
@@ -1717,6 +1802,13 @@ router.get('/proactive', async (_req, res) => {
 })
 
 // ─── v3.19 F1 — Scheduled tasks (rappels persistés) ─────────────────────
+// Bloque aussi toutes les sous-routes /schedule/:id avant les anciens
+// handlers : aucune tâche globale ne peut être créée, lue ou supprimée.
+router.use('/schedule', (_req, res) => res.status(503).json({
+  code: 'FEATURE_MIGRATION_REQUIRED',
+  message: 'Rappels programmés indisponibles pendant leur migration par entreprise.',
+}))
+
 // Helpers : parser de date naturelle "demain 10h", "vendredi 14h30", "dans 30 min"
 function parseNaturalDateTime(text: string, base: Date = new Date()): number | null {
   const q = text.toLowerCase()
@@ -1812,9 +1904,9 @@ router.post('/schedule/:id/cancel', async (req, res) => {
 })
 
 // ─── v3.19 F3 — Proactive notifications recap (UI poll) ──────────────────
-router.get('/proactive/inbox', async (_req, res) => {
+router.get('/proactive/inbox', async (req, res) => {
   const { getRecentNotifs } = await import('../jobs/proactive-worker')
-  res.json({ notifs: getRecentNotifs(20) })
+  res.json({ notifs: getRecentNotifs(20, (req as any).companyId) })
 })
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1825,6 +1917,15 @@ router.get('/proactive/inbox', async (_req, res) => {
 // Sécurité : chaque action critique (delete/charge/send) REQUIERT une
 // confirmation visuelle côté client avant exécution.
 // ═══════════════════════════════════════════════════════════════════════
+
+// Le prototype acceptait un userId fourni par le navigateur et partageait
+// ses abonnés en mémoire entre toutes les entreprises. On ferme tout le
+// préfixe avant les anciens handlers jusqu'à une implémentation liée à
+// req.user.userId + companyId.
+router.use('/operator', (_req, res) => res.status(503).json({
+  code: 'FEATURE_MIGRATION_REQUIRED',
+  message: 'Mode opérateur indisponible pendant sa migration sécurisée.',
+}))
 
 interface OperatorAction {
   id: string

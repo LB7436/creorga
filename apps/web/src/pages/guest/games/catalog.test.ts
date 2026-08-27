@@ -5,6 +5,8 @@ import {
   CATEGORY_META,
   GAME_ID_ALIASES,
   GUEST_GAMES,
+  GAME_SELECTION_BY_CATEGORY,
+  JEUX_SELECTIONNES,
   JEUX_RECOMMANDES,
   estCasino,
   estJouable,
@@ -180,6 +182,19 @@ describe('registre des jeux — promesses tenues par le code', () => {
 })
 
 describe('registre des jeux — recommandations et casino', () => {
+  it('la sélection publique contient au maximum 5 jeux par catégorie', () => {
+    for (const [category, ids] of Object.entries(GAME_SELECTION_BY_CATEGORY)) {
+      expect(ids.length, category).toBeLessThanOrEqual(5)
+      expect(new Set(ids).size, `${category}: doublon`).toBe(ids.length)
+      for (const id of ids) {
+        const game = JEUX_SELECTIONNES.find((entry) => entry.id === id)
+        expect(game, `${category}: ${id} absent`).toBeDefined()
+        expect(game?.categories.includes(category as any), `${id} n'appartient pas à ${category}`).toBe(true)
+      }
+    }
+    expect(JEUX_SELECTIONNES.some((game) => game.statut === 'beta')).toBe(false)
+  })
+
   it('les recommandés sont famille, jouables, hors casino, et incluent le socle demandé', () => {
     expect(JEUX_RECOMMANDES.length).toBeGreaterThan(0)
     for (const game of JEUX_RECOMMANDES) {

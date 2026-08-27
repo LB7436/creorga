@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { fetchAuth } from '@/lib/fetchAuth'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -45,6 +44,7 @@ interface CreneauVide {
  * noir ou message. Échap pour quitter.
  */
 export default function TVDisplayPage() {
+  const companyId = new URLSearchParams(window.location.search).get('companyId') || ''
   const [elements, setElements] = useState<ElementProgramme[]>([])
   const [nomSequence, setNomSequence] = useState<string | null>(null)
   const [creneauVide, setCreneauVide] = useState<CreneauVide>({ mode: 'noir' })
@@ -56,9 +56,10 @@ export default function TVDisplayPage() {
   // ─── Interrogation du serveur ─────────────────────────────────────────
 
   useEffect(() => {
+    if (!companyId) return
     const relever = async () => {
       try {
-        const r = await fetchAuth(`${BACKEND}/api/affichage/maintenant`)
+        const r = await fetch(`${BACKEND}/api/affichage/maintenant?companyId=${encodeURIComponent(companyId)}`)
         if (r.ok) {
           const p = await r.json()
           setElements(p.elements || [])
@@ -68,7 +69,7 @@ export default function TVDisplayPage() {
       } catch { /* hors ligne : on garde la dernière programmation connue */ }
 
       try {
-        const r = await fetchAuth(`${BACKEND}/api/ads/live`)
+        const r = await fetch(`${BACKEND}/api/ads/live?companyId=${encodeURIComponent(companyId)}`)
         if (r.ok) {
           const data = await r.json()
           setAds(data.ads || [])
@@ -78,7 +79,7 @@ export default function TVDisplayPage() {
     relever()
     const id = setInterval(relever, 10_000)
     return () => clearInterval(id)
-  }, [])
+  }, [companyId])
 
   // La programmation prime ; la régie historique sert de repli.
   const suiteProgrammee = elements.length > 0
@@ -150,11 +151,30 @@ export default function TVDisplayPage() {
             : 'linear-gradient(135deg, #0f172a, #1e293b)',
           padding: 60, textAlign: 'center',
         }}>
-          {creneauVide.mode === 'message' && creneauVide.message ? (
+          {!companyId ? (
+            <div role="alert" style={{ maxWidth: 720 }}>
+              <div style={{ fontSize: 64, marginBottom: 16 }}>⚠️</div>
+              <h1 style={{ fontSize: 'clamp(28px, 4vw, 56px)', margin: 0 }}>Écran TV non configuré</h1>
+              <p style={{ fontSize: 'clamp(15px, 1.8vw, 24px)', color: '#94a3b8', lineHeight: 1.6 }}>
+                Ouvrez cet écran depuis la régie ou la programmation du restaurant afin d’utiliser son lien sécurisé.
+              </p>
+            </div>
+          ) : creneauVide.mode === 'message' && creneauVide.message ? (
             <h1 style={{ fontSize: 'clamp(36px, 6vw, 96px)', fontWeight: 900, margin: 0, lineHeight: 1.15 }}>
               {creneauVide.message}
             </h1>
-          ) : creneauVide.mode === 'noir' ? null : (
+          ) : creneauVide.mode === 'noir' ? (
+            <div aria-live="polite" style={{ opacity: 0.72 }}>
+              <div style={{ fontSize: 64, marginBottom: 16 }}>◉</div>
+              <h1 style={{ fontSize: 'clamp(28px, 4vw, 56px)', margin: 0 }}>Creorga TV</h1>
+              <p style={{ fontSize: 'clamp(14px, 1.6vw, 22px)', color: '#94a3b8', marginTop: 12 }}>
+                Écran en veille · aucune diffusion programmée
+              </p>
+              <p style={{ fontSize: 18, color: '#64748b' }}>
+                {new Date(now).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
+          ) : (
             <>
               <div style={{ fontSize: 80 }}>📺</div>
               <h1 style={{ fontSize: 36, fontWeight: 800, margin: '20px 0 8px' }}>Creorga TV</h1>

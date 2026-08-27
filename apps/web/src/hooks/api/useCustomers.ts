@@ -10,6 +10,7 @@ export interface Customer {
   phone?: string
   birthDate?: string
   notes?: string
+  points?: number
   loyaltyPoints?: number
   walletBalance?: number
   totalSpent?: number
@@ -24,7 +25,7 @@ export function useCustomers(search?: string) {
     queryKey: ['customers', search ?? 'all'],
     queryFn: () =>
       api
-        .get('/crm/customers', { params: search ? { search } : undefined })
+        .get('/crm/customers', { params: { limit: 1000, ...(search ? { search } : {}) } })
         .then((r) => Array.isArray(r.data) ? r.data : r.data.customers),
   })
 }
@@ -79,13 +80,13 @@ export function useDeleteCustomer() {
 export function useAddLoyaltyPoints() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, points }: { id: string; points: number }) =>
+    mutationFn: ({ id, points, type = 'EARN' }: { id: string; points: number; type?: 'EARN' | 'SPEND' }) =>
       api
-        .post(`/crm/customers/${id}/loyalty`, { points })
+        .post(`/crm/customers/${id}/loyalty`, { points, type })
         .then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['customers'] })
-      toastSuccess('Points de fidélité ajoutés')
+      toastSuccess('Solde de fidélité mis à jour')
     },
     onError: () => toastError("Impossible d'ajouter les points"),
   })

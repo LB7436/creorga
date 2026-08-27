@@ -1,12 +1,12 @@
 import { Router } from 'express'
 import fs from 'fs'
 import path from 'path'
+import crypto from 'crypto'
 import { readAuditEntries } from '../middleware/audit-log'
 import { safeReadJson, safeWriteJson } from '../lib/safe-json'
 
 const router = Router()
 const DATA_DIR = path.resolve(process.cwd(), 'data')
-const MACROS_FILE = path.join(DATA_DIR, 'owner-macros.json')
 const CUSTOMERS_FILE = path.join(DATA_DIR, 'customers.json')
 
 function ensureDataDir() {
@@ -37,6 +37,22 @@ export function filtrerParSociete(entries: any[], companyId: string | undefined)
   return entries.filter((entry) => entry.companyId == null || entry.companyId === companyId)
 }
 
+export function macroFileForCompany(companyId: string | undefined): string {
+  const safeCompanyId = String(companyId || 'fallback-company').replace(/[^a-zA-Z0-9_-]/g, '_')
+  return path.join(DATA_DIR, `owner-macros.${safeCompanyId}.json`)
+}
+
+export function validateMacro(input: any): { name: string; icon: string; intents: string[] } | null {
+  const name = typeof input?.name === 'string' ? input.name.trim() : ''
+  const icon = typeof input?.icon === 'string' ? input.icon.trim().slice(0, 12) : ''
+  const intents = Array.isArray(input?.intents)
+    ? input.intents.map((intent: unknown) => typeof intent === 'string' ? intent.trim() : '').filter(Boolean)
+    : []
+  if (!name || name.length > 80 || intents.length === 0 || intents.length > 10) return null
+  if (intents.some((intent: string) => intent.length > 240)) return null
+  return { name, icon: icon || '⚡', intents }
+}
+
 router.get('/audit', (req, res) => {
   const page = Math.max(1, Number(req.query.page || 1))
   const limit = Math.min(100, Math.max(10, Number(req.query.limit || 50)))
@@ -65,24 +81,35 @@ router.post('/audit', (req, res) => {
   res.status(201).json(entry)
 })
 
-router.get('/macros', (_req, res) => {
-  const defaults = [
-    { id: 'end-service', name: 'Fin de service', icon: '🏁', intents: ['pos.close-all-tables', 'acc.cloture-caisse', 'daily-briefing.evening'] },
-  ]
-  res.json(readJson(MACROS_FILE, defaults))
+router.get('/macros', (req, res) => {
+  res.json(readJson(macroFileForCompany((req as any).companyId), []))
 })
 
 router.post('/macros', (req, res) => {
-  const macros = readJson(MACROS_FILE, [])
-  const macro = { id: req.body.id || Math.random().toString(36).slice(2, 10), name: req.body.name, icon: req.body.icon || '⚡', intents: req.body.intents || [] }
+  const validated = validateMacro(req.body)
+  if (!validated) {
+    res.status(400).json({ message: 'Nom et au moins une action valides requis (10 actions maximum)' })
+    return
+  }
+  const file = macroFileForCompany((req as any).companyId)
+  const macros = readJson(file, [])
+  const requestedId = typeof req.body?.id === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.test(req.body.id)
+    ? req.body.id
+    : crypto.randomUUID()
+  const macro = { id: requestedId, ...validated }
   const next = [macro, ...macros.filter((m: any) => m.id !== macro.id)]
-  writeJson(MACROS_FILE, next)
+  writeJson(file, next)
   res.status(201).json(macro)
 })
 
 router.delete('/macros/:id', (req, res) => {
-  const macros = readJson(MACROS_FILE, [])
-  writeJson(MACROS_FILE, macros.filter((macro: any) => macro.id !== req.params.id))
+  const file = macroFileForCompany((req as any).companyId)
+  const macros = readJson(file, [])
+  if (!macros.some((macro: any) => macro.id === req.params.id)) {
+    res.status(404).json({ message: 'Macro introuvable' })
+    return
+  }
+  writeJson(file, macros.filter((macro: any) => macro.id !== req.params.id))
   res.json({ ok: true })
 })
 

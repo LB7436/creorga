@@ -11,6 +11,8 @@ import { runFullBackup, listFullBackups } from '../jobs/backup-worker'
 const DATA_DIR = path.resolve(process.cwd(), 'data')
 const FULL_BACKUP_DIR = path.join(DATA_DIR, 'backups', 'full')
 const FILENAME_RE = /^creorga-full-[\d-]+\.zip$/
+const MAX_RESTORE_ENTRIES = 5_000
+const MAX_RESTORE_BYTES = 100 * 1024 * 1024
 
 const router = Router()
 
@@ -48,9 +50,30 @@ router.post('/full/:filename/restore', (req, res) => {
   try {
     const zip = new AdmZip(zipPath)
     const entries = zip.getEntries()
+    if (entries.length > MAX_RESTORE_ENTRIES) {
+      return res.status(400).json({ error: 'backup refusé : trop de fichiers' })
+    }
 
-    // 1. Vérifie que chaque .json contenu se parse correctement avant de toucher au disque.
+    let totalBytes = 0
+
+    // 1. Vérifie les chemins, la taille et chaque .json avant de toucher au disque.
+    // Les archives de sauvegarde sont générées localement, mais un propriétaire
+    // peut aussi en importer une : aucun chemin ne doit sortir de data/.
     for (const entry of entries) {
+      const name = entry.entryName
+      if (!name || name.includes('\\') || name.includes('\0') || path.isAbsolute(name) || /^[a-zA-Z]:/.test(name)) {
+        return res.status(400).json({ error: 'backup refusé : chemin interne invalide' })
+      }
+      const destination = path.resolve(DATA_DIR, name)
+      const relative = path.relative(DATA_DIR, destination)
+      if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+        return res.status(400).json({ error: 'backup refusé : chemin hors du dossier data' })
+      }
+
+      const size = Number(entry.header.size)
+      if (!Number.isSafeInteger(size) || size < 0 || (totalBytes += size) > MAX_RESTORE_BYTES) {
+        return res.status(400).json({ error: 'backup refusé : taille décompressée excessive' })
+      }
       if (entry.isDirectory) continue
       if (entry.entryName.endsWith('.json')) {
         JSON.parse(zip.readAsText(entry))

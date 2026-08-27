@@ -5,6 +5,7 @@ import { safeReadJson, safeWriteJson } from '../lib/safe-json'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
 import { deviceOrUserAuth } from '../middleware/deviceAuth'
+import { requireCompany } from '../middleware/requireCompany'
 
 /**
  * Endpoints du portail client (le convive scanne le QR, sans compte) :
@@ -72,12 +73,16 @@ function pushStaffNotif(entry: Record<string, any>) {
   const notifs = safeReadJson<any[]>(NOTIFS_FILE, [])
   const next = [{ id: 'gn-' + Math.random().toString(36).slice(2, 10), pushedAt: Date.now(), ...entry }, ...notifs].slice(0, 200)
   safeWriteJson(NOTIFS_FILE, next)
-  broadcast('inbox', 'guest-call', entry)
+  if (typeof entry.companyId === 'string') broadcast(`inbox-${entry.companyId}`, 'guest-call', entry)
 }
 
 /** Identifiant de table tel que porté par le QR : court, sans caractères de contrôle. */
 function tableValide(tableId: unknown): tableId is string {
   return typeof tableId === 'string' && /^[\w .-]{1,40}$/.test(tableId) && tableId !== 'sans-table'
+}
+
+function companyValide(companyId: unknown): companyId is string {
+  return typeof companyId === 'string' && /^[\w-]{1,100}$/.test(companyId)
 }
 
 /** Commandes non réglées de la table pendant la visite courante (nouveau format seulement). */
@@ -93,7 +98,10 @@ export function commandesARegler(orders: GuestOrder[], tableId: string, now = Da
 // ─── Suivi de commande ──────────────────────────────────
 
 router.post('/orders', async (req, res) => {
-  const { tableId, items } = req.body as { tableId?: unknown; items?: unknown }
+  const { companyId, tableId, items } = req.body as { companyId?: unknown; tableId?: unknown; items?: unknown }
+  if (!companyValide(companyId)) {
+    return res.status(400).json({ error: 'Établissement requis : scannez le QR code de votre table.' })
+  }
   if (!tableValide(tableId)) {
     return res.status(400).json({ error: 'Table requise : scannez le QR code de votre table.' })
   }
@@ -118,7 +126,7 @@ router.post('/orders', async (req, res) => {
   let produits: { id: string; name: string; price: number; companyId: string }[]
   try {
     produits = await prisma.product.findMany({
-      where: { id: { in: lignes.map((l) => l.productId) }, isActive: true },
+      where: { companyId, id: { in: lignes.map((l) => l.productId) }, isActive: true },
       select: { id: true, name: true, price: true, companyId: true },
     })
   } catch (e: any) {
@@ -137,7 +145,9 @@ router.post('/orders', async (req, res) => {
   if (enseignes.size !== 1) {
     return res.status(400).json({ error: 'Une commande ne peut pas mélanger plusieurs enseignes.' })
   }
-  const companyId = produits[0].companyId
+  if (produits[0].companyId !== companyId) {
+    return res.status(400).json({ error: 'Ces produits ne correspondent pas à cet établissement.' })
+  }
 
   const orderItems: GuestOrderItem[] = lignes.map((l) => {
     const p = parId.get(l.productId)!
@@ -158,13 +168,15 @@ router.post('/orders', async (req, res) => {
   }
   const orders = safeReadJson<GuestOrder[]>(ORDERS_FILE, [])
   safeWriteJson(ORDERS_FILE, [order, ...orders].slice(0, 500))
-  broadcast(`table-${tableId}`, 'order-status', { orderId: order.id, status: order.status, ts: order.updatedAt })
+  broadcast(`table-${companyId}-${tableId}`, 'order-status', { orderId: order.id, status: order.status, ts: order.updatedAt })
   res.status(201).json(order)
 })
 
 router.get('/orders/:id', (req, res) => {
+  const companyId = req.query.companyId
+  if (!companyValide(companyId)) return res.status(400).json({ error: 'Établissement requis' })
   const orders = safeReadJson<GuestOrder[]>(ORDERS_FILE, [])
-  const order = orders.find((o) => o.id === req.params.id)
+  const order = orders.find((o) => o.id === req.params.id && o.companyId === companyId)
   if (!order) return res.status(404).json({ error: 'not found' })
   res.json(order)
 })
@@ -173,7 +185,7 @@ const VALID_STATUSES: OrderStatus[] = ['received', 'preparing', 'on_the_way']
 
 // Réservé au personnel : cette route était publique, n'importe qui pouvait
 // passer n'importe quelle commande « en route » depuis son téléphone.
-router.patch('/orders/:id/status', deviceOrUserAuth, (req: Request, res: Response) => {
+router.patch('/orders/:id/status', deviceOrUserAuth, requireCompany, (req: Request, res: Response) => {
   const { status } = req.body as { status?: OrderStatus }
   if (!status || !VALID_STATUSES.includes(status)) {
     return res.status(400).json({ error: `status doit être l'un de ${VALID_STATUSES.join(', ')}` })
@@ -181,10 +193,11 @@ router.patch('/orders/:id/status', deviceOrUserAuth, (req: Request, res: Respons
   const orders = safeReadJson<GuestOrder[]>(ORDERS_FILE, [])
   const order = orders.find((o) => o.id === req.params.id)
   if (!order) return res.status(404).json({ error: 'not found' })
+  if (order.companyId !== (req as any).companyId) return res.status(404).json({ error: 'not found' })
   order.status = status
   order.updatedAt = Date.now()
   safeWriteJson(ORDERS_FILE, orders)
-  broadcast(`table-${order.tableId}`, 'order-status', { orderId: order.id, status: order.status, ts: order.updatedAt })
+  broadcast(`table-${order.companyId}-${order.tableId}`, 'order-status', { orderId: order.id, status: order.status, ts: order.updatedAt })
   res.json(order)
 })
 
@@ -193,20 +206,28 @@ router.patch('/orders/:id/status', deviceOrUserAuth, (req: Request, res: Respons
 const lastCallByTable = new Map<string, number>()
 const CALL_COOLDOWN_MS = 30_000
 
-router.post('/call-waiter', (req, res) => {
-  const { tableId, type } = req.body as { tableId?: unknown; type?: 'waiter' | 'bill' }
-  if (!tableValide(tableId) || (type !== 'waiter' && type !== 'bill')) {
-    return res.status(400).json({ error: 'tableId et type (waiter|bill) requis' })
+router.post('/call-waiter', async (req, res) => {
+  const { companyId, tableId, type } = req.body as { companyId?: unknown; tableId?: unknown; type?: 'waiter' | 'bill' }
+  if (!companyValide(companyId) || !tableValide(tableId) || (type !== 'waiter' && type !== 'bill')) {
+    return res.status(400).json({ error: 'companyId, tableId et type (waiter|bill) requis' })
   }
-  const last = lastCallByTable.get(tableId) || 0
+  try {
+    const company = await prisma.company.findUnique({ where: { id: companyId }, select: { id: true } })
+    if (!company) return res.status(404).json({ error: 'Établissement inconnu' })
+  } catch {
+    return res.status(503).json({ error: 'Appel impossible pour le moment' })
+  }
+  const callKey = `${companyId}:${tableId}`
+  const last = lastCallByTable.get(callKey) || 0
   if (Date.now() - last < CALL_COOLDOWN_MS) {
     return res.status(429).json({ error: 'Appel déjà envoyé, patientez quelques secondes.' })
   }
-  lastCallByTable.set(tableId, Date.now())
+  lastCallByTable.set(callKey, Date.now())
 
   const isBill = type === 'bill'
   pushStaffNotif({
     type: 'guest-call',
+    companyId,
     entityId: tableId,
     title: isBill ? `🧾 Table ${tableId} demande l'addition` : `🙋 Table ${tableId} appelle le serveur`,
     message: isBill ? 'Le client souhaite régler.' : 'Le client a besoin de quelque chose.',
@@ -221,16 +242,17 @@ router.post('/call-waiter', (req, res) => {
 /** Addition serveur d'une table : montant et commandes concernées. */
 router.get('/bill/:tableId', (req, res) => {
   const tableId = req.params.tableId
-  if (!tableValide(tableId)) return res.status(400).json({ error: 'Table invalide' })
-  const orders = commandesARegler(safeReadJson<GuestOrder[]>(ORDERS_FILE, []), tableId)
+  const companyId = req.query.companyId
+  if (!companyValide(companyId) || !tableValide(tableId)) return res.status(400).json({ error: 'Établissement ou table invalide' })
+  const orders = commandesARegler(safeReadJson<GuestOrder[]>(ORDERS_FILE, []), tableId).filter((order) => order.companyId === companyId)
   const total = arrondi(orders.reduce((s, o) => s + o.total, 0))
   res.json({ tableId, total, orderIds: orders.map((o) => o.id), count: orders.length })
 })
 
 router.post('/pay', async (req, res) => {
-  const { tableId } = req.body as { tableId?: unknown; total?: unknown }
-  if (!tableValide(tableId)) {
-    return res.status(400).json({ error: 'tableId requis' })
+  const { companyId, tableId } = req.body as { companyId?: unknown; tableId?: unknown; total?: unknown }
+  if (!companyValide(companyId) || !tableValide(tableId)) {
+    return res.status(400).json({ error: 'companyId et tableId requis' })
   }
   if (!process.env.STRIPE_SECRET_KEY) {
     return res.status(501).json({ error: 'Paiement en ligne non configuré' })
@@ -238,7 +260,7 @@ router.post('/pay', async (req, res) => {
 
   // Le montant vient des commandes enregistrées côté serveur, jamais du corps
   // de la requête (l'ancien `total` du navigateur est ignoré).
-  const orders = commandesARegler(safeReadJson<GuestOrder[]>(ORDERS_FILE, []), tableId)
+  const orders = commandesARegler(safeReadJson<GuestOrder[]>(ORDERS_FILE, []), tableId).filter((order) => order.companyId === companyId)
   const total = arrondi(orders.reduce((s, o) => s + o.total, 0))
   if (!orders.length || total <= 0) {
     return res.status(400).json({ error: 'Aucune commande à régler pour cette table.' })
@@ -257,10 +279,10 @@ router.post('/pay', async (req, res) => {
         },
         quantity: 1,
       }],
-      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5174'}/c/paid?table=${encodeURIComponent(tableId)}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5174'}/c?table=${encodeURIComponent(tableId)}`,
+      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5174'}/c/paid?companyId=${encodeURIComponent(companyId)}&table=${encodeURIComponent(tableId)}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5174'}/c?companyId=${encodeURIComponent(companyId)}&table=${encodeURIComponent(tableId)}`,
       locale: 'fr',
-      metadata: { tableId, companyId: orders[0].companyId ?? '', orderIds: orders.map((o) => o.id).join(',') },
+      metadata: { tableId, companyId, orderIds: orders.map((o) => o.id).join(',') },
     })
     res.json({ url: session.url, total })
   } catch (err: any) {
@@ -278,8 +300,8 @@ router.post('/pay', async (req, res) => {
  * qu'une seule fois (rejouer la page /c/paid ne renotifie pas).
  */
 router.post('/paid-confirm', async (req, res) => {
-  const { tableId, sessionId } = req.body as { tableId?: unknown; sessionId?: unknown }
-  if (!tableValide(tableId)) return res.status(400).json({ error: 'tableId requis' })
+  const { companyId, tableId, sessionId } = req.body as { companyId?: unknown; tableId?: unknown; sessionId?: unknown }
+  if (!companyValide(companyId) || !tableValide(tableId)) return res.status(400).json({ error: 'companyId et tableId requis' })
   if (typeof sessionId !== 'string' || !/^cs_[\w]+$/.test(sessionId)) {
     return res.status(400).json({ error: 'Preuve de paiement manquante (sessionId).' })
   }
@@ -292,7 +314,7 @@ router.post('/paid-confirm', async (req, res) => {
   }
 
   const orders = safeReadJson<GuestOrder[]>(ORDERS_FILE, [])
-  if (orders.some((o) => o.stripeSessionId === sessionId)) {
+  if (orders.some((o) => o.companyId === companyId && o.stripeSessionId === sessionId)) {
     // Déjà traitée : idempotent, sans nouvelle notification.
     return res.json({ ok: true, dejaConfirme: true })
   }
@@ -305,7 +327,7 @@ router.post('/paid-confirm', async (req, res) => {
       logger.warn(`[guest] session ${sessionId} non réglée (${session.payment_status}) — table ${tableId}`)
       return res.status(402).json({ error: "Ce paiement n'est pas abouti." })
     }
-    if (session.metadata?.tableId !== tableId) {
+    if (session.metadata?.tableId !== tableId || session.metadata?.companyId !== companyId) {
       logger.warn(`[guest] session ${sessionId} émise pour la table ${session.metadata?.tableId ?? '?'}, confirmée pour ${tableId} : refusée`)
       return res.status(400).json({ error: 'Cette preuve de paiement ne correspond pas à cette table.' })
     }
@@ -313,12 +335,13 @@ router.post('/paid-confirm', async (req, res) => {
     const ids = new Set((session.metadata?.orderIds ?? '').split(',').filter(Boolean))
     const now = Date.now()
     for (const o of orders) {
-      if (ids.has(o.id)) { o.paid = true; o.paidAt = now; o.stripeSessionId = sessionId; o.updatedAt = now }
+      if (o.companyId === companyId && ids.has(o.id)) { o.paid = true; o.paidAt = now; o.stripeSessionId = sessionId; o.updatedAt = now }
     }
     safeWriteJson(ORDERS_FILE, orders)
 
     pushStaffNotif({
       type: 'guest-paid',
+      companyId,
       entityId: tableId,
       title: `💳 Table ${tableId} a payé en ligne`,
       message: `Paiement vérifié auprès de Stripe (${(session.amount_total ?? 0) / 100} ${(session.currency || 'eur').toUpperCase()}).`,
@@ -334,20 +357,11 @@ router.post('/paid-confirm', async (req, res) => {
   }
 })
 
-// ─── Fidélité — lecture seule par téléphone ─────────────
+// ─── Fidélité ───────────────────────────────────────────
 
-router.get('/loyalty/:phone', async (req, res) => {
-  try {
-    const customer = await prisma.customer.findFirst({
-      where: { phone: req.params.phone },
-      select: { points: true },
-    })
-    if (!customer) return res.json({ points: 0 })
-    res.json({ points: customer.points })
-  } catch {
-    // DB indisponible en mode sans-Docker : pas de fidélité affichée, pas d'erreur bloquante.
-    res.json({ points: 0 })
-  }
-})
+router.get('/loyalty/:phone', (_req, res) => res.status(503).json({
+  code: 'GUEST_AUTH_REQUIRED',
+  error: 'La fidélité sera disponible après activation de la connexion client sécurisée par e-mail.',
+}))
 
 export default router

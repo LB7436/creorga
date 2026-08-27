@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowRight, X, Check } from 'lucide-react'
+import { useAuthStore } from '@/stores/authStore'
+import { isOnboardingComplete } from '@/lib/onboarding'
 
 /**
  * v4.6 — OnboardingTour : 5 étapes pour découvrir Creorga en 30 sec.
@@ -19,7 +21,7 @@ import { ArrowRight, X, Check } from 'lucide-react'
  * Boutons : Suivant → étape+1, Skip tour → marque done, Voir plus tard → ferme sans marquer.
  */
 
-const STORAGE_KEY = 'creorga.onboardingDone'
+const LEGACY_STORAGE_KEY = 'creorga.onboardingDone'
 
 interface Step {
   emoji: string
@@ -58,18 +60,27 @@ const STEPS: Step[] = [
 export default function OnboardingTour() {
   const navigate = useNavigate()
   const location = useLocation()
+  const companyId = useAuthStore((state) => state.companyId)
   const [open, setOpen] = useState(false)
   const [stepIdx, setStepIdx] = useState(0)
+  const storageKey = `creorga.onboardingDone:${companyId || 'sans-societe'}`
 
   // Décide d'ouvrir : 1ère visite OU route /tour
   useEffect(() => {
     const onTourRoute = location.pathname === '/tour'
     let done = false
-    try { done = !!localStorage.getItem(STORAGE_KEY) } catch { /* */ }
+    try {
+      done = !!localStorage.getItem(storageKey)
+      if (!done && companyId && localStorage.getItem(LEGACY_STORAGE_KEY)) {
+        localStorage.setItem(storageKey, String(Date.now()))
+        localStorage.removeItem(LEGACY_STORAGE_KEY)
+        done = true
+      }
+    } catch { /* */ }
 
     // Jamais pendant le wizard de configuration initiale (/setup) ni tant
     // qu'il n'est pas terminé — sinon les deux modales se superposent.
-    const setupDone = !!localStorage.getItem('creorga-onboarded')
+    const setupDone = isOnboardingComplete(companyId)
     const onSetup = location.pathname.startsWith('/setup')
 
     if (onTourRoute) {
@@ -80,10 +91,10 @@ export default function OnboardingTour() {
       const t = window.setTimeout(() => setOpen(true), 1200)
       return () => window.clearTimeout(t)
     }
-  }, [location.pathname])
+  }, [companyId, location.pathname, storageKey])
 
   const markDone = () => {
-    try { localStorage.setItem(STORAGE_KEY, String(Date.now())) } catch { /* */ }
+    try { localStorage.setItem(storageKey, String(Date.now())) } catch { /* */ }
     setOpen(false)
     if (location.pathname === '/tour') navigate('/modules', { replace: true })
   }

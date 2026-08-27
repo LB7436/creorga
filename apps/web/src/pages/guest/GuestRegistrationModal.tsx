@@ -5,7 +5,6 @@ import {
   loadGuestClient,
   saveGuestClient,
   type GuestClientProfile,
-  type GuestProvider,
 } from './guestClient'
 
 const BG = '#05050f'
@@ -21,36 +20,47 @@ export default function GuestRegistrationModal({
   reason,
   onClose,
   onSaved,
+  companyId,
 }: {
   open: boolean
   reason: string
   onClose: () => void
   onSaved: (profile: GuestClientProfile) => void
+  companyId: string
 }) {
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
-  const [provider, setProvider] = useState<GuestProvider>('email')
   const [touched, setTouched] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     if (!open) return
-    const saved = loadGuestClient()
+    const saved = loadGuestClient(companyId)
     setDisplayName(saved?.displayName ?? '')
     setEmail(saved?.email ?? '')
     setPhone(saved?.phone ?? '')
-    setProvider(saved?.provider ?? 'email')
     setTouched(false)
-  }, [open])
+    setError('')
+  }, [open, companyId])
 
   const valid = displayName.trim().length >= 2 && email.includes('@') && phone.trim().length >= 6
 
-  const submit = () => {
+  const submit = async () => {
     setTouched(true)
     if (!valid) return
-    const profile = saveGuestClient({ displayName, email, phone, provider })
-    onSaved(profile)
-    onClose()
+    setSubmitting(true)
+    setError('')
+    try {
+      const profile = await saveGuestClient({ displayName, email, phone, provider: 'email' }, companyId)
+      onSaved(profile)
+      onClose()
+    } catch (e: any) {
+      setError(e?.message || 'Inscription impossible pour le moment.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -99,28 +109,8 @@ export default function GuestRegistrationModal({
             </div>
 
             <div style={{ padding: 16, display: 'grid', gap: 12 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                {([
-                  ['email', 'Email'],
-                  ['google', 'Google'],
-                  ['apple', 'Apple'],
-                ] as [GuestProvider, string][]).map(([id, label]) => (
-                  <button
-                    key={id}
-                    onClick={() => setProvider(id)}
-                    style={{
-                      borderRadius: 12,
-                      padding: '10px 8px',
-                      border: `1px solid ${provider === id ? ACCENT : BORDER}`,
-                      background: provider === id ? 'rgba(168,85,247,0.2)' : SURFACE,
-                      color: TEXT,
-                      fontSize: 12,
-                      fontWeight: 800,
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div style={{ borderRadius: 12, padding: '10px 12px', border: `1px solid ${ACCENT}`, background: 'rgba(168,85,247,0.2)', color: TEXT, fontSize: 12, fontWeight: 800 }}>
+                Inscription par e-mail
               </div>
 
               <label style={fieldLabel}>
@@ -142,8 +132,11 @@ export default function GuestRegistrationModal({
                 </p>
               )}
 
+              {error && <p role="alert" style={{ color: '#fca5a5', fontSize: 12 }}>{error}</p>}
+
               <button
                 onClick={submit}
+                disabled={submitting}
                 style={{
                   width: '100%',
                   border: 'none',
@@ -155,10 +148,10 @@ export default function GuestRegistrationModal({
                   fontSize: 14,
                 }}
               >
-                Continuer
+                {submitting ? 'Enregistrement…' : 'Continuer'}
               </button>
               <p style={{ color: MUTED, fontSize: 10.5, lineHeight: 1.45 }}>
-                Le profil est enregistre dans Creorga cote client pour les commandes, avis, records et invitations. La connexion OAuth reelle pourra ensuite brancher Google/Apple sur la meme fiche.
+                Le profil est enregistré dans l'entreprise indiquée par ce QR pour vos commandes et avis. Google OAuth n'est pas activé pour le moment.
               </p>
             </div>
           </motion.div>

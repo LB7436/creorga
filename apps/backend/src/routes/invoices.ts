@@ -5,6 +5,48 @@ import { createAvecNumero, NumerotationIndisponibleError } from '../lib/numerota
 
 const router = Router()
 
+const QUOTE_STATUSES = new Set(['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED'])
+const INVOICE_STATUSES = new Set(['DRAFT', 'SENT', 'PAID', 'OVERDUE', 'CANCELLED'])
+
+type DocumentLine = { description: string; quantity: number; unitPrice: number; taxRate: number }
+
+function prepareLines(raw: unknown): { lines?: DocumentLine[]; subtotal?: number; taxAmount?: number; total?: number; error?: string } {
+  if (!Array.isArray(raw) || raw.length === 0) return { error: 'Ajoutez au moins une ligne au document' }
+  if (raw.length > 200) return { error: 'Un document ne peut pas dépasser 200 lignes' }
+
+  const lines: DocumentLine[] = []
+  for (const value of raw) {
+    const line = value as any
+    const description = String(line?.description || '').trim()
+    const quantity = Number(line?.quantity)
+    const unitPrice = Number(line?.unitPrice)
+    const taxRate = Number(line?.taxRate ?? 17)
+    if (!description || description.length > 500) return { error: 'Chaque ligne doit avoir une description de 1 à 500 caractères' }
+    if (!Number.isFinite(quantity) || quantity <= 0) return { error: 'Chaque ligne doit avoir une quantité strictement positive' }
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) return { error: 'Chaque ligne doit avoir un prix unitaire positif ou nul' }
+    if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) return { error: 'Le taux de TVA doit être compris entre 0 et 100' }
+    lines.push({ description, quantity, unitPrice, taxRate })
+  }
+
+  const cents = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100
+  const subtotal = cents(lines.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0))
+  const taxAmount = cents(lines.reduce((sum, line) => sum + line.quantity * line.unitPrice * (line.taxRate / 100), 0))
+  return { lines, subtotal, taxAmount, total: cents(subtotal + taxAmount) }
+}
+
+async function validateCustomer(companyId: string, customerId: unknown): Promise<boolean> {
+  if (customerId === undefined || customerId === null || customerId === '') return true
+  if (typeof customerId !== 'string') return false
+  return Boolean(await prisma.customer.findFirst({ where: { id: customerId, companyId }, select: { id: true } }))
+}
+
+function parseOptionalDate(value: unknown): { value?: Date | null; error?: string } {
+  if (value === undefined) return { value: undefined }
+  if (value === null || value === '') return { value: null }
+  const date = new Date(String(value))
+  return Number.isNaN(date.getTime()) ? { error: 'Date invalide' } : { value: date }
+}
+
 // La numérotation vit désormais dans `lib/numerotation.ts`, pour être partagée
 // avec les avoirs et couverte par `lib/numerotation.test.ts`. Ré-exportée ici
 // afin de ne casser aucun import existant.
@@ -33,16 +75,20 @@ router.get('/quotes', async (req: any, res: Response) => {
 router.post('/quotes', async (req: any, res: Response) => {
   try {
     const { customerId, validUntil, notes, items } = req.body
-    const total = (items || []).reduce((s: number, i: any) => s + i.quantity * i.unitPrice, 0)
+    const prepared = prepareLines(items)
+    if (prepared.error) { res.status(400).json({ message: prepared.error }); return }
+    if (!(await validateCustomer(req.companyId, customerId))) { res.status(400).json({ message: "Le client n'appartient pas à cette entreprise" }); return }
+    const validity = parseOptionalDate(validUntil)
+    if (validity.error) { res.status(400).json({ message: 'Date de validité invalide' }); return }
     const quote = await createAvecNumero(req.companyId, 'QUO', (number) => prisma.quote.create({
       data: {
         companyId: req.companyId,
         customerId: customerId || null,
         number,
-        validUntil: validUntil ? new Date(validUntil) : null,
-        total,
-        notes,
-        items: { create: items || [] },
+        validUntil: validity.value ?? null,
+        total: prepared.total!,
+        notes: typeof notes === 'string' ? notes.trim().slice(0, 10_000) || null : null,
+        items: { create: prepared.lines! },
       },
       include: { customer: true, items: true },
     }))
@@ -62,19 +108,24 @@ router.put('/quotes/:id', async (req: any, res: Response) => {
     const existing = await prisma.quote.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Devis non trouvé' }); return }
     const { customerId, validUntil, notes, status, items } = req.body
-    const total = items ? items.reduce((s: number, i: any) => s + i.quantity * i.unitPrice, 0) : existing.total
-    if (items) {
-      await prisma.quoteItem.deleteMany({ where: { quoteId: req.params.id } })
+    if (status !== undefined && (!QUOTE_STATUSES.has(status) || status === 'ACCEPTED')) {
+      res.status(400).json({ message: status === 'ACCEPTED' ? 'Convertissez le devis pour le marquer accepté' : 'Statut de devis invalide' })
+      return
     }
+    if (!(await validateCustomer(req.companyId, customerId))) { res.status(400).json({ message: "Le client n'appartient pas à cette entreprise" }); return }
+    const validity = parseOptionalDate(validUntil)
+    if (validity.error) { res.status(400).json({ message: 'Date de validité invalide' }); return }
+    const prepared = items === undefined ? null : prepareLines(items)
+    if (prepared?.error) { res.status(400).json({ message: prepared.error }); return }
     const quote = await prisma.quote.update({
       where: { id: req.params.id },
       data: {
-        customerId: customerId ?? existing.customerId,
-        validUntil: validUntil ? new Date(validUntil) : existing.validUntil,
-        notes: notes ?? existing.notes,
+        customerId: customerId === undefined ? existing.customerId : (customerId || null),
+        validUntil: validity.value === undefined ? existing.validUntil : validity.value,
+        notes: notes === undefined ? existing.notes : (typeof notes === 'string' ? notes.trim().slice(0, 10_000) || null : null),
         status: status ?? existing.status,
-        total,
-        ...(items && { items: { create: items } }),
+        total: prepared?.total ?? existing.total,
+        ...(prepared && { items: { deleteMany: {}, create: prepared.lines! } }),
       },
       include: { customer: true, items: true },
     })
@@ -105,11 +156,13 @@ router.post('/quotes/:id/convert', async (req: any, res: Response) => {
     })
     if (!quote) { res.status(404).json({ message: 'Devis non trouvé' }); return }
 
-    // ⚠️ DÉFAUT CONNU — un devis peut être converti plusieurs fois et produire
-    // autant de factures numérotées pour la même prestation. Le corriger exige
-    // un vrai lien en base (colonne `quoteId` sur Invoice) : posé en phase 2
-    // avec les autres extensions du modèle. Une heuristique sur les notes et le
-    // client bloquerait des conversions légitimes — pire que le défaut.
+    if (quote.status === 'ACCEPTED') {
+      res.status(409).json({ message: 'Ce devis a déjà été converti en facture' })
+      return
+    }
+
+    // Un devis déjà accepté a été converti et ne peut pas générer une seconde
+    // facture depuis l'interface ou l'API.
 
     // Les montants sont arrondis au centime : 47,617 € n'est pas une somme
     // d'argent, et l'écart se propagerait au récapitulatif TVA.
@@ -176,44 +229,23 @@ router.get('/', async (req: any, res: Response) => {
 router.post('/', async (req: any, res: Response) => {
   try {
     const { customerId, dueDate, notes, orderId, items } = req.body
-
-    // Une ligne à quantité ou prix négatif produit une facture à montant
-    // négatif : en comptabilité, un remboursement se matérialise par un
-    // avoir, pas par une facture négative.
-    const lignes: any[] = Array.isArray(items) ? items : []
-    for (const l of lignes) {
-      const quantité = Number(l?.quantity)
-      const prix = Number(l?.unitPrice)
-      const taux = Number(l?.taxRate ?? 17)
-      if (!Number.isFinite(quantité) || quantité <= 0) {
-        res.status(400).json({ message: 'Chaque ligne doit avoir une quantité strictement positive' })
-        return
-      }
-      if (!Number.isFinite(prix) || prix < 0) {
-        res.status(400).json({ message: 'Chaque ligne doit avoir un prix unitaire positif ou nul' })
-        return
-      }
-      if (!Number.isFinite(taux) || taux < 0 || taux > 100) {
-        res.status(400).json({ message: 'Le taux de TVA doit être compris entre 0 et 100' })
-        return
-      }
-    }
-
-    const cents = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
-    const subtotal = cents(lignes.reduce((s: number, i: any) => s + i.quantity * i.unitPrice, 0))
-    const taxAmount = cents(lignes.reduce((s: number, i: any) => s + i.quantity * i.unitPrice * (i.taxRate / 100), 0))
+    const prepared = prepareLines(items)
+    if (prepared.error) { res.status(400).json({ message: prepared.error }); return }
+    if (!(await validateCustomer(req.companyId, customerId))) { res.status(400).json({ message: "Le client n'appartient pas à cette entreprise" }); return }
+    const deadline = parseOptionalDate(dueDate)
+    if (deadline.error) { res.status(400).json({ message: "Date d'échéance invalide" }); return }
     const invoice = await createAvecNumero(req.companyId, 'INV', (number) => prisma.invoice.create({
       data: {
         companyId: req.companyId,
         customerId: customerId || null,
         number,
-        dueDate: dueDate ? new Date(dueDate) : null,
-        subtotal,
-        taxAmount,
-        total: cents(subtotal + taxAmount),
-        notes,
+        dueDate: deadline.value ?? null,
+        subtotal: prepared.subtotal!,
+        taxAmount: prepared.taxAmount!,
+        total: prepared.total!,
+        notes: typeof notes === 'string' ? notes.trim().slice(0, 10_000) || null : null,
         orderId: orderId || null,
-        items: { create: lignes },
+        items: { create: prepared.lines! },
       },
       include: { customer: true, items: true },
     }))
@@ -257,21 +289,21 @@ router.put('/:id', async (req: any, res: Response) => {
     const existing = await prisma.invoice.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Facture non trouvée' }); return }
     const { customerId, dueDate, notes, items } = req.body
-    if (items) {
-      await prisma.invoiceItem.deleteMany({ where: { invoiceId: req.params.id } })
-    }
-    const subtotal = items ? items.reduce((s: number, i: any) => s + i.quantity * i.unitPrice, 0) : existing.subtotal
-    const taxAmount = items ? items.reduce((s: number, i: any) => s + i.quantity * i.unitPrice * (i.taxRate / 100), 0) : existing.taxAmount
+    if (!(await validateCustomer(req.companyId, customerId))) { res.status(400).json({ message: "Le client n'appartient pas à cette entreprise" }); return }
+    const deadline = parseOptionalDate(dueDate)
+    if (deadline.error) { res.status(400).json({ message: "Date d'échéance invalide" }); return }
+    const prepared = items === undefined ? null : prepareLines(items)
+    if (prepared?.error) { res.status(400).json({ message: prepared.error }); return }
     const invoice = await prisma.invoice.update({
       where: { id: req.params.id },
       data: {
-        customerId: customerId ?? existing.customerId,
-        dueDate: dueDate ? new Date(dueDate) : existing.dueDate,
-        notes: notes ?? existing.notes,
-        subtotal,
-        taxAmount,
-        total: subtotal + taxAmount,
-        ...(items && { items: { create: items } }),
+        customerId: customerId === undefined ? existing.customerId : (customerId || null),
+        dueDate: deadline.value === undefined ? existing.dueDate : deadline.value,
+        notes: notes === undefined ? existing.notes : (typeof notes === 'string' ? notes.trim().slice(0, 10_000) || null : null),
+        subtotal: prepared?.subtotal ?? existing.subtotal,
+        taxAmount: prepared?.taxAmount ?? existing.taxAmount,
+        total: prepared?.total ?? existing.total,
+        ...(prepared && { items: { deleteMany: {}, create: prepared.lines! } }),
       },
       include: { customer: true, items: true },
     })
@@ -284,6 +316,10 @@ router.put('/:id', async (req: any, res: Response) => {
 
 router.put('/:id/status', async (req: any, res: Response) => {
   try {
+    if (!INVOICE_STATUSES.has(req.body?.status)) {
+      res.status(400).json({ message: 'Statut de facture invalide' })
+      return
+    }
     const existing = await prisma.invoice.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Facture non trouvée' }); return }
     const invoice = await prisma.invoice.update({

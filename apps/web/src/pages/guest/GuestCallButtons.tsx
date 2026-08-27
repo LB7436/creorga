@@ -7,21 +7,24 @@ const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:
 /**
  * v5.0.2/5.0.3 — Appel serveur, demande d'addition et paiement à table.
  */
-export default function GuestCallButtons({ tableId, billTotal }: { tableId: string; billTotal?: number }) {
+export default function GuestCallButtons({ tableId, companyId, billTotal }: { tableId: string; companyId: string; billTotal?: number }) {
   const { t } = useGuestLang()
   const [waiterSent, setWaiterSent] = useState(false)
   const [billSent, setBillSent] = useState(false)
   const [paying, setPaying] = useState(false)
   const [payError, setPayError] = useState<string | null>(null)
+  const [callError, setCallError] = useState<string | null>(null)
 
   const call = async (type: 'waiter' | 'bill') => {
     try {
+      setCallError(null)
       const r = await fetch(`${BACKEND}/api/guest/call-waiter`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tableId, type }),
+        body: JSON.stringify({ companyId, tableId, type }),
       })
-      if (!r.ok) return
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) { setCallError(data?.error || 'Appel non envoyé.'); return }
       if (type === 'waiter') {
         setWaiterSent(true)
         window.setTimeout(() => setWaiterSent(false), 30_000)
@@ -29,7 +32,7 @@ export default function GuestCallButtons({ tableId, billTotal }: { tableId: stri
         setBillSent(true)
         window.setTimeout(() => setBillSent(false), 30_000)
       }
-    } catch { /* offline — best effort */ }
+    } catch { setCallError('Appel non envoyé : serveur injoignable.') }
   }
 
   const pay = async () => {
@@ -42,7 +45,7 @@ export default function GuestCallButtons({ tableId, billTotal }: { tableId: stri
       const r = await fetch(`${BACKEND}/api/guest/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tableId }),
+        body: JSON.stringify({ companyId, tableId }),
       })
       const data = await r.json().catch(() => ({}))
       if (r.status === 501) { setPayError(t('pay_bill_unavailable')); return }
@@ -83,6 +86,7 @@ export default function GuestCallButtons({ tableId, billTotal }: { tableId: stri
         </button>
       )}
       {payError && <div style={{ fontSize: 11, color: '#f87171', textAlign: 'center' }}>{payError}</div>}
+      {callError && <div role="alert" style={{ fontSize: 11, color: '#f87171', textAlign: 'center' }}>{callError}</div>}
     </div>
   )
 }

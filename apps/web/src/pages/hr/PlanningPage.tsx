@@ -10,7 +10,7 @@ import {
 import { fr } from 'date-fns/locale'
 import {
   ChevronLeft, ChevronRight, Mail, Download, Plus, X, Clock, Users,
-  Sparkles, RefreshCcw, Copy, AlertTriangle, Euro, Award, Coffee,
+  Sparkles, RefreshCcw, AlertTriangle, Euro, Award, Coffee,
   Send, Zap, Heart, ClipboardList, TrendingUp, CheckCircle2, Layers, ExternalLink,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
@@ -18,6 +18,7 @@ import PlanningAssistant from '@/components/PlanningAssistant'
 import PlanningOCRImport from '@/components/PlanningOCRImport'
 import { useAuthStore } from '@/stores/authStore'
 import { downloadCsv } from '@/lib/csv'
+import api from '@/lib/api'
 
 const C = {
   bg: '#f8fafc',
@@ -59,6 +60,7 @@ type Skill = 'Barman' | 'Sommelier' | 'Chef pâtissier' | 'Hygiène HACCP' | 'Ca
 
 interface Shift {
   id: string
+  userId: string
   employeeName: string
   role: RoleType
   section: SectionType
@@ -69,7 +71,6 @@ interface Shift {
   endMin: number
   hourlyRate: number
   hasBreak?: boolean
-  swapRequested?: boolean
   skills?: Skill[]
 }
 
@@ -107,17 +108,10 @@ interface Holiday {
   name: string
 }
 
-interface ShiftTemplate {
+interface Employee {
   id: string
   name: string
-  startHour: number
-  endHour: number
-  role: RoleType
-  section: SectionType
-}
-
-interface Employee {
-  name: string
+  email: string
   role: RoleType
   skills: Skill[]
   hourlyRate: number
@@ -157,79 +151,19 @@ const HOLIDAYS_2026: Holiday[] = [
 
 const SECTIONS: SectionType[] = ['Salle', 'Bar', 'Terrasse']
 
-const SHIFT_TEMPLATES: ShiftTemplate[] = [
-  { id: 'tpl1', name: 'Brunch 10-15', startHour: 10, endHour: 15, role: 'Serveur', section: 'Salle' },
-  { id: 'tpl2', name: 'Déjeuner 11-16', startHour: 11, endHour: 16, role: 'Serveur', section: 'Salle' },
-  { id: 'tpl3', name: 'Dîner 18-23', startHour: 18, endHour: 23, role: 'Serveur', section: 'Salle' },
-  { id: 'tpl4', name: 'Journée complète 9-18', startHour: 9, endHour: 18, role: 'Manager', section: 'Salle' },
-  { id: 'tpl5', name: 'Nuit bar 20-02', startHour: 20, endHour: 26, role: 'Serveur', section: 'Bar' },
-  { id: 'tpl6', name: 'Ménage matin 6-10', startHour: 6, endHour: 10, role: 'Femme de ménage', section: 'Salle' },
-]
-
-const EMPLOYEES: Employee[] = [
-  { name: 'Marie Dupont', role: 'Serveur', skills: ['Allergies', 'Caisse'], hourlyRate: 14, availability: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven'], weeklyHours: 38 },
-  { name: 'Jean Muller', role: 'Cuisinier', skills: ['Hygiène HACCP'], hourlyRate: 17, availability: ['Lun-Ven'], weeklyHours: 35 },
-  { name: 'Sophie Klein', role: 'Serveur', skills: ['Sommelier', 'Caisse'], hourlyRate: 15, availability: ['Jeu-Dim'], weeklyHours: 32 },
-  { name: 'Luc Weber', role: 'Manager', skills: ['Hygiène HACCP', 'Caisse', 'Allergies'], hourlyRate: 22, availability: ['Tous'], weeklyHours: 44 },
-  { name: 'Anna Schmit', role: 'Femme de ménage', skills: [], hourlyRate: 13, availability: ['Matin'], weeklyHours: 20 },
-  { name: 'Pierre Martin', role: 'Cuisinier', skills: ['Chef pâtissier', 'Hygiène HACCP'], hourlyRate: 18, availability: ['Mer-Dim'], weeklyHours: 40 },
-  { name: 'Claire Reuter', role: 'Serveur', skills: ['Barman', 'Caisse'], hourlyRate: 15, availability: ['Ven-Dim'], weeklyHours: 28 },
-]
-
-function generateMockShifts(): Shift[] {
-  const today = new Date()
-  const weekStart = startOfWeek(today, { weekStartsOn: 1 })
-  const entries: { emp: Employee; section: SectionType; days: number[]; sh: number; eh: number }[] = [
-    { emp: EMPLOYEES[0], section: 'Salle', days: [0, 1, 2, 3, 4], sh: 10, eh: 16 },
-    { emp: EMPLOYEES[1], section: 'Salle', days: [0, 1, 2, 3, 4], sh: 8, eh: 15 },
-    { emp: EMPLOYEES[3], section: 'Salle', days: [0, 1, 2, 3, 4], sh: 9, eh: 18 },
-    { emp: EMPLOYEES[4], section: 'Salle', days: [0, 2, 4], sh: 6, eh: 10 },
-    { emp: EMPLOYEES[2], section: 'Terrasse', days: [3, 4, 5, 6], sh: 17, eh: 23 },
-    { emp: EMPLOYEES[5], section: 'Bar', days: [3, 4, 5, 6], sh: 16, eh: 23 },
-    { emp: EMPLOYEES[6], section: 'Bar', days: [5, 6], sh: 11, eh: 20 },
-  ]
-  const shifts: Shift[] = []
-  let id = 1
-  entries.forEach(e => {
-    e.days.forEach(d => {
-      const duration = e.eh - e.sh
-      shifts.push({
-        id: `s${id++}`, employeeName: e.emp.name, role: e.emp.role, section: e.section,
-        date: addDays(weekStart, d), startHour: e.sh, startMin: 0, endHour: e.eh, endMin: 0,
-        hourlyRate: e.emp.hourlyRate, hasBreak: duration >= 6, skills: e.emp.skills,
-        swapRequested: id === 4,
-      })
-    })
-  })
-  return shifts
+function normaliseRole(value: unknown): RoleType {
+  const role = String(value || '').toLowerCase()
+  if (role.includes('cuisine') || role.includes('chef')) return 'Cuisinier'
+  if (role.includes('ménage') || role.includes('menage') || role.includes('nettoyage')) return 'Femme de ménage'
+  if (role.includes('manager') || role.includes('owner') || role.includes('gérant')) return 'Manager'
+  return 'Serveur'
 }
 
-function generateMockReservations(): Reservation[] {
-  const today = new Date()
-  const ws = startOfWeek(today, { weekStartsOn: 1 })
-  return [
-    { id: 'r1', guestName: 'Famille Braun', partySize: 6, date: addDays(ws, 0), startHour: 12, startMin: 0, endHour: 14, endMin: 0, section: 'Salle' },
-    { id: 'r2', guestName: 'M. Hoffmann', partySize: 2, date: addDays(ws, 1), startHour: 19, startMin: 30, endHour: 21, endMin: 30, section: 'Terrasse' },
-    { id: 'r3', guestName: 'Société ABC', partySize: 12, date: addDays(ws, 2), startHour: 12, startMin: 0, endHour: 14, endMin: 30, section: 'Salle' },
-    { id: 'r4', guestName: 'Mme Kieffer', partySize: 4, date: addDays(ws, 4), startHour: 20, startMin: 0, endHour: 22, endMin: 0, section: 'Bar' },
-    { id: 'r5', guestName: 'Groupe Lux', partySize: 8, date: addDays(ws, 5), startHour: 19, startMin: 0, endHour: 22, endMin: 0, section: 'Salle' },
-  ]
-}
-
-function generateMockSickLeaves(): SickLeave[] {
-  const ws = startOfWeek(new Date(), { weekStartsOn: 1 })
-  return [
-    { id: 'sl1', employeeName: 'Jean Muller', startDate: addDays(ws, 1), endDate: addDays(ws, 3), reason: 'Grippe' },
-    { id: 'sl2', employeeName: 'Anna Schmit', startDate: addDays(ws, 3), endDate: addDays(ws, 5), reason: 'Migraine' },
-  ]
-}
-
-function generateMockVacations(): Vacation[] {
-  const ws = startOfWeek(new Date(), { weekStartsOn: 1 })
-  return [
-    { id: 'v1', employeeName: 'Sophie Klein', startDate: addDays(ws, 0), endDate: addDays(ws, 4), label: 'Congé annuel', approved: true },
-    { id: 'v2', employeeName: 'Claire Reuter', startDate: addDays(ws, 2), endDate: addDays(ws, 3), label: 'Congé personnel', approved: true },
-  ]
+function sectionDepuisShift(value: unknown, role: unknown): SectionType {
+  const note = String(value || '')
+  const match = note.match(/(?:^|;)section:(Salle|Bar|Terrasse)(?:;|$)/i)
+  if (match) return (match[1][0].toUpperCase() + match[1].slice(1).toLowerCase()) as SectionType
+  return String(role || '').toLowerCase().includes('bar') ? 'Bar' : 'Salle'
 }
 
 const btnBase: React.CSSProperties = {
@@ -269,18 +203,19 @@ export default function PlanningPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view])
   const [sectionFilter, setSectionFilter] = useState<string>('Toutes')
-  const [shifts, setShifts] = useState<Shift[]>(generateMockShifts)
-  const [reservations] = useState<Reservation[]>(generateMockReservations)
-  const [sickLeaves] = useState<SickLeave[]>(generateMockSickLeaves)
-  const [vacations] = useState<Vacation[]>(generateMockVacations)
+  const [shifts, setShifts] = useState<Shift[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [reservations, setReservations] = useState<Reservation[]>([])
+  const [sickLeaves, setSickLeaves] = useState<SickLeave[]>([])
+  const [vacations, setVacations] = useState<Vacation[]>([])
+  const [loadingPlanning, setLoadingPlanning] = useState(true)
+  const [actionBusy, setActionBusy] = useState(false)
 
   const [showShifts, setShowShifts] = useState(true)
   const [showConges, setShowConges] = useState(true)
   const [showMaladies, setShowMaladies] = useState(true)
   const [showReservations, setShowReservations] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
-  const [showTemplatesModal, setShowTemplatesModal] = useState(false)
-  const [showSwapsModal, setShowSwapsModal] = useState(false)
   const [addDate, setAddDate] = useState<Date | null>(null)
   const [addHour, setAddHour] = useState(9)
   const [toast, setToast] = useState<string | null>(null)
@@ -289,6 +224,97 @@ export default function PlanningPage() {
     setToast(msg)
     setTimeout(() => setToast(null), 2800)
   }
+
+  const loadPlanning = useCallback(async () => {
+    setLoadingPlanning(true)
+    try {
+      const [teamResponse, shiftsResponse, reservationsResponse, leavesResponse] = await Promise.all([
+        api.get('/hr/team'),
+        api.get('/hr/shifts'),
+        api.get('/reservations'),
+        api.get('/hr/leave-requests'),
+      ])
+      const équipe: Employee[] = (teamResponse.data || []).map((membership: any) => {
+        const profil = membership.profile || {}
+        const heures = Number(profil.heuresHebdo) || 0
+        const salaire = Number(profil.salaireBrut) || 0
+        const hourlyRate = heures > 0 && salaire > 0 ? salaire / (heures * 4.33) : 0
+        const skills = String(profil.competences || '')
+          .split(',')
+          .map((skill) => skill.trim())
+          .filter(Boolean) as Skill[]
+        return {
+          id: membership.userId,
+          name: `${membership.user.firstName} ${membership.user.lastName}`.trim(),
+          email: membership.user.email,
+          role: normaliseRole(profil.poste || membership.role),
+          skills,
+          hourlyRate,
+          availability: [],
+          weeklyHours: heures,
+        }
+      })
+      const équipeParId = new Map(équipe.map((employee) => [employee.id, employee]))
+      setEmployees(équipe)
+      setShifts((shiftsResponse.data || []).map((raw: any): Shift => {
+        const début = new Date(raw.startTime)
+        const fin = new Date(raw.endTime)
+        const employé = équipeParId.get(raw.userId)
+        return {
+          id: raw.id,
+          userId: raw.userId,
+          employeeName: employé?.name || `${raw.user?.firstName || ''} ${raw.user?.lastName || ''}`.trim() || 'Employé',
+          role: normaliseRole(raw.role),
+          section: sectionDepuisShift(raw.notes, raw.role),
+          date: début,
+          startHour: début.getHours(),
+          startMin: début.getMinutes(),
+          endHour: fin.getHours() + (fin.getDate() !== début.getDate() ? 24 : 0),
+          endMin: fin.getMinutes(),
+          hourlyRate: employé?.hourlyRate || 0,
+          hasBreak: Number(raw.breakMinutes) > 0,
+          skills: employé?.skills || [],
+        }
+      }))
+      setReservations((reservationsResponse.data || []).map((raw: any): Reservation => {
+        const date = new Date(raw.date)
+        return {
+          id: raw.id,
+          guestName: raw.guestName,
+          partySize: raw.partySize,
+          date,
+          startHour: date.getHours(),
+          startMin: date.getMinutes(),
+          endHour: date.getHours() + 2,
+          endMin: date.getMinutes(),
+          section: (raw.table?.section || 'Salle') as SectionType,
+        }
+      }))
+      const nomParId = new Map(équipe.map((employee) => [employee.id, employee.name]))
+      const leaves = leavesResponse.data || []
+      setSickLeaves(leaves.filter((leave: any) => leave.type === 'SICK').map((leave: any) => ({
+        id: leave.id,
+        employeeName: nomParId.get(leave.userId) || 'Employé',
+        startDate: new Date(leave.startDate),
+        endDate: new Date(leave.endDate),
+        reason: leave.notes || 'Maladie',
+      })))
+      setVacations(leaves.filter((leave: any) => leave.type !== 'SICK').map((leave: any) => ({
+        id: leave.id,
+        employeeName: nomParId.get(leave.userId) || 'Employé',
+        startDate: new Date(leave.startDate),
+        endDate: new Date(leave.endDate),
+        label: leave.notes || 'Congé',
+        approved: leave.status === 'APPROVED',
+      })))
+    } catch (error: any) {
+      toastError(error?.response?.data?.message || 'Impossible de charger le planning réel')
+    } finally {
+      setLoadingPlanning(false)
+    }
+  }, [])
+
+  useEffect(() => { void loadPlanning() }, [loadPlanning])
 
   // v3.18 — navigation adaptative selon vue (jour/3j/sem/mois/6 sem)
   const goNext = () => setCurrentDate(v => {
@@ -364,8 +390,6 @@ export default function PlanningPage() {
   }, [shifts, weekDays])
 
   const overtimeAlerts = Object.entries(weeklyHoursByEmp).filter(([, h]) => h >= 45).length
-  const swapRequests = shifts.filter(s => s.swapRequested).length
-
   // Cost forecast for the week
   const weeklyCost = useMemo(() => {
     return shifts.filter(s => weekDays.some(d => isSameDay(d, s.date)))
@@ -402,9 +426,96 @@ export default function PlanningPage() {
     showToast('Export payroll généré')
   }
 
-  const handlePublish = () => showToast('Planning publié - SMS + Email envoyés à toute l\'équipe')
-  const handleShareEmail = () => showToast('Planning envoyé par email')
-  const handleAutoSchedule = () => showToast('Planning généré par IA basé sur historique et disponibilités')
+  const handlePublish = async () => {
+    const période = view === 'month' ? monthDays : visibleDays
+    const startDate = période[0]
+    const endDate = période[période.length - 1]
+    if (!startDate || !endDate) return
+    setActionBusy(true)
+    try {
+      const { data } = await api.post('/hr/planning/publish', {
+        startDate: startDate.toISOString(),
+        endDate: new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999).toISOString(),
+      })
+      await loadPlanning()
+      if (data.failedRecipients > 0) {
+        toastError(`Publication partielle : ${data.recipients} email(s) confirmé(s), ${data.failedRecipients} échec(s). Les shifts non livrés restent à publier.`)
+      } else {
+        toastSuccess(`Planning publié : ${data.confirmedShifts ?? data.shifts} shift(s), ${data.recipients} email(s) confirmé(s)`)
+      }
+    } catch (error: any) {
+      toastError(error?.response?.data?.message || 'Le planning n’a pas été envoyé')
+    } finally {
+      setActionBusy(false)
+    }
+  }
+
+  const handleAddShift = async (data: {
+    userId: string
+    role: RoleType
+    section: SectionType
+    date: Date
+    startHour: number
+    endHour: number
+    breakMinutes: number
+    secondaryRole?: RoleType
+  }) => {
+    const début = new Date(data.date)
+    début.setHours(data.startHour, 0, 0, 0)
+    const fin = new Date(data.date)
+    fin.setHours(data.endHour, 0, 0, 0)
+    if (data.endHour >= 24 || fin <= début) fin.setDate(fin.getDate() + 1)
+    await api.post('/hr/shifts', {
+      userId: data.userId,
+      role: data.role,
+      startTime: début.toISOString(),
+      endTime: fin.toISOString(),
+      breakMinutes: data.breakMinutes,
+      notes: `section:${data.section}${data.secondaryRole ? `;role-secondaire:${data.secondaryRole}` : ''}`,
+    })
+    await loadPlanning()
+  }
+
+  const handleOcrShifts = async (parsed: Array<{ employee: string; day: string; start: string; end: string; role?: string }>) => {
+    const jours: Record<string, number> = { lundi: 0, mardi: 1, mercredi: 2, jeudi: 3, vendredi: 4, samedi: 5, dimanche: 6 }
+    let importés = 0
+    const erreurs: string[] = []
+    for (const shift of parsed) {
+      const employee = employees.find((entry) => {
+        const nom = entry.name.toLowerCase()
+        const demandé = String(shift.employee || '').toLowerCase().trim()
+        return nom === demandé || nom.includes(demandé) || demandé.includes(nom)
+      })
+      if (!employee) { erreurs.push(`Employé introuvable : ${shift.employee}`); continue }
+      const jourNormalisé = String(shift.day || '').trim().toLowerCase()
+      const date = jours[jourNormalisé] === undefined ? new Date(shift.day) : addDays(weekStart, jours[jourNormalisé])
+      const [startHour, startMinute = 0] = shift.start.split(':').map(Number)
+      const [endHour, endMinute = 0] = shift.end.split(':').map(Number)
+      if (Number.isNaN(date.getTime()) || [startHour, startMinute, endHour, endMinute].some(Number.isNaN)) {
+        erreurs.push(`Horaire invalide pour ${shift.employee}`)
+        continue
+      }
+      const début = new Date(date); début.setHours(startHour, startMinute, 0, 0)
+      const fin = new Date(date); fin.setHours(endHour, endMinute, 0, 0)
+      if (fin <= début) fin.setDate(fin.getDate() + 1)
+      try {
+        await api.post('/hr/shifts', {
+          userId: employee.id,
+          role: normaliseRole(shift.role || employee.role),
+          startTime: début.toISOString(),
+          endTime: fin.toISOString(),
+          breakMinutes: (fin.getTime() - début.getTime()) / 3_600_000 >= 6 ? 30 : 0,
+          notes: 'section:Salle;source:ocr',
+        })
+        importés += 1
+      } catch (error: any) {
+        erreurs.push(error?.response?.data?.message || `Échec pour ${shift.employee}`)
+      }
+    }
+    await loadPlanning()
+    if (importés) toastSuccess(`${importés} shift(s) OCR enregistrés dans le planning`)
+    if (erreurs.length) toastError(erreurs.slice(0, 3).join(' · '))
+  }
 
   const handleCellClick = (day: Date, hour: number) => {
     setAddDate(day)
@@ -440,28 +551,14 @@ export default function PlanningPage() {
         <StatCard icon={<Users size={16} />} label="Shifts semaine" value={shifts.filter(s => weekDays.some(d => isSameDay(d, s.date))).length} sub="planifiés" color={C.indigo} bg={C.indigoSoft} />
         <StatCard icon={<Euro size={16} />} label="Coût prévu" value={`${weeklyCost.toFixed(0)}€`} sub="masse salariale" color={C.green} bg={C.greenSoft} />
         <StatCard icon={<AlertTriangle size={16} />} label="Alertes 48h" value={overtimeAlerts} sub="employés proches" color={C.red} bg={C.redSoft} />
-        <StatCard icon={<RefreshCcw size={16} />} label="Échanges" value={swapRequests} sub="demandes ouvertes" color={C.amber} bg={C.amberSoft} />
-        <StatCard icon={<Heart size={16} />} label="Disponibilités" value={EMPLOYEES.length} sub="employés actifs" color={C.purple} bg={C.purpleSoft} />
+        <StatCard icon={<Heart size={16} />} label="Équipe" value={employees.length} sub="employés actifs" color={C.purple} bg={C.purpleSoft} />
       </motion.div>
 
       {/* Action bar */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button data-tour="auto-plan" onClick={handleAutoSchedule} style={{ ...btnPrimary, background: `linear-gradient(135deg, ${C.indigo}, ${C.purple})` }}>
-            <Sparkles size={14} /> Auto-planifier (IA)
-          </button>
-          <button onClick={() => setShowTemplatesModal(true)} style={btnGhost}>
-            <Copy size={14} /> Modèles de shifts
-          </button>
-          <button onClick={() => setShowSwapsModal(true)} style={{ ...btnGhost, background: swapRequests > 0 ? C.amberSoft : C.card, color: swapRequests > 0 ? C.amber : C.text, border: `1px solid ${swapRequests > 0 ? C.amber + '55' : C.border}` }}>
-            <RefreshCcw size={14} /> Échanges ({swapRequests})
-          </button>
           <span data-tour="ocr-import" style={{ display: 'contents' }}>
-            <PlanningOCRImport onShifts={(parsed) => {
-              // eslint-disable-next-line no-console
-              console.log('[planning-ocr] imported shifts:', parsed)
-              alert(`${parsed.length} shift(s) importés via OCR — à fusionner dans le planning`)
-            }} />
+            <PlanningOCRImport onShifts={(parsed) => { void handleOcrShifts(parsed) }} />
           </span>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -494,10 +591,9 @@ export default function PlanningPage() {
               </button>
             ))}
           </div>
-          <button onClick={handleShareEmail} style={btnGhost}><Mail size={14} /> Partager</button>
           <button onClick={handleExportCSV} style={btnGhost}><Download size={14} /> Payroll</button>
-          <button onClick={handlePublish} style={{ ...btnPrimary, background: C.green }}>
-            <Send size={14} /> Publier planning
+          <button data-tour="publish-planning" onClick={handlePublish} disabled={actionBusy || loadingPlanning} style={{ ...btnPrimary, background: C.green, opacity: actionBusy || loadingPlanning ? 0.6 : 1 }}>
+            {actionBusy ? <RefreshCcw size={14} /> : <Send size={14} />} {actionBusy ? 'Envoi en cours…' : 'Publier et envoyer'}
           </button>
         </div>
       </div>
@@ -567,20 +663,10 @@ export default function PlanningPage() {
         date={addDate}
         hour={addHour}
         onToast={showToast}
+        employees={employees}
+        onSave={handleAddShift}
       />
 
-      <TemplatesModal
-        isOpen={showTemplatesModal}
-        onClose={() => setShowTemplatesModal(false)}
-        onApply={(tpl) => { showToast(`Modèle "${tpl.name}" appliqué`); setShowTemplatesModal(false) }}
-      />
-
-      <SwapsModal
-        isOpen={showSwapsModal}
-        onClose={() => setShowSwapsModal(false)}
-        shifts={shifts.filter(s => s.swapRequested)}
-        onApprove={() => { showToast('Échange approuvé - Équipe notifiée'); setShowSwapsModal(false) }}
-      />
 
       <AnimatePresence>
         {toast && (
@@ -703,7 +789,6 @@ function WeekView({ days, shifts, reservations, sickLeaves, vacations, getHolida
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {s.employeeName}
-                        {s.swapRequested && <RefreshCcw size={9} color={C.amber} />}
                         {s.hasBreak && <Coffee size={9} color={C.muted} />}
                       </div>
                       <div style={{ color: C.muted, fontSize: 9 }}>
@@ -860,8 +945,17 @@ function MonthView({ days, currentDate, shifts, getHoliday }: {
   )
 }
 
-function AddShiftModal({ isOpen, onClose, date, hour, onToast }: {
-  isOpen: boolean; onClose: () => void; date: Date | null; hour: number; onToast: (m: string) => void
+function AddShiftModal({ isOpen, onClose, date, hour, onToast, employees, onSave }: {
+  isOpen: boolean
+  onClose: () => void
+  date: Date | null
+  hour: number
+  onToast: (m: string) => void
+  employees: Employee[]
+  onSave: (data: {
+    userId: string; role: RoleType; section: SectionType; date: Date
+    startHour: number; endHour: number; breakMinutes: number; secondaryRole?: RoleType
+  }) => Promise<void>
 }) {
   const [employee, setEmployee] = useState('')
   const [role, setRole] = useState<RoleType>('Serveur')
@@ -871,20 +965,50 @@ function AddShiftModal({ isOpen, onClose, date, hour, onToast }: {
   const [multiRole, setMultiRole] = useState(false)
   const [secondaryRole, setSecondaryRole] = useState<RoleType>('Manager')
   const [requiredSkill, setRequiredSkill] = useState<Skill | ''>('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (isOpen) {
+      setStartH(hour)
+      setEndH(hour + 4)
+    }
+  }, [hour, isOpen])
 
   if (!isOpen || !date) return null
 
   const duration = endH - startH
   const breakMinutes = duration >= 6 ? 30 : 0
-  const employeeRec = EMPLOYEES.find(e => e.role === role && (!requiredSkill || e.skills.includes(requiredSkill)))
+  const employeeRec = employees.find(e => e.role === role && (!requiredSkill || e.skills.includes(requiredSkill)))
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!employee) {
       onToast('Veuillez sélectionner un employé')
       return
     }
-    onToast(`Shift ajouté${breakMinutes ? ' - Pause légale insérée' : ''}`)
-    onClose()
+    if (endH === startH) {
+      onToast('La fin doit être différente du début')
+      return
+    }
+    setSaving(true)
+    try {
+      await onSave({
+        userId: employee,
+        role,
+        section,
+        date,
+        startHour: startH,
+        endHour: endH,
+        breakMinutes,
+        secondaryRole: multiRole ? secondaryRole : undefined,
+      })
+      onToast(`Shift enregistré${breakMinutes ? ' - Pause légale insérée' : ''}`)
+      setEmployee('')
+      onClose()
+    } catch (error: any) {
+      toastError(error?.response?.data?.message || 'Impossible d’enregistrer le shift')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return createPortal(
@@ -933,8 +1057,8 @@ function AddShiftModal({ isOpen, onClose, date, hour, onToast }: {
               <label style={labelStyle}>Employé</label>
               <select style={inputStyle} value={employee} onChange={e => setEmployee(e.target.value)}>
                 <option value="">Sélectionner...</option>
-                {EMPLOYEES.map(e => (
-                  <option key={e.name} value={e.name}>{e.name} · {e.role} · {e.hourlyRate}€/h</option>
+                {employees.map(e => (
+                  <option key={e.id} value={e.id}>{e.name} · {e.role}{e.hourlyRate ? ` · ${e.hourlyRate.toFixed(2)}€/h` : ''}</option>
                 ))}
               </select>
             </div>
@@ -992,109 +1116,8 @@ function AddShiftModal({ isOpen, onClose, date, hour, onToast }: {
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
               <button onClick={onClose} style={btnGhost}>Annuler</button>
-              <button onClick={handleSave} style={btnPrimary}><Plus size={15} /> Ajouter</button>
+              <button onClick={handleSave} disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}><Plus size={15} /> {saving ? 'Enregistrement…' : 'Ajouter'}</button>
             </div>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>,
-    document.body,
-  )
-}
-
-function TemplatesModal({ isOpen, onClose, onApply }: {
-  isOpen: boolean; onClose: () => void; onApply: (tpl: ShiftTemplate) => void
-}) {
-  if (!isOpen) return null
-  return createPortal(
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.45)' }}
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-          onClick={e => e.stopPropagation()}
-          style={{ width: 500, background: C.card, borderRadius: 18, border: `1px solid ${C.border}`, overflow: 'hidden' }}
-        >
-          <div style={{ padding: '18px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: C.text, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Copy size={18} color={C.indigo} /> Modèles de shifts
-            </h2>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer' }}><X size={18} /></button>
-          </div>
-          <div style={{ padding: 20, display: 'grid', gap: 8 }}>
-            <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Appliquez un modèle pré-configuré en un clic.</p>
-            {SHIFT_TEMPLATES.map(tpl => (
-              <div key={tpl.id} style={{ padding: 14, background: C.borderSoft, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: ROLE_BG[tpl.role], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Clock size={18} color={ROLE_COLORS[tpl.role]} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{tpl.name}</div>
-                  <div style={{ fontSize: 11, color: C.muted }}>
-                    {tpl.startHour}h - {tpl.endHour > 24 ? (tpl.endHour - 24) + 'h (lendemain)' : tpl.endHour + 'h'} · {tpl.role} · {tpl.section}
-                  </div>
-                </div>
-                <button onClick={() => onApply(tpl)} style={{ ...btnBase, fontSize: 11, padding: '6px 12px', background: C.indigo, color: '#fff' }}>
-                  Appliquer
-                </button>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>,
-    document.body,
-  )
-}
-
-function SwapsModal({ isOpen, onClose, shifts, onApprove }: {
-  isOpen: boolean; onClose: () => void; shifts: Shift[]; onApprove: () => void
-}) {
-  if (!isOpen) return null
-  return createPortal(
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.45)' }}
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-          onClick={e => e.stopPropagation()}
-          style={{ width: 500, background: C.card, borderRadius: 18, border: `1px solid ${C.border}`, overflow: 'hidden' }}
-        >
-          <div style={{ padding: '18px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: C.text, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <RefreshCcw size={18} color={C.amber} /> Demandes d'échange
-            </h2>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer' }}><X size={18} /></button>
-          </div>
-          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {shifts.length === 0 && (
-              <p style={{ fontSize: 13, color: C.muted, textAlign: 'center', padding: 20 }}>Aucune demande en cours</p>
-            )}
-            {shifts.map(s => (
-              <div key={s.id} style={{ padding: 14, background: C.amberSoft, borderRadius: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{s.employeeName}</div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>
-                  {format(s.date, 'EEEE d MMMM', { locale: fr })} · {s.startHour}h-{s.endHour}h · {s.role}
-                </div>
-                <div style={{ fontSize: 11, color: C.text, marginBottom: 10, fontStyle: 'italic' }}>
-                  "Je voudrais échanger ce shift avec un(e) collègue. Rendez-vous médical."
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={onApprove} style={{ ...btnBase, fontSize: 11, padding: '6px 12px', background: C.green, color: '#fff' }}>
-                    <CheckCircle2 size={11} /> Approuver
-                  </button>
-                  <button onClick={() => toastSuccess('Demande refusée.')} style={{ ...btnBase, fontSize: 11, padding: '6px 12px', background: C.card, color: C.red, border: `1px solid ${C.red}44` }}>
-                    Refuser
-                  </button>
-                </div>
-              </div>
-            ))}
           </div>
         </motion.div>
       </motion.div>

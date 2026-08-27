@@ -209,6 +209,9 @@ export function stopProactiveWorker() {
   if (workerHandle) { clearInterval(workerHandle); workerHandle = null }
 }
 
-export function getRecentNotifs(limit = 20): Notif[] {
-  return loadNotifLog().slice(-limit).reverse()
+export function getRecentNotifs(limit = 20, companyId?: string): Notif[] {
+  const entries = companyId
+    ? loadNotifLog().filter((notif) => (notif as Notif & { companyId?: string }).companyId === companyId)
+    : []
+  return entries.slice(-limit).reverse()
 }

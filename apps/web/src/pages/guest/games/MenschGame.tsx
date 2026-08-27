@@ -694,7 +694,10 @@ function MenschBoard3D({
       camera.aspect = width / height
       const portrait = camera.aspect < 0.78
       camera.fov = portrait ? 48 : 42
-      camera.position.set(portrait ? 0 : 7.5, portrait ? 12.6 : 8.7, portrait ? 15.4 : 10.8)
+      // En portrait, le champ horizontal est beaucoup plus étroit qu'en
+      // paysage. Reculer la caméra garde les quatre maisons dans le cadre sur
+      // les téléphones étroits au lieu de couper les zones rouge et verte.
+      camera.position.set(portrait ? 0 : 7.5, portrait ? 15.8 : 8.7, portrait ? 19.4 : 10.8)
       camera.lookAt(0, 0.1, 0)
       camera.updateProjectionMatrix()
     }

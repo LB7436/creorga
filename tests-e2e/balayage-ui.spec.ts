@@ -45,7 +45,12 @@ const LIBELLES_CASSES = [
   /\b(common|nav|menu|settings|errors)\.[a-z][a-zA-Z.]+/, // clé i18n brute
 ]
 
-const RACINE_CAPTURES = path.resolve(__dirname, '..', 'tests-qa', 'screenshots', 'run-2026-07-27')
+// Les exécutions ordinaires ne doivent jamais écraser les archives visuelles
+// suivies par Git. Pour publier volontairement une nouvelle campagne, fournir
+// un dossier explicite avec BALAYAGE_OUTPUT_DIR.
+const RACINE_CAPTURES = process.env.BALAYAGE_OUTPUT_DIR
+  ? path.resolve(process.env.BALAYAGE_OUTPUT_DIR)
+  : path.resolve(__dirname, '..', 'test-results', 'balayage-ui')
 
 interface Constat {
   route: string
@@ -65,8 +70,11 @@ function nomFichier(route: string): string {
 
 async function login(page: Page) {
   await page.goto('/login', { waitUntil: 'domcontentloaded' })
-  await page.locator('input[type="email"]').fill('admin@creorga.local')
-  await page.locator('input[type="password"]').first().fill('Admin1234!')
+  // Le balayage doit exercer une vraie entreprise de la base. L'ancien
+  // compte de secours pointait vers `fallback-company`, qui n'existe pas en
+  // base et produisait des 404 artificiels sur le portail et le QR menu.
+  await page.locator('input[type="email"]').fill(process.env.DEMO_EMAIL || 'bryan@cafe-rondpoint.lu')
+  await page.locator('input[type="password"]').first().fill(process.env.DEMO_PASSWORD || 'Demo1234!')
   await page.locator('button[type="submit"]').first().click()
   await page.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 30_000 })
 }

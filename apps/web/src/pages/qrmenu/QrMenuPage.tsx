@@ -1,61 +1,19 @@
-import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/stores/authStore'
 import {
-  QrCode, Upload, Link2, Palette, Download, Printer, FileText,
-  Image as ImageIcon, Eye, BarChart3, Globe, ShoppingCart,
+  QrCode, Upload, Link2, Palette, Download, Printer,
+  Image as ImageIcon, Eye, Globe, ShoppingCart,
   Tag, AlertCircle, Check, Sparkles, RefreshCw, Smartphone,
 } from 'lucide-react'
-
-/* ───────────────────────── Mock QR Generator ─────────────────────────
-   Deterministic 25×25 grid based on a seed string. Not a real QR code,
-   but visually indistinguishable at a glance.
-*/
-function seededPattern(seed: string, size = 25): boolean[][] {
-  let h = 0
-  for (let i = 0; i < seed.length; i++) {
-    h = (h * 31 + seed.charCodeAt(i)) >>> 0
-  }
-  const grid: boolean[][] = []
-  for (let y = 0; y < size; y++) {
-    const row: boolean[] = []
-    for (let x = 0; x < size; x++) {
-      h = (h * 1103515245 + 12345) >>> 0
-      row.push(((h >>> 16) & 1) === 1)
-    }
-    grid.push(row)
-  }
-  // Force finder patterns (corners) for realism
-  const drawFinder = (gx: number, gy: number) => {
-    for (let dy = 0; dy < 7; dy++) {
-      for (let dx = 0; dx < 7; dx++) {
-        const onEdge = dx === 0 || dy === 0 || dx === 6 || dy === 6
-        const onCore = dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4
-        grid[gy + dy][gx + dx] = onEdge || onCore
-        if (dx === 1 || dy === 1 || dx === 5 || dy === 5) {
-          grid[gy + dy][gx + dx] = false
-        }
-        if (onEdge || onCore) grid[gy + dy][gx + dx] = true
-      }
-    }
-  }
-  drawFinder(0, 0)
-  drawFinder(size - 7, 0)
-  drawFinder(0, size - 7)
-  // Timing patterns
-  for (let i = 8; i < size - 8; i++) {
-    grid[6][i] = i % 2 === 0
-    grid[i][6] = i % 2 === 0
-  }
-  return grid
-}
+import { generateQR } from '@/components/QRCodeCanvas'
 
 function QrSvg({
-  seed, size, fg, bg = '#ffffff', radius = 0,
-}: { seed: string; size: number; fg: string; bg?: string; radius?: number }) {
-  const grid = useMemo(() => seededPattern(seed, 25), [seed])
-  const cell = size / 25
+  value, size, fg, bg = '#ffffff', radius = 0,
+}: { value: string; size: number; fg: string; bg?: string; radius?: number }) {
+  const grid = useMemo(() => generateQR(value), [value])
+  const quietZone = 4
+  const cell = size / (grid.length + quietZone * 2)
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: 'block', borderRadius: radius }}>
       <rect width={size} height={size} fill={bg} />
@@ -64,8 +22,8 @@ function QrSvg({
           on ? (
             <rect
               key={`${x}-${y}`}
-              x={x * cell}
-              y={y * cell}
+              x={(x + quietZone) * cell}
+              y={(y + quietZone) * cell}
               width={cell}
               height={cell}
               fill={fg}
@@ -78,43 +36,7 @@ function QrSvg({
   )
 }
 
-/* ─────────────────── Carte : repli de mise en page ──────────────────
- * Ces tableaux servaient de VRAIE carte : la prévisualisation QR affichait
- * « Entrecôte grillée 28,00 € » quels que soient les produits réellement
- * saisis en back-office. Ils ne servent plus qu'à dessiner la maquette tant
- * que la carte réelle n'est pas chargée ; dès qu'elle l'est, elle les
- * remplace (cf. `carteReelle` plus bas).
- */
-const MENU_CATEGORIES_MAQUETTE = [
-  { id: 'entrees', label: 'Entrées', emoji: '🥗' },
-  { id: 'plats', label: 'Plats', emoji: '🍽️' },
-  { id: 'desserts', label: 'Desserts', emoji: '🍰' },
-  { id: 'boissons', label: 'Boissons', emoji: '🥂' },
-]
-
 type PlatCarte = { name: string; price: number; emoji: string; allergens: string[] }
-
-const MENU_ITEMS_MAQUETTE: Record<string, Array<PlatCarte>> = {
-  entrees: [
-    { name: 'Salade du chef', price: 12.5, emoji: '🥗', allergens: ['G', 'L'] },
-    { name: 'Tartare de saumon', price: 16.0, emoji: '🐟', allergens: ['P'] },
-    { name: 'Burrata fumée', price: 14.0, emoji: '🧀', allergens: ['L'] },
-  ],
-  plats: [
-    { name: 'Entrecôte grillée', price: 28.0, emoji: '🥩', allergens: [] },
-    { name: 'Risotto truffé', price: 22.5, emoji: '🍚', allergens: ['L', 'G'] },
-    { name: 'Poulet fermier', price: 24.0, emoji: '🍗', allergens: [] },
-  ],
-  desserts: [
-    { name: 'Tiramisu maison', price: 8.5, emoji: '🍰', allergens: ['L', 'O'] },
-    { name: 'Tarte au citron', price: 7.5, emoji: '🥧', allergens: ['G', 'O'] },
-  ],
-  boissons: [
-    { name: 'Vin rouge (verre)', price: 6.5, emoji: '🍷', allergens: [] },
-    { name: 'Cocktail signature', price: 11.0, emoji: '🍸', allergens: [] },
-    { name: 'Café espresso', price: 2.8, emoji: '☕', allergens: [] },
-  ],
-}
 
 /* ───────────────────────── Presets ──────────────────────── */
 const COLOR_SWATCHES = ['#7C3AED', '#6366F1', '#0EA5E9', '#10B981', '#F59E0B', '#EF4444']
@@ -127,49 +49,35 @@ const PATTERNS = [
 type PatternId = typeof PATTERNS[number]['id']
 
 const LANGUAGES = ['FR', 'DE', 'EN', 'PT']
-const QR_MENU_DOCUMENT_KEY = 'creorga-qr-menu-document'
 
 /* ───────────────────────── Main Component ──────────────────────── */
 export default function QrMenuPage() {
+  const companyId = useAuthStore((state) => state.companyId)
   // Restaurant config
-  const [restaurantName, setRestaurantName] = useState('Café um Rond-Point')
+  const [restaurantName, setRestaurantName] = useState('Mon établissement')
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const pdfInputRef = useRef<HTMLInputElement>(null)
-  const [publishedMenuName, setPublishedMenuName] = useState<string | null>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(QR_MENU_DOCUMENT_KEY) || 'null')?.name ?? null
-    } catch { return null }
-  })
-
-  // Menu source
-  const [posSync, setPosSync] = useState(true)
-
-  // URL
-  const [customSlug, setCustomSlug] = useState('cafe-rond-point')
+  const [menuStatus, setMenuStatus] = useState<'loading' | 'ready' | 'empty' | 'error'>('loading')
 
   // Display options
   const [showPrices, setShowPrices] = useState(true)
   const [showAllergens, setShowAllergens] = useState(true)
   const [showPhotos, setShowPhotos] = useState(true)
   const [allowOrdering, setAllowOrdering] = useState(false)
+  const [previewCartCount, setPreviewCartCount] = useState(0)
   const [multilingual, setMultilingual] = useState(true)
 
   // Style
   const [accentColor, setAccentColor] = useState('#7C3AED')
   const [pattern, setPattern] = useState<PatternId>('dots')
 
-  // Analytics
-  const [tracking, setTracking] = useState(true)
-
   // QR
   const [qrSize, setQrSize] = useState<'S' | 'M' | 'L'>('M')
-  const [activeCategory, setActiveCategory] = useState('entrees')
+  const [activeCategory, setActiveCategory] = useState('')
 
-  // Carte réelle, chargée depuis la même source que le back-office. Tant
-  // qu'elle n'est pas arrivée on garde la maquette pour dessiner l'aperçu,
-  // mais dès qu'elle est là c'est elle qui fait foi : la prévisualisation
-  // doit montrer ce que le client verra, pas des plats de démonstration.
+  // Carte réelle, chargée depuis la même source que le back-office. Aucun plat
+  // de démonstration n'est affiché : l'aperçu doit toujours correspondre à ce
+  // que verra réellement le client.
   const [carteReelle, setCarteReelle] = useState<{
     categories: Array<{ id: string; label: string; emoji: string }>
     items: Record<string, PlatCarte[]>
@@ -177,16 +85,24 @@ export default function QrMenuPage() {
 
   useEffect(() => {
     let annule = false
-    // `companyId` est la société active choisie par l'utilisateur : c'est
-    // elle qu'il faut prévisualiser, pas la première de la liste.
-    const companyId = useAuthStore.getState().companyId || ''
-
+    setMenuStatus('loading')
+    if (!companyId) {
+      setCarteReelle(null)
+      setMenuStatus('error')
+      return () => { annule = true }
+    }
     fetch(`/api/portal-config/menu${companyId ? `?companyId=${encodeURIComponent(companyId)}` : ''}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((data) => {
         if (annule) return
         const cats = (data.categories || []).filter((c: any) => (c.products || []).length > 0)
-        if (!cats.length) return
+        if (!cats.length) {
+          setCarteReelle({ categories: [], items: {} })
+          if (data.restaurantName) setRestaurantName(data.restaurantName)
+          setActiveCategory('')
+          setMenuStatus('empty')
+          return
+        }
 
         const categories = cats.map((c: any) => ({ id: c.id, label: c.name, emoji: '🍽️' }))
         const items: Record<string, PlatCarte[]> = {}
@@ -201,18 +117,27 @@ export default function QrMenuPage() {
             }))
         }
         setCarteReelle({ categories, items })
+        if (data.restaurantName) setRestaurantName(data.restaurantName)
         setActiveCategory(categories[0].id)
+        setMenuStatus('ready')
       })
-      .catch(() => { /* aperçu en maquette : l'aperçu n'est pas la carte client */ })
+      .catch(() => { if (!annule) setMenuStatus('error') })
 
     return () => { annule = true }
-  }, [])
+  }, [companyId])
 
-  const MENU_CATEGORIES = carteReelle?.categories ?? MENU_CATEGORIES_MAQUETTE
-  const MENU_ITEMS = carteReelle?.items ?? MENU_ITEMS_MAQUETTE
+  const MENU_CATEGORIES = carteReelle?.categories ?? []
+  const MENU_ITEMS = carteReelle?.items ?? {}
 
   const qrPixelSize = qrSize === 'S' ? 100 : qrSize === 'M' ? 200 : 400
-  const fullUrl = `${customSlug}.creorga.lu/menu`
+  const portalUrl = (table: number) => {
+    const origin = typeof window === 'undefined' ? 'https://creorga.n8nautomatisations.org' : window.location.origin
+    const url = new URL('/c', origin)
+    if (companyId && companyId !== 'fallback-company') url.searchParams.set('companyId', companyId)
+    url.searchParams.set('table', String(table))
+    return url.toString()
+  }
+  const fullUrl = portalUrl(1)
 
   // ── Export du QR et impression du poster ──
   // v4.8 : ces quatre boutons (PNG / SVG / PDF / Imprimer poster A4) n'avaient
@@ -244,7 +169,7 @@ export default function QrMenuPage() {
     if (!svg) { alert("QR indisponible pour l'export."); return }
     const blob = new Blob([svg], { type: 'image/svg+xml' })
     const url = URL.createObjectURL(blob)
-    telecharger(url, `qr-${customSlug}.svg`)
+    telecharger(url, 'qr-menu-table-1.svg')
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
@@ -260,7 +185,7 @@ export default function QrMenuPage() {
       if (!ctx) return
       ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cote, cote)
       ctx.drawImage(img, 0, 0, cote, cote)
-      telecharger(canvas.toDataURL('image/png'), `qr-${customSlug}.png`)
+      telecharger(canvas.toDataURL('image/png'), 'qr-menu-table-1.png')
     }
     img.onerror = () => alert('Conversion PNG impossible.')
     img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)))
@@ -327,27 +252,33 @@ export default function QrMenuPage() {
     reader.readAsDataURL(file)
   }
 
-  const publishMenuDocument = (payload?: { name: string; dataUrl?: string }) => {
-    const doc = {
-      name: payload?.name ?? `QR Menu ${restaurantName}.pdf`,
-      dataUrl: payload?.dataUrl,
-      restaurantName,
-      fullUrl,
-      updatedAt: new Date().toISOString(),
-      posSync,
-      allowOrdering,
-    }
-    localStorage.setItem(QR_MENU_DOCUMENT_KEY, JSON.stringify(doc))
-    window.dispatchEvent(new StorageEvent('storage', { key: QR_MENU_DOCUMENT_KEY }))
-    setPublishedMenuName(doc.name)
+  const qrSvgMarkup = (value: string, size = 180) => {
+    const matrix = generateQR(value)
+    const quietZone = 4
+    const total = matrix.length + quietZone * 2
+    const modules = matrix.flatMap((row, y) => row.flatMap((on, x) => on
+      ? [`<rect x="${x + quietZone}" y="${y + quietZone}" width="1" height="1"/>`]
+      : []))
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${total} ${total}"><rect width="${total}" height="${total}" fill="#fff"/><g fill="${accentColor}">${modules.join('')}</g></svg>`
   }
 
-  const handleMenuPdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev => publishMenuDocument({ name: file.name, dataUrl: ev.target?.result as string })
-    reader.readAsDataURL(file)
+  const imprimerTousLesQr = () => {
+    const cartes = Array.from({ length: 12 }, (_, index) => {
+      const table = index + 1
+      return `<article>${qrSvgMarkup(portalUrl(table), 155)}<strong>TABLE ${table}</strong></article>`
+    }).join('')
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>QR tables — ${echapper(restaurantName)}</title><style>
+      @page{size:A4;margin:10mm}*{box-sizing:border-box;font-family:system-ui,sans-serif}body{margin:0;color:#0f172a}h1{text-align:center;font-size:22px;margin:0 0 10mm}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8mm}article{display:flex;flex-direction:column;align-items:center;gap:3mm;border:1px dashed #94a3b8;border-radius:12px;padding:5mm;break-inside:avoid}strong{font-size:16px;letter-spacing:.08em}</style></head><body><h1>${echapper(restaurantName)} — QR des tables</h1><div class="grid">${cartes}</div></body></html>`
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('aria-hidden', 'true')
+    Object.assign(iframe.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0' })
+    iframe.srcdoc = html
+    iframe.onload = () => {
+      iframe.contentWindow?.focus()
+      iframe.contentWindow?.print()
+      setTimeout(() => iframe.remove(), 1500)
+    }
+    document.body.appendChild(iframe)
   }
 
   return (
@@ -384,19 +315,20 @@ export default function QrMenuPage() {
           </div>
         </div>
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
-          padding: '8px 14px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: menuStatus === 'error' ? '#fef2f2' : '#ecfdf5',
+          border: `1px solid ${menuStatus === 'error' ? '#fecaca' : '#a7f3d0'}`,
+          borderRadius: 12, padding: '8px 14px',
         }}>
-          <BarChart3 size={16} color={accentColor} />
-          <span style={{ fontSize: 13, color: '#475569', fontWeight: 500 }}>
-            <strong style={{ color: '#0f172a', fontWeight: 700 }}>234</strong> scans ce mois
+          <span aria-hidden>{menuStatus === 'loading' ? '◌' : menuStatus === 'error' ? '!' : '✓'}</span>
+          <span style={{ fontSize: 13, color: menuStatus === 'error' ? '#b91c1c' : '#047857', fontWeight: 700 }}>
+            {menuStatus === 'loading' ? 'Chargement de la carte…' : menuStatus === 'error' ? 'Carte indisponible' : menuStatus === 'empty' ? 'Catalogue vide — aucun faux plat affiché' : 'Carte POS synchronisée'}
           </span>
         </div>
       </motion.div>
 
       {/* 3-column layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '55fr 25fr 20fr', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: 20 }}>
         {/* ── LEFT: Configuration ───────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -405,7 +337,7 @@ export default function QrMenuPage() {
           style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
         >
           {/* Restaurant Info */}
-          <Card title="Informations restaurant" icon={<Sparkles size={16} />} color={accentColor}>
+          <Card title="Personnalisation de l’aperçu" icon={<Sparkles size={16} />} color={accentColor}>
             <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
               <div>
                 <Label>Logo</Label>
@@ -448,125 +380,68 @@ export default function QrMenuPage() {
 
           {/* Menu source */}
           <Card title="Source du menu" icon={<RefreshCw size={16} />} color={accentColor}>
-            <ToggleRow
-              label="Synchroniser avec le POS"
-              description="Les changements du POS sont reflétés en temps réel"
-              checked={posSync}
-              onChange={setPosSync}
-              color={accentColor}
-            />
-            <div style={{ height: 1, background: '#e2e8f0', margin: '14px 0' }} />
-            <button
-              onClick={() => pdfInputRef.current?.click()}
-              style={{
-              ...inputStyle, display: 'flex', alignItems: 'center', gap: 10,
-              cursor: 'pointer', justifyContent: 'center', fontWeight: 500,
-              color: '#475569', background: '#f8fafc',
-            }}>
-              <FileText size={16} />
-              Importer un PDF à la place
-            </button>
-            <input
-              ref={pdfInputRef}
-              type="file"
-              accept="application/pdf"
-              onChange={handleMenuPdfUpload}
-              style={{ display: 'none' }}
-            />
-            <button
-              onClick={() => publishMenuDocument()}
-              style={{
-                ...inputStyle,
-                marginTop: 10,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 10,
-                cursor: 'pointer',
-                fontWeight: 700,
-                color: '#fff',
-                background: accentColor,
-                borderColor: accentColor,
-              }}
-            >
-              <Check size={16} />
-              Publier dans le portail client
-            </button>
-            {publishedMenuName && (
-              <p style={{ fontSize: 11, color: '#16a34a', margin: '8px 0 0 0', fontWeight: 700 }}>
-                Visible dans le menu client : {publishedMenuName}
-              </p>
-            )}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <Check size={18} color={menuStatus === 'error' ? '#dc2626' : '#16a34a'} />
+              <div>
+                <p style={{ margin: 0, color: '#0f172a', fontSize: 13, fontWeight: 700 }}>
+                  {menuStatus === 'error' ? 'Connexion au catalogue impossible' : menuStatus === 'empty' ? 'Catalogue relié, mais vide' : 'Catalogue relié au POS'}
+                </p>
+                <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 12, lineHeight: 1.5 }}>
+                  Les catégories, produits et prix publiés dans le catalogue sont ceux affichés dans le portail client. Modifiez-les depuis le module Catalogue.
+                </p>
+              </div>
+            </div>
           </Card>
 
           {/* URL */}
-          <Card title="URL personnalisée" icon={<Link2 size={16} />} color={accentColor}>
-            <Label>Sous-domaine</Label>
+          <Card title="Adresse du portail" icon={<Link2 size={16} />} color={accentColor}>
+            <Label>Lien réellement encodé dans le QR</Label>
             <div style={{
-              display: 'flex', alignItems: 'stretch',
-              border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden',
-              background: '#fff',
-            }}>
-              <input
-                type="text"
-                value={customSlug}
-                onChange={e => setCustomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                style={{
-                  flex: 1, border: 'none', outline: 'none',
-                  padding: '10px 14px', fontSize: 14, color: '#0f172a',
-                  background: 'transparent',
-                }}
-              />
-              <div style={{
-                display: 'flex', alignItems: 'center', padding: '0 14px',
-                background: '#f1f5f9', fontSize: 13, color: '#64748b', fontWeight: 500,
-              }}>
-                .creorga.lu/menu
-              </div>
-            </div>
-            <div style={{
-              marginTop: 10, padding: '10px 12px',
+              padding: '10px 12px', overflowWrap: 'anywhere',
               background: `${accentColor}0d`, borderRadius: 8,
               fontSize: 12, color: accentColor, fontWeight: 600,
               fontFamily: 'ui-monospace, SFMono-Regular, monospace',
             }}>
-              → {fullUrl}
+              {fullUrl}
             </div>
+            <a href={fullUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', marginTop: 10, color: accentColor, fontSize: 12, fontWeight: 700 }}>
+              Ouvrir et tester le portail
+            </a>
           </Card>
 
           {/* Display options */}
-          <Card title="Options d'affichage" icon={<Eye size={16} />} color={accentColor}>
+          <Card title="Options de l’aperçu et des exports" icon={<Eye size={16} />} color={accentColor}>
             <ToggleRow
               label="Afficher les prix"
-              description="Les clients voient les prix sur chaque plat"
+              description="Afficher les prix dans l’aperçu et le poster exporté"
               icon={<Tag size={14} />}
               checked={showPrices} onChange={setShowPrices} color={accentColor}
             />
             <Divider />
             <ToggleRow
               label="Afficher les allergènes"
-              description="Icônes des allergènes à côté des plats"
+              description="Afficher les allergènes dans l’aperçu"
               icon={<AlertCircle size={14} />}
               checked={showAllergens} onChange={setShowAllergens} color={accentColor}
             />
             <Divider />
             <ToggleRow
               label="Afficher les photos"
-              description="Images pour chaque plat (recommandé)"
+              description="Afficher les pictogrammes dans l’aperçu"
               icon={<ImageIcon size={14} />}
               checked={showPhotos} onChange={setShowPhotos} color={accentColor}
             />
             <Divider />
             <ToggleRow
               label="Permettre la commande"
-              description="Les clients peuvent commander depuis le QR"
+              description="Simuler les boutons de commande dans l’aperçu"
               icon={<ShoppingCart size={14} />}
               checked={allowOrdering} onChange={setAllowOrdering} color={accentColor}
             />
             <Divider />
             <ToggleRow
               label="Multilingue"
-              description="FR / DE / EN / PT disponibles pour les clients"
+              description="Prévisualiser le sélecteur FR / DE / EN / PT"
               icon={<Globe size={14} />}
               checked={multilingual} onChange={setMultilingual} color={accentColor}
             />
@@ -638,14 +513,6 @@ export default function QrMenuPage() {
             </div>
           </Card>
 
-          {/* Analytics */}
-          <Card title="Analytics" icon={<BarChart3 size={16} />} color={accentColor}>
-            <ToggleRow
-              label="Activer le tracking"
-              description="Suivre le nombre de scans et les plats populaires"
-              checked={tracking} onChange={setTracking} color={accentColor}
-            />
-          </Card>
         </motion.div>
 
         {/* ── CENTER: QR Code Display ───────────────────────── */}
@@ -673,7 +540,7 @@ export default function QrMenuPage() {
 
           {/* QR */}
           <motion.div
-            key={`${accentColor}-${qrPixelSize}-${customSlug}`}
+            key={`${accentColor}-${qrPixelSize}-${fullUrl}`}
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             whileHover={{ scale: 1.02 }}
@@ -686,7 +553,7 @@ export default function QrMenuPage() {
           >
             <div ref={qrBoxRef}>
               <QrSvg
-                seed={fullUrl + accentColor}
+                value={fullUrl}
                 size={Math.min(qrPixelSize, 260)}
                 fg={accentColor}
               />
@@ -759,29 +626,6 @@ export default function QrMenuPage() {
             </motion.button>
           </div>
 
-          {/* Mini stats */}
-          <div style={{
-            width: '100%', padding: '12px 14px',
-            background: `${accentColor}0d`, borderRadius: 12,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <div>
-              <p style={{ fontSize: 11, color: '#64748b', margin: 0, fontWeight: 500 }}>
-                Scans ce mois
-              </p>
-              <p style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: '2px 0 0 0' }}>
-                234
-              </p>
-            </div>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              padding: '4px 10px', borderRadius: 20,
-              background: '#10b98122', color: '#10b981',
-              fontSize: 12, fontWeight: 700,
-            }}>
-              ↑ 18%
-            </div>
-          </div>
         </motion.div>
 
         {/* ── RIGHT: Live Menu Preview ──────────────────────── */}
@@ -959,7 +803,7 @@ export default function QrMenuPage() {
                           </div>
                         </div>
                         {allowOrdering && (
-                          <button onClick={() => toastInfo('Article ajouté à la commande.')} style={{
+                          <button aria-label={`Ajouter ${item.name} à l’aperçu du panier`} onClick={() => setPreviewCartCount((count) => count + 1)} style={{
                             width: 22, height: 22, borderRadius: 6,
                             background: accentColor, color: '#fff',
                             border: 'none', cursor: 'pointer',
@@ -969,6 +813,15 @@ export default function QrMenuPage() {
                         )}
                       </div>
                     ))}
+                    {menuStatus === 'loading' && (
+                      <p style={{ color: '#64748b', fontSize: 11, textAlign: 'center', padding: 24 }}>Chargement du catalogue…</p>
+                    )}
+                    {menuStatus === 'empty' && (
+                      <p style={{ color: '#64748b', fontSize: 11, textAlign: 'center', padding: 24 }}>Ajoutez et activez des produits dans le Catalogue pour les voir ici.</p>
+                    )}
+                    {menuStatus === 'error' && (
+                      <p style={{ color: '#b91c1c', fontSize: 11, textAlign: 'center', padding: 24 }}>Impossible de charger le catalogue. Aucun contenu de démonstration n’est affiché.</p>
+                    )}
                   </motion.div>
                 </AnimatePresence>
               </div>
@@ -979,12 +832,12 @@ export default function QrMenuPage() {
                   padding: 8, borderTop: '1px solid #f1f5f9',
                   position: 'relative', zIndex: 1, background: '#fff',
                 }}>
-                  <button onClick={() => toastInfo('Panier vide — ajoutez un article avant de commander.')} style={{
+                  <button onClick={() => setPreviewCartCount(0)} disabled={previewCartCount === 0} title="Réinitialiser le panier de prévisualisation" style={{
                     width: '100%', padding: '8px', borderRadius: 8,
                     background: accentColor, color: '#fff', border: 'none',
-                    fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                    fontSize: 10, fontWeight: 700, cursor: previewCartCount === 0 ? 'default' : 'pointer', opacity: previewCartCount === 0 ? .65 : 1,
                   }}>
-                    Commander (0)
+                    Aperçu panier ({previewCartCount}){previewCartCount > 0 ? ' · Réinitialiser' : ''}
                   </button>
                 </div>
               )}
@@ -1027,6 +880,7 @@ export default function QrMenuPage() {
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
+            onClick={imprimerTousLesQr}
             style={{
               padding: '11px 18px', borderRadius: 12,
               background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`,
@@ -1037,7 +891,7 @@ export default function QrMenuPage() {
             }}
           >
             <Download size={15} />
-            Télécharger tous les QR tables
+            Imprimer les 12 QR tables
           </motion.button>
         </div>
 
@@ -1064,7 +918,7 @@ export default function QrMenuPage() {
                 padding: 6, borderRadius: 8,
                 background: '#fff', border: `2px solid ${accentColor}`,
               }}>
-                <QrSvg seed={`${fullUrl}?t=${n}`} size={80} fg={accentColor} />
+                <QrSvg value={portalUrl(n)} size={80} fg={accentColor} />
               </div>
               <div style={{ textAlign: 'center' }}>
                 <p style={{

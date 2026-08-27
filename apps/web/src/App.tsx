@@ -3,12 +3,9 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import InstallPrompt from '@/components/InstallPrompt'
 import HelpChatbot from '@/components/HelpChatbot'
 import AssistantPanel from '@/components/AssistantPanel'
-import RobiOperator from '@/components/RobiOperator'
 import FloatingHub from '@/components/FloatingHub'
 import DailyBriefingPill from '@/components/DailyBriefingPill'
-import BirthdayCelebrate from '@/components/BirthdayCelebrate'
 import UniversalSearch from '@/components/UniversalSearch'
-import OnboardingWizard from '@/components/OnboardingWizard'
 import RequireAuth from '@/components/auth/RequireAuth'
 import RequireRole from '@/components/auth/RequireRole'
 import { useAuthStore } from '@/stores/authStore'
@@ -19,10 +16,10 @@ const Welcome = lazy(() => import('@/pages/Welcome'))
 import { useDemoMode } from '@/lib/demoMode'
 import ModuleSelector from '@/pages/ModuleSelector'
 import NotFound from '@/pages/NotFound'
+import FeatureUnavailable from '@/pages/FeatureUnavailable'
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
 const Kitchen = lazy(() => import('@/pages/pos/Kitchen'))
 import BackToStart from '@/components/BackToStart'
-const RoomDesignerPage = lazy(() => import('@/pages/pos/RoomDesignerPage'))
 const SettingsModules = lazy(() => import('@/pages/settings/SettingsModules'))
 const SettingsEnvMode = lazy(() => import('@/pages/settings/SettingsEnvMode'))
 const AIModulePage = lazy(() => import('@/pages/ai/AIModulePage'))
@@ -42,10 +39,8 @@ const MobileRobi = lazy(() => import('@/pages/mobile/MobileRobi'))
 const MobileAlerts = lazy(() => import('@/pages/mobile/MobileAlerts'))
 const MobileWorld = lazy(() => import('@/pages/mobile/MobileWorld'))
 const MobileSettings = lazy(() => import('@/pages/mobile/MobileSettings'))
-const MobileCamera = lazy(() => import('@/pages/mobile/MobileCamera'))
 const MobileDemoLogin = lazy(() => import('@/pages/mobile/MobileDemoLogin'))
 const MobileBriefing = lazy(() => import('@/pages/mobile/MobileBriefing'))
-const MobileMagicCam = lazy(() => import('@/pages/mobile/MobileMagicCam'))
 const UnifiedFloorPlan = lazy(() => import('@/pages/pos/UnifiedFloorPlan'))
 const GuestHome = lazy(() => import('@/pages/guest/GuestHome'))
 const GuestPaidPage = lazy(() => import('@/pages/guest/GuestPaidPage'))
@@ -53,20 +48,15 @@ const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout'))
 const AdminCompany = lazy(() => import('@/pages/admin/AdminCompany'))
 const AdminUsers = lazy(() => import('@/pages/admin/AdminUsers'))
 const AdminCatalog = lazy(() => import('@/pages/admin/AdminCatalog'))
-const AdminModules = lazy(() => import('@/pages/admin/AdminModules'))
 const ClientsConfig = lazy(() => import('@/pages/clients/ClientsConfig'))
 
 // Module Layouts
 const PosLayout = lazy(() => import('@/pages/pos/PosLayout'))
 const CrmLayout = lazy(() => import('@/pages/crm/CrmLayout'))
 const InvoicesLayout = lazy(() => import('@/pages/invoices/InvoicesLayout'))
-const InventoryLayout = lazy(() => import('@/pages/inventory/InventoryLayout'))
 const HrLayout = lazy(() => import('@/pages/hr/HrLayout'))
-const HaccpLayout = lazy(() => import('@/pages/haccp/HaccpLayout'))
 const AccountingLayout = lazy(() => import('@/pages/accounting/AccountingLayout'))
 // v4.1 — Layouts retirés (folded) : ReputationLayout (→ CrmLayout), AgendaLayout (obsolète)
-// v4.1 — Nouveaux Layouts (3 fusions) :
-const SalesLayout = lazy(() => import('@/pages/sales/SalesLayout'))
 const AdsLayout = lazy(() => import('@/pages/ads/AdsLayout'))
 const OwnerLayout = lazy(() => import('@/pages/owner/OwnerLayout'))
 // (note : ReputationLayout, AgendaLayout, LicencesPage, AgendaPage imports retirés v4.1)
@@ -74,52 +64,19 @@ const OwnerLayout = lazy(() => import('@/pages/owner/OwnerLayout'))
 // QR Menu Page
 const QrMenuPage = lazy(() => import('@/pages/qrmenu/QrMenuPage'))
 
-// Formation Page
-const FormationPage = lazy(() => import('@/pages/formation/FormationPage'))
-
-// Admin module pages
-const MaintenancePage = lazy(() => import('@/pages/maintenance/MaintenancePage'))
-// v4.1 — LicencesPage retiré (URL /licences redirige /rgpd, page jamais affichée)
-const RgpdPage = lazy(() => import('@/pages/rgpd/RgpdPage'))
-
 // POS Pages
-const FloorPlan = lazy(() => import('@/pages/pos/FloorPlan'))
 const DashboardPage = lazy(() => import('@/pages/pos/DashboardPage'))
 
 // CRM Pages
 const ClientsPage = lazy(() => import('@/pages/crm/ClientsPage'))
-const FidelitePage = lazy(() => import('@/pages/crm/FidelitePage'))
-const PortefeuillePage = lazy(() => import('@/pages/crm/PortefeuillePage'))
-const CartesPage = lazy(() => import('@/pages/crm/CartesPage'))
 
 // Invoices Pages
 const DevisPageInv = lazy(() => import('@/pages/invoices/DevisPage'))
 const FacturesPage = lazy(() => import('@/pages/invoices/FacturesPage'))
-const AvoirsPage = lazy(() => import('@/pages/invoices/AvoirsPage'))
-const RelancesPage = lazy(() => import('@/pages/invoices/RelancesPage'))
-
-// Reservations Pages (now under Agenda)
-const CalendrierPage = lazy(() => import('@/pages/reservations/CalendrierPage'))
-
-// Inventory Pages
-const StockPage = lazy(() => import('@/pages/inventory/StockPage'))
-const ReceiptOCR = lazy(() => import('@/pages/inventory/ReceiptOCR'))
-const RecettesPage = lazy(() => import('@/pages/inventory/RecettesPage'))
-const FournisseursPage = lazy(() => import('@/pages/inventory/FournisseursPage'))
-const CommandesPage = lazy(() => import('@/pages/inventory/CommandesPage'))
 
 // HR Pages
 const PlanningPage = lazy(() => import('@/pages/hr/PlanningPage'))
-const PointagesPage = lazy(() => import('@/pages/hr/PointagesPage'))
-const CongesPage = lazy(() => import('@/pages/hr/CongesPage'))
 const EquipePage = lazy(() => import('@/pages/hr/EquipePage'))
-const HrParamsPage = lazy(() => import('@/pages/hr/ParamsPage'))
-
-// HACCP Pages
-const JourneePage = lazy(() => import('@/pages/haccp/JourneePage'))
-const TemperaturesPage = lazy(() => import('@/pages/haccp/TemperaturesPage'))
-const TachesPage = lazy(() => import('@/pages/haccp/TachesPage'))
-const HaccpHistoriquePage = lazy(() => import('@/pages/haccp/HistoriquePage'))
 
 // Accounting Pages
 const CaissePage = lazy(() => import('@/pages/accounting/CaissePage'))
@@ -128,38 +85,16 @@ const DepensesPage = lazy(() => import('@/pages/accounting/DepensesPage'))
 const TvaPage = lazy(() => import('@/pages/accounting/TvaPage'))
 const RapportsPage = lazy(() => import('@/pages/accounting/RapportsPage'))
 
-// Marketing Pages
-const CampagnesPage = lazy(() => import('@/pages/marketing/CampagnesPage'))
-const CodesPage = lazy(() => import('@/pages/marketing/CodesPage'))
-const AudiencesPage = lazy(() => import('@/pages/marketing/AudiencesPage'))
-
-// Reputation Pages
-const AvisPage = lazy(() => import('@/pages/reputation/AvisPage'))
-const ReponsesPage = lazy(() => import('@/pages/reputation/ReponsesPage'))
-const ReputStatsPage = lazy(() => import('@/pages/reputation/StatsPage'))
-
-// Sites & API Pages
-const SitesPage = lazy(() => import('@/pages/sites/SitesPage'))
-const ApiPage = lazy(() => import('@/pages/api/ApiPage'))
-const MarketplacePage = lazy(() => import('@/pages/api/MarketplacePage'))
-
 // New modules
 const AiAssistantPage = lazy(() => import('@/pages/ai/AiAssistantPage'))
-const BackupPage = lazy(() => import('@/pages/backup/BackupPage'))
-const OwnerReportPage = lazy(() => import('@/pages/owner/OwnerReportPage'))
 const ActiviteAuditPage = lazy(() => import('@/pages/owner/ActiviteAuditPage'))
 const MacrosPage = lazy(() => import('@/pages/owner/MacrosPage'))
-const DeliveryPage = lazy(() => import('@/pages/delivery/DeliveryPage'))
-const ClickCollectPage = lazy(() => import('@/pages/clickcollect/ClickCollectPage'))
-const CateringPage = lazy(() => import('@/pages/catering/CateringPage'))
-const CentralKitchenPage = lazy(() => import('@/pages/centralkitchen/CentralKitchenPage'))
 const BillingPage = lazy(() => import('@/pages/billing/BillingPage'))
-const AutoOrderPage = lazy(() => import('@/pages/autoorder/AutoOrderPage'))
 const ChangelogPage = lazy(() => import('@/pages/changelog/ChangelogPage'))
-const ReferralPage = lazy(() => import('@/pages/referral/ReferralPage'))
 import OnboardingTour from '@/components/OnboardingTour'
 import PosLockScreen from '@/components/PosLockScreen'
 import { registerPush } from '@/lib/pushNotifications'
+import { isOnboardingComplete } from '@/lib/onboarding'
 
 function RouteLoadingFallback() {
   return (
@@ -177,7 +112,7 @@ function RouteLoadingFallback() {
 function App() {
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
-  const [showOnboarding, setShowOnboarding] = useState(false)
+  const companyId = useAuthStore((s) => s.companyId)
   const demoActive = useDemoMode((s) => s.active)
   const demoExit = useDemoMode((s) => s.exitDemoMode)
   const demoExpiresAt = useDemoMode((s) => s.expiresAt)
@@ -206,7 +141,7 @@ function App() {
 
   useEffect(() => {
     if (user && location.pathname !== '/login' && location.pathname !== '/setup' && location.pathname !== '/demo') {
-      const done = localStorage.getItem('creorga-onboarded')
+      const done = isOnboardingComplete(companyId)
       if (!done) {
         // Full setup wizard on first boot — has floor plan editor + Ollama step
         if (location.pathname === '/' || location.pathname === '/modules') {
@@ -217,7 +152,7 @@ function App() {
         }
       }
     }
-  }, [user, location.pathname])
+  }, [user, companyId, location.pathname])
 
   return (
     <>
@@ -245,8 +180,8 @@ function App() {
       {/* Used by "Nouvel onglet" buttons inside modules to open a clean fullscreen view */}
       <Route path="/standalone/planning" element={<RequireAuth><PlanningPage /></RequireAuth>} />
       <Route path="/standalone/floor" element={<RequireAuth><UnifiedFloorPlan /></RequireAuth>} />
-      <Route path="/standalone/stock" element={<RequireAuth><StockPage /></RequireAuth>} />
-      <Route path="/standalone/calendar" element={<RequireAuth><CalendrierPage /></RequireAuth>} />
+      <Route path="/standalone/stock" element={<RequireAuth><FeatureUnavailable title="Inventaire" availableNow="la gestion du catalogue produits dans l'administration." backPath="/admin/catalog" backLabel="Ouvrir le catalogue" /></RequireAuth>} />
+      <Route path="/standalone/calendar" element={<RequireAuth><FeatureUnavailable title="Calendrier des réservations" availableNow="le planning de l'équipe." backPath="/hr/planning" backLabel="Ouvrir le planning" /></RequireAuth>} />
 
       {/* Mobile / PWA — accessible without AppShell */}
       {/* La section mobile était la seule zone authentifiée sans garde :
@@ -254,12 +189,12 @@ function App() {
       <Route path="/m" element={<RequireAuth><MobileLayout /></RequireAuth>}>
         <Route index element={<MobileLive />} />
         <Route path="briefing" element={<MobileBriefing />} />
-        <Route path="magic" element={<MobileMagicCam />} />
+        <Route path="magic" element={<FeatureUnavailable title="Photo magique et inventaire" availableNow="le tableau de bord mobile, le planning et l'assistant." backPath="/m" backLabel="Retour au tableau de bord mobile" />} />
         <Route path="robi" element={<MobileRobi />} />
         <Route path="alerts" element={<MobileAlerts />} />
         <Route path="world" element={<MobileWorld />} />
         <Route path="settings" element={<MobileSettings />} />
-        <Route path="camera" element={<MobileCamera />} />
+        <Route path="camera" element={<FeatureUnavailable title="Scanner de tickets" availableNow="le tableau de bord mobile, le planning et l'assistant." backPath="/m" backLabel="Retour au tableau de bord mobile" />} />
       </Route>
       <Route path="/modules" element={<RequireAuth><ModuleSelector /></RequireAuth>} />
       <Route path="/tour" element={<RequireAuth><ModuleSelector /></RequireAuth>} />
@@ -272,7 +207,7 @@ function App() {
         <Route path="company" element={<AdminCompany />} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="catalog" element={<AdminCatalog />} />
-        <Route path="modules" element={<AdminModules />} />
+        <Route path="modules" element={<Navigate to="/settings/modules" replace />} />
       </Route>
 
       {/* Clients */}
@@ -289,8 +224,11 @@ function App() {
           <Route index element={<Navigate to="/pos/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="floor" element={<UnifiedFloorPlan />} />
-          <Route path="floor-classic" element={<FloorPlan />} />
-          <Route path="design" element={<RoomDesignerPage />} />
+          {/* Les anciennes vues floor-classic/design persistaient uniquement dans
+              localStorage et pouvaient diverger du plan partagé. Toutes les entrées
+              convergent désormais vers le plan de salle serveur. */}
+          <Route path="floor-classic" element={<Navigate to="/pos/floor" replace />} />
+          <Route path="design" element={<Navigate to="/pos/floor" replace />} />
           {/* v4.8 — OrderPage (table « T4 » en dur, 20 produits et un panier
               inventés) et Checkout (« Sophie Keller » fictive) étaient des
               maquettes que RIEN dans l'application ne reliait : accessibles
@@ -309,16 +247,15 @@ function App() {
         <Route path="/crm" element={<CrmLayout />}>
           <Route index element={<Navigate to="/crm/clients" replace />} />
           <Route path="clients" element={<ClientsPage />} />
-          <Route path="fidelite" element={<FidelitePage />} />
-          <Route path="portefeuille" element={<PortefeuillePage />} />
-          <Route path="cartes-cadeaux" element={<CartesPage />} />
-          <Route path="campagnes" element={<CampagnesPage />} />
-          <Route path="codes" element={<CodesPage />} />
-          <Route path="audiences" element={<AudiencesPage />} />
-          {/* v4.1 — réputation folded */}
-          <Route path="avis" element={<AvisPage />} />
-          <Route path="reponses" element={<ReponsesPage />} />
-          <Route path="reput-stats" element={<ReputStatsPage />} />
+          <Route path="fidelite" element={<FeatureUnavailable title="Programme de fidélité" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
+          <Route path="portefeuille" element={<FeatureUnavailable title="Portefeuille client" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
+          <Route path="cartes-cadeaux" element={<FeatureUnavailable title="Cartes cadeaux" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
+          <Route path="campagnes" element={<FeatureUnavailable title="Campagnes marketing" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
+          <Route path="codes" element={<FeatureUnavailable title="Codes promotionnels" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
+          <Route path="audiences" element={<FeatureUnavailable title="Audiences marketing" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
+          <Route path="avis" element={<FeatureUnavailable title="Avis clients" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
+          <Route path="reponses" element={<FeatureUnavailable title="Réponses aux avis" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
+          <Route path="reput-stats" element={<FeatureUnavailable title="Statistiques de réputation" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
         </Route>
 
         {/* Invoices Module */}
@@ -326,8 +263,8 @@ function App() {
           <Route index element={<Navigate to="/invoices/devis" replace />} />
           <Route path="devis" element={<DevisPageInv />} />
           <Route path="factures" element={<FacturesPage />} />
-          <Route path="avoirs" element={<AvoirsPage />} />
-          <Route path="relances" element={<RelancesPage />} />
+          <Route path="avoirs" element={<FeatureUnavailable title="Avoirs" availableNow="la création de devis et de factures sauvegardés." backPath="/invoices/factures" backLabel="Retour aux factures" />} />
+          <Route path="relances" element={<FeatureUnavailable title="Relances automatiques" availableNow="la création de devis et de factures sauvegardés." backPath="/invoices/factures" backLabel="Retour aux factures" />} />
         </Route>
 
         {/* v3.18.5 — Module Agenda supprimé (fusionné dans RH planning + CRM events).
@@ -335,37 +272,23 @@ function App() {
         <Route path="/agenda" element={<Navigate to="/hr/planning" replace />} />
         <Route path="/agenda/*" element={<Navigate to="/hr/planning" replace />} />
 
-        {/* Inventory Module — v3.18.5 Auto-Réappro folded + v4.1 Cuisine Centrale folded */}
-        <Route path="/inventory" element={<InventoryLayout />}>
-          <Route index element={<Navigate to="/inventory/stock" replace />} />
-          <Route path="stock" element={<StockPage />} />
-          <Route path="recettes" element={<RecettesPage />} />
-          <Route path="fournisseurs" element={<FournisseursPage />} />
-          <Route path="commandes" element={<CommandesPage />} />
-          <Route path="ocr" element={<ReceiptOCR />} />
-          <Route path="autoorder" element={<AutoOrderPage />} />
-          <Route path="cuisine-centrale" element={<CentralKitchenPage />} />
-        </Route>
+        {/* L'ancien stock était conservé dans un fichier global, sans séparation
+            par entreprise. Le module reste fermé jusqu'à sa migration vers un
+            stockage multi-locataire fiable. */}
+        <Route path="/inventory/*" element={<FeatureUnavailable title="Inventaire" availableNow="la gestion du catalogue produits dans l'administration." backPath="/admin/catalog" backLabel="Ouvrir le catalogue" />} />
 
         {/* HR Module — v4.1 Formation folded as sub-route */}
         <Route path="/hr" element={<HrLayout />}>
           <Route index element={<Navigate to="/hr/planning" replace />} />
           <Route path="planning" element={<PlanningPage />} />
-          <Route path="pointages" element={<PointagesPage />} />
-          <Route path="conges" element={<CongesPage />} />
           <Route path="equipe" element={<EquipePage />} />
-          <Route path="parametres" element={<HrParamsPage />} />
-          <Route path="formation" element={<FormationPage />} />
+          <Route path="pointages" element={<FeatureUnavailable title="Pointages" availableNow="le planning, les congés intégrés au planning et la gestion de l'équipe." backPath="/hr/planning" backLabel="Retour au planning" />} />
+          <Route path="conges" element={<FeatureUnavailable title="Gestion avancée des congés" availableNow="les demandes de congé depuis le planning et la gestion de l'équipe." backPath="/hr/planning" backLabel="Retour au planning" />} />
+          <Route path="parametres" element={<FeatureUnavailable title="Paramètres RH avancés" availableNow="le planning et la gestion de l'équipe." backPath="/hr/planning" backLabel="Retour au planning" />} />
+          <Route path="formation" element={<FeatureUnavailable title="Formation de l'équipe" availableNow="le planning et la gestion de l'équipe." backPath="/hr/planning" backLabel="Retour au planning" />} />
         </Route>
 
-        {/* HACCP Module */}
-        <Route path="/haccp" element={<HaccpLayout />}>
-          <Route index element={<Navigate to="/haccp/journee" replace />} />
-          <Route path="journee" element={<JourneePage />} />
-          <Route path="temperatures" element={<TemperaturesPage />} />
-          <Route path="taches" element={<TachesPage />} />
-          <Route path="historique" element={<HaccpHistoriquePage />} />
-        </Route>
+        <Route path="/haccp/*" element={<FeatureUnavailable title="HACCP" />} />
 
         {/* Accounting Module */}
         <Route path="/accounting" element={<AccountingLayout />}>
@@ -380,30 +303,21 @@ function App() {
         {/* v4.1 — Formation folded dans /hr/formation, ancienne URL redirige */}
         <Route path="/formation" element={<Navigate to="/hr/formation" replace />} />
 
-        {/* Maintenance Module — réservé propriétaire/manager (RequireRole :
-            avant, le masquage n'était que visuel et l'URL directe passait) */}
-        <Route path="/maintenance" element={<RequireRole roles={['owner', 'manager']}><MaintenancePage /></RequireRole>} />
+        <Route path="/maintenance/*" element={<RequireRole roles={['owner', 'manager']}><FeatureUnavailable title="Maintenance" /></RequireRole>} />
 
         {/* v3.18.5 — Module Licences supprimé (URL legacy redirige vers RGPD) */}
         <Route path="/licences" element={<Navigate to="/rgpd" replace />} />
 
-        {/* RGPD / Conformité Module */}
-        <Route path="/rgpd" element={<RequireRole roles={['owner', 'manager']}><RgpdPage /></RequireRole>} />
+        <Route path="/rgpd/*" element={<RequireRole roles={['owner', 'manager']}><FeatureUnavailable title="RGPD et conformité" /></RequireRole>} />
 
-        {/* Multi-établissements Module */}
-        <Route path="/sites" element={<RequireRole roles={['owner', 'manager']}><SitesPage /></RequireRole>} />
+        <Route path="/sites/*" element={<RequireRole roles={['owner', 'manager']}><FeatureUnavailable title="Multi-établissements" /></RequireRole>} />
 
-        {/* API & Intégrations Module */}
-        <Route path="/api" element={<RequireRole roles={['owner', 'manager']}><ApiPage /></RequireRole>} />
-        {/* Hors de /api/ : le proxy Vite (vite.config.ts) capte tout /api/… et
-            le renvoie au backend, qui repond 404 — la page n'etait jamais
-            rendue. Cf. rapport de test §4.4, « ecran blanc ». */}
-        <Route path="/integrations/marketplace" element={<MarketplacePage />} />
+        <Route path="/api" element={<RequireRole roles={['owner', 'manager']}><FeatureUnavailable title="API et intégrations" /></RequireRole>} />
+        <Route path="/integrations/marketplace" element={<FeatureUnavailable title="Marché des intégrations" />} />
 
-        {/* Assistant IA — v3.18 fusion : page unique avec sélecteur de provider local/cloud/auto */}
-        {/* /ai/local et /ai/settings deviennent alias vers /ai */}
+        {/* Assistant réel : /ai ouvre Robi ; /ai/local configure Ollama local. */}
         <Route path="/ai" element={<AiAssistantPage />} />
-        <Route path="/ai/local" element={<Navigate to="/ai" replace />} />
+        <Route path="/ai/local" element={<AIModulePage />} />
         <Route path="/ai/settings" element={<Navigate to="/ai" replace />} />
 
         {/* Settings — Configurateur de modules + Env modes */}
@@ -424,25 +338,18 @@ function App() {
         <Route path="/music" element={<Navigate to="/ads/music" replace />} />
 
         {/* Sauvegarde & Sécurité Module */}
-        <Route path="/backup" element={<RequireRole roles={['owner', 'manager']}><BackupPage /></RequireRole>} />
+        <Route path="/backup" element={<RequireRole roles={['owner', 'manager']}><FeatureUnavailable title="Sauvegardes et restauration" availableNow="les données opérationnelles enregistrées dans votre entreprise." backPath="/modules" backLabel="Retour aux modules" /></RequireRole>} />
 
-        {/* v4.1 — Owner Layout : Rapport + Abonnement + Parrainage fusionnés */}
         <Route path="/owner" element={<RequireRole roles={['owner', 'manager']}><OwnerLayout /></RequireRole>}>
-          <Route index element={<Navigate to="/owner/rapport" replace />} />
-          <Route path="rapport" element={<OwnerReportPage />} />
+          <Route index element={<Navigate to="/owner/abonnement" replace />} />
           <Route path="abonnement" element={<BillingPage />} />
-          <Route path="parrainage" element={<ReferralPage />} />
           <Route path="activite" element={<ActiviteAuditPage />} />
           <Route path="macros" element={<MacrosPage />} />
+          <Route path="rapport" element={<FeatureUnavailable title="Rapport stratégique" availableNow="l'abonnement, l'activité d'audit et les macros sauvegardées." backPath="/owner/activite" backLabel="Voir l'activité" />} />
+          <Route path="parrainage" element={<FeatureUnavailable title="Programme de parrainage" availableNow="l'abonnement, l'activité d'audit et les macros sauvegardées." backPath="/owner/abonnement" backLabel="Voir l'abonnement" />} />
         </Route>
 
-        {/* v4.1 — Sales Layout : Livraison + Click&Collect + Traiteur fusionnés */}
-        <Route path="/sales" element={<SalesLayout />}>
-          <Route index element={<Navigate to="/sales/delivery" replace />} />
-          <Route path="delivery" element={<DeliveryPage />} />
-          <Route path="clickcollect" element={<ClickCollectPage />} />
-          <Route path="catering" element={<CateringPage />} />
-        </Route>
+        <Route path="/sales/*" element={<FeatureUnavailable title="Ventes externes" />} />
 
         {/* v4.1 — Anciennes URLs standalone redirigent vers les nouveaux Layouts */}
         <Route path="/delivery" element={<Navigate to="/sales/delivery" replace />} />
@@ -450,6 +357,7 @@ function App() {
         <Route path="/catering" element={<Navigate to="/sales/catering" replace />} />
         <Route path="/centralkitchen" element={<Navigate to="/inventory/cuisine-centrale" replace />} />
         <Route path="/billing" element={<Navigate to="/owner/abonnement" replace />} />
+        <Route path="/billing/success" element={<Navigate to="/owner/abonnement" replace />} />
 
         {/* v3.18.5 — Auto-Réapprovisionnement fusionné dans Inventaire.
          * Ancienne URL redirige vers /inventory/autoorder. */}
@@ -570,14 +478,6 @@ function App() {
     {/* Lanceur unique : assistant + centre d'aide + actions rapides */}
     {!isClientFacing && <FloatingHub />}
     {!isClientFacing && <AssistantPanel />}
-    {!isClientFacing && <RobiOperator />}
-    <BirthdayCelebrate />
-    {showOnboarding && (
-      <OnboardingWizard
-        onComplete={() => setShowOnboarding(false)}
-        onSkip={() => setShowOnboarding(false)}
-      />
-    )}
     </>
   )
 }

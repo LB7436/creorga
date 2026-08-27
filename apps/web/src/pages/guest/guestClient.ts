@@ -2,6 +2,7 @@ export type GuestProvider = 'email' | 'google' | 'apple'
 
 export interface GuestClientProfile {
   id: string
+  companyId: string
   displayName: string
   email: string
   phone: string
@@ -39,20 +40,38 @@ function readJson<T>(key: string, fallback: T): T {
   }
 }
 
-export function loadGuestClient(): GuestClientProfile | null {
-  return readJson<GuestClientProfile | null>(PROFILE_KEY, null)
+export function portalCompanyId(explicit?: string | null): string | null {
+  if (explicit) return explicit
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get('companyId')
 }
 
-export function saveGuestClient(input: {
+export function loadGuestClient(companyId?: string | null): GuestClientProfile | null {
+  const profile = readJson<GuestClientProfile | null>(PROFILE_KEY, null)
+  const expected = portalCompanyId(companyId)
+  return profile && expected && profile.companyId === expected ? profile : null
+}
+
+export async function saveGuestClient(input: {
   displayName: string
   email: string
   phone: string
   provider: GuestProvider
-}) {
+}, explicitCompanyId?: string | null) {
+  const companyId = portalCompanyId(explicitCompanyId)
+  if (!companyId) throw new Error('QR invalide : entreprise manquante')
+  const response = await fetch(`${BACKEND}/api/portal-config/client`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...input, companyId }),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok || !data?.customerId) throw new Error(data?.message || 'Inscription impossible')
   const now = Date.now()
-  const previous = loadGuestClient()
+  const previous = loadGuestClient(companyId)
   const profile: GuestClientProfile = {
-    id: previous?.id ?? uid('guest'),
+    id: data.customerId,
+    companyId,
     displayName: input.displayName.trim(),
     email: input.email.trim().toLowerCase(),
     phone: input.phone.trim(),
@@ -61,11 +80,6 @@ export function saveGuestClient(input: {
     updatedAt: now,
   }
   window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
-  fetch(`${BACKEND}/api/portal-config/client`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(profile),
-  }).catch(() => undefined)
   recordGuestEvent('registration', profile, {
     provider: profile.provider,
     displayName: profile.displayName,
@@ -84,6 +98,7 @@ export function recordGuestEvent(
   type: GuestClientEvent['type'],
   profile: GuestClientProfile | null,
   payload: Record<string, unknown>,
+  explicitCompanyId?: string | null,
 ) {
   if (typeof window === 'undefined') return null
   const event: GuestClientEvent = {
@@ -95,10 +110,11 @@ export function recordGuestEvent(
   }
   const next = [event, ...loadGuestEvents()].slice(0, 200)
   window.localStorage.setItem(EVENTS_KEY, JSON.stringify(next))
-  fetch(`${BACKEND}/api/portal-config/client-events`, {
+  const companyId = profile?.companyId || portalCompanyId(explicitCompanyId)
+  if (companyId) fetch(`${BACKEND}/api/portal-config/client-events`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...event, profile }),
+    body: JSON.stringify({ ...event, profile, companyId }),
   }).catch(() => undefined)
   window.dispatchEvent(new CustomEvent('creorga-guest-client-event', { detail: event }))
   return event

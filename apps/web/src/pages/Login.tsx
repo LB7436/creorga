@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Mail, Lock, Eye, EyeOff, Loader2, ArrowRight,
   ShoppingCart, CalendarDays, BarChart3, Users, Sparkles, Zap, Shield, Bot,
+  Building2, UserRound,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/stores/authStore'
@@ -21,8 +22,13 @@ import api from '@/lib/api'
 const loginSchema = z.object({
   email: z.string().email('Adresse email invalide'),
   password: z.string().min(1, 'Mot de passe requis'),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  companyName: z.string().optional(),
+  confirmPassword: z.string().optional(),
 })
 type LoginForm = z.infer<typeof loginSchema>
+type AuthMode = 'login' | 'register'
 
 /**
  * Trois témoignages clients étaient affichés ici — « Sophie Lentz, gérante de
@@ -36,18 +42,18 @@ type LoginForm = z.infer<typeof loginSchema>
  * bouche de personne. Les vrais témoignages viendront des vrais clients.
  */
 const ENGAGEMENTS = [
-  { titre: 'Vos données restent chez vous', texte: 'Tout est hébergé sur votre propre serveur. Aucune donnée client ne part chez un tiers.' },
-  { titre: 'Sauvegardé sans y penser', texte: 'Archive complète toutes les 6 heures, base de données comprise, conservée sur 30 versions.' },
-  { titre: 'La caisse fonctionne hors ligne', texte: 'Une coupure Internet n\'arrête pas le service : les commandes continuent et se resynchronisent.' },
+  { titre: 'Chaque établissement reste séparé', texte: 'Les clients, salles, menus, commandes, publicités et réglages sont filtrés par entreprise.' },
+  { titre: 'Aucun faux envoi', texte: 'Un email ou un paiement n’est annoncé comme réussi qu’après confirmation du fournisseur concerné.' },
+  { titre: 'Un portail QR réellement testable', texte: 'Chaque lien encode l’établissement et la table afin d’ouvrir le bon menu et la bonne configuration.' },
 ]
 
 const FEATURES = [
-  { Icon: ShoppingCart,  title: 'POS tactile',      desc: 'Caisse offline-first avec 200+ produits préchargés' },
-  { Icon: CalendarDays,  title: 'Plan de salle',    desc: 'Tables, chaises, transferts en temps réel' },
-  { Icon: BarChart3,     title: 'Analytics',        desc: 'CA, marges, TVA luxembourgeoise automatiques' },
-  { Icon: Users,         title: 'Multi-tenants',    desc: 'Jusqu\'à 100 établissements sous une même licence' },
-  { Icon: Bot,           title: 'Assistant IA',     desc: 'Gemma 2B local — 100 % privé, zéro dépendance cloud' },
-  { Icon: Shield,        title: 'HACCP + CNPD',     desc: 'Conformité Luxembourg out-of-the-box' },
+  { Icon: ShoppingCart,  title: 'Caisse tactile',      desc: 'Commandes, tables et encaissements reliés aux données réelles' },
+  { Icon: CalendarDays,  title: 'Plan de salle',       desc: 'Tables, chaises et zones sauvegardées par établissement' },
+  { Icon: BarChart3,     title: 'Pilotage',            desc: 'Ventes, factures, dépenses et TVA à partir des écritures enregistrées' },
+  { Icon: Users,         title: 'Fichier clients',     desc: 'Création, modification et suppression contrôlées des fiches' },
+  { Icon: Bot,           title: 'Assistant local',     desc: 'Commandes affichées uniquement lorsqu’elles sont réellement disponibles' },
+  { Icon: Shield,        title: 'Accès isolés',        desc: 'Connexion email et contrôle d’appartenance à chaque société' },
 ]
 
 /**
@@ -73,20 +79,20 @@ const PRE_REMPLISSAGE = import.meta.env.DEV
   // Adresse seulement : le mot de passe reste hors du dépôt, même ici.
   // Un mot de passe écrit dans le code finit toujours par sortir — c'est
   // exactement ce qui est arrivé à `Demo1234!`.
-  ? { email: 'bryanl1994.bl@gmail.com', password: '' }
-  : { email: '', password: '' }
+  ? { email: 'bryanl1994.bl@gmail.com', password: '', firstName: '', lastName: '', companyName: '', confirmPassword: '' }
+  : { email: '', password: '', firstName: '', lastName: '', companyName: '', confirmPassword: '' }
 
 const STATS = [
-  { value: '18', label: 'modules' },
-  { value: '3',  label: 'applications' },
-  { value: '100 %', label: 'sur votre serveur' },
-  { value: '6 h', label: 'entre 2 sauvegardes' },
+  { value: 'Email', label: 'connexion' },
+  { value: 'QR',  label: 'portail client' },
+  { value: '16', label: 'jeux retenus' },
+  { value: '5 max', label: 'par catégorie' },
 ]
 
 export default function Login() {
+  const [mode, setMode] = useState<AuthMode>('login')
   const [showPassword, setShowPassword] = useState(false)
   const [engagementIdx, setEngagementIdx] = useState(0)
-  const [oauthNotice, setOauthNotice] = useState('')
   const navigate = useNavigate()
   const setAuth = useAuthStore((s) => s.setAuth)
 
@@ -95,20 +101,59 @@ export default function Login() {
     return () => clearInterval(id)
   }, [])
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginForm>({
+  const { register, handleSubmit, getValues, reset, setError, formState: { errors, isSubmitting } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: PRE_REMPLISSAGE,
   })
 
+  const changerMode = (next: AuthMode) => {
+    const email = getValues('email')
+    setMode(next)
+    setShowPassword(false)
+    reset({ ...PRE_REMPLISSAGE, email, password: '' })
+  }
+
   const onSubmit = async (data: LoginForm) => {
     try {
-      const res = await api.post('/auth/login', { email: data.email, password: data.password })
+      if (mode === 'register') {
+        const champs = [
+          ['firstName', data.firstName, 'Prénom requis'],
+          ['lastName', data.lastName, 'Nom requis'],
+          ['companyName', data.companyName, 'Nom de l’établissement requis'],
+        ] as const
+        let invalide = false
+        for (const [champ, valeur, message] of champs) {
+          if (!valeur?.trim()) {
+            setError(champ, { type: 'required', message })
+            invalide = true
+          }
+        }
+        if (data.password.length < 8) {
+          setError('password', { type: 'minLength', message: '8 caractères minimum' })
+          invalide = true
+        }
+        if (data.confirmPassword !== data.password) {
+          setError('confirmPassword', { type: 'validate', message: 'Les mots de passe ne correspondent pas' })
+          invalide = true
+        }
+        if (invalide) return
+      }
+
+      const res = mode === 'register'
+        ? await api.post('/auth/register', {
+            email: data.email,
+            password: data.password,
+            firstName: data.firstName?.trim(),
+            lastName: data.lastName?.trim(),
+            companyName: data.companyName?.trim(),
+          })
+        : await api.post('/auth/login', { email: data.email, password: data.password })
       const { accessToken, user, companies } = res.data
       setAuth({ accessToken, user, companies })
-      toast.success(`Bienvenue ${user.firstName} !`, { icon: '🎉' })
-      navigate('/welcome')
+      toast.success(mode === 'register' ? 'Votre espace Creorga est prêt !' : `Bienvenue ${user.firstName} !`, { icon: '🎉' })
+      navigate(mode === 'register' ? '/setup' : '/welcome')
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Identifiants incorrects')
+      toast.error(err?.response?.data?.message || err?.response?.data?.error || (mode === 'register' ? 'Inscription impossible' : 'Identifiants incorrects'))
     }
   }
 
@@ -117,54 +162,55 @@ export default function Login() {
   return (
     <div style={rootStyle}>
       {/* ═══ Animated background ═══ */}
+      <div aria-hidden="true" style={restaurantFlowBackground} />
       <BackgroundOrbs />
       <GridPattern />
 
       {/* ═══ Top navigation ═══ */}
-      <nav style={navStyle}>
+      <nav className="creorga-login-nav" style={navStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <LogoMark />
           <div>
             <div style={{ fontSize: 15, fontWeight: 800, color: '#f1f5f9', letterSpacing: -0.3 }}>Creorga</div>
-            <div style={{ fontSize: 10, color: '#a78bfa', letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 700 }}>Restaurant OS · v2.0</div>
+            <div style={{ fontSize: 10, color: '#a78bfa', letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 700 }}>Restaurant OS · v4</div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="creorga-login-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           
           <a href="/demo" style={navLink}>Démo live</a>
           <div style={{ width: 1, height: 20, background: 'rgba(148,163,184,0.2)', margin: '0 6px' }} />
           <span style={{ fontSize: 11, color: '#6ee7b7', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 6, height: 6, borderRadius: 999, background: '#10b981', boxShadow: '0 0 6px #10b981' }} /> Tous services en ligne
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: '#10b981', boxShadow: '0 0 6px #10b981' }} /> Connexion sécurisée par email
           </span>
         </div>
       </nav>
 
       {/* ═══ Main content ═══ */}
-      <main style={mainStyle}>
+      <main className="creorga-login-main" style={mainStyle}>
         {/* ── LEFT : hero + features + testimonial ── */}
-        <section style={leftStyle}>
+        <section className="creorga-login-left" style={leftStyle}>
           <motion.div
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
             {/* Badge */}
             <div style={badgeStyle}>
-              <Sparkles size={12} /> Nouveau · IA locale Gemma 2B intégrée
+              <Sparkles size={12} /> Portail et données isolés par établissement
             </div>
 
             {/* Headline */}
-            <h1 style={headlineStyle}>
+            <h1 className="creorga-login-headline" style={headlineStyle}>
               Le système d'exploitation<br />
               de <span style={gradientText}>votre restaurant.</span>
             </h1>
 
             <p style={subheadStyle}>
-              POS, réservations, stocks, HACCP, comptabilité, IA — une seule plateforme,
-              optimisée pour les restaurants, bars et cafés du Luxembourg.
+              Caisse, plan de salle, planning, factures, clients, comptabilité et portail QR,
+              réunis pour les restaurants, bars et cafés du Luxembourg.
             </p>
 
             {/* Feature grid */}
-            <div style={featureGrid}>
+            <div className="creorga-login-features" style={featureGrid}>
               {FEATURES.map((f, i) => (
                 <motion.div key={f.title}
                   initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -181,7 +227,7 @@ export default function Login() {
             </div>
 
             {/* Stats row */}
-            <div style={statsRowStyle}>
+            <div className="creorga-login-stats" style={statsRowStyle}>
               {STATS.map((s) => (
                 <div key={s.label} style={statBlock}>
                   <div style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9', letterSpacing: -1 }}>{s.value}</div>
@@ -221,28 +267,66 @@ export default function Login() {
         </section>
 
         {/* ── RIGHT : login card ── */}
-        <section style={rightStyle}>
+        <section className="creorga-login-right" style={rightStyle}>
           <motion.div
             initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5 }}
             style={cardStyle}
           >
             <div style={{ marginBottom: 22 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, padding: 4, borderRadius: 11, background: 'rgba(148,163,184,0.08)', marginBottom: 20 }}>
+                <button type="button" onClick={() => changerMode('login')} style={modeTabStyle(mode === 'login')}>Connexion</button>
+                <button type="button" onClick={() => changerMode('register')} style={modeTabStyle(mode === 'register')}>Créer mon espace</button>
+              </div>
               <h2 style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9', margin: 0, letterSpacing: -0.5 }}>
-                Bon retour <span style={{ fontSize: 20 }}>👋</span>
+                {mode === 'login' ? <>Bon retour <span style={{ fontSize: 20 }}>👋</span></> : <>Bienvenue chez Creorga</>}
               </h2>
               <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
-                Connectez-vous pour accéder à votre espace de travail.
+                {mode === 'login'
+                  ? 'Connectez-vous avec votre adresse email.'
+                  : 'Créez votre espace professionnel en quelques secondes.'}
               </p>
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {mode === 'register' && (
+                <>
+                  <div className="creorga-login-name-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <label htmlFor="auth-first-name" style={labelStyle}>Prénom</label>
+                      <div style={inputWrap}>
+                        <UserRound size={16} style={iconLeft} />
+                        <input id="auth-first-name" {...register('firstName')} autoComplete="given-name" style={inputStyle} />
+                      </div>
+                      {errors.firstName && <span style={errorStyle}>{errors.firstName.message}</span>}
+                    </div>
+                    <div>
+                      <label htmlFor="auth-last-name" style={labelStyle}>Nom</label>
+                      <div style={inputWrap}>
+                        <UserRound size={16} style={iconLeft} />
+                        <input id="auth-last-name" {...register('lastName')} autoComplete="family-name" style={inputStyle} />
+                      </div>
+                      {errors.lastName && <span style={errorStyle}>{errors.lastName.message}</span>}
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="auth-company-name" style={labelStyle}>Nom de l’établissement</label>
+                    <div style={inputWrap}>
+                      <Building2 size={16} style={iconLeft} />
+                      <input id="auth-company-name" {...register('companyName')} placeholder="Mon restaurant" autoComplete="organization" style={inputStyle} />
+                    </div>
+                    {errors.companyName && <span style={errorStyle}>{errors.companyName.message}</span>}
+                  </div>
+                </>
+              )}
+
               {/* Email */}
               <div>
-                <label style={labelStyle}>Adresse email</label>
+                <label htmlFor="auth-email" style={labelStyle}>Adresse email</label>
                 <div style={inputWrap}>
                   <Mail size={16} style={iconLeft} />
                   <input
+                    id="auth-email"
                     {...register('email')}
                     type="email"
                     placeholder="vous@restaurant.lu"
@@ -256,20 +340,21 @@ export default function Login() {
               {/* Password */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label style={labelStyle}>Mot de passe</label>
-                  <a href="#" style={linkStyle}>Mot de passe oublié ?</a>
+                  <label htmlFor="auth-password" style={labelStyle}>Mot de passe</label>
                 </div>
                 <div style={inputWrap}>
                   <Lock size={16} style={iconLeft} />
                   <input
+                    id="auth-password"
                     {...register('password')}
                     type={showPassword ? 'text' : 'password'}
                     placeholder="••••••••"
-                    autoComplete="current-password"
+                    autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
                     style={inputStyle}
                   />
                   <button
                     type="button"
+                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                     onClick={() => setShowPassword(!showPassword)}
                     style={iconRightBtn}
                   >
@@ -278,6 +363,24 @@ export default function Login() {
                 </div>
                 {errors.password && <span style={errorStyle}>{errors.password.message}</span>}
               </div>
+
+              {mode === 'register' && (
+                <div>
+                  <label htmlFor="auth-confirm-password" style={labelStyle}>Confirmer le mot de passe</label>
+                  <div style={inputWrap}>
+                    <Lock size={16} style={iconLeft} />
+                    <input
+                      id="auth-confirm-password"
+                      {...register('confirmPassword')}
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      placeholder="••••••••"
+                      style={inputStyle}
+                    />
+                  </div>
+                  {errors.confirmPassword && <span style={errorStyle}>{errors.confirmPassword.message}</span>}
+                </div>
+              )}
 
               {/* Submit */}
               <motion.button
@@ -291,45 +394,24 @@ export default function Login() {
                 }}
               >
                 {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <>
-                  <span>Se connecter</span>
+                  <span>{mode === 'register' ? 'Créer mon espace' : 'Se connecter'}</span>
                   <ArrowRight size={16} />
                 </>}
               </motion.button>
-
-              {/* Divider */}
-              <div style={{ position: 'relative', margin: '4px 0', textAlign: 'center' }}>
-                <div style={{ height: 1, background: 'rgba(148,163,184,0.15)' }} />
-                <span style={{
-                  position: 'absolute', top: -9, left: '50%', transform: 'translateX(-50%)',
-                  padding: '0 12px', background: '#0a0a1a', color: '#64748b', fontSize: 11, fontWeight: 600,
-                }}>ou continuer avec</span>
-              </div>
-
-              {/* OAuth — pas encore branché : on l'affiche honnêtement */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                {['Google', 'Apple', 'Microsoft'].map((p) => (
-                  <button key={p} type="button" style={oauthStyle} title="Bientôt disponible"
-                    onClick={() => setOauthNotice(`La connexion ${p} arrive bientôt — utilisez votre email en attendant.`)}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}>
-                    {p}
-                  </button>
-                ))}
-              </div>
-              {oauthNotice && (
-                <div style={{ fontSize: 12, color: '#fbbf24', textAlign: 'center' }}>{oauthNotice}</div>
-              )}
             </form>
 
             <div style={{ marginTop: 20, textAlign: 'center', fontSize: 12, color: '#94a3b8' }}>
-              Pas encore de compte ? <a href="mailto:bryanl1994.bl@gmail.com?subject=Demande%20d%27acc%C3%A8s%20Creorga" style={{ color: '#a78bfa', fontWeight: 600, textDecoration: 'none' }}>Demander un accès</a>
+              {mode === 'login' ? 'Nouveau sur Creorga ? ' : 'Vous avez déjà un compte ? '}
+              <button type="button" onClick={() => changerMode(mode === 'login' ? 'register' : 'login')} style={modeLinkStyle}>
+                {mode === 'login' ? 'Créer mon espace' : 'Me connecter'}
+              </button>
             </div>
 
             {/* Le rappel « comptes de démo pré-remplis » n'a de sens qu'en
                 développement : en production les champs sont vides, et l'y
                 laisser reviendrait à annoncer publiquement qu'un compte de
                 démonstration attend d'être essayé. */}
-            {import.meta.env.DEV && (
+            {import.meta.env.DEV && mode === 'login' && (
               <div style={demoHintStyle}>
                 <Zap size={12} /> Comptes de démo pré-remplis — cliquez simplement <strong>Se connecter</strong>
               </div>
@@ -338,7 +420,10 @@ export default function Login() {
 
           {/* Footer */}
           <div style={{ marginTop: 20, textAlign: 'center', fontSize: 11, color: '#64748b' }}>
-            © 2026 Creorga · Rumelange, Luxembourg · <a href="#" style={{ color: '#94a3b8', textDecoration: 'none' }}>Mentions légales</a> · <a href="#" style={{ color: '#94a3b8', textDecoration: 'none' }}>CNPD</a>
+            © 2026 Creorga · Rumelange, Luxembourg ·{' '}
+            <a href="mailto:contact@n8nautomatisations.org?subject=Informations%20l%C3%A9gales%20Creorga" style={{ color: '#94a3b8', textDecoration: 'none' }}>
+              Informations légales et données personnelles
+            </a>
           </div>
         </section>
       </main>
@@ -422,6 +507,15 @@ const rootStyle: React.CSSProperties = {
   fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
 }
 
+const restaurantFlowBackground: React.CSSProperties = {
+  position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
+  backgroundImage: 'linear-gradient(90deg, rgba(10,10,26,.3), rgba(10,10,26,.62)), url(/creorga-restaurant-flow-v1.png)',
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+  opacity: 0.58,
+  filter: 'saturate(.9) contrast(1.03)',
+}
+
 const navStyle: React.CSSProperties = {
   position: 'relative', zIndex: 10,
   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -502,7 +596,7 @@ const cardStyle: React.CSSProperties = {
   width: '100%', maxWidth: 420,
   background: 'rgba(15,15,35,0.7)', backdropFilter: 'blur(20px)',
   border: '1px solid rgba(139,92,246,0.2)',
-  borderRadius: 20, padding: 32,
+  borderRadius: 20, padding: 32, boxSizing: 'border-box',
   boxShadow: '0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(139,92,246,0.05)',
 }
 
@@ -548,11 +642,15 @@ const submitStyle: React.CSSProperties = {
   marginTop: 6,
 }
 
-const oauthStyle: React.CSSProperties = {
-  height: 42, borderRadius: 10,
-  background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(148,163,184,0.15)',
-  color: '#cbd5e1', cursor: 'pointer', fontWeight: 600, fontSize: 12,
-  transition: 'all .15s',
+const modeTabStyle = (active: boolean): React.CSSProperties => ({
+  height: 36, border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+  background: active ? 'linear-gradient(135deg,rgba(139,92,246,.9),rgba(236,72,153,.85))' : 'transparent',
+  color: active ? '#fff' : '#94a3b8',
+  boxShadow: active ? '0 5px 16px rgba(139,92,246,.22)' : 'none',
+})
+
+const modeLinkStyle: React.CSSProperties = {
+  border: 'none', background: 'transparent', padding: 0, color: '#a78bfa', fontWeight: 700, cursor: 'pointer', fontSize: 12,
 }
 
 const demoHintStyle: React.CSSProperties = {

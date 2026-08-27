@@ -83,6 +83,7 @@ function OfflineQueueBadge() {
 
 function LiveCustomerCount() {
   const navigate = useNavigate()
+  const companyId = useAuthStore((state) => state.companyId)
   const [count, setCount] = useState(0)
 
   useEffect(() => {
@@ -105,18 +106,21 @@ function LiveCustomerCount() {
     }
     load()
 
-    // v5.1 — socket /live channel 'floor' pour une mise à jour temps réel ;
+    // Canal par société : une mise à jour d'une autre enseigne ne déclenche
+    // jamais le rechargement de ce compteur.
     // le poll passe en simple filet de sécurité à 60s.
     let socket: any
     try {
       socket = io('/live', { transports: ['websocket', 'polling'] })
-      socket.on('connect', () => socket.emit('subscribe', ['floor']))
+      socket.on('connect', () => {
+        if (companyId) socket.emit('subscribe', [`floor-${companyId}`])
+      })
       socket.on('floor-updated', load)
     } catch { /* socket indisponible — le poll suffira */ }
 
     const id = window.setInterval(load, 60_000)
     return () => { alive = false; window.clearInterval(id); socket?.disconnect() }
-  }, [])
+  }, [companyId])
 
   return (
     <button
@@ -567,7 +571,7 @@ export default function AppShell() {
                   { label: t('profile'), icon: '\u{1F464}', action: () => navigate('/admin/company') },
                   { label: 'Configurer les modules', icon: '🧩', action: () => navigate('/settings/modules') },
                   { label: 'Modes (Test/Dev/Soon)', icon: '🎛', action: () => navigate('/settings/env-mode') },
-                  { label: 'Designer la salle', icon: '📐', action: () => navigate('/pos/design') },
+                  { label: 'Configurer la salle', icon: '📐', action: () => navigate('/pos/floor') },
                   { label: 'Assistant IA local', icon: '🤖', action: () => navigate('/ai/local') },
                   { label: t('settings'), icon: '⚙️', action: () => navigate('/admin') },
                 ].map((item) => (

@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { useBrand, fileToDataUrl } from '@/stores/brandStore'
+import { toastError } from '@/lib/toast'
 
 /**
  * Drag-and-drop / file-picker logo uploader.
@@ -14,15 +15,21 @@ export default function LogoUploader() {
     if (!files || !files[0]) return
     const f = files[0]
     if (!/^image\/(png|jpeg|jpg|svg\+xml|webp)$/i.test(f.type)) {
-      alert('Format non supporté — utilisez PNG, JPG, SVG ou WebP')
+      toastError('Format non supporté — utilisez PNG, JPG, SVG ou WebP')
       return
     }
     if (f.size > 2 * 1024 * 1024) {
-      alert('Fichier trop lourd — max 2 Mo')
+      toastError('Fichier trop lourd — max 2 Mo')
       return
     }
-    const dataUrl = await fileToDataUrl(f)
-    setLogo(dataUrl)
+    try {
+      const dataUrl = await fileToDataUrl(f)
+      setLogo(dataUrl)
+    } catch {
+      toastError('Impossible de lire cette image')
+    } finally {
+      if (inputRef.current) inputRef.current.value = ''
+    }
   }
 
   return (
@@ -30,6 +37,15 @@ export default function LogoUploader() {
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files) }}
       onClick={() => inputRef.current?.click()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          inputRef.current?.click()
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={logo ? 'Remplacer le logo' : 'Choisir un logo'}
       style={{
         border: '2px dashed #cbd5e1', borderRadius: 12,
         padding: 24, textAlign: 'center', cursor: 'pointer',
@@ -42,6 +58,8 @@ export default function LogoUploader() {
         <>
           <img src={logo} alt="Logo" style={{ maxHeight: 120, maxWidth: '100%', borderRadius: 8 }} />
           <button
+            type="button"
+            aria-label="Supprimer le logo"
             onClick={(e) => { e.stopPropagation(); setLogo(null) }}
             style={{
               padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',

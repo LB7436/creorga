@@ -135,7 +135,7 @@ export function PresetPicker({ open, onClose, onPick, theme }: PresetPickerProps
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
       backdropFilter: 'blur(4px)',
     }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
+      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="floor-presets-title" style={{
         background: '#fff', borderRadius: 18, width: '100%', maxWidth: 760,
         maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
       }}>
@@ -143,12 +143,12 @@ export function PresetPicker({ open, onClose, onPick, theme }: PresetPickerProps
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           background: 'linear-gradient(135deg,#eef2ff,#fdf4ff)' }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>📐 Charger un modèle de salle</h2>
+            <h2 id="floor-presets-title" style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>📐 Charger un modèle de salle</h2>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b' }}>
               Choisissez un layout pré-fait — vous pourrez le personnaliser ensuite.
             </p>
           </div>
-          <button onClick={onClose} style={{
+          <button type="button" aria-label="Fermer les modèles de salle" onClick={onClose} style={{
             width: 32, height: 32, borderRadius: 8, border: '1px solid #e2e8f0',
             background: '#fff', cursor: 'pointer', fontSize: 14,
           }}>✕</button>

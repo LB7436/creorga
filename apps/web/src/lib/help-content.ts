@@ -66,7 +66,7 @@ export const HELP_CONTENT: ModuleHelp[] = [
       {
         id: 'home.first-steps', level: 'beginner',
         title: 'Premiers pas dans Creorga OS',
-        body: 'Le sélecteur affiche les 35 modules. Cliquez sur une carte pour ouvrir un module ; utilisez la barre de recherche (Cmd+K) pour le trouver instantanément. Les modules se filtrent par catégorie : Core, Business, Digital, Admin.',
+        body: 'Le sélecteur rassemble les modules de votre établissement. Les fonctions déjà reliées aux données s’ouvrent normalement ; les autres affichent clairement leur état de migration. Utilisez la recherche (Cmd/Ctrl+K) pour trouver un écran sans parcourir tous les menus.',
         steps: [
           'Identifiez la catégorie du module recherché (Core / Business / Digital / Admin)',
           'Cliquez sur le filtre correspondant en haut',
@@ -88,7 +88,7 @@ export const HELP_CONTENT: ModuleHelp[] = [
       {
         id: 'home.shortcuts', level: 'intermediate',
         title: 'Raccourcis clavier',
-        body: 'Cmd/Ctrl+K : recherche · Cmd/Ctrl+/: aide · Cmd/Ctrl+Shift+M : changer module · Échap : ferme tout. Toutes les pages POS supportent les flèches du clavier pour naviguer.',
+        body: 'Cmd/Ctrl+K ouvre la palette de navigation. Échap ferme les fenêtres et panneaux ouverts. La recherche avancée permet aussi de trouver une facture avec $, un client avec @ et un produit avec #.',
       },
     ],
     videos: [
@@ -110,12 +110,12 @@ export const HELP_CONTENT: ModuleHelp[] = [
       {
         id: 'portal.toggles', level: 'beginner',
         title: 'Activer/désactiver une fonctionnalité',
-        body: 'Chaque toggle ON/OFF active la section côté guest. Les changements sont reflétés en moins de 3 secondes sur le portail mobile (port 5176/5178). Pas de redémarrage nécessaire.',
+        body: 'Chaque interrupteur active ou masque une section du portail client. La valeur ne change définitivement qu’après confirmation du serveur et reste identique après rechargement.',
         steps: [
-          'Identifiez la fonctionnalité à activer (Menu, Commande, Jeux, Chat, Avis, Annonces)',
+          'Identifiez la fonctionnalité à activer (Menu, Commande, Jeux ou Avis)',
           'Cliquez sur le toggle correspondant à droite',
           'Le toggle bascule en violet (ON)',
-          'Vérifiez sur le portail (5178/5176) — la section apparaît/disparaît en 3 s',
+          'Ouvrez l’aperçu ou le lien QR de votre établissement pour vérifier le résultat',
         ],
         demo: [
           { selector: '[data-tour="portal-toggle"]', text: 'Cliquez ici pour activer/désactiver', position: 'left' },
@@ -124,7 +124,7 @@ export const HELP_CONTENT: ModuleHelp[] = [
       {
         id: 'portal.games', level: 'beginner',
         title: 'Choisir les jeux disponibles',
-        body: 'Section "Jeux disponibles" : 28 jeux, cochez ceux que vous voulez exposer. Boutons "Tout activer / Tout désactiver" en haut. Sync per-jeu (correctif v3.4) : chaque toggle est indépendant.',
+        body: 'La sélection vérifiée contient 16 jeux au total, dont les jeux casino signalés 18+. Chaque catégorie est limitée à 5 jeux maximum. Les boutons « Tout activer » et « Tout désactiver » enregistrent la sélection sur le serveur.',
       },
       {
         id: 'portal.qr', level: 'beginner',
@@ -133,8 +133,8 @@ export const HELP_CONTENT: ModuleHelp[] = [
       },
       {
         id: 'portal.theme', level: 'intermediate',
-        title: 'Thème côté client (Clair / Sombre / Mauve)',
-        body: 'Le portail propose 3 thèmes en haut. Le client choisit, persisté dans son localStorage. Le thème admin (côté gérant) est indépendant.',
+        title: 'Thème côté client (Clair / Sombre)',
+        body: 'Le gérant choisit un rendu clair ou sombre et une couleur d’accent. Le choix est enregistré pour l’établissement et appliqué au portail de ses clients.',
       },
     ],
     videos: [
@@ -204,19 +204,19 @@ export const HELP_CONTENT: ModuleHelp[] = [
   {
     module: 'invoices', pathPrefix: '/invoices',
     title: 'Factures & Devis', emoji: '📋',
-    description: 'Facturation B2B, relances automatiques, export FAIA Luxembourg.',
+    description: 'Création et suivi de devis et factures enregistrés par établissement.',
     articles: [
       {
         id: 'inv.create', level: 'beginner',
         title: 'Créer une facture en 30 secondes',
-        body: 'Bouton "+ Nouvelle facture". Sélectionnez le client (autocomplétion), ajoutez des lignes (ou importez depuis un ticket POS), choisissez la date d\'échéance, validez. PDF généré automatiquement avec votre logo + envoyé par email.',
+        body: 'Dans l’onglet Factures, créez un document, choisissez éventuellement un client, ajoutez les lignes, la TVA et l’échéance puis enregistrez. Le numéro et les montants sont calculés et conservés par le serveur.',
         steps: [
           'Cliquez sur "+ Nouvelle facture" en haut à droite',
           'Tapez les premières lettres du nom client → autocomplétion',
           'Ajoutez les lignes : description + qté + prix HT + TVA',
           'Choisissez la date d\'échéance (par défaut J+30)',
-          'Cliquez "Valider et envoyer" → PDF généré + email envoyé',
-          'La facture passe en statut "Envoyée"',
+          'Cliquez sur le bouton d’enregistrement',
+          'Vérifiez que la facture apparaît dans la liste avec son numéro',
         ],
         demo: [
           { selector: '[data-tour="new-invoice"]', text: 'Cliquez ici pour créer une facture', position: 'left' },
@@ -226,13 +226,13 @@ export const HELP_CONTENT: ModuleHelp[] = [
       },
       {
         id: 'inv.relance', level: 'intermediate',
-        title: 'Relances automatiques (J+7 / J+15 / J+30)',
-        body: 'Templates configurables dans /invoices/relances. À 7 j de retard → email cordial. 15 j → ferme. 30 j → mise en demeure + option recouvrement. Désactivable par client.',
+        title: 'Relances : état actuel',
+        body: 'Les relances automatiques ne sont pas encore actives. L’écran concerné l’indique explicitement afin qu’aucun email ne soit supposé envoyé sans fournisseur configuré et sans preuve de livraison.',
       },
       {
         id: 'inv.faia', level: 'advanced',
-        title: 'Export FAIA pour l\'AED Luxembourg',
-        body: 'Page /accounting/rapports → bouton "Export FAIA". Génère un ZIP XML conforme XSD 2.0.0. À transmettre à votre comptable pour la déclaration TVA annuelle. Différenciateur Creorga vs Toast/Lightspeed.',
+        title: 'Rapports comptables disponibles',
+        body: 'La page Comptabilité → Rapports présente les ventes réellement enregistrées. L’export réglementaire FAIA devra rester désactivé tant que sa conformité XML n’aura pas été validée séparément.',
       },
     ],
     videos: [
@@ -355,37 +355,32 @@ export const HELP_CONTENT: ModuleHelp[] = [
     articles: [
       {
         id: 'hr.auto-plan', level: 'intermediate',
-        title: 'Auto-planifier la semaine (IA)',
-        body: 'Bouton "Auto-planifier (IA)" en haut → Gemma propose une affectation respectant 35h/semaine max, 2 jours OFF consécutifs, couverture midi (12-14h) + soir (19-23h), weekend renforcé. Vous validez ou ajustez.',
-        demo: [
-          { selector: '[data-tour="auto-plan"]', text: 'Cliquez ici pour lancer l\'IA', position: 'bottom' },
-        ],
+        title: 'Ajouter et ajuster les shifts',
+        body: 'Cliquez sur un créneau du planning, choisissez un membre, un rôle, les horaires et la pause puis enregistrez. Le shift est écrit en base pour l’établissement et rechargé dans les vues jour, semaine et mois.',
       },
       {
         id: 'hr.ocr-import', level: 'beginner',
-        title: 'Importer un planning manuscrit (OCR)',
-        body: 'Bouton "📸 Importer planning OCR". Photo → Tesseract → Gemma extrait shifts {employé, jour, début, fin}. Format reconnu : "Lundi 8h-16h Marie". Si le résultat est incomplet, basculer sur Gemma 9B (param qualité=best).',
+        title: 'Publier le planning et prévenir l’équipe',
+        body: 'Le bouton « Publier et envoyer » enregistre le planning puis tente l’envoi uniquement si un fournisseur email est configuré. Sans SMTP/Resend valide, l’écran annonce clairement qu’aucun email n’a été envoyé.',
         steps: [
-          'Cliquez sur "📸 Importer planning OCR"',
-          'Glissez la photo du tableau (ou prenez-la avec la webcam)',
-          'Tesseract OCR en français (~5 s)',
-          'Gemma parse le texte en JSON structuré',
-          'Vérifiez la table éditable proposée',
-          'Cliquez "Importer N shift(s)" → ajoutés au planning',
+          'Vérifiez les employés et les horaires de la semaine',
+          'Corrigez les shifts si nécessaire',
+          'Cliquez sur « Publier et envoyer »',
+          'Lisez le bilan exact : planning publié, emails confirmés ou fournisseur non configuré',
         ],
         demo: [
-          { selector: '[data-tour="ocr-import"]', text: 'Bouton OCR ici', position: 'bottom' },
+          { selector: '[data-tour="publish-planning"]', text: 'Publiez ici ; le bilan indique exactement si les emails ont été envoyés', position: 'bottom' },
         ],
       },
       {
         id: 'hr.conges', level: 'beginner',
         title: 'Demandes de congés employés',
-        body: 'L\'employé soumet sa demande via /hr/conges. Vous validez/refusez avec commentaire. Si validation déclenche un sous-effectif sur la période → bandeau alerte rouge.',
+        body: 'Les congés et absences enregistrés sont chargés dans le planning et apparaissent sur les jours concernés. L’écran avancé de gestion des demandes reste signalé comme indisponible.',
       },
       {
         id: 'hr.pointage', level: 'intermediate',
         title: 'Pointages & feuilles de paie',
-        body: 'Page /hr/pointages : chaque employé pointe à l\'arrivée et au départ. Calcul automatique des heures sup (>40h/semaine au Luxembourg). Export CSV vers logiciel paie.',
+        body: 'Le pointage autonome n’est pas encore ouvert. Le planning permet en revanche d’exporter les shifts enregistrés en CSV avec heures, pauses, taux horaire et coût calculé.',
       },
     ],
     videos: [
@@ -668,7 +663,7 @@ export const HELP_CONTENT: ModuleHelp[] = [
       {
         id: 'billing.plan', level: 'beginner',
         title: 'Changer de plan',
-        body: 'Trial → Pro (29 €/mois) → Enterprise (99 €/mois). Facturation mensuelle, sans engagement. Bouton "Mettre à niveau" en haut.',
+        body: 'Les offres affichées sont Starter 39 €, Pro 79 € et Business 149 € par mois. Le paiement est volontairement bloqué tant que le webhook Stripe ne peut pas enregistrer l’abonnement de façon fiable ; contactez l’équipe depuis la page en attendant.',
       },
     ],
     videos: [],

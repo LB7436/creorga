@@ -20,15 +20,15 @@ function hachageEmail(email: string): string {
 // ─── Schemas ───────────────────────────────────────────
 
 const registerSchema = z.object({
-  email: z.string().email('Email invalide'),
-  password: z.string().min(8, 'Le mot de passe doit contenir au moins 8 caractères'),
-  firstName: z.string().min(1, 'Prénom requis'),
-  lastName: z.string().min(1, 'Nom requis'),
-  companyName: z.string().min(1, 'Nom de la société requis'),
+  email: z.string().trim().toLowerCase().email('Email invalide'),
+  password: z.string().min(8, 'Le mot de passe doit contenir au moins 8 caractères').max(128),
+  firstName: z.string().trim().min(1, 'Prénom requis').max(80),
+  lastName: z.string().trim().min(1, 'Nom requis').max(80),
+  companyName: z.string().trim().min(1, 'Nom de la société requis').max(120),
 })
 
 const loginSchema = z.object({
-  email: z.string().email('Email invalide'),
+  email: z.string().trim().toLowerCase().email('Email invalide'),
   password: z.string().min(1, 'Mot de passe requis'),
 })
 
@@ -65,39 +65,31 @@ router.post('/register', validate(registerSchema), async (req, res) => {
       return
     }
 
+    const refreshToken = generateRefreshToken()
     const hashedPassword = await bcrypt.hash(password, 12)
 
-    const user = await prisma.user.create({
-      data: { email, password: hashedPassword, firstName, lastName },
+    // Une inscription est une seule opération métier. Avant, cinq écritures
+    // séparées pouvaient laisser un utilisateur sans société (ou une société
+    // sans propriétaire) si PostgreSQL tombait au milieu du parcours.
+    const { user, companies } = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: { email, password: hashedPassword, firstName, lastName },
+      })
+      const company = await tx.company.create({ data: { name: companyName } })
+      await tx.companySettings.create({ data: { companyId: company.id } })
+      await tx.userCompany.create({
+        data: { userId: user.id, companyId: company.id, role: 'OWNER' },
+      })
+      await tx.refreshToken.create({
+        data: { token: refreshToken, userId: user.id, expiresAt: getRefreshExpiry() },
+      })
+      const companies = await tx.userCompany.findMany({
+        where: { userId: user.id },
+        include: { company: true },
+      })
+      return { user, companies }
     })
-
-    const company = await prisma.company.create({
-      data: { name: companyName },
-    })
-
-    await prisma.companySettings.create({
-      data: { companyId: company.id },
-    })
-
-    await prisma.userCompany.create({
-      data: { userId: user.id, companyId: company.id, role: 'OWNER' },
-    })
-
     const accessToken = generateAccessToken(user.id, user.email)
-    const refreshToken = generateRefreshToken()
-
-    await prisma.refreshToken.create({
-      data: {
-        token: refreshToken,
-        userId: user.id,
-        expiresAt: getRefreshExpiry(),
-      },
-    })
-
-    const companies = await prisma.userCompany.findMany({
-      where: { userId: user.id },
-      include: { company: true },
-    })
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
@@ -107,14 +99,20 @@ router.post('/register', validate(registerSchema), async (req, res) => {
       path: '/',
     })
 
-    logger.info(`Nouvel utilisateur inscrit: ${email}`)
+    logger.info(`Nouvel utilisateur inscrit: ${user.id}`)
 
     res.status(201).json({
       accessToken,
       user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, avatar: user.avatar },
       companies,
     })
-  } catch (error) {
+  } catch (error: any) {
+    // Une requête concurrente peut franchir le findUnique avant la première
+    // transaction : l'unicité PostgreSQL reste l'autorité finale.
+    if (error?.code === 'P2002') {
+      res.status(409).json({ message: 'Un compte avec cet email existe déjà' })
+      return
+    }
     logger.error('Erreur inscription:', error)
     res.status(500).json({ message: 'Erreur lors de l\'inscription' })
   }

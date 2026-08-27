@@ -79,10 +79,13 @@ export const useRoomDesigner = create<RoomDesignerState>()(
         return id
       },
 
-      removeRoom: (id) => set((s) => ({
-        rooms: s.rooms.filter((r) => r.id !== id),
-        activeRoomId: s.activeRoomId === id ? (s.rooms[0]?.id ?? null) : s.activeRoomId,
-      })),
+      removeRoom: (id) => set((s) => {
+        const rooms = s.rooms.filter((r) => r.id !== id)
+        return {
+          rooms,
+          activeRoomId: s.activeRoomId === id ? (rooms[0]?.id ?? null) : s.activeRoomId,
+        }
+      }),
 
       setActiveRoom: (id) => set({ activeRoomId: id }),
 

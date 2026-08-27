@@ -1,1288 +1,336 @@
-import { useState, useMemo } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import toast from 'react-hot-toast'
+import { useMemo, useState } from 'react'
 import {
-  useCustomers,
-  useCreateCustomer,
-  useUpdateCustomer,
-  useRechargeWallet,
-} from '@/hooks/api/useCustomers'
-import {
-  Plus, Search, X, User, Star, Wallet,
-  ShoppingBag, ChevronRight, ChevronDown, ChevronUp,
-  Users, Mail, Phone, MapPin, Calendar, Tag,
-  Download, MessageSquare, CreditCard, Award,
-  ArrowUpDown, BarChart3, Clock, Heart,
-  Shield, AlertTriangle, Cake, Link2, TrendingDown,
-  Instagram, Facebook, Utensils, MessageCircle, Trash2,
-  Smile, FileText, Repeat
+  Download, Mail, MessageSquare, Pencil, Phone, Plus, RefreshCw,
+  Search, Trash2, UserRound, Users, Wallet, X,
 } from 'lucide-react'
 import {
-  LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid
-} from 'recharts'
-import AIActionMenu from '@/components/AIActionMenu'
+  type Customer,
+  useAddLoyaltyPoints,
+  useCreateCustomer,
+  useCustomers,
+  useDeleteCustomer,
+  useRechargeWallet,
+  useUpdateCustomer,
+} from '@/hooks/api/useCustomers'
 import { downloadCsv } from '@/lib/csv'
+import { toastError, toastSuccess } from '@/lib/toast'
 
-/* ── helpers ───────────────────────────────────────────────── */
-const fmt = (v: number) =>
-  new Intl.NumberFormat('fr-LU', { style: 'currency', currency: 'EUR' }).format(v)
-const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString('fr-LU') : '—'
-
-/* ── types ─────────────────────────────────────────────────── */
-interface Order {
-  id: string
-  createdAt: string
-  total: number
-  itemsCount: number
-  status: string
-  paymentMethod: string
-}
-interface TimelineEntry {
-  id: string
-  date: string
-  type: 'VISIT' | 'EMAIL' | 'EVENT' | 'COMPLAINT' | 'SMS' | 'RESERVATION'
-  label: string
-  detail?: string
-}
-interface Complaint {
-  id: string
-  date: string
-  subject: string
-  status: 'OPEN' | 'RESOLVED' | 'PENDING'
-  resolution?: string
-}
-
-interface Customer {
-  id: string
+type CustomerForm = {
   firstName: string
   lastName: string
   email: string
   phone: string
-  address?: string
-  city?: string
-  postalCode?: string
-  birthDate?: string
-  anniversaryDate?: string
-  firstVisit?: string
-  notes?: string
-  loyaltyPoints: number
-  loyaltyTier: 'Bronze' | 'Silver' | 'Gold'
-  walletBalance: number
-  totalSpent: number
-  visitCount: number
-  avgBasket: number
-  lastVisit: string
-  createdAt: string
-  tags: string[]
-  marketingConsent: boolean
-  emailOptIn: boolean
-  smsOptIn: boolean
-  onTab: boolean
-  preferredTable?: string
-  dietary: string[]
-  allergens: string[]
-  nps?: number
-  churnRisk: 'LOW' | 'MEDIUM' | 'HIGH'
-  clv: number
-  instagram?: string
-  facebook?: string
-  linkedMembers: string[]
-  complaints: Complaint[]
-  timeline: TimelineEntry[]
-  orders: Order[]
+  notes: string
 }
 
-/* ── dérivations à partir des vraies données ───────────────── */
-/**
- * Les 8 clients de démonstration qui vivaient ici (Marc Schmit, Léa Muller,
- * Tom Reuter…) ont été supprimés : ils servaient à compléter les champs
- * manquants des VRAIS clients, si bien qu'un client du portail héritait
- * d'une adresse, d'un compte Instagram et d'allergies qui ne sont pas les
- * siennes. Ne restent que deux règles, appliquées à des données réelles.
- */
-
-/** Palier de fidélité, avec les mêmes seuils que TIER_CONFIG ci-dessous. */
-function paliersFidelite(points: number): 'Bronze' | 'Silver' | 'Gold' {
-  if (points >= 500) return 'Gold'
-  if (points >= 200) return 'Silver'
-  return 'Bronze'
-}
-
-/**
- * Risque de départ, déduit de la seule chose qu'on sache vraiment : la date
- * de dernière visite. Règle explicite, pas un score opaque —
- * plus de 90 jours : élevé ; plus de 30 : moyen ; sinon faible.
- * Un client sans aucune visite enregistrée est « élevé » : on n'a jamais eu
- * l'occasion de le fidéliser.
- */
-function risqueDeDepart(derniereVisite?: string): 'LOW' | 'MEDIUM' | 'HIGH' {
-  if (!derniereVisite) return 'HIGH'
-  const d = new Date(derniereVisite)
-  if (Number.isNaN(d.getTime())) return 'HIGH'
-  const jours = (Date.now() - d.getTime()) / 86400000
-  if (jours > 90) return 'HIGH'
-  if (jours > 30) return 'MEDIUM'
-  return 'LOW'
-}
-
-/* ── configs ───────────────────────────────────────────────── */
-const TIER_CONFIG = {
-  Bronze: { color: '#CD7F32', bg: '#FDF2E6', border: '#E8C496', next: 'Silver', pointsNeeded: 200 },
-  Silver: { color: '#94A3B8', bg: '#F0F4F8', border: '#CBD5E1', next: 'Gold', pointsNeeded: 500 },
-  Gold:   { color: '#D97706', bg: '#FFFBEB', border: '#FCD34D', next: null, pointsNeeded: null },
-}
-
-const TAG_COLORS: Record<string, { bg: string; text: string }> = {
-  'Client fidèle':       { bg: '#DBEAFE', text: '#1E40AF' },
-  'VIP':                    { bg: '#FEF3C7', text: '#92400E' },
-  'Nouveau':                { bg: '#D1FAE5', text: '#065F46' },
-  'Allergique':             { bg: '#FEE2E2', text: '#991B1B' },
-  'Végétarien':    { bg: '#DCFCE7', text: '#166534' },
-  'Grand événement': { bg: '#EDE9FE', text: '#6B21A8' },
-  'Difficile':              { bg: '#FFE4E6', text: '#9F1239' },
-}
-const DIETARY_COLORS: Record<string, string> = {
-  'Végétarien': '#16a34a',
-  'Végan': '#15803d',
-  'Kosher': '#2563eb',
-  'Halal': '#0891b2',
-  'Sans gluten': '#d97706',
-}
-const CHURN_CONFIG = {
-  LOW:    { label: 'Faible', color: '#10b981', bg: '#ecfdf5' },
-  MEDIUM: { label: 'Moyen',  color: '#f59e0b', bg: '#fffbeb' },
-  HIGH:   { label: 'Élevé', color: '#ef4444', bg: '#fef2f2' },
-}
-
-const ALL_TAGS = ['Client fidèle', 'VIP', 'Nouveau', 'Allergique', 'Végétarien', 'Grand événement', 'Difficile']
-const DIETARY_OPTIONS = ['Végétarien', 'Végan', 'Kosher', 'Halal', 'Sans gluten']
-const ALLERGEN_OPTIONS = ['Gluten', 'Lactose', 'Noix', 'Arachides', 'Crustacés', 'Oeufs', 'Soja', 'Poisson']
-
-const AVATAR_COLORS = ['#7C3AED', '#2563EB', '#059669', '#D97706', '#DC2626', '#7C3AED', '#0891B2', '#4F46E5']
-
-type SortKey = 'name' | 'points' | 'lastVisit' | 'totalSpent' | 'clv' | 'nps'
-type SortDir = 'asc' | 'desc'
-type FilterChip = 'all' | 'active' | 'inactive' | 'vip' | 'new' | 'churn'
-type PanelTab = 'overview' | 'timeline' | 'prefs' | 'complaints' | 'gdpr'
-
-const FILTER_CHIPS: { key: FilterChip; label: string }[] = [
-  { key: 'all', label: 'Tous' },
-  { key: 'active', label: 'Actifs' },
-  { key: 'inactive', label: 'Inactifs (30j+)' },
-  { key: 'vip', label: 'VIP' },
-  { key: 'new', label: 'Nouveaux' },
-  { key: 'churn', label: 'Risque élevé' },
-]
-
-const PAGE_SIZE = 5
+const emptyForm: CustomerForm = { firstName: '', lastName: '', email: '', phone: '', notes: '' }
+const money = new Intl.NumberFormat('fr-LU', { style: 'currency', currency: 'EUR' })
 
 export default function ClientsPage() {
-  const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState<Customer | null>(null)
-  const [panelTab, setPanelTab] = useState<PanelTab>('overview')
-  const [showNew, setShowNew] = useState(false)
-  const [sortKey, setSortKey] = useState<SortKey>('name')
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
-  const [activeFilter, setActiveFilter] = useState<FilterChip>('all')
-  const [page, setPage] = useState(0)
-  const [gdprConfirm, setGdprConfirm] = useState(false)
-
-  const [newForm, setNewForm] = useState({
-    firstName: '', lastName: '', email: '', phone: '+352 ',
-    address: '', postalCode: '', city: '', birthDate: '', notes: '',
-    marketingConsent: false,
-  })
-
-  // Real API only: the CRM must show customers created from the client portal or staff entry,
-  // not seeded/demo identities.
-  // isError consommé : une panne serveur affichait exactement le même écran
-  // qu'un CRM réellement vide (constat d'audit) — désormais l'échec se voit.
-  const { data: apiCustomers, isError: erreurClients, isLoading: chargementClients, refetch: relireClients } = useCustomers()
+  const { data: customers = [], isLoading, isError, refetch, isFetching } = useCustomers()
   const createCustomer = useCreateCustomer()
   const updateCustomer = useUpdateCustomer()
-  const rechargeWallet = useRechargeWallet()
+  const deleteCustomer = useDeleteCustomer()
+  const loyalty = useAddLoyaltyPoints()
+  const wallet = useRechargeWallet()
 
-  const customers: Customer[] = useMemo(() => {
-    if (!apiCustomers) return []
-    return apiCustomers.map((c) => {
-      const totalSpent = c.totalSpent ?? 0
-      const visitCount = c.visits ?? 0
-      const points = c.loyaltyPoints ?? 0
-      return {
-        id: c.id,
-        firstName: c.firstName,
-        lastName: c.lastName,
-        // Un champ vide reste vide. La version précédente allait chercher
-        // l'adresse, le téléphone et jusqu'aux ALLERGÈNES d'un client de
-        // démonstration pour boucher les trous : un vrai client pouvait
-        // s'afficher « allergique aux noix » sans que personne ne l'ait dit.
-        email: c.email ?? '',
-        phone: c.phone ?? '',
-        birthDate: c.birthDate,
-        notes: c.notes,
-        loyaltyPoints: points,
-        loyaltyTier: paliersFidelite(points),
-        walletBalance: c.walletBalance ?? 0,
-        totalSpent,
-        visitCount,
-        avgBasket: visitCount > 0 ? totalSpent / visitCount : 0,
-        lastVisit: c.lastVisit ?? '',
-        createdAt: c.createdAt ?? '',
-        tags: c.tags ?? [],
-        // Consentements : faux par défaut. Présumer un accord qu'on n'a pas
-        // recueilli serait une faute vis-à-vis du RGPD, pas un détail d'affichage.
-        marketingConsent: false,
-        emailOptIn: false,
-        smsOptIn: false,
-        onTab: false,
-        dietary: [],
-        allergens: [],
-        // Le serveur ne mesure pas la satisfaction : pas de note inventée.
-        nps: undefined,
-        churnRisk: risqueDeDepart(c.lastVisit),
-        // Valeur cumulée réellement dépensée, pas une projection.
-        clv: totalSpent,
-        linkedMembers: [],
-        complaints: [],
-        timeline: [],
-        orders: [],
-      }
-    })
-  }, [apiCustomers])
-
-  function handleRechargeWallet(id: string, amount: number) {
-    if (!amount || amount <= 0) {
-      toast.error('Montant invalide')
-      return
-    }
-    rechargeWallet.mutate({ id, amount })
-  }
-
-  const now = new Date()
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+  const [search, setSearch] = useState('')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [form, setForm] = useState<CustomerForm>(emptyForm)
+  const [walletAmount, setWalletAmount] = useState('')
 
   const filtered = useMemo(() => {
-    let list = customers.filter((c) => {
-      const q = search.toLowerCase()
-      return (
-        `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) ||
-        c.email.toLowerCase().includes(q) ||
-        (c.phone ?? '').includes(q)
-      )
-    })
-
-    if (activeFilter === 'active') {
-      list = list.filter(c => c.lastVisit && new Date(c.lastVisit) >= thirtyDaysAgo)
-    } else if (activeFilter === 'inactive') {
-      list = list.filter(c => !c.lastVisit || new Date(c.lastVisit) < thirtyDaysAgo)
-    } else if (activeFilter === 'vip') {
-      list = list.filter(c => c.tags.includes('VIP'))
-    } else if (activeFilter === 'new') {
-      list = list.filter(c => c.tags.includes('Nouveau'))
-    } else if (activeFilter === 'churn') {
-      list = list.filter(c => c.churnRisk === 'HIGH')
-    }
-
-    list.sort((a, b) => {
-      let cmp = 0
-      if (sortKey === 'name') cmp = `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
-      else if (sortKey === 'points') cmp = a.loyaltyPoints - b.loyaltyPoints
-      else if (sortKey === 'lastVisit') cmp = (a.lastVisit || '').localeCompare(b.lastVisit || '')
-      else if (sortKey === 'totalSpent') cmp = a.totalSpent - b.totalSpent
-      else if (sortKey === 'clv') cmp = a.clv - b.clv
-      else if (sortKey === 'nps') cmp = (a.nps || 0) - (b.nps || 0)
-      return sortDir === 'asc' ? cmp : -cmp
-    })
-
-    return list
-  }, [customers, search, activeFilter, sortKey, sortDir])
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-
-  function handleSort(key: SortKey) {
-    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortKey(key); setSortDir('asc') }
-    setPage(0)
-  }
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ArrowUpDown size={12} style={{ opacity: 0.3, marginLeft: 4 }} />
-    return sortDir === 'asc'
-      ? <ChevronUp size={12} style={{ marginLeft: 4 }} />
-      : <ChevronDown size={12} style={{ marginLeft: 4 }} />
-  }
-
-  function handleExportCSV() {
-    // Les champs étaient interpolés bruts : un client « Dupont, Jean »
-    // décalait toute la ligne. downloadCsv échappe et encode pour Excel FR.
-    downloadCsv(
-      `clients_creorga_${new Date().toISOString().slice(0, 10)}.csv`,
-      ['Prénom', 'Nom', 'Email', 'Téléphone', 'Points', 'Tier', 'Solde', 'Total', 'Visites', 'CLV', 'NPS', 'Churn'],
-      filtered.map(c => [
-        c.firstName, c.lastName, c.email, c.phone, c.loyaltyPoints, c.loyaltyTier,
-        c.walletBalance, c.totalSpent, c.visitCount, c.clv, c.nps ?? '', c.churnRisk,
-      ]),
+    const query = search.trim().toLocaleLowerCase('fr')
+    if (!query) return customers
+    return customers.filter((customer) =>
+      [customer.firstName, customer.lastName, customer.email, customer.phone]
+        .some((value) => String(value || '').toLocaleLowerCase('fr').includes(query)),
     )
-    toast.success('Export CSV téléchargé')
+  }, [customers, search])
+
+  const selected = customers.find((customer) => customer.id === selectedId) ?? null
+  const totalPoints = customers.reduce((sum, customer) => sum + (customer.points ?? 0), 0)
+  const totalWallet = customers.reduce((sum, customer) => sum + (customer.walletBalance ?? 0), 0)
+  const busy = createCustomer.isPending || updateCustomer.isPending
+
+  function openCreate() {
+    setEditingId(null)
+    setForm(emptyForm)
+    setEditorOpen(true)
   }
 
-  function handleGdprExport(c: Customer) {
-    const data = JSON.stringify(c, null, 2)
-    const blob = new Blob([data], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `rgpd_${c.firstName}_${c.lastName}_${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast.success('Données client exportées (RGPD)')
+  function openEdit(customer: Customer) {
+    setEditingId(customer.id)
+    setForm({
+      firstName: customer.firstName,
+      lastName: customer.lastName,
+      email: customer.email || '',
+      phone: customer.phone || '',
+      notes: customer.notes || '',
+    })
+    setEditorOpen(true)
   }
 
-  function handleGdprDelete() {
-    toast.success(`Données de ${selected?.firstName} ${selected?.lastName} anonymisées`)
-    setGdprConfirm(false)
-    setSelected(null)
-  }
-
-  function handleNewSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!newForm.firstName || !newForm.lastName || !newForm.email) {
-      toast.error('Veuillez remplir les champs obligatoires')
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    const clean = {
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      email: form.email.trim() || undefined,
+      phone: form.phone.trim() || undefined,
+      notes: form.notes.trim() || undefined,
+    }
+    if (!clean.firstName || !clean.lastName) {
+      toastError('Le prénom et le nom sont obligatoires.')
       return
     }
-    if (selected) {
-      // Edit mode — if `selected` is bound to the form elsewhere.
-      updateCustomer.mutate({ id: selected.id, data: newForm })
-    } else {
-      createCustomer.mutate(newForm)
+    try {
+      if (editingId) await updateCustomer.mutateAsync({ id: editingId, data: clean })
+      else await createCustomer.mutateAsync(clean)
+      setEditorOpen(false)
+      setEditingId(null)
+      setForm(emptyForm)
+    } catch {
+      // Le hook affiche déjà le message d'erreur du serveur.
     }
-    setShowNew(false)
-    setNewForm({
-      firstName: '', lastName: '', email: '', phone: '+352 ',
-      address: '', postalCode: '', city: '', birthDate: '', notes: '',
-      marketingConsent: false,
-    })
   }
 
-  function getAvatarColor(index: number) {
-    return AVATAR_COLORS[index % AVATAR_COLORS.length]
+  async function remove(customer: Customer) {
+    const customerLabel = `${customer.firstName} ${customer.lastName}`.trim()
+    if (!window.confirm(`Supprimer définitivement la fiche de ${customerLabel} ?`)) return
+    try {
+      await deleteCustomer.mutateAsync(customer.id)
+      if (selectedId === customer.id) setSelectedId(null)
+    } catch {
+      // Le hook affiche déjà le message d'erreur du serveur.
+    }
   }
 
-  function openPanel(c: Customer) {
-    setSelected(c); setPanelTab('overview')
+  async function changePoints(customer: Customer, type: 'EARN' | 'SPEND') {
+    try {
+      await loyalty.mutateAsync({ id: customer.id, points: 10, type })
+    } catch {
+      // Le hook affiche déjà le message d'erreur du serveur.
+    }
   }
 
-  // La courbe d'évolution sur 6 mois était fabriquée : on prenait le total
-  // dépensé, on le divisait par 8 et on remontait la pente avec des
-  // coefficients arbitraires (× 4, × 4,8, × 5,4…). Elle montait donc toujours,
-  // pour tout le monde, y compris pour un client qui n'était pas revenu depuis
-  // un an. Le serveur n'expose pas l'historique mensuel par client : la courbe
-  // est retirée plutôt que devinée.
+  async function changeWallet(customer: Customer, direction: 1 | -1) {
+    const amount = Number(walletAmount.replace(',', '.'))
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toastError('Saisissez un montant positif.')
+      return
+    }
+    try {
+      await wallet.mutateAsync({ id: customer.id, amount: Math.round(amount * 100) / 100 * direction })
+      setWalletAmount('')
+    } catch {
+      // Le hook affiche déjà le message d'erreur du serveur.
+    }
+  }
 
-  const totalClients = customers.length
-  const totalCLV = customers.reduce((s, c) => s + c.clv, 0)
-  const npsClients = customers.filter(c => c.nps)
-  const avgNPS = npsClients.length ? npsClients.reduce((s, c) => s + (c.nps || 0), 0) / npsClients.length : 0
-  // Clients actifs = visite dans les 30 derniers jours (cohérent avec le filtre "Actifs")
-  const activeCount = (() => {
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30)
-    return customers.filter(c => c.lastVisit && new Date(c.lastVisit) >= cutoff).length
-  })()
-  const churnHigh = customers.filter(c => c.churnRisk === 'HIGH').length
+  function exportCustomers() {
+    downloadCsv(
+      `clients-creorga-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Prénom', 'Nom', 'Email', 'Téléphone', 'Points', 'Portefeuille', 'Notes'],
+      filtered.map((customer) => [
+        customer.firstName,
+        customer.lastName,
+        customer.email || '',
+        customer.phone || '',
+        customer.points ?? 0,
+        customer.walletBalance ?? 0,
+        customer.notes || '',
+      ]),
+    )
+    toastSuccess('Le fichier CSV a été téléchargé.')
+  }
 
   return (
-    <div style={{ padding: 24, maxWidth: 1280, margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+    <main style={{ maxWidth: 1240, margin: '0 auto', padding: '28px 22px 48px', color: '#0f172a' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 18, flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#1e293b', margin: 0 }}>Clients</h1>
-          <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
-            Base clients, fidélité, CLV & conformité RGPD &mdash; {customers.length} clients
-          </p>
+          <p style={eyebrow}>Fichier clients</p>
+          <h1 style={{ margin: 0, fontSize: 'clamp(26px, 4vw, 38px)', letterSpacing: '-.03em' }}>Vos clients, sans données fictives</h1>
+          <p style={{ margin: '8px 0 0', color: '#64748b' }}>Chaque modification affichée ici est enregistrée sur le serveur.</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <span data-tour="ai-menu" style={{ display: 'contents' }}>
-            <AIActionMenu module="crm" context={{ totalClients: customers.length, segments: ['VIP','Régulier','Occasionnel'] }} label="IA Clients" />
-          </span>
-          <button onClick={handleExportCSV}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 16px', background: '#fff', color: '#475569',
-              borderRadius: 10, fontSize: 13, fontWeight: 500,
-              border: '1px solid #e2e8f0', cursor: 'pointer',
-            }}>
-            <Download size={15} /> Export CSV
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button type="button" onClick={exportCustomers} style={secondaryButton} disabled={customers.length === 0}>
+            <Download size={17} /> Exporter
           </button>
-          <button onClick={() => setShowNew(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 18px', background: '#7C3AED', color: '#fff',
-              borderRadius: 10, fontSize: 13, fontWeight: 600,
-              border: 'none', cursor: 'pointer',
-            }}>
-            <Plus size={15} /> Nouveau client
+          <button type="button" onClick={openCreate} style={primaryButton}>
+            <Plus size={18} /> Nouveau client
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 20 }}>
-        {[
-          { label: 'Clients actifs', value: `${activeCount} / ${totalClients}`, icon: Users, color: '#7C3AED', bg: '#F3E8FF' },
-          { label: 'CLV totale', value: fmt(totalCLV), icon: CreditCard, color: '#2563EB', bg: '#DBEAFE' },
-          { label: 'NPS moyen', value: avgNPS.toFixed(1), icon: Smile, color: '#059669', bg: '#D1FAE5' },
-          { label: 'Risque de perte', value: `${churnHigh}`, icon: TrendingDown, color: '#DC2626', bg: '#FEE2E2' },
-        ].map(s => (
-          <div key={s.label} style={{
-            background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: 16,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <s.icon size={16} style={{ color: s.color }} />
-              </div>
-              <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500 }}>{s.label}</span>
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b' }}>{s.value}</div>
-          </div>
-        ))}
-      </div>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 14, marginTop: 26 }} className="crm-stats-grid">
+        <Stat icon={<Users size={19} />} label="Clients enregistrés" value={String(customers.length)} />
+        <Stat icon={<UserRound size={19} />} label="Points attribués" value={String(totalPoints)} />
+        <Stat icon={<Wallet size={19} />} label="Portefeuilles" value={money.format(totalWallet)} />
+      </section>
 
-      {/* Search + Filters */}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14 }}>
-        <div style={{ position: 'relative', flex: 1 }}>
-          <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-          <input value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(0) }}
-            placeholder="Rechercher par nom, email ou téléphone..."
-            style={{
-              width: '100%', padding: '10px 16px 10px 38px',
-              borderRadius: 12, border: '1px solid #e2e8f0',
-              fontSize: 13, outline: 'none', background: '#fff', color: '#1e293b',
-              boxSizing: 'border-box',
-            }} />
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        {FILTER_CHIPS.map(chip => (
-          <button key={chip.key}
-            onClick={() => { setActiveFilter(chip.key); setPage(0) }}
-            style={{
-              padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 500,
-              border: activeFilter === chip.key ? '1.5px solid #7C3AED' : '1px solid #e2e8f0',
-              background: activeFilter === chip.key ? '#F3E8FF' : '#fff',
-              color: activeFilter === chip.key ? '#7C3AED' : '#64748b',
-              cursor: 'pointer', transition: 'all 0.15s',
-            }}>
-            {chip.label}
-            {chip.key !== 'all' && (
-              <span style={{ marginLeft: 6, opacity: 0.7 }}>
-                {chip.key === 'active' ? customers.filter(c => c.lastVisit && new Date(c.lastVisit) >= thirtyDaysAgo).length
-                  : chip.key === 'inactive' ? customers.filter(c => !c.lastVisit || new Date(c.lastVisit) < thirtyDaysAgo).length
-                  : chip.key === 'vip' ? customers.filter(c => c.tags.includes('VIP')).length
-                  : chip.key === 'new' ? customers.filter(c => c.tags.includes('Nouveau')).length
-                  : customers.filter(c => c.churnRisk === 'HIGH').length}
-              </span>
-            )}
+      <section style={{ marginTop: 18, border: '1px solid #e2e8f0', borderRadius: 20, overflow: 'hidden', background: '#fff', boxShadow: '0 12px 35px rgba(15,23,42,.05)' }}>
+        <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #e2e8f0' }}>
+          <Search size={18} color="#64748b" />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            aria-label="Rechercher un client"
+            placeholder="Rechercher par nom, email ou téléphone"
+            style={{ flex: 1, border: 0, outline: 0, minWidth: 0, fontSize: 14, color: '#0f172a', background: 'transparent' }}
+          />
+          <button type="button" onClick={() => refetch()} aria-label="Actualiser les clients" style={iconButton} disabled={isFetching}>
+            <RefreshCw size={17} className={isFetching ? 'crm-spin' : undefined} />
           </button>
-        ))}
-      </div>
+        </div>
 
-      {/* Table — trois états distincts : chargement, panne (avec Réessayer),
-          et vide réel. Avant, la panne serveur rendait le même écran que
-          « Aucun client » : indistinguable d'un CRM vide. */}
-      <div style={{
-        background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflow: 'hidden',
-      }}>
-        {chargementClients ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: '#94a3b8', fontWeight: 500 }}>
-            Chargement des clients…
-          </div>
-        ) : erreurClients ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 200, gap: 10, color: '#991b1b' }}>
-            <p style={{ fontWeight: 700, margin: 0 }}>Impossible de charger les clients.</p>
-            <p style={{ fontSize: 13, margin: 0, color: '#b91c1c' }}>
-              Le serveur n'a pas répondu — la liste ci-dessous n'est PAS vide, elle est inaccessible.
-            </p>
-            <button
-              onClick={() => relireClients()}
-              style={{
-                marginTop: 4, padding: '8px 18px', borderRadius: 8, border: '1px solid #fca5a5',
-                background: '#fef2f2', color: '#991b1b', cursor: 'pointer', fontSize: 13, fontWeight: 700,
-              }}
-            >
-              Réessayer
-            </button>
-          </div>
+        {isLoading ? (
+          <Empty title="Chargement des clients…" />
+        ) : isError ? (
+          <Empty title="Impossible de charger les clients" detail="Vérifiez la connexion au serveur puis réessayez." action={<button type="button" onClick={() => refetch()} style={primaryButton}>Réessayer</button>} />
         ) : filtered.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 200, color: '#94a3b8' }}>
-            <Users size={40} style={{ marginBottom: 12, opacity: 0.4 }} />
-            <p style={{ fontWeight: 500, margin: 0 }}>Aucun client trouvé</p>
-          </div>
+          <Empty
+            title={search ? 'Aucun résultat' : 'Aucun client enregistré'}
+            detail={search ? 'Essayez un autre terme de recherche.' : 'Créez la première fiche pour valider le parcours d’un nouveau client.'}
+            action={!search ? <button type="button" onClick={openCreate} style={primaryButton}><Plus size={17} /> Créer un client</button> : undefined}
+          />
         ) : (
-          <>
-            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                  <th onClick={() => handleSort('name')} style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none' }}>
-                    <span style={{ display: 'flex', alignItems: 'center' }}>Client <SortIcon col="name" /></span>
-                  </th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Contact
-                  </th>
-                  <th onClick={() => handleSort('points')} style={{ padding: '12px 16px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>Fidélité <SortIcon col="points" /></span>
-                  </th>
-                  <th onClick={() => handleSort('clv')} style={{ padding: '12px 16px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>CLV <SortIcon col="clv" /></span>
-                  </th>
-                  <th onClick={() => handleSort('nps')} style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>NPS <SortIcon col="nps" /></span>
-                  </th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Risque
-                  </th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Tags
-                  </th>
-                  <th style={{ padding: '12px 16px', width: 32 }} />
-                </tr>
-              </thead>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+              <thead><tr>{['Client', 'Coordonnées', 'Points', 'Portefeuille', 'Actions'].map((heading) => <th key={heading} style={tableHead}>{heading}</th>)}</tr></thead>
               <tbody>
-                {paginated.map((c, idx) => {
-                  const tierCfg = TIER_CONFIG[c.loyaltyTier]
-                  const churnCfg = CHURN_CONFIG[c.churnRisk]
-                  const globalIdx = customers.indexOf(c)
-                  return (
-                    <motion.tr key={c.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.03 }}
-                      onClick={() => openPanel(c)}
-                      style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background 0.15s' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#F5F3FF')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                      <td style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ width: 36, height: 36, borderRadius: '50%', background: getAvatarColor(globalIdx), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
-                            {c.firstName[0]}{c.lastName[0]}
-                          </div>
-                          <div>
-                            <p style={{ fontWeight: 600, color: '#1e293b', margin: 0 }}>{c.firstName} {c.lastName}</p>
-                            <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>
-                              {c.linkedMembers.length > 0 && <Link2 size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />}
-                              {c.visitCount} visite{c.visitCount > 1 ? 's' : ''}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <p style={{ margin: 0, color: '#475569', fontSize: 12 }}>{c.email}</p>
-                        <p style={{ margin: 0, color: '#94a3b8', fontSize: 12 }}>{c.phone}</p>
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 12, background: tierCfg.bg, color: tierCfg.color, fontSize: 11, fontWeight: 600, border: `1px solid ${tierCfg.border}` }}>
-                          <Star size={10} /> {c.loyaltyPoints} \· {c.loyaltyTier}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>
-                        {fmt(c.clv)}
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        {c.nps != null ? (
-                          <span style={{
-                            display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
-                            background: c.nps >= 9 ? '#D1FAE5' : c.nps >= 7 ? '#FEF3C7' : '#FEE2E2',
-                            color: c.nps >= 9 ? '#065F46' : c.nps >= 7 ? '#92400E' : '#991B1B',
-                          }}>{c.nps}/10</span>
-                        ) : <span style={{ color: '#cbd5e1' }}>—</span>}
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: churnCfg.bg, color: churnCfg.color }}>
-                          {churnCfg.label}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                          {c.tags.slice(0, 2).map(tag => {
-                            const tc = TAG_COLORS[tag] || { bg: '#F1F5F9', text: '#475569' }
-                            return (
-                              <span key={tag} style={{ padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, background: tc.bg, color: tc.text }}>{tag}</span>
-                            )
-                          })}
-                          {c.tags.length > 2 && <span style={{ fontSize: 10, color: '#94a3b8' }}>+{c.tags.length - 2}</span>}
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <ChevronRight size={15} style={{ color: '#cbd5e1' }} />
-                      </td>
-                    </motion.tr>
-                  )
-                })}
+                {filtered.map((customer) => (
+                  <tr key={customer.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                    <td style={tableCell}>
+                      <button type="button" onClick={() => setSelectedId(customer.id)} style={customerButton}>
+                        <span style={avatar}>{initials(customer)}</span>
+                        <span><strong>{customer.firstName} {customer.lastName}</strong><small style={{ display: 'block', marginTop: 3, color: '#94a3b8' }}>{customer.notes || 'Aucune note'}</small></span>
+                      </button>
+                    </td>
+                    <td style={tableCell}><div>{customer.email || '—'}</div><small style={{ color: '#64748b' }}>{customer.phone || '—'}</small></td>
+                    <td style={tableCell}><strong>{customer.points ?? 0}</strong></td>
+                    <td style={tableCell}><strong>{money.format(customer.walletBalance ?? 0)}</strong></td>
+                    <td style={tableCell}>
+                      <div style={{ display: 'flex', gap: 7 }}>
+                        <button type="button" onClick={() => setSelectedId(customer.id)} aria-label={`Ouvrir ${customer.firstName}`} style={iconButton}><UserRound size={16} /></button>
+                        <button type="button" onClick={() => openEdit(customer)} aria-label={`Modifier ${customer.firstName}`} style={iconButton}><Pencil size={16} /></button>
+                        <button type="button" onClick={() => remove(customer)} aria-label={`Supprimer ${customer.firstName}`} style={{ ...iconButton, color: '#dc2626' }}><Trash2 size={16} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
-
-            {totalPages > 1 && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderTop: '1px solid #f1f5f9' }}>
-                <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>
-                  {filtered.length} client{filtered.length > 1 ? 's' : ''} \· Page {page + 1}/{totalPages}
-                </p>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
-                    style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 500, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: page === 0 ? 'default' : 'pointer', opacity: page === 0 ? 0.4 : 1 }}>
-                    Précédent
-                  </button>
-                  <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
-                    style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 500, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: page >= totalPages - 1 ? 'default' : 'pointer', opacity: page >= totalPages - 1 ? 0.4 : 1 }}>
-                    Suivant
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
+          </div>
         )}
-      </div>
+      </section>
 
-      {/* ================== SIDE PANEL ================== */}
-      <AnimatePresence>
-        {selected && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 40 }}
-              onClick={() => setSelected(null)} />
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              style={{ position: 'fixed', right: 0, top: 0, height: '100%', width: 520, background: '#fff', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)', zIndex: 50, overflowY: 'auto' }}>
-              {/* Header */}
-              <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f1f5f9', position: 'sticky', top: 0, background: '#fff', zIndex: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div style={{ width: 52, height: 52, borderRadius: '50%', background: getAvatarColor(customers.indexOf(selected)), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 18 }}>
-                      {selected.firstName[0]}{selected.lastName[0]}
-                    </div>
-                    <div>
-                      <p style={{ fontWeight: 700, fontSize: 17, color: '#1e293b', margin: 0 }}>
-                        {selected.firstName} {selected.lastName}
-                      </p>
-                      <p style={{ fontSize: 12, color: '#94a3b8', margin: '2px 0 0' }}>
-                        Client depuis {fmtDate(selected.createdAt)}
-                      </p>
-                      <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-                        {selected.tags.map(tag => {
-                          const tc = TAG_COLORS[tag] || { bg: '#F1F5F9', text: '#475569' }
-                          return <span key={tag} style={{ padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, background: tc.bg, color: tc.text }}>{tag}</span>
-                        })}
-                        {selected.onTab && <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, background: '#FEE2E2', color: '#991B1B' }}>Sur compte</span>}
-                      </div>
-                    </div>
-                  </div>
-                  <button onClick={() => setSelected(null)} style={{ padding: 6, borderRadius: 8, border: 'none', background: '#f1f5f9', cursor: 'pointer' }}>
-                    <X size={16} style={{ color: '#64748b' }} />
-                  </button>
-                </div>
-
-                {/* Tabs */}
-                <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #f1f5f9', marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
-                  {([
-                    ['overview', 'Vue d\'ensemble'],
-                    ['timeline', 'Timeline'],
-                    ['prefs', 'Préférences'],
-                    ['complaints', 'Réclamations'],
-                    ['gdpr', 'RGPD'],
-                  ] as [PanelTab, string][]).map(([key, label]) => (
-                    <button key={key} onClick={() => setPanelTab(key)}
-                      style={{
-                        padding: '10px 12px', fontSize: 12, fontWeight: 600,
-                        background: 'transparent', border: 'none',
-                        color: panelTab === key ? '#7C3AED' : '#64748b',
-                        borderBottom: panelTab === key ? '2px solid #7C3AED' : '2px solid transparent',
-                        cursor: 'pointer', marginBottom: -1,
-                      }}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
+      {selected && (
+        <div role="dialog" aria-modal="true" aria-label={`Fiche de ${selected.firstName}`} style={overlay} onMouseDown={() => setSelectedId(null)}>
+          <section style={drawer} onMouseDown={(event) => event.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ ...avatar, width: 48, height: 48, fontSize: 16 }}>{initials(selected)}</span>
+                <div><p style={eyebrow}>Fiche enregistrée</p><h2 style={{ margin: 0 }}>{selected.firstName} {selected.lastName}</h2></div>
               </div>
+              <button type="button" onClick={() => setSelectedId(null)} aria-label="Fermer" style={iconButton}><X size={18} /></button>
+            </div>
 
-              <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {panelTab === 'overview' && (
-                  <>
-                    {/* Contact */}
-                    <div style={{ background: '#f8fafc', borderRadius: 14, padding: 16, border: '1px solid #f1f5f9' }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <User size={11} /> Coordonnées
-                      </p>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Mail size={13} style={{ color: '#94a3b8' }} /><span style={{ fontSize: 13, color: '#1e293b' }}>{selected.email}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Phone size={13} style={{ color: '#94a3b8' }} /><span style={{ fontSize: 13, color: '#1e293b' }}>{selected.phone}</span>
-                        </div>
-                        {selected.address && (
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                            <MapPin size={13} style={{ color: '#94a3b8', marginTop: 2 }} />
-                            <span style={{ fontSize: 13, color: '#1e293b' }}>{selected.address}, {selected.postalCode} {selected.city}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+            <div style={{ display: 'grid', gap: 10, marginTop: 24 }}>
+              {selected.email && <a href={`mailto:${selected.email}`} style={contactLink}><Mail size={18} /> Écrire à {selected.email}</a>}
+              {selected.phone && <a href={`tel:${selected.phone}`} style={contactLink}><Phone size={18} /> Appeler {selected.phone}</a>}
+              {selected.phone && <a href={`sms:${selected.phone}`} style={contactLink}><MessageSquare size={18} /> Ouvrir un SMS</a>}
+              {!selected.email && !selected.phone && <p style={{ color: '#64748b' }}>Aucune coordonnée disponible.</p>}
+            </div>
 
-                    {/* Important dates */}
-                    <div style={{ background: '#fff7ed', borderRadius: 14, padding: 16, border: '1px solid #fed7aa' }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#9a3412', letterSpacing: '0.06em', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Cake size={11} /> Dates importantes
-                      </p>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                        {selected.birthDate && (
-                          <div>
-                            <div style={{ fontSize: 10, color: '#9a3412' }}>Anniversaire</div>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#7c2d12' }}>{fmtDate(selected.birthDate)}</div>
-                          </div>
-                        )}
-                        {selected.anniversaryDate && (
-                          <div>
-                            <div style={{ fontSize: 10, color: '#9a3412' }}>Anniv. mariage</div>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#7c2d12' }}>{fmtDate(selected.anniversaryDate)}</div>
-                          </div>
-                        )}
-                        {selected.firstVisit && (
-                          <div>
-                            <div style={{ fontSize: 10, color: '#9a3412' }}>Première visite</div>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#7c2d12' }}>{fmtDate(selected.firstVisit)}</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* CLV + Churn */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 10 }}>
-                      <div style={{ background: '#eef2ff', borderRadius: 14, padding: 16, border: '1px solid #c7d2fe' }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#4338ca', letterSpacing: '0.06em', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <CreditCard size={11} /> Total dépensé
-                        </p>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: '#3730a3' }}>{fmt(selected.clv)}</div>
-                        <div style={{ fontSize: 11, color: '#6366f1', marginTop: 4 }}>
-                          {selected.visitCount > 0
-                            ? `sur ${selected.visitCount} visite${selected.visitCount > 1 ? 's' : ''}`
-                            : 'aucune visite enregistrée'}
-                        </div>
-                      </div>
-                      <div style={{ background: CHURN_CONFIG[selected.churnRisk].bg, borderRadius: 14, padding: 16, border: `1px solid ${CHURN_CONFIG[selected.churnRisk].color}40` }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: CHURN_CONFIG[selected.churnRisk].color, letterSpacing: '0.06em', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <TrendingDown size={11} /> Risque perte
-                        </p>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: CHURN_CONFIG[selected.churnRisk].color }}>
-                          {CHURN_CONFIG[selected.churnRisk].label}
-                        </div>
-                        <div style={{ fontSize: 10, color: CHURN_CONFIG[selected.churnRisk].color, opacity: 0.7, marginTop: 2 }}>
-                          Score ML mock
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* NPS */}
-                    {selected.nps != null && (
-                      <div style={{ background: '#f0fdf4', borderRadius: 14, padding: 16, border: '1px solid #bbf7d0' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                            <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#15803d', letterSpacing: '0.06em', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <Smile size={11} /> Net Promoter Score
-                            </p>
-                            <div style={{ fontSize: 24, fontWeight: 800, color: '#15803d', marginTop: 4 }}>{selected.nps}/10</div>
-                          </div>
-                          <div style={{ fontSize: 11, color: '#15803d', fontWeight: 600 }}>
-                            {selected.nps >= 9 ? 'Promoteur' : selected.nps >= 7 ? 'Passif' : 'Détracteur'}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Stats */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                      {[
-                        { label: 'Total dépensé', value: fmt(selected.totalSpent), icon: CreditCard, color: '#7C3AED' },
-                        { label: 'Visites', value: String(selected.visitCount), icon: BarChart3, color: '#2563EB' },
-                        { label: 'Panier moyen', value: fmt(selected.avgBasket), icon: ShoppingBag, color: '#D97706' },
-                        { label: 'Dernière visite', value: selected.lastVisit ? fmtDate(selected.lastVisit) : '—', icon: Clock, color: '#059669' },
-                      ].map(stat => (
-                        <div key={stat.label} style={{ background: '#f8fafc', borderRadius: 12, padding: 12, border: '1px solid #f1f5f9' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                            <stat.icon size={11} style={{ color: stat.color }} />
-                            <span style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>{stat.label}</span>
-                          </div>
-                          <p style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', margin: 0 }}>{stat.value}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Linked family */}
-                    {selected.linkedMembers.length > 0 && (
-                      <div style={{ background: '#faf5ff', borderRadius: 14, padding: 16, border: '1px solid #e9d5ff' }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#7c3aed', letterSpacing: '0.06em', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <Link2 size={11} /> Membres liés
-                        </p>
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          {selected.linkedMembers.map(id => {
-                            const m = customers.find(c => c.id === id)
-                            if (!m) return null
-                            return (
-                              <span key={id} style={{ padding: '4px 10px', borderRadius: 10, background: '#fff', border: '1px solid #e9d5ff', fontSize: 12, color: '#6b21a8', fontWeight: 600 }}>
-                                {m.firstName} {m.lastName}
-                              </span>
-                            )
-                          })}
-                          <button onClick={() => toast.success('Ouverture de la liaison famille')}
-                            style={{ padding: '4px 10px', borderRadius: 10, background: '#f3e8ff', border: '1px dashed #c084fc', fontSize: 11, color: '#7c3aed', fontWeight: 600, cursor: 'pointer' }}>
-                            + Lier
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Social */}
-                    {(selected.instagram || selected.facebook) && (
-                      <div style={{ background: '#f8fafc', borderRadius: 14, padding: 16, border: '1px solid #f1f5f9' }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '0 0 8px' }}>Réseaux sociaux</p>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          {selected.instagram && (
-                            <a href="#" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#e1306c', textDecoration: 'none', fontWeight: 600 }}>
-                              <Instagram size={12} /> {selected.instagram}
-                            </a>
-                          )}
-                          {selected.facebook && (
-                            <a href="#" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#1877f2', textDecoration: 'none', fontWeight: 600 }}>
-                              <Facebook size={12} /> {selected.facebook}
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Action buttons */}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => toast.success('Email envoyé')}
-                        disabled={!selected.emailOptIn}
-                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', borderRadius: 10, fontSize: 12, fontWeight: 600, background: selected.emailOptIn ? '#EFF6FF' : '#f1f5f9', color: selected.emailOptIn ? '#2563EB' : '#94a3b8', border: `1px solid ${selected.emailOptIn ? '#BFDBFE' : '#e2e8f0'}`, cursor: selected.emailOptIn ? 'pointer' : 'not-allowed' }}>
-                        <Mail size={14} /> Email
-                      </button>
-                      <button onClick={() => toast.success('SMS envoyé')}
-                        disabled={!selected.smsOptIn}
-                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', borderRadius: 10, fontSize: 12, fontWeight: 600, background: selected.smsOptIn ? '#F0FDF4' : '#f1f5f9', color: selected.smsOptIn ? '#16A34A' : '#94a3b8', border: `1px solid ${selected.smsOptIn ? '#BBF7D0' : '#e2e8f0'}`, cursor: selected.smsOptIn ? 'pointer' : 'not-allowed' }}>
-                        <MessageSquare size={14} /> SMS
-                      </button>
-                    </div>
-                  </>
-                )}
-
-                {panelTab === 'timeline' && (
-                  <div>
-                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '0 0 14px' }}>
-                      Interactions chronologiques
-                    </p>
-                    {selected.timeline.length === 0 ? (
-                      <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Aucune interaction</div>
-                    ) : (
-                      <div style={{ position: 'relative', paddingLeft: 20 }}>
-                        <div style={{ position: 'absolute', left: 6, top: 4, bottom: 4, width: 2, background: '#e2e8f0' }} />
-                        {selected.timeline.map(e => {
-                          const typeConfig = {
-                            VISIT: { color: '#7C3AED', icon: Users },
-                            EMAIL: { color: '#2563EB', icon: Mail },
-                            SMS: { color: '#16A34A', icon: MessageSquare },
-                            EVENT: { color: '#D97706', icon: Calendar },
-                            RESERVATION: { color: '#0891B2', icon: Calendar },
-                            COMPLAINT: { color: '#DC2626', icon: AlertTriangle },
-                          }[e.type]
-                          return (
-                            <div key={e.id} style={{ position: 'relative', paddingBottom: 16 }}>
-                              <div style={{ position: 'absolute', left: -20, top: 2, width: 14, height: 14, borderRadius: '50%', background: typeConfig.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <typeConfig.icon size={8} style={{ color: '#fff' }} />
-                              </div>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>{e.label}</div>
-                              {e.detail && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{e.detail}</div>}
-                              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{fmtDate(e.date)}</div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-
-                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '16px 0 10px' }}>
-                      Dernières commandes
-                    </p>
-                    {selected.orders.length === 0 ? (
-                      <p style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '16px 0' }}>Aucune commande</p>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {selected.orders.slice(0, 5).map(o => (
-                          <div key={o.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #f1f5f9' }}>
-                            <div>
-                              <p style={{ fontSize: 12, fontWeight: 600, color: '#1e293b', margin: 0 }}>{fmtDate(o.createdAt)}</p>
-                              <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>{o.itemsCount} article{o.itemsCount > 1 ? 's' : ''} \· {o.paymentMethod}</p>
-                            </div>
-                            <p style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>{fmt(o.total)}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {panelTab === 'prefs' && (
-                  <>
-                    {/* Preferred table */}
-                    <div style={{ background: '#f8fafc', borderRadius: 14, padding: 16, border: '1px solid #f1f5f9' }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Heart size={11} /> Table préférée
-                      </p>
-                      <input type="text" defaultValue={selected.preferredTable || ''} placeholder="Ex: Table 12 - Terrasse"
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none', color: '#1e293b', background: '#fff', boxSizing: 'border-box' }} />
-                    </div>
-
-                    {/* Dietary */}
-                    <div style={{ background: '#f8fafc', borderRadius: 14, padding: 16, border: '1px solid #f1f5f9' }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Utensils size={11} /> Régime alimentaire
-                      </p>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {DIETARY_OPTIONS.map(d => {
-                          const active = selected.dietary.includes(d)
-                          const color = DIETARY_COLORS[d] || '#64748b'
-                          return (
-                            <button key={d}
-                              onClick={() => setSelected(c => c && ({
-                                ...c,
-                                dietary: c.dietary.includes(d) ? c.dietary.filter(x => x !== d) : [...c.dietary, d],
-                              }))}
-                              style={{
-                                padding: '6px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                                border: active ? `1.5px solid ${color}` : '1px solid #e2e8f0',
-                                background: active ? `${color}18` : '#fff',
-                                color: active ? color : '#64748b', cursor: 'pointer',
-                              }}>
-                              {d}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Allergens */}
-                    <div style={{ background: '#fef2f2', borderRadius: 14, padding: 16, border: '1px solid #fecaca' }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#991b1b', letterSpacing: '0.06em', margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <AlertTriangle size={11} /> Allergènes — importants pour la cuisine
-                      </p>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {ALLERGEN_OPTIONS.map(a => {
-                          const active = selected.allergens.includes(a)
-                          return (
-                            <button key={a}
-                              onClick={() => setSelected(c => c && ({
-                                ...c,
-                                allergens: c.allergens.includes(a) ? c.allergens.filter(x => x !== a) : [...c.allergens, a],
-                              }))}
-                              style={{
-                                padding: '6px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                                border: active ? '1.5px solid #dc2626' : '1px solid #e2e8f0',
-                                background: active ? '#fee2e2' : '#fff',
-                                color: active ? '#991b1b' : '#64748b', cursor: 'pointer',
-                              }}>
-                              {a}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Communication prefs */}
-                    <div style={{ background: '#f8fafc', borderRadius: 14, padding: 16, border: '1px solid #f1f5f9' }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <MessageCircle size={11} /> Préférences de communication
-                      </p>
-                      {[
-                        { key: 'emailOptIn', label: 'Email transactionnel', value: selected.emailOptIn, icon: Mail },
-                        { key: 'smsOptIn', label: 'SMS', value: selected.smsOptIn, icon: MessageSquare },
-                        { key: 'marketingConsent', label: 'Marketing & promotions', value: selected.marketingConsent, icon: Tag },
-                      ].map(p => (
-                        <div key={p.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <p.icon size={13} style={{ color: '#64748b' }} />
-                            <span style={{ fontSize: 13, color: '#1e293b' }}>{p.label}</span>
-                          </div>
-                          <div style={{
-                            width: 40, height: 22, borderRadius: 11,
-                            background: p.value ? '#7C3AED' : '#cbd5e1', position: 'relative', cursor: 'pointer',
-                          }}>
-                            <motion.div animate={{ x: p.value ? 20 : 2 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                              style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Custom tags */}
-                    <div style={{ background: '#f8fafc', borderRadius: 14, padding: 16, border: '1px solid #f1f5f9' }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Tag size={11} /> Tags personnalisés
-                      </p>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {ALL_TAGS.map(t => {
-                          const active = selected.tags.includes(t)
-                          const tc = TAG_COLORS[t] || { bg: '#F1F5F9', text: '#475569' }
-                          return (
-                            <button key={t}
-                              onClick={() => setSelected(c => c && ({
-                                ...c,
-                                tags: c.tags.includes(t) ? c.tags.filter(x => x !== t) : [...c.tags, t],
-                              }))}
-                              style={{
-                                padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                                border: active ? `1.5px solid ${tc.text}` : '1px solid #e2e8f0',
-                                background: active ? tc.bg : '#fff',
-                                color: active ? tc.text : '#64748b', cursor: 'pointer',
-                              }}>
-                              {t}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {panelTab === 'complaints' && (
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <AlertTriangle size={11} /> Historique des réclamations
-                      </p>
-                      <button onClick={() => toast.success('Formulaire réclamation ouvert')}
-                        style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#7C3AED', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
-                        + Nouvelle
-                      </button>
-                    </div>
-                    {selected.complaints.length === 0 ? (
-                      <div style={{ padding: 20, textAlign: 'center', color: '#10b981', fontSize: 13, fontWeight: 600, background: '#f0fdf4', borderRadius: 12, border: '1px solid #bbf7d0' }}>
-                        Aucune réclamation à ce jour
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {selected.complaints.map(cm => (
-                          <div key={cm.id} style={{ padding: 14, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{cm.subject}</div>
-                              <span style={{
-                                padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700,
-                                background: cm.status === 'RESOLVED' ? '#D1FAE5' : cm.status === 'OPEN' ? '#FEE2E2' : '#FEF3C7',
-                                color: cm.status === 'RESOLVED' ? '#065F46' : cm.status === 'OPEN' ? '#991B1B' : '#92400E',
-                              }}>{cm.status === 'RESOLVED' ? 'Résolu' : cm.status === 'OPEN' ? 'Ouvert' : 'En cours'}</span>
-                            </div>
-                            <div style={{ fontSize: 11, color: '#94a3b8' }}>{fmtDate(cm.date)}</div>
-                            {cm.resolution && (
-                              <div style={{ marginTop: 8, padding: 8, background: '#f0fdf4', borderRadius: 8, fontSize: 12, color: '#166534' }}>
-                                <strong>Résolution :</strong> {cm.resolution}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {panelTab === 'gdpr' && (
-                  <>
-                    <div style={{ background: '#eff6ff', borderRadius: 14, padding: 16, border: '1px solid #bfdbfe' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                        <Shield size={14} style={{ color: '#2563eb' }} />
-                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1e40af' }}>Conformité RGPD</div>
-                      </div>
-                      <p style={{ fontSize: 12, color: '#1e3a8a', margin: 0, lineHeight: 1.5 }}>
-                        Conformément au Règlement Général sur la Protection des Données (UE 2016/679), ce client peut exercer ses droits :
-                      </p>
-                    </div>
-
-                    <button onClick={() => handleGdprExport(selected)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 14, width: '100%', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, cursor: 'pointer', textAlign: 'left' }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 10, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Download size={16} style={{ color: '#2563eb' }} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Droit à la portabilité</div>
-                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Exporter toutes les données au format JSON</div>
-                      </div>
-                    </button>
-
-                    <button onClick={() => toast.success('Droit de rectification notifié')}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 14, width: '100%', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, cursor: 'pointer', textAlign: 'left' }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 10, background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <FileText size={16} style={{ color: '#16a34a' }} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Droit à la rectification</div>
-                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Corriger les informations inexactes</div>
-                      </div>
-                    </button>
-
-                    <button onClick={() => setGdprConfirm(true)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 14, width: '100%', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, cursor: 'pointer', textAlign: 'left' }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 10, background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Trash2 size={16} style={{ color: '#dc2626' }} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#991b1b' }}>Droit à l'oubli</div>
-                        <div style={{ fontSize: 11, color: '#b91c1c', marginTop: 2 }}>Anonymiser les données personnelles</div>
-                      </div>
-                    </button>
-
-                    <div style={{ marginTop: 8, padding: 12, background: '#f8fafc', borderRadius: 10, fontSize: 11, color: '#64748b', lineHeight: 1.5 }}>
-                      <strong>Note :</strong> L'anonymisation conserve les données comptables (factures, commandes) anonymisées, conformément à l'obligation légale de conservation de 10 ans au Luxembourg.
-                    </div>
-                  </>
-                )}
+            <div style={actionCard}>
+              <div><strong>Fidélité</strong><p style={helperText}>{selected.points ?? 0} point(s) actuellement</p></div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={() => changePoints(selected, 'SPEND')} style={secondaryButton} disabled={(selected.points ?? 0) < 10 || loyalty.isPending}>− 10</button>
+                <button type="button" onClick={() => changePoints(selected, 'EARN')} style={primaryButton} disabled={loyalty.isPending}>+ 10</button>
               </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+            </div>
 
-      {/* GDPR delete confirm */}
-      <AnimatePresence>
-        {gdprConfirm && selected && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => setGdprConfirm(false)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
-              onClick={e => e.stopPropagation()}
-              style={{ background: '#fff', borderRadius: 20, padding: 28, width: 420, textAlign: 'center' }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-                <AlertTriangle size={26} style={{ color: '#dc2626' }} />
+            <div style={{ ...actionCard, alignItems: 'stretch', flexDirection: 'column' }}>
+              <div><strong>Portefeuille prépayé</strong><p style={helperText}>{money.format(selected.walletBalance ?? 0)} disponible</p></div>
+              <input value={walletAmount} onChange={(event) => setWalletAmount(event.target.value)} inputMode="decimal" placeholder="Montant en euros" style={field} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={() => changeWallet(selected, -1)} style={{ ...secondaryButton, flex: 1 }} disabled={wallet.isPending}>Débiter</button>
+                <button type="button" onClick={() => changeWallet(selected, 1)} style={{ ...primaryButton, flex: 1 }} disabled={wallet.isPending}>Créditer</button>
               </div>
-              <h3 style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', margin: 0 }}>Confirmer l'anonymisation</h3>
-              <p style={{ fontSize: 13, color: '#64748b', margin: '10px 0 20px', lineHeight: 1.5 }}>
-                Les données personnelles de <strong>{selected.firstName} {selected.lastName}</strong> seront définitivement anonymisées. Cette action est irréversible.
-              </p>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => setGdprConfirm(false)}
-                  style={{ flex: 1, padding: '10px', background: '#fff', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  Annuler
-                </button>
-                <button onClick={handleGdprDelete}
-                  style={{ flex: 1, padding: '10px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  Anonymiser
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </div>
 
-      {/* New customer modal */}
-      <AnimatePresence>
-        {showNew && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            onClick={() => setShowNew(false)}>
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              onClick={e => e.stopPropagation()}
-              style={{ background: '#fff', borderRadius: 20, width: 520, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-              <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1e293b', margin: 0 }}>Nouveau client</h2>
-                  <p style={{ fontSize: 12, color: '#94a3b8', margin: '2px 0 0' }}>Inscription manuelle ou via un compte social</p>
-                </div>
-                <button onClick={() => setShowNew(false)}
-                  style={{ padding: 6, borderRadius: 8, border: 'none', background: '#f1f5f9', cursor: 'pointer' }}>
-                  <X size={16} style={{ color: '#64748b' }} />
-                </button>
-              </div>
-              <div style={{ padding: 24 }}>
-                <div style={{ marginBottom: 20 }}>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 10 }}>Inscription rapide</p>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <button onClick={() => toast('Fonctionnalité à venir')}
-                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '11px 0', borderRadius: 10, background: '#fff', color: '#1e293b', border: '1.5px solid #e2e8f0', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
-                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 001 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                      </svg>
-                      Google
-                    </button>
-                    <button onClick={() => toast('Fonctionnalité à venir')}
-                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '11px 0', borderRadius: 10, background: '#000', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                      <svg width="15" height="18" viewBox="0 0 15 18" fill="white">
-                        <path d="M14.94 13.42c-.35.82-.52 1.18-.97 1.91-.63.99-1.52 2.24-2.62 2.25-1.23.01-1.54-.8-3.21-.79-1.67.01-2.01.8-3.24.79-1.1-.01-1.94-1.13-2.57-2.12C.76 13.02.2 10.21 1.04 8.31c.6-1.35 1.67-2.2 2.83-2.2 1.05 0 1.72.81 2.59.81.84 0 1.36-.81 2.58-.81.97 0 1.92.53 2.52 1.44-2.22 1.22-1.86 4.38.38 5.22zM10.11.63C9.4 1.48 8.3 2.13 7.22 2.05 7.06.93 7.56.01 8.23-.01c.97-.03 1.55.64 1.88.64z"/>
-                      </svg>
-                      Apple
-                    </button>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-                  <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
-                  <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>ou inscription manuelle</span>
-                  <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
-                </div>
-                <form onSubmit={handleNewSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Prénom *</label>
-                      <input value={newForm.firstName} onChange={e => setNewForm(f => ({ ...f, firstName: e.target.value }))} placeholder="Jean"
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none', color: '#1e293b', background: '#fff', boxSizing: 'border-box' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Nom *</label>
-                      <input value={newForm.lastName} onChange={e => setNewForm(f => ({ ...f, lastName: e.target.value }))} placeholder="Dupont"
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none', color: '#1e293b', background: '#fff', boxSizing: 'border-box' }} />
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Email *</label>
-                    <input type="email" value={newForm.email} onChange={e => setNewForm(f => ({ ...f, email: e.target.value }))} placeholder="jean.dupont@email.com"
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none', color: '#1e293b', background: '#fff', boxSizing: 'border-box' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Téléphone mobile</label>
-                    <input value={newForm.phone} onChange={e => setNewForm(f => ({ ...f, phone: e.target.value }))} placeholder="+352 621 000 000"
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none', color: '#1e293b', background: '#fff', boxSizing: 'border-box' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Date de naissance</label>
-                    <input type="date" value={newForm.birthDate} onChange={e => setNewForm(f => ({ ...f, birthDate: e.target.value }))}
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none', color: '#1e293b', background: '#fff', boxSizing: 'border-box' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Notes (allergies, préférences...)</label>
-                    <textarea value={newForm.notes} onChange={e => setNewForm(f => ({ ...f, notes: e.target.value }))} rows={2}
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit', color: '#1e293b', background: '#fff', boxSizing: 'border-box' }} />
-                  </div>
-                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #f1f5f9', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={newForm.marketingConsent} onChange={e => setNewForm(f => ({ ...f, marketingConsent: e.target.checked }))}
-                      style={{ width: 16, height: 16, marginTop: 1, accentColor: '#7C3AED', cursor: 'pointer' }} />
-                    <div>
-                      <p style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', margin: 0 }}>Consentement marketing (RGPD)</p>
-                      <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>J'accepte de recevoir des offres et promotions</p>
-                    </div>
-                  </label>
-                  <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
-                    <button type="button" onClick={() => setShowNew(false)}
-                      style={{ flex: 1, padding: '11px 0', borderRadius: 10, background: '#fff', color: '#475569', border: '1px solid #e2e8f0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                      Annuler
-                    </button>
-                    <button type="submit"
-                      style={{ flex: 1, padding: '11px 0', borderRadius: 10, background: '#7C3AED', color: '#fff', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                      Créer le client
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+            {selected.notes && <div style={{ ...actionCard, display: 'block' }}><strong>Notes</strong><p style={{ ...helperText, whiteSpace: 'pre-wrap' }}>{selected.notes}</p></div>}
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button type="button" onClick={() => openEdit(selected)} style={{ ...primaryButton, flex: 1 }}><Pencil size={17} /> Modifier</button>
+              <button type="button" onClick={() => remove(selected)} style={{ ...secondaryButton, color: '#dc2626' }}><Trash2 size={17} /> Supprimer</button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {editorOpen && (
+        <div role="dialog" aria-modal="true" aria-label={editingId ? 'Modifier le client' : 'Nouveau client'} style={overlay} onMouseDown={() => setEditorOpen(false)}>
+          <form onSubmit={submit} style={modal} onMouseDown={(event) => event.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <div><p style={eyebrow}>{editingId ? 'Mise à jour serveur' : 'Nouvelle fiche'}</p><h2 style={{ margin: 0 }}>{editingId ? 'Modifier le client' : 'Créer un client'}</h2></div>
+              <button type="button" onClick={() => setEditorOpen(false)} aria-label="Fermer" style={iconButton}><X size={18} /></button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 22 }}>
+              <Field label="Prénom *" value={form.firstName} onChange={(value) => setForm((current) => ({ ...current, firstName: value }))} />
+              <Field label="Nom *" value={form.lastName} onChange={(value) => setForm((current) => ({ ...current, lastName: value }))} />
+            </div>
+            <Field label="Email" type="email" value={form.email} onChange={(value) => setForm((current) => ({ ...current, email: value }))} />
+            <Field label="Téléphone" type="tel" value={form.phone} onChange={(value) => setForm((current) => ({ ...current, phone: value }))} />
+            <label style={label}>Notes<textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={4} style={{ ...field, resize: 'vertical' }} /></label>
+            <button type="submit" style={{ ...primaryButton, width: '100%', justifyContent: 'center', marginTop: 8 }} disabled={busy}>
+              {busy ? 'Enregistrement…' : editingId ? 'Enregistrer les modifications' : 'Créer le client'}
+            </button>
+          </form>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes crm-spin { to { transform: rotate(360deg) } }
+        .crm-spin { animation: crm-spin .8s linear infinite; }
+        @media (max-width: 700px) { .crm-stats-grid { grid-template-columns: 1fr !important; } }
+      `}</style>
+    </main>
   )
 }
+
+function initials(customer: Customer) {
+  return `${customer.firstName?.[0] || ''}${customer.lastName?.[0] || ''}`.toLocaleUpperCase('fr') || 'CL'
+}
+
+function Stat({ icon, label: text, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return <div style={statCard}><span style={{ color: '#4f46e5' }}>{icon}</span><div><small style={{ color: '#64748b' }}>{text}</small><strong style={{ display: 'block', marginTop: 3, fontSize: 22 }}>{value}</strong></div></div>
+}
+
+function Empty({ title, detail, action }: { title: string; detail?: string; action?: React.ReactNode }) {
+  return <div style={{ padding: '70px 20px', textAlign: 'center' }}><UserRound size={36} color="#cbd5e1" /><h3 style={{ margin: '14px 0 4px' }}>{title}</h3>{detail && <p style={{ color: '#64748b', margin: '0 auto 18px', maxWidth: 460 }}>{detail}</p>}{action}</div>
+}
+
+function Field({ label: text, value, onChange, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
+  return <label style={label}>{text}<input type={type} value={value} onChange={(event) => onChange(event.target.value)} style={field} /></label>
+}
+
+const eyebrow: React.CSSProperties = { margin: '0 0 6px', color: '#4f46e5', fontSize: 11, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase' }
+const primaryButton: React.CSSProperties = { minHeight: 42, padding: '0 15px', border: 0, borderRadius: 11, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, color: '#fff', background: '#4f46e5', fontSize: 13, fontWeight: 750, cursor: 'pointer' }
+const secondaryButton: React.CSSProperties = { minHeight: 42, padding: '0 15px', border: '1px solid #cbd5e1', borderRadius: 11, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, color: '#334155', background: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }
+const iconButton: React.CSSProperties = { width: 38, height: 38, border: '1px solid #e2e8f0', borderRadius: 10, display: 'inline-grid', placeItems: 'center', color: '#475569', background: '#fff', cursor: 'pointer' }
+const statCard: React.CSSProperties = { minHeight: 86, padding: '16px 18px', border: '1px solid #e2e8f0', borderRadius: 16, display: 'flex', alignItems: 'center', gap: 13, background: '#fff' }
+const tableHead: React.CSSProperties = { padding: '12px 16px', color: '#64748b', background: '#f8fafc', textAlign: 'left', fontSize: 11, letterSpacing: '.05em', textTransform: 'uppercase' }
+const tableCell: React.CSSProperties = { padding: '14px 16px', color: '#334155', fontSize: 13, verticalAlign: 'middle' }
+const customerButton: React.CSSProperties = { padding: 0, border: 0, display: 'flex', alignItems: 'center', gap: 10, color: '#0f172a', background: 'transparent', textAlign: 'left', cursor: 'pointer' }
+const avatar: React.CSSProperties = { width: 38, height: 38, flex: '0 0 auto', borderRadius: 12, display: 'inline-grid', placeItems: 'center', color: '#4338ca', background: '#eef2ff', fontSize: 12, fontWeight: 850 }
+const overlay: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 500, display: 'flex', justifyContent: 'flex-end', background: 'rgba(15,23,42,.42)', backdropFilter: 'blur(3px)' }
+const drawer: React.CSSProperties = { width: 'min(100%, 480px)', height: '100%', padding: 24, overflowY: 'auto', background: '#fff', boxShadow: '-24px 0 70px rgba(15,23,42,.18)', boxSizing: 'border-box' }
+const modal: React.CSSProperties = { width: 'min(calc(100% - 32px), 540px)', margin: 'auto', padding: 24, borderRadius: 22, background: '#fff', boxShadow: '0 25px 80px rgba(15,23,42,.25)', boxSizing: 'border-box' }
+const contactLink: React.CSSProperties = { minHeight: 46, padding: '0 14px', border: '1px solid #dbeafe', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 9, color: '#1d4ed8', background: '#eff6ff', textDecoration: 'none', fontSize: 13, fontWeight: 650 }
+const actionCard: React.CSSProperties = { marginTop: 16, padding: 16, border: '1px solid #e2e8f0', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: '#f8fafc' }
+const helperText: React.CSSProperties = { margin: '4px 0 0', color: '#64748b', fontSize: 12, lineHeight: 1.5 }
+const label: React.CSSProperties = { marginTop: 13, display: 'grid', gap: 6, color: '#334155', fontSize: 12, fontWeight: 700 }
+const field: React.CSSProperties = { width: '100%', minHeight: 43, padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: 10, color: '#0f172a', background: '#fff', font: 'inherit', boxSizing: 'border-box', outlineColor: '#6366f1' }

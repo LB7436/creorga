@@ -20,6 +20,8 @@ export interface Order {
   openedAt?: string
   createdAt?: string
   updatedAt?: string
+  orderNumber?: number
+  table?: { id: string; name: string } | null
 }
 
 export function useOrders(tableId?: string) {
@@ -29,6 +31,8 @@ export function useOrders(tableId?: string) {
       api
         .get('/orders', { params: tableId ? { tableId } : undefined })
         .then((r) => r.data),
+    refetchInterval: 10_000,
+    staleTime: 5_000,
   })
 }
 

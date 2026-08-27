@@ -214,7 +214,7 @@ export default function MobileBriefing() {
           <Metric icon="📋" label="Au planning" value={`${data.metrics.staffToday}`} sub={data.metrics.staffNames.slice(0, 2).join(', ') || '—'} />
           <Metric icon="🪑" label="Tables ouvertes" value={`${data.metrics.occupiedTables}/${data.metrics.totalTables}`} />
           <Metric icon="💶" label="CA en cours" value={`${data.metrics.revenueOpen.toFixed(0)} €`} />
-          <Metric icon="📦" label="Stock bas" value={`${data.metrics.lowStock}`} highlight={data.metrics.lowStock > 0 ? '#f59e0b' : undefined} />
+          <Metric icon="📦" label="Inventaire en migration" value="—" sub="Aucune donnée simulée" />
         </motion.div>
       )}
 

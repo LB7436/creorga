@@ -49,3 +49,118 @@
      hex colors serialize to rgb() so they never matched. The global
      styles/dark-overlay.css now themes these surfaces app-wide. */
 }
+
+@media (max-width: 960px) {
+  .creorga-login-main {
+    grid-template-columns: 1fr !important;
+    padding: 32px 24px 48px !important;
+    gap: 28px !important;
+  }
+
+  .creorga-login-left {
+    max-width: 720px !important;
+    margin: 0 auto !important;
+  }
+
+  .creorga-login-right {
+    width: 100% !important;
+  }
+
+  .creorga-login-headline {
+    font-size: clamp(38px, 7vw, 52px) !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .creorga-login-nav {
+    padding: 14px 16px !important;
+  }
+
+  .creorga-login-nav-actions > a,
+  .creorga-login-nav-actions > div {
+    display: none !important;
+  }
+
+  .creorga-login-main {
+    padding: 24px 16px 36px !important;
+    min-height: calc(100vh - 66px) !important;
+  }
+
+  .creorga-login-left {
+    display: none !important;
+  }
+
+  .creorga-login-name-grid,
+  .creorga-login-features {
+    grid-template-columns: 1fr !important;
+  }
+
+  .creorga-login-stats {
+    flex-wrap: wrap !important;
+    gap: 16px 24px !important;
+  }
+}
+
+@media (max-width: 1050px) {
+  .portal-config-layout {
+    flex-direction: column !important;
+  }
+
+  .portal-config-controls,
+  .portal-config-preview {
+    width: 100% !important;
+    flex: 1 1 auto !important;
+  }
+
+  .portal-config-preview {
+    position: static !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .floor-plan-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .floor-plan-side {
+    border-left: 0 !important;
+    border-top: 1px solid rgba(148, 163, 184, 0.25) !important;
+    max-height: none !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .portal-config-header {
+    padding: 22px 16px 0 !important;
+  }
+
+  .portal-config-layout {
+    padding: 0 16px 40px !important;
+    gap: 22px !important;
+  }
+
+  .portal-config-games {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .setup-wizard-header {
+    padding: 18px 16px !important;
+    align-items: flex-start !important;
+    gap: 14px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .setup-wizard-header > button {
+    width: 100% !important;
+  }
+
+  .setup-wizard-main {
+    padding: 24px 14px 40px !important;
+  }
+
+  .setup-wizard-card {
+    padding: 22px 18px !important;
+    border-radius: 16px !important;
+    box-sizing: border-box !important;
+  }
+}

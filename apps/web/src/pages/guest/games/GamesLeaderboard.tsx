@@ -19,11 +19,15 @@ interface ScoreEntry {
 
 export default function GamesLeaderboard() {
   const [top, setTop] = useState<ScoreEntry[]>([])
+  const companyId = (() => {
+    try { return new URLSearchParams(window.location.search).get('companyId') } catch { return null }
+  })()
 
   useEffect(() => {
+    if (!companyId) { setTop([]); return }
     let alive = true
     const load = () => {
-      fetch(`${BACKEND}/api/game-scores/all/top?limit=5`)
+      fetch(`${BACKEND}/api/game-scores/all/top?limit=5&companyId=${encodeURIComponent(companyId)}`)
         .then((r) => r.json())
         .then((data) => { if (alive) setTop(data.top || []) })
         .catch(() => { /* offline — garde le dernier état */ })
@@ -31,7 +35,7 @@ export default function GamesLeaderboard() {
     load()
     const id = window.setInterval(load, 30_000)
     return () => { alive = false; window.clearInterval(id) }
-  }, [])
+  }, [companyId])
 
   if (top.length === 0) return null
 

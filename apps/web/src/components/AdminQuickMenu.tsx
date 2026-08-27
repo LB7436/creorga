@@ -55,7 +55,7 @@ export default function AdminQuickMenu() {
           <div style={popSection}>
             <div style={popLabel}>Configuration</div>
             <MenuItem icon="🧩" label="Configurer les modules"   sub="Visible / Masqué / Bientôt" onClick={() => go('/settings/modules')} />
-            <MenuItem icon="📐" label="Designer la salle"        sub="Murs, fenêtres, comptoir, escaliers" onClick={() => go('/pos/design')} />
+            <MenuItem icon="📐" label="Configurer la salle"      sub="Plan partagé et sauvegardé" onClick={() => go('/pos/floor')} />
             <MenuItem icon="🪑" label="Plan de salle & chaises"   sub="Tables, chaises, transferts" onClick={() => go('/pos/floor')} />
             <MenuItem icon="👥" label="Clients & portail"         sub="QR code, logo, personnalisation" onClick={() => go('/clients')} />
             <MenuItem icon="🎨" label="Thèmes & apparence"        sub="Mauve, Indigo, Or, Émeraude…" onClick={() => go('/settings/theme')} />

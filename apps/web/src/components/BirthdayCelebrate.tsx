@@ -108,12 +108,12 @@ export default function BirthdayCelebrate() {
             {birthdays.map((b) => b.label).join(', ')} — pensez à offrir un dessert
           </div>
         </div>
-        <button onClick={() => { /* future : send voucher */ alert('Voucher envoyé !'); dismiss() }}
+        <button onClick={dismiss}
           style={{
             padding: '6px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
             background: 'rgba(255,255,255,0.25)', color: '#fff', fontWeight: 800, fontSize: 11,
           }}>
-          <Send size={12} style={{ verticalAlign: -1, marginRight: 2 }} /> Envoyer
+          <Send size={12} style={{ verticalAlign: -1, marginRight: 2 }} /> J’ai noté
         </button>
         <button onClick={dismiss} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}>
           <X size={16} />
