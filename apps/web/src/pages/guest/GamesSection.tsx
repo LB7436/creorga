@@ -18,6 +18,7 @@ import { ACCENT, TEXT, MUTED } from './games/theme'
 import {
   CATEGORY_META,
   GAME_ID_ALIASES,
+  GAME_SELECTION_BY_CATEGORY,
   GUEST_GAMES,
   JEUX_SELECTIONNES,
   JEUX_RECOMMANDES,
@@ -1135,7 +1136,7 @@ export default function GamesSection({ companyId: explicitCompanyId }: { company
   const filtered = useMemo(() => {
     let list = activeCategory === 'all'
       ? jeuxPrincipaux
-      : jeuxPrincipaux.filter((game) => game.categories.includes(activeCategory))
+      : jeuxPrincipaux.filter((game) => GAME_SELECTION_BY_CATEGORY[activeCategory].includes(game.id))
     list = list.filter((game) => difficultyMatches(game, difficulty))
     return list.filter(correspondRecherche)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1317,7 +1318,7 @@ export default function GamesSection({ companyId: explicitCompanyId }: { company
         {CATEGORY_META.filter((cat) => cat.id !== 'casino').map((cat) => {
           const count = cat.id === 'all'
             ? jeuxPrincipaux.length
-            : jeuxPrincipaux.filter((game) => game.categories.includes(cat.id as Exclude<GameCategory, 'all'>)).length
+            : jeuxPrincipaux.filter((game) => GAME_SELECTION_BY_CATEGORY[cat.id as Exclude<GameCategory, 'all'>].includes(game.id)).length
           const activeCat = activeCategory === cat.id
           return (
             <button

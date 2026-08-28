@@ -9,6 +9,7 @@ import { authenticate, type AuthRequest } from '../middleware/auth'
 import logger from '../lib/logger'
 import { fallbackAdminAllowed } from '../lib/security'
 import { push as pushEvenement } from '../lib/eventSink'
+import { moduleRowsFor } from '../lib/company-modules'
 
 const router = Router()
 
@@ -57,6 +58,10 @@ function getRefreshExpiry(): Date {
 
 router.post('/register', validate(registerSchema), async (req, res) => {
   try {
+    if (process.env.SINGLE_TENANT_MODE === 'true' && await prisma.company.count() > 0) {
+      res.status(403).json({ message: 'Les inscriptions publiques sont fermées. Le propriétaire crée les comptes équipe depuis Administration.' })
+      return
+    }
     const { email, password, firstName, lastName, companyName } = req.body
 
     const existing = await prisma.user.findUnique({ where: { email } })
@@ -77,6 +82,7 @@ router.post('/register', validate(registerSchema), async (req, res) => {
       })
       const company = await tx.company.create({ data: { name: companyName } })
       await tx.companySettings.create({ data: { companyId: company.id } })
+      await tx.companyModule.createMany({ data: moduleRowsFor(company.id) })
       await tx.userCompany.create({
         data: { userId: user.id, companyId: company.id, role: 'OWNER' },
       })

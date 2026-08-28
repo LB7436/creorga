@@ -1,6 +1,7 @@
 import { Router, type Response } from 'express'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
+import { moduleRowsFor } from '../lib/company-modules'
 
 const router = Router()
 
@@ -8,6 +9,12 @@ const router = Router()
 
 router.get('/', async (req: any, res: Response) => {
   try {
+    // Auto-réparation des sociétés créées avant l'initialisation des modules.
+    // skipDuplicates conserve les choix actif/inactif déjà enregistrés.
+    await prisma.companyModule.createMany({
+      data: moduleRowsFor(req.companyId),
+      skipDuplicates: true,
+    })
     const modules = await prisma.companyModule.findMany({
       where: { companyId: req.companyId },
       orderBy: { moduleId: 'asc' },
@@ -23,10 +30,18 @@ router.get('/', async (req: any, res: Response) => {
 
 router.put('/:moduleId', async (req: any, res: Response) => {
   try {
-    const existing = await prisma.companyModule.findUnique({
+    if (req.role !== 'OWNER' && req.role !== 'MANAGER') {
+      res.status(403).json({ message: 'Accès réservé aux responsables' })
+      return
+    }
+    let existing = await prisma.companyModule.findUnique({
       where: { companyId_moduleId: { companyId: req.companyId, moduleId: req.params.moduleId } },
     })
-    if (!existing) { res.status(404).json({ message: 'Module non trouvé' }); return }
+    if (!existing) {
+      existing = await prisma.companyModule.create({
+        data: { companyId: req.companyId, moduleId: req.params.moduleId, isActive: true },
+      })
+    }
     const module = await prisma.companyModule.update({
       where: { companyId_moduleId: { companyId: req.companyId, moduleId: req.params.moduleId } },
       data: { isActive: !existing.isActive },

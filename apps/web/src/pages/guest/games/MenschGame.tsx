@@ -53,8 +53,8 @@ const TRACK: [number, number][] = [
   [9, 4], [9, 3], [9, 2], [9, 1], [8, 1],
 ]
 
-const TRACK_LENGTH = TRACK.length
-const FINISH_STEP = TRACK_LENGTH + 5
+export const TRACK_LENGTH = TRACK.length
+export const FINISH_STEP = TRACK_LENGTH + 5
 const START_INDEX = [13, 0, 39, 26]
 const BASES: [number, number][][] = [
   [[2, 12], [4, 12], [2, 14], [4, 14]],
@@ -70,13 +70,13 @@ const HOME_PATHS: [number, number][][] = [
 ]
 const RULES = [
   'Un 6 est obligatoire pour sortir un pion de la maison.',
-  'Apres un 6, le joueur garde la main.',
-  'Un pion adverse capture retourne dans sa maison, sauf sur une case protegee.',
-  'La colonne finale doit etre atteinte avec le nombre exact.',
+  'Après un 6, le joueur garde la main.',
+  'Un pion adverse capturé retourne dans sa maison, sauf sur une case protégée.',
+  'La colonne finale doit être atteinte avec le nombre exact.',
   'Le premier joueur qui rentre ses 4 pions gagne la manche.',
 ]
 
-function createState(players: number): MenschState {
+export function createState(players: number): MenschState {
   return {
     players: Array.from({ length: players }, () => ({
       pieces: Array.from({ length: 4 }, (_, id) => ({ id, steps: -1, finished: false })),
@@ -87,7 +87,7 @@ function createState(players: number): MenschState {
     rolled: false,
     rolling: false,
     winner: null,
-    message: 'Lancez le de. Il faut un 6 pour sortir un pion.',
+    message: 'Lancez le dé. Il faut un 6 pour sortir un pion.',
     lastMove: null,
   }
 }
@@ -142,7 +142,7 @@ function homeSlot(finishedCount: number) {
   return FINISH_STEP - finishedCount
 }
 
-function canMove(state: MenschState, piece: Piece, playerIndex: number) {
+export function canMove(state: MenschState, piece: Piece, playerIndex: number) {
   if (!state.rolled || state.rolling || state.winner !== null || piece.finished) return false
   if (piece.steps < 0) {
     if (state.die !== 6) return false
@@ -197,6 +197,9 @@ export default function MenschGame() {
   const [state, setState] = useState(() => createState(initial === 'solo' ? 2 : 4))
   const [tournament, setTournament] = useState([0, 0, 0, 0])
   const [sessionWins, setSessionWins] = useState(0)
+  // Le plateau 2D est le mode fiable par défaut : il fonctionne aussi sur les
+  // tablettes/navigateurs où WebGL est désactivé. La 3D reste un choix visuel.
+  const [boardMode, setBoardMode] = useState<'2d' | '3d'>('2d')
   const winCountedRef = useRef(false)
   const tournamentCountedRef = useRef(false)
   const stateRef = useRef(state)
@@ -246,7 +249,7 @@ export default function MenschGame() {
       if (!next.players[next.current].pieces.some((piece) => canMove(next, piece, next.current))) {
         next.rolled = false
         next.current = (next.current + 1) % next.players.length
-        next.message = die === 6 ? 'Aucun pion ne peut sortir: case de depart occupee.' : 'Aucun mouvement. Joueur suivant.'
+        next.message = die === 6 ? 'Aucun pion ne peut sortir : case de départ occupée.' : 'Aucun mouvement. Joueur suivant.'
       }
       return next
     })
@@ -303,7 +306,7 @@ export default function MenschGame() {
         next.message = `${COLOR_NAMES[mover]} gagne la manche.`
       } else if (next.die === 6) {
         // Tour supplementaire uniquement sur un 6 (regle standard + RULES affichees).
-        next.message = captured ? 'Capture! Vous rejouez (6).' : '6: vous gardez la main.'
+        next.message = captured ? 'Capture ! Vous rejouez (6).' : '6 : vous gardez la main.'
       } else {
         next.current = (mover + 1) % next.players.length
         next.message = captured ? `Capture! Au joueur ${next.current + 1}.` : `Au joueur ${next.current + 1}.`
@@ -375,14 +378,19 @@ export default function MenschGame() {
   return (
     <div style={menschRootStyle}>
       <style>{responsiveStyle}</style>
-      <MenschBoard3D
-        state={state}
-        movable={movable}
-        moveHints={moveHints}
-        onMove={move}
-        preview={setup}
-        botTurn={botTurn}
-      />
+      {boardMode === '2d' ? (
+        <MenschBoard2D state={state} movable={movable} moveHints={moveHints} onMove={move} preview={setup} botTurn={botTurn} />
+      ) : (
+        <MenschBoard3D
+          state={state}
+          movable={movable}
+          moveHints={moveHints}
+          onMove={move}
+          preview={setup}
+          botTurn={botTurn}
+          onUnavailable={() => setBoardMode('2d')}
+        />
+      )}
 
       {setup ? (
         <SetupOverlay
@@ -402,7 +410,7 @@ export default function MenschGame() {
               <span style={{ ...colorDotStyle, background: COLORS[state.current] }} />
               <div style={turnCopyStyle}>
                 <strong style={turnTitleStyle}>Tour de {COLOR_NAMES[state.current]}{isBot(mode, state.current) ? ' CPU' : ''}</strong>
-                <span style={turnMetaStyle}>{modeLabel(mode)} - sortie sur 6 - arrivee exacte</span>
+                <span style={turnMetaStyle}>{modeLabel(mode)} · sortie sur 6 · arrivée exacte</span>
               </div>
             </div>
             <button
@@ -411,6 +419,14 @@ export default function MenschGame() {
               style={smallGhostStyle}
             >
               Joueurs
+            </button>
+            <button
+              type="button"
+              onClick={() => setBoardMode((value) => value === '2d' ? '3d' : '2d')}
+              style={smallGhostStyle}
+              aria-label={`Afficher le plateau ${boardMode === '2d' ? '3D' : '2D'}`}
+            >
+              Vue {boardMode === '2d' ? '3D' : '2D'}
             </button>
           </div>
 
@@ -443,7 +459,7 @@ export default function MenschGame() {
             <div style={{ minWidth: 0 }}>
               <strong style={{ color: TEXT, display: 'block', fontSize: 13 }}>{state.message}</strong>
               <span style={{ color: MUTED, fontSize: 11 }}>
-                Appuyez sur le de 3D, puis touchez un pion lumineux — ou utilisez les boutons ci-dessous.
+                Appuyez sur le dé, puis touchez un pion lumineux — ou utilisez les boutons ci-dessous.
               </span>
             </div>
           </div>
@@ -491,7 +507,7 @@ function DiceRollButton({
   return (
     <button
       type="button"
-      aria-label="Lancer le de 3D"
+      aria-label="Lancer le dé"
       onClick={onRoll}
       disabled={disabled}
       className="mensch-dice-button"
@@ -545,7 +561,7 @@ function SetupOverlay({
 }) {
   const cards: { label: string; sub: string; players: number; mode: PlayMode }[] = [
     { label: 'Solo', sub: '1 joueur + CPU', players: 2, mode: 'solo' },
-    { label: '2 joueurs', sub: 'Face a face', players: 2, mode: 'ensemble' },
+    { label: '2 joueurs', sub: 'Face à face', players: 2, mode: 'ensemble' },
     { label: '3 joueurs', sub: 'Table famille', players: 3, mode: 'ensemble' },
     { label: '4 joueurs', sub: 'Parchisi complet', players: 4, mode: 'ensemble' },
   ]
@@ -553,9 +569,9 @@ function SetupOverlay({
   return (
     <div style={setupOverlayStyle}>
       <div style={setupHeroStyle}>
-        <span style={setupKickerStyle}>Regles type Mensch argere dich nicht</span>
-        <h1 style={setupTitleStyle}>Petits Chevaux 3D</h1>
-        <p style={setupTextStyle}>Choisissez les joueurs au depart, puis jouez sur un vrai plateau 3D plein ecran.</p>
+        <span style={setupKickerStyle}>Règles classiques des Petits Chevaux</span>
+        <h1 style={setupTitleStyle}>Petits Chevaux</h1>
+        <p style={setupTextStyle}>Choisissez les joueurs puis jouez sur un plateau tactile fiable. La vue 3D reste disponible pendant la partie.</p>
         <div style={playerChoiceGridStyle}>
           {cards.map((card) => {
             const active = count === card.players && mode === card.mode
@@ -597,9 +613,9 @@ function SetupOverlay({
             Scores individuels
           </button>
         </div>
-        <button onClick={onStart} style={startButtonStyle}>Demarrer la partie</button>
+        <button onClick={onStart} style={startButtonStyle}>Démarrer la partie</button>
         <div style={rulesBoxStyle}>
-          <strong>Regles</strong>
+          <strong>Règles</strong>
           {RULES.map((rule) => <span key={rule}>{rule}</span>)}
         </div>
       </div>
@@ -607,7 +623,8 @@ function SetupOverlay({
   )
 }
 
-function MenschBoard3D({
+/** Plateau HTML/CSS accessible, sans WebGL. */
+function MenschBoard2D({
   state,
   movable,
   moveHints,
@@ -622,6 +639,101 @@ function MenschBoard3D({
   preview?: boolean
   botTurn?: boolean
 }) {
+  const cells = new Map<string, { color: string; kind: 'track' | 'home' }>()
+  TRACK.forEach(([x, y], index) => {
+    const start = START_INDEX.indexOf(index)
+    cells.set(`${x}-${y}`, { color: start >= 0 ? COLORS[start] : '#ffffff', kind: 'track' })
+  })
+  HOME_PATHS.forEach((path, playerIndex) => path.forEach(([x, y]) => {
+    cells.set(`${x}-${y}`, { color: COLORS[playerIndex], kind: 'home' })
+  }))
+
+  const occupied = new Map<string, Array<{ playerIndex: number; pieceIndex: number }>>()
+  state.players.forEach((player, playerIndex) => player.pieces.forEach((piece, pieceIndex) => {
+    const [x, y] = pieceCell(piece, playerIndex, pieceIndex)
+    const key = `${x}-${y}`
+    occupied.set(key, [...(occupied.get(key) ?? []), { playerIndex, pieceIndex }])
+  }))
+
+  return (
+    <div style={board2dHostStyle} aria-label="Plateau de Petits Chevaux">
+      <div style={board2dStyle}>
+        {BASES.map((base, playerIndex) => {
+          const xs = base.map(([x]) => x)
+          const ys = base.map(([, y]) => y)
+          return <div key={`base-${playerIndex}`} style={{
+            gridColumn: `${Math.min(...xs)} / ${Math.max(...xs) + 1}`,
+            gridRow: `${Math.min(...ys)} / ${Math.max(...ys) + 1}`,
+            borderRadius: '18%',
+            background: `${COLORS[playerIndex]}2d`,
+            border: `clamp(2px, .35vw, 5px) solid ${COLORS[playerIndex]}88`,
+            boxShadow: `inset 0 0 24px ${COLORS[playerIndex]}33`,
+          }} />
+        })}
+        {[...cells.entries()].map(([key, cell]) => {
+          const [x, y] = key.split('-').map(Number)
+          const hint = moveHints.some((item) => item.x === x && item.y === y)
+          return <div key={key} style={{
+            gridColumn: x,
+            gridRow: y,
+            margin: '8%',
+            borderRadius: cell.kind === 'home' ? '28%' : '50%',
+            background: cell.color,
+            border: hint ? '3px solid #0f172a' : '1px solid rgba(15,23,42,.2)',
+            boxShadow: hint ? '0 0 0 4px rgba(255,255,255,.9), 0 0 18px #38bdf8' : '0 3px 8px rgba(15,23,42,.18)',
+          }} />
+        })}
+        <div style={board2dCenterStyle} aria-hidden="true">★</div>
+        {state.players.flatMap((player, playerIndex) => player.pieces.map((piece, pieceIndex) => {
+          const [x, y] = pieceCell(piece, playerIndex, pieceIndex)
+          const stack = occupied.get(`${x}-${y}`) ?? []
+          const stackIndex = stack.findIndex((entry) => entry.playerIndex === playerIndex && entry.pieceIndex === pieceIndex)
+          const canPlay = !preview && !botTurn && state.current === playerIndex && Boolean(movable[pieceIndex]) && state.rolled && state.winner === null
+          const offsets = [[-19, -19], [19, -19], [-19, 19], [19, 19]]
+          const [offsetX, offsetY] = stack.length > 1 ? offsets[stackIndex % offsets.length] : [0, 0]
+          return (
+            <button
+              key={`${playerIndex}-${piece.id}`}
+              type="button"
+              disabled={!canPlay}
+              onClick={() => onMove(pieceIndex)}
+              aria-label={`${COLOR_NAMES[playerIndex]}, pion ${pieceIndex + 1}${canPlay ? ', jouable' : ''}`}
+              style={{
+                ...board2dPieceStyle,
+                gridColumn: x,
+                gridRow: y,
+                background: `radial-gradient(circle at 35% 25%, #fff 0 8%, ${COLORS[playerIndex]} 28% 100%)`,
+                borderColor: canPlay ? '#fff' : 'rgba(255,255,255,.72)',
+                boxShadow: canPlay ? `0 0 0 4px #fff, 0 0 22px ${COLORS[playerIndex]}` : '0 4px 9px rgba(15,23,42,.36)',
+                transform: `translate(${offsetX}%, ${offsetY}%) scale(${canPlay ? 1.14 : stack.length > 1 ? .78 : .92})`,
+                cursor: canPlay ? 'pointer' : 'default',
+                zIndex: canPlay ? 5 : 3,
+              }}
+            />
+          )
+        }))}
+      </div>
+    </div>
+  )
+}
+
+function MenschBoard3D({
+  state,
+  movable,
+  moveHints,
+  onMove,
+  preview,
+  botTurn,
+  onUnavailable,
+}: {
+  state: MenschState
+  movable: boolean[]
+  moveHints: MoveHint[]
+  onMove: (pieceIndex: number) => void
+  preview?: boolean
+  botTurn?: boolean
+  onUnavailable: () => void
+}) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
@@ -631,10 +743,12 @@ function MenschBoard3D({
   const onMoveRef = useRef(onMove)
   const previewRef = useRef(preview)
   const botTurnRef = useRef(botTurn)
+  const onUnavailableRef = useRef(onUnavailable)
 
   onMoveRef.current = onMove
   previewRef.current = preview
   botTurnRef.current = botTurn
+  onUnavailableRef.current = onUnavailable
 
   useEffect(() => {
     const host = hostRef.current
@@ -645,7 +759,15 @@ function MenschBoard3D({
     scene.fog = new THREE.Fog('#7dd3fc', 17, 34)
 
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100)
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true })
+    let renderer: THREE.WebGLRenderer
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true })
+    } catch {
+      // Certains navigateurs de tablette ou WebView n'exposent pas WebGL. Le
+      // jeu reste alors totalement jouable grâce au plateau 2D.
+      window.setTimeout(() => onUnavailableRef.current(), 0)
+      return undefined
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFShadowMap
@@ -1078,6 +1200,53 @@ const menschRootStyle: CSSProperties = {
 const canvasHostStyle: CSSProperties = {
   position: 'absolute',
   inset: 0,
+}
+
+const board2dHostStyle: CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  display: 'grid',
+  placeItems: 'center',
+  padding: 'clamp(72px, 9vh, 104px) clamp(12px, 4vw, 54px) clamp(164px, 22vh, 210px)',
+  background: 'radial-gradient(circle at 50% 42%, #e0f2fe 0, #7dd3fc 46%, #0369a1 100%)',
+}
+
+const board2dStyle: CSSProperties = {
+  width: 'min(76vh, 90vw)',
+  aspectRatio: '1',
+  display: 'grid',
+  gridTemplateColumns: 'repeat(15, minmax(0, 1fr))',
+  gridTemplateRows: 'repeat(15, minmax(0, 1fr))',
+  padding: 'clamp(8px, 1.2vw, 16px)',
+  borderRadius: 'clamp(18px, 3vw, 34px)',
+  background: 'linear-gradient(145deg, #fff7ed, #fed7aa)',
+  border: 'clamp(5px, .8vw, 11px) solid #9a3412',
+  boxShadow: '0 28px 60px rgba(2,6,23,.38), inset 0 0 0 2px rgba(255,255,255,.72)',
+  position: 'relative',
+}
+
+const board2dCenterStyle: CSSProperties = {
+  gridColumn: '7 / 10',
+  gridRow: '7 / 10',
+  display: 'grid',
+  placeItems: 'center',
+  borderRadius: '24%',
+  background: 'conic-gradient(#facc15 0 25%, #22c55e 0 50%, #ef4444 0 75%, #1d9bf0 0)',
+  color: '#fff',
+  textShadow: '0 2px 6px rgba(0,0,0,.4)',
+  fontSize: 'clamp(18px, 3vw, 42px)',
+  zIndex: 1,
+}
+
+const board2dPieceStyle: CSSProperties = {
+  width: '72%',
+  aspectRatio: '1',
+  alignSelf: 'center',
+  justifySelf: 'center',
+  borderRadius: '50%',
+  border: 'clamp(2px, .25vw, 4px) solid',
+  padding: 0,
+  transition: 'transform .16s ease, box-shadow .16s ease',
 }
 
 const topHudStyle: CSSProperties = {

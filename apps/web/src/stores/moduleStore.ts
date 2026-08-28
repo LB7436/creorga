@@ -91,11 +91,11 @@ export const MODULES: ModuleDef[] = [
   {
     id: 'inventory',
     name: 'Inventaire',
-    tagline: 'En préparation : stock séparé par entreprise',
+    tagline: 'Stock, fournisseurs et commandes',
     color: '#92400E',
     colorLight: '#fef3c7',
     path: '/inventory/stock',
-    available: false,
+    available: true,
     category: 'core',
   },
   {
@@ -131,11 +131,11 @@ export const MODULES: ModuleDef[] = [
   {
     id: 'haccp',
     name: 'HACCP',
-    tagline: 'Traçabilité & hygiène — en préparation',
+    tagline: 'Contrôles, températures et tâches',
     color: '#B45309',
     colorLight: '#fef3c7',
     path: '/haccp',
-    available: false,
+    available: true,
     category: 'admin',
   },
   {

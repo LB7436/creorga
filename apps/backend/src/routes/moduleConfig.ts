@@ -92,11 +92,19 @@ function validPatch(value: unknown, partial = false): Partial<ModuleConfig> | nu
 
 const router = Router()
 
+function requireManager(req: Request, res: any): boolean {
+  const role = (req as any).role
+  if (role === 'OWNER' || role === 'MANAGER') return true
+  res.status(403).json({ error: 'Accès réservé aux responsables' })
+  return false
+}
+
 router.get('/', (req, res) => {
   res.json(loadState(companyIdFrom(req)))
 })
 
 router.put('/', (req, res) => {
+  if (!requireManager(req, res)) return
   const raw = req.body?.config
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return res.status(400).json({ error: 'Configuration invalide' })
@@ -118,6 +126,7 @@ router.put('/', (req, res) => {
 })
 
 router.patch('/:moduleId', (req, res) => {
+  if (!requireManager(req, res)) return
   const { moduleId } = req.params
   if (!MODULE_ID.test(moduleId)) return res.status(400).json({ error: 'Identifiant de module invalide' })
   const patch = validPatch(req.body, true)
@@ -135,6 +144,7 @@ router.patch('/:moduleId', (req, res) => {
 })
 
 router.delete('/:moduleId', (req, res) => {
+  if (!requireManager(req, res)) return
   if (!MODULE_ID.test(req.params.moduleId)) return res.status(400).json({ error: 'Identifiant de module invalide' })
   const companyId = companyIdFrom(req)
   const state = loadState(companyId)
@@ -145,6 +155,7 @@ router.delete('/:moduleId', (req, res) => {
 })
 
 router.post('/reset', (req, res) => {
+  if (!requireManager(req, res)) return
   const companyId = companyIdFrom(req)
   const state = emptyState()
   saveState(companyId, state)

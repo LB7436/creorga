@@ -1,7 +1,8 @@
 const LEGACY_KEY = 'creorga-onboarded'
+const ONBOARDING_VERSION = 'v2'
 
 export function onboardingKey(companyId: string | null | undefined): string {
-  return `creorga-onboarded:${companyId || 'sans-societe'}`
+  return `creorga-onboarded-${ONBOARDING_VERSION}:${companyId || 'sans-societe'}`
 }
 
 export function isOnboardingComplete(companyId: string | null | undefined): boolean {

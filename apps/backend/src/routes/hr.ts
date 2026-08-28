@@ -6,13 +6,23 @@ import { requireRole } from '../middleware/requireCompany'
 
 const router = Router()
 
+function canManageTeam(req: any) {
+  return req.role === 'OWNER' || req.role === 'MANAGER'
+}
+
+function requestedUserAllowed(req: any, userId: unknown) {
+  return canManageTeam(req) || String(userId || '') === req.user?.userId
+}
+
 // ─── SHIFTS ───────────────────────────────────────────
 
 router.get('/shifts', async (req: any, res: Response) => {
   try {
     const { userId, startDate, endDate } = req.query
     const where: any = { companyId: req.companyId }
+    if (!canManageTeam(req)) where.userId = req.user.userId
     if (userId) where.userId = userId
+    if (!requestedUserAllowed(req, where.userId)) return res.status(403).json({ message: 'Accès limité à votre propre planning' })
     if (startDate || endDate) {
       where.startTime = {}
       if (startDate) where.startTime.gte = new Date(startDate as string)
@@ -32,6 +42,7 @@ router.get('/shifts', async (req: any, res: Response) => {
 
 router.post('/shifts', async (req: any, res: Response) => {
   try {
+    if (!canManageTeam(req)) return res.status(403).json({ message: 'Accès réservé aux responsables' })
     const { userId, role, startTime, endTime, breakMinutes, notes } = req.body
 
     // Champs obligatoires côté schéma : sans ces contrôles, une requête
@@ -84,6 +95,7 @@ router.post('/shifts', async (req: any, res: Response) => {
 
 router.put('/shifts/:id', async (req: any, res: Response) => {
   try {
+    if (!canManageTeam(req)) return res.status(403).json({ message: 'Accès réservé aux responsables' })
     const existing = await prisma.shift.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Shift non trouvé' }); return }
     const { role, startTime, endTime, breakMinutes, notes, status } = req.body
@@ -107,6 +119,7 @@ router.put('/shifts/:id', async (req: any, res: Response) => {
 
 router.delete('/shifts/:id', async (req: any, res: Response) => {
   try {
+    if (!canManageTeam(req)) return res.status(403).json({ message: 'Accès réservé aux responsables' })
     const existing = await prisma.shift.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Shift non trouvé' }); return }
     await prisma.shift.delete({ where: { id: req.params.id } })
@@ -227,6 +240,9 @@ router.post('/planning/publish', requireRole('OWNER', 'MANAGER'), async (req: an
 router.post('/punch/in', async (req: any, res: Response) => {
   try {
     const { userId } = req.body
+    if (!requestedUserAllowed(req, userId)) return res.status(403).json({ message: 'Vous ne pouvez pointer que votre propre compte' })
+    const member = await prisma.userCompany.findFirst({ where: { userId: String(userId || ''), companyId: req.companyId, isActive: true } })
+    if (!member) return res.status(400).json({ message: 'Collaborateur actif introuvable dans cette société' })
     // Check if already clocked in
     const open = await prisma.timePunch.findFirst({
       where: { userId, companyId: req.companyId, clockOut: null },
@@ -248,6 +264,9 @@ router.post('/punch/in', async (req: any, res: Response) => {
 router.post('/punch/out', async (req: any, res: Response) => {
   try {
     const { userId } = req.body
+    if (!requestedUserAllowed(req, userId)) return res.status(403).json({ message: 'Vous ne pouvez pointer que votre propre compte' })
+    const member = await prisma.userCompany.findFirst({ where: { userId: String(userId || ''), companyId: req.companyId, isActive: true } })
+    if (!member) return res.status(400).json({ message: 'Collaborateur actif introuvable dans cette société' })
     const open = await prisma.timePunch.findFirst({
       where: { userId, companyId: req.companyId, clockOut: null },
       orderBy: { clockIn: 'desc' },
@@ -271,7 +290,9 @@ router.get('/punches', async (req: any, res: Response) => {
   try {
     const { userId, startDate, endDate } = req.query
     const where: any = { companyId: req.companyId }
+    if (!canManageTeam(req)) where.userId = req.user.userId
     if (userId) where.userId = userId
+    if (!requestedUserAllowed(req, where.userId)) return res.status(403).json({ message: 'Accès limité à vos propres pointages' })
     if (startDate || endDate) {
       where.clockIn = {}
       if (startDate) where.clockIn.gte = new Date(startDate as string)
@@ -295,6 +316,7 @@ router.get('/leave-requests', async (req: any, res: Response) => {
   try {
     const { status } = req.query
     const where: any = { companyId: req.companyId }
+    if (!canManageTeam(req)) where.userId = req.user.userId
     if (status) where.status = status
     const leaves = await prisma.leaveRequest.findMany({
       where,
@@ -311,14 +333,21 @@ router.get('/leave-requests', async (req: any, res: Response) => {
 router.post('/leave-requests', async (req: any, res: Response) => {
   try {
     const { userId, type, startDate, endDate, notes } = req.body
+    if (!requestedUserAllowed(req, userId)) return res.status(403).json({ message: 'Vous ne pouvez créer une demande que pour votre propre compte' })
+    const member = await prisma.userCompany.findFirst({ where: { userId: String(userId || ''), companyId: req.companyId, isActive: true } })
+    if (!member) return res.status(400).json({ message: 'Collaborateur actif introuvable dans cette société' })
+    if (!['VACATION', 'SICK', 'OTHER'].includes(type)) return res.status(400).json({ message: 'Type de congé invalide' })
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return res.status(400).json({ message: 'Période de congé invalide' })
     const leave = await prisma.leaveRequest.create({
       data: {
         companyId: req.companyId,
         userId,
         type,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        notes: notes || null,
+        startDate: start,
+        endDate: end,
+        notes: notes ? String(notes).trim().slice(0, 1000) : null,
       },
     })
     res.status(201).json(leave)
@@ -330,8 +359,10 @@ router.post('/leave-requests', async (req: any, res: Response) => {
 
 router.put('/leave-requests/:id/status', async (req: any, res: Response) => {
   try {
+    if (!canManageTeam(req)) return res.status(403).json({ message: 'Accès réservé aux responsables' })
     const existing = await prisma.leaveRequest.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Demande non trouvée' }); return }
+    if (!['PENDING', 'APPROVED', 'REJECTED'].includes(req.body.status)) return res.status(400).json({ message: 'Statut invalide' })
     const leave = await prisma.leaveRequest.update({
       where: { id: req.params.id },
       data: { status: req.body.status },

@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import prisma from '../lib/prisma'
 import { authenticate } from '../middleware/auth'
@@ -23,10 +24,20 @@ const updateSchema = z.object({
 })
 
 const updateMemberSchema = z.object({
-  role: z.enum(['OWNER', 'MANAGER', 'EMPLOYEE']).optional(),
+  // Le propriétaire unique est créé lors de l'inscription/migration. Les
+  // comptes équipe ne peuvent pas être promus propriétaire depuis l'UI.
+  role: z.enum(['MANAGER', 'EMPLOYEE']).optional(),
   isActive: z.boolean().optional(),
 }).refine((value) => value.role !== undefined || value.isActive !== undefined, {
   message: 'Aucune modification demandée',
+})
+
+const createMemberSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Email invalide'),
+  password: z.string().min(8, 'Le mot de passe doit contenir au moins 8 caractères').max(128),
+  firstName: z.string().trim().min(1, 'Prénom requis').max(80),
+  lastName: z.string().trim().min(1, 'Nom requis').max(80),
+  role: z.enum(['MANAGER', 'EMPLOYEE']).default('EMPLOYEE'),
 })
 
 async function currentMembership(req: AuthRequest) {
@@ -66,6 +77,60 @@ router.get('/members', requireCompany, async (req: AuthRequest, res, next) => {
 
     res.json(members)
   } catch (err) {
+    next(err)
+  }
+})
+
+// POST /companies/members — crée un véritable compte salarié dans la société.
+// Seul le propriétaire peut créer un accès et aucun second propriétaire ne peut
+// être créé depuis cet écran.
+router.post('/members', requireCompany, validate(createMemberSchema), async (req: AuthRequest, res, next) => {
+  try {
+    const companyId = (req as any).companyId as string
+    const caller = await currentMembership(req)
+    if (!caller || !caller.isActive || caller.role !== 'OWNER') {
+      res.status(403).json({ message: 'Accès réservé au propriétaire' })
+      return
+    }
+
+    const { email, password, firstName, lastName, role } = req.body
+    const hashedPassword = await bcrypt.hash(password, 12)
+
+    const membership = await prisma.$transaction(async (tx) => {
+      const existingUser = await tx.user.findUnique({ where: { email } })
+      if (existingUser) {
+        const existingMembership = await tx.userCompany.findUnique({
+          where: { userId_companyId: { userId: existingUser.id, companyId } },
+        })
+        if (existingMembership) {
+          const conflict = new Error('Ce compte appartient déjà à cette société') as Error & { status?: number }
+          conflict.status = 409
+          throw conflict
+        }
+        // Un compte existant peut appartenir à une autre entreprise. On ne
+        // remplace jamais son mot de passe ni son identité à son insu.
+        const conflict = new Error('Cet email est déjà utilisé par un autre compte') as Error & { status?: number }
+        conflict.status = 409
+        throw conflict
+      }
+
+      const user = await tx.user.create({
+        data: { email, password: hashedPassword, firstName, lastName },
+      })
+      return tx.userCompany.create({
+        data: { userId: user.id, companyId, role, isActive: true },
+        include: {
+          user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        },
+      })
+    })
+
+    res.status(201).json(membership)
+  } catch (err: any) {
+    if (err?.status === 409 || err?.code === 'P2002') {
+      res.status(409).json({ message: err?.message || 'Cet email est déjà utilisé' })
+      return
+    }
     next(err)
   }
 })

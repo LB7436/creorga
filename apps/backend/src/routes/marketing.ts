@@ -22,15 +22,22 @@ router.get('/campaigns', async (req: any, res: Response) => {
 router.post('/campaigns', async (req: any, res: Response) => {
   try {
     const { name, type, audience, subject, content, scheduledFor } = req.body
+    const cleanName = String(name || '').trim()
+    const cleanContent = String(content || '').trim()
+    if (!cleanName || !cleanContent) return res.status(400).json({ message: 'Nom et contenu requis' })
+    if (!['EMAIL', 'SMS', 'PUSH'].includes(type)) return res.status(400).json({ message: 'Canal invalide' })
+    if (!['ALL', 'LOYAL', 'INACTIVE', 'BIRTHDAY'].includes(audience)) return res.status(400).json({ message: 'Audience invalide' })
+    const schedule = scheduledFor ? new Date(scheduledFor) : null
+    if (schedule && Number.isNaN(schedule.getTime())) return res.status(400).json({ message: 'Date de programmation invalide' })
     const campaign = await prisma.campaign.create({
       data: {
         companyId: req.companyId,
-        name,
+        name: cleanName.slice(0, 160),
         type,
         audience,
-        subject: subject || null,
-        content,
-        scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
+        subject: subject ? String(subject).trim().slice(0, 250) : null,
+        content: cleanContent.slice(0, 10000),
+        scheduledFor: schedule,
       },
     })
     res.status(201).json(campaign)
@@ -89,14 +96,23 @@ router.get('/discount-codes', async (req: any, res: Response) => {
 router.post('/discount-codes', async (req: any, res: Response) => {
   try {
     const { code, type, value, usageLimit, expiresAt } = req.body
+    const cleanCode = String(code || '').trim().toUpperCase()
+    const numericValue = Number(value)
+    const numericLimit = usageLimit === null || usageLimit === undefined || usageLimit === '' ? null : Number(usageLimit)
+    if (!/^[A-Z0-9_-]{2,40}$/.test(cleanCode)) return res.status(400).json({ message: 'Code invalide (2 à 40 caractères)' })
+    if (!['PERCENT', 'FIXED'].includes(type)) return res.status(400).json({ message: 'Type de remise invalide' })
+    if (!Number.isFinite(numericValue) || numericValue <= 0 || (type === 'PERCENT' && numericValue > 100)) return res.status(400).json({ message: 'Valeur de remise invalide' })
+    if (numericLimit !== null && (!Number.isInteger(numericLimit) || numericLimit <= 0)) return res.status(400).json({ message: 'Limite d’utilisation invalide' })
+    const expiry = expiresAt ? new Date(expiresAt) : null
+    if (expiry && Number.isNaN(expiry.getTime())) return res.status(400).json({ message: 'Date d’expiration invalide' })
     const discountCode = await prisma.discountCode.create({
       data: {
         companyId: req.companyId,
-        code: code.toUpperCase(),
+        code: cleanCode,
         type,
-        value,
-        usageLimit: usageLimit || null,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        value: numericValue,
+        usageLimit: numericLimit,
+        expiresAt: expiry,
       },
     })
     res.status(201).json(discountCode)

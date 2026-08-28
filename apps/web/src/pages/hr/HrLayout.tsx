@@ -1,4 +1,4 @@
-import { CalendarRange, Users, Eye, EyeOff, ChevronDown } from 'lucide-react'
+import { CalendarRange, Clock3, Palmtree, Users, Eye, EyeOff, ChevronDown } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import ModuleLayout from '@/components/layout/ModuleLayout'
 import { useAuthStore } from '@/stores/authStore'
@@ -7,6 +7,8 @@ import { fetchAuth } from '@/lib/fetchAuth'
 const items = [
   { label: 'Planning', path: '/hr/planning', icon: CalendarRange },
   { label: 'Équipe', path: '/hr/equipe', icon: Users },
+  { label: 'Pointages', path: '/hr/pointages', icon: Clock3 },
+  { label: 'Congés', path: '/hr/conges', icon: Palmtree },
 ]
 
 // v3.18.6 — fetch employees for the "view as" picker (owner side)

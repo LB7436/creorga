@@ -55,6 +55,8 @@ const PosLayout = lazy(() => import('@/pages/pos/PosLayout'))
 const CrmLayout = lazy(() => import('@/pages/crm/CrmLayout'))
 const InvoicesLayout = lazy(() => import('@/pages/invoices/InvoicesLayout'))
 const HrLayout = lazy(() => import('@/pages/hr/HrLayout'))
+const InventoryLayout = lazy(() => import('@/pages/inventory/InventoryLayout'))
+const HaccpLayout = lazy(() => import('@/pages/haccp/HaccpLayout'))
 const AccountingLayout = lazy(() => import('@/pages/accounting/AccountingLayout'))
 // v4.1 — Layouts retirés (folded) : ReputationLayout (→ CrmLayout), AgendaLayout (obsolète)
 const AdsLayout = lazy(() => import('@/pages/ads/AdsLayout'))
@@ -69,6 +71,9 @@ const DashboardPage = lazy(() => import('@/pages/pos/DashboardPage'))
 
 // CRM Pages
 const ClientsPage = lazy(() => import('@/pages/crm/ClientsPage'))
+const GiftCardsPage = lazy(() => import('@/pages/crm/GiftCardsPage'))
+const MarketingDataPage = lazy(() => import('@/pages/crm/MarketingDataPage'))
+const ReputationDataPage = lazy(() => import('@/pages/crm/ReputationDataPage'))
 
 // Invoices Pages
 const DevisPageInv = lazy(() => import('@/pages/invoices/DevisPage'))
@@ -77,6 +82,11 @@ const FacturesPage = lazy(() => import('@/pages/invoices/FacturesPage'))
 // HR Pages
 const PlanningPage = lazy(() => import('@/pages/hr/PlanningPage'))
 const EquipePage = lazy(() => import('@/pages/hr/EquipePage'))
+const HrTimePage = lazy(() => import('@/pages/hr/HrTimePage'))
+
+// Inventory & HACCP Pages — vues reliées aux API Prisma.
+const InventoryOperationsPage = lazy(() => import('@/pages/inventory/InventoryOperationsPage'))
+const HaccpOperationsPage = lazy(() => import('@/pages/haccp/HaccpOperationsPage'))
 
 // Accounting Pages
 const CaissePage = lazy(() => import('@/pages/accounting/CaissePage'))
@@ -180,7 +190,7 @@ function App() {
       {/* Used by "Nouvel onglet" buttons inside modules to open a clean fullscreen view */}
       <Route path="/standalone/planning" element={<RequireAuth><PlanningPage /></RequireAuth>} />
       <Route path="/standalone/floor" element={<RequireAuth><UnifiedFloorPlan /></RequireAuth>} />
-      <Route path="/standalone/stock" element={<RequireAuth><FeatureUnavailable title="Inventaire" availableNow="la gestion du catalogue produits dans l'administration." backPath="/admin/catalog" backLabel="Ouvrir le catalogue" /></RequireAuth>} />
+      <Route path="/standalone/stock" element={<RequireAuth><InventoryOperationsPage view="stock" /></RequireAuth>} />
       <Route path="/standalone/calendar" element={<RequireAuth><FeatureUnavailable title="Calendrier des réservations" availableNow="le planning de l'équipe." backPath="/hr/planning" backLabel="Ouvrir le planning" /></RequireAuth>} />
 
       {/* Mobile / PWA — accessible without AppShell */}
@@ -247,15 +257,15 @@ function App() {
         <Route path="/crm" element={<CrmLayout />}>
           <Route index element={<Navigate to="/crm/clients" replace />} />
           <Route path="clients" element={<ClientsPage />} />
-          <Route path="fidelite" element={<FeatureUnavailable title="Programme de fidélité" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
-          <Route path="portefeuille" element={<FeatureUnavailable title="Portefeuille client" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
-          <Route path="cartes-cadeaux" element={<FeatureUnavailable title="Cartes cadeaux" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
-          <Route path="campagnes" element={<FeatureUnavailable title="Campagnes marketing" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
-          <Route path="codes" element={<FeatureUnavailable title="Codes promotionnels" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
+          <Route path="fidelite" element={<Navigate to="/crm/clients" replace />} />
+          <Route path="portefeuille" element={<Navigate to="/crm/clients" replace />} />
+          <Route path="cartes-cadeaux" element={<GiftCardsPage />} />
+          <Route path="campagnes" element={<MarketingDataPage view="campaigns" />} />
+          <Route path="codes" element={<MarketingDataPage view="codes" />} />
           <Route path="audiences" element={<FeatureUnavailable title="Audiences marketing" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
-          <Route path="avis" element={<FeatureUnavailable title="Avis clients" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
-          <Route path="reponses" element={<FeatureUnavailable title="Réponses aux avis" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
-          <Route path="reput-stats" element={<FeatureUnavailable title="Statistiques de réputation" availableNow="le fichier clients et ses informations enregistrées." backPath="/crm/clients" backLabel="Retour aux clients" />} />
+          <Route path="avis" element={<ReputationDataPage view="reviews" />} />
+          <Route path="reponses" element={<ReputationDataPage view="replies" />} />
+          <Route path="reput-stats" element={<ReputationDataPage view="stats" />} />
         </Route>
 
         {/* Invoices Module */}
@@ -272,23 +282,31 @@ function App() {
         <Route path="/agenda" element={<Navigate to="/hr/planning" replace />} />
         <Route path="/agenda/*" element={<Navigate to="/hr/planning" replace />} />
 
-        {/* L'ancien stock était conservé dans un fichier global, sans séparation
-            par entreprise. Le module reste fermé jusqu'à sa migration vers un
-            stockage multi-locataire fiable. */}
-        <Route path="/inventory/*" element={<FeatureUnavailable title="Inventaire" availableNow="la gestion du catalogue produits dans l'administration." backPath="/admin/catalog" backLabel="Ouvrir le catalogue" />} />
+        <Route path="/inventory" element={<InventoryLayout />}>
+          <Route index element={<Navigate to="/inventory/stock" replace />} />
+          <Route path="stock" element={<InventoryOperationsPage view="stock" />} />
+          <Route path="fournisseurs" element={<InventoryOperationsPage view="suppliers" />} />
+          <Route path="commandes" element={<InventoryOperationsPage view="orders" />} />
+        </Route>
 
         {/* HR Module — v4.1 Formation folded as sub-route */}
         <Route path="/hr" element={<HrLayout />}>
           <Route index element={<Navigate to="/hr/planning" replace />} />
           <Route path="planning" element={<PlanningPage />} />
           <Route path="equipe" element={<EquipePage />} />
-          <Route path="pointages" element={<FeatureUnavailable title="Pointages" availableNow="le planning, les congés intégrés au planning et la gestion de l'équipe." backPath="/hr/planning" backLabel="Retour au planning" />} />
-          <Route path="conges" element={<FeatureUnavailable title="Gestion avancée des congés" availableNow="les demandes de congé depuis le planning et la gestion de l'équipe." backPath="/hr/planning" backLabel="Retour au planning" />} />
+          <Route path="pointages" element={<HrTimePage view="punches" />} />
+          <Route path="conges" element={<HrTimePage view="leaves" />} />
           <Route path="parametres" element={<FeatureUnavailable title="Paramètres RH avancés" availableNow="le planning et la gestion de l'équipe." backPath="/hr/planning" backLabel="Retour au planning" />} />
           <Route path="formation" element={<FeatureUnavailable title="Formation de l'équipe" availableNow="le planning et la gestion de l'équipe." backPath="/hr/planning" backLabel="Retour au planning" />} />
         </Route>
 
-        <Route path="/haccp/*" element={<FeatureUnavailable title="HACCP" />} />
+        <Route path="/haccp" element={<HaccpLayout />}>
+          <Route index element={<Navigate to="/haccp/journee" replace />} />
+          <Route path="journee" element={<HaccpOperationsPage view="journee" />} />
+          <Route path="temperatures" element={<HaccpOperationsPage view="temperatures" />} />
+          <Route path="taches" element={<HaccpOperationsPage view="taches" />} />
+          <Route path="historique" element={<HaccpOperationsPage view="historique" />} />
+        </Route>
 
         {/* Accounting Module */}
         <Route path="/accounting" element={<AccountingLayout />}>

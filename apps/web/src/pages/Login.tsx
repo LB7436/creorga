@@ -90,6 +90,7 @@ const STATS = [
 ]
 
 export default function Login() {
+  const registrationOpen = import.meta.env.VITE_REGISTRATION_OPEN === 'true'
   const [mode, setMode] = useState<AuthMode>('login')
   const [showPassword, setShowPassword] = useState(false)
   const [engagementIdx, setEngagementIdx] = useState(0)
@@ -107,6 +108,7 @@ export default function Login() {
   })
 
   const changerMode = (next: AuthMode) => {
+    if (next === 'register' && !registrationOpen) return
     const email = getValues('email')
     setMode(next)
     setShowPassword(false)
@@ -274,9 +276,9 @@ export default function Login() {
             style={cardStyle}
           >
             <div style={{ marginBottom: 22 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, padding: 4, borderRadius: 11, background: 'rgba(148,163,184,0.08)', marginBottom: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: registrationOpen ? '1fr 1fr' : '1fr', gap: 4, padding: 4, borderRadius: 11, background: 'rgba(148,163,184,0.08)', marginBottom: 20 }}>
                 <button type="button" onClick={() => changerMode('login')} style={modeTabStyle(mode === 'login')}>Connexion</button>
-                <button type="button" onClick={() => changerMode('register')} style={modeTabStyle(mode === 'register')}>Créer mon espace</button>
+                {registrationOpen && <button type="button" onClick={() => changerMode('register')} style={modeTabStyle(mode === 'register')}>Créer mon espace</button>}
               </div>
               <h2 style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9', margin: 0, letterSpacing: -0.5 }}>
                 {mode === 'login' ? <>Bon retour <span style={{ fontSize: 20 }}>👋</span></> : <>Bienvenue chez Creorga</>}
@@ -400,12 +402,12 @@ export default function Login() {
               </motion.button>
             </form>
 
-            <div style={{ marginTop: 20, textAlign: 'center', fontSize: 12, color: '#94a3b8' }}>
+            {registrationOpen && <div style={{ marginTop: 20, textAlign: 'center', fontSize: 12, color: '#94a3b8' }}>
               {mode === 'login' ? 'Nouveau sur Creorga ? ' : 'Vous avez déjà un compte ? '}
               <button type="button" onClick={() => changerMode(mode === 'login' ? 'register' : 'login')} style={modeLinkStyle}>
                 {mode === 'login' ? 'Créer mon espace' : 'Me connecter'}
               </button>
-            </div>
+            </div>}
 
             {/* Le rappel « comptes de démo pré-remplis » n'a de sens qu'en
                 développement : en production les champs sont vides, et l'y

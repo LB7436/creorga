@@ -254,14 +254,18 @@ router.get('/gift-cards', async (req: any, res: Response) => {
 router.post('/gift-cards', async (req: any, res: Response) => {
   try {
     const { initialValue, expiresAt } = req.body
+    const value = Number(initialValue)
+    if (!Number.isFinite(value) || value <= 0 || value > 100000) return res.status(400).json({ message: 'Montant de carte cadeau invalide' })
+    const expiry = expiresAt ? new Date(expiresAt) : null
+    if (expiry && Number.isNaN(expiry.getTime())) return res.status(400).json({ message: 'Date d’expiration invalide' })
     const code = crypto.randomBytes(4).toString('hex').toUpperCase()
     const giftCard = await prisma.giftCard.create({
       data: {
         companyId: req.companyId,
         code,
-        initialValue: parseFloat(initialValue),
-        currentBalance: parseFloat(initialValue),
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        initialValue: Math.round(value * 100) / 100,
+        currentBalance: Math.round(value * 100) / 100,
+        expiresAt: expiry,
       },
     })
     res.status(201).json(giftCard)

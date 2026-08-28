@@ -3,6 +3,9 @@ import prisma from '../lib/prisma'
 import logger from '../lib/logger'
 
 const router = Router()
+const LOG_TYPES = new Set(['FRIDGE_TEMP', 'CLEANING', 'RECEIVING', 'PEST_CONTROL'])
+const FREQUENCIES = new Set(['DAILY', 'WEEKLY', 'MONTHLY'])
+const TIMES_OF_DAY = new Set(['MORNING', 'MIDDAY', 'CLOSING'])
 
 // ─── LOGS ─────────────────────────────────────────────
 
@@ -30,13 +33,18 @@ router.get('/logs', async (req: any, res: Response) => {
 router.post('/logs', async (req: any, res: Response) => {
   try {
     const { type, value, notes, loggedBy, isCompliant } = req.body
+    if (!LOG_TYPES.has(String(type))) return res.status(400).json({ message: 'Type de contrôle invalide' })
+    const numericValue = value === null || value === undefined || value === '' ? null : Number(value)
+    if (numericValue !== null && !Number.isFinite(numericValue)) return res.status(400).json({ message: 'Valeur invalide' })
+    const author = String(loggedBy || '').trim()
+    if (!author) return res.status(400).json({ message: 'Auteur du contrôle requis' })
     const log = await prisma.haccpLog.create({
       data: {
         companyId: req.companyId,
         type,
-        value: value ?? null,
-        notes: notes || null,
-        loggedBy,
+        value: numericValue,
+        notes: notes ? String(notes).trim().slice(0, 1000) : null,
+        loggedBy: author.slice(0, 160),
         isCompliant: isCompliant !== undefined ? isCompliant : true,
       },
     })
@@ -65,8 +73,12 @@ router.get('/tasks', async (req: any, res: Response) => {
 router.post('/tasks', async (req: any, res: Response) => {
   try {
     const { name, frequency, timeOfDay } = req.body
+    const taskName = String(name || '').trim()
+    if (!taskName) return res.status(400).json({ message: 'Nom de tâche requis' })
+    if (!FREQUENCIES.has(String(frequency))) return res.status(400).json({ message: 'Fréquence invalide' })
+    if (!TIMES_OF_DAY.has(String(timeOfDay))) return res.status(400).json({ message: 'Moment de la journée invalide' })
     const task = await prisma.haccpTask.create({
-      data: { companyId: req.companyId, name, frequency, timeOfDay },
+      data: { companyId: req.companyId, name: taskName.slice(0, 200), frequency, timeOfDay },
     })
     res.status(201).json(task)
   } catch (error) {
@@ -79,9 +91,27 @@ router.put('/tasks/:id', async (req: any, res: Response) => {
   try {
     const existing = await prisma.haccpTask.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Tâche non trouvée' }); return }
+    const data: Record<string, unknown> = {}
+    if (req.body.name !== undefined) {
+      const name = String(req.body.name).trim()
+      if (!name) return res.status(400).json({ message: 'Nom de tâche requis' })
+      data.name = name.slice(0, 200)
+    }
+    if (req.body.frequency !== undefined) {
+      if (!FREQUENCIES.has(String(req.body.frequency))) return res.status(400).json({ message: 'Fréquence invalide' })
+      data.frequency = req.body.frequency
+    }
+    if (req.body.timeOfDay !== undefined) {
+      if (!TIMES_OF_DAY.has(String(req.body.timeOfDay))) return res.status(400).json({ message: 'Moment de la journée invalide' })
+      data.timeOfDay = req.body.timeOfDay
+    }
+    if (req.body.isActive !== undefined) {
+      if (typeof req.body.isActive !== 'boolean') return res.status(400).json({ message: 'État invalide' })
+      data.isActive = req.body.isActive
+    }
     const task = await prisma.haccpTask.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
     })
     res.json(task)
   } catch (error) {
