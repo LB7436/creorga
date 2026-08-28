@@ -15,6 +15,10 @@ export class EmailNotConfiguredError extends Error {
 let resend: Resend | null = null
 let smtpTransporter: Transporter | null = null
 let smtpFingerprint = ''
+let smtpQueue: Promise<void> = Promise.resolve()
+
+const SMTP_MAX_ATTEMPTS = 3
+const SMTP_RETRY_DELAY_MS = 1_000
 
 function smtpConfigured(): boolean {
   return Boolean(
@@ -29,7 +33,7 @@ export function emailConfigured(): boolean {
     || Boolean(process.env.RESEND_API_KEY?.trim() && process.env.EMAIL_FROM?.trim())
 }
 
-function transportSmtp(): Transporter {
+export function smtpTransportConfiguration() {
   const host = process.env.SMTP_HOST?.trim() || 'smtp.zoho.com'
   const port = Number(process.env.SMTP_PORT || 465)
   const user = process.env.SMTP_USER!.trim()
@@ -37,20 +41,75 @@ function transportSmtp(): Transporter {
   const secure = process.env.SMTP_SECURE
     ? process.env.SMTP_SECURE === 'true'
     : port === 465
+
+  return {
+    pool: true,
+    maxConnections: 1,
+    maxMessages: 100,
+    rateDelta: 1_000,
+    rateLimit: 4,
+    host,
+    port,
+    secure,
+    family: 4,
+    auth: { user, pass },
+    connectionTimeout: 30_000,
+    greetingTimeout: 20_000,
+    socketTimeout: 45_000,
+  }
+}
+
+function transportSmtp(): Transporter {
+  const configuration = smtpTransportConfiguration()
+  const { host, port, secure, auth: { user } } = configuration
   const fingerprint = `${host}:${port}:${secure}:${user}`
   if (!smtpTransporter || smtpFingerprint !== fingerprint) {
-    smtpTransporter = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass },
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 20_000,
-    })
+    smtpTransporter = nodemailer.createTransport(configuration)
     smtpFingerprint = fingerprint
   }
   return smtpTransporter
+}
+
+export function retryableSmtpConnectionError(error: unknown): boolean {
+  const code = String((error as { code?: unknown })?.code || '')
+  const command = String((error as { command?: unknown })?.command || '')
+  return command === 'CONN'
+    && ['EAI_AGAIN', 'ETIMEDOUT', 'ECONNREFUSED', 'ECONNECTION', 'ESOCKET'].includes(code)
+}
+
+function resetSmtpTransporter() {
+  smtpTransporter?.close()
+  smtpTransporter = null
+  smtpFingerprint = ''
+}
+
+async function sendWithSmtpRetry(message: {
+  from: string
+  to: string
+  subject: string
+  html: string
+  replyTo: string
+}) {
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= SMTP_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await transportSmtp().sendMail(message)
+    } catch (error) {
+      lastError = error
+      if (attempt === SMTP_MAX_ATTEMPTS || !retryableSmtpConnectionError(error)) throw error
+      resetSmtpTransporter()
+      await new Promise((resolve) => setTimeout(resolve, SMTP_RETRY_DELAY_MS * attempt))
+    }
+  }
+
+  throw lastError
+}
+
+function enqueueSmtp<T>(task: () => Promise<T>): Promise<T> {
+  const result = smtpQueue.then(task, task)
+  smtpQueue = result.then(() => undefined, () => undefined)
+  return result
 }
 
 /**
@@ -74,13 +133,13 @@ export async function sendEmail({
   if (!expediteur) throw new EmailNotConfiguredError()
 
   if (smtpConfigured()) {
-    const info = await transportSmtp().sendMail({
+    const info = await enqueueSmtp(() => sendWithSmtpRetry({
       from: expediteur,
       to,
       subject,
       html: html || '<p></p>',
       replyTo,
-    })
+    }))
     if (!info.messageId || (info.rejected?.length ?? 0) > 0) {
       throw new Error(`Zoho SMTP n’a pas confirmé l’envoi${info.rejected?.length ? ` à ${info.rejected.join(', ')}` : ''}`)
     }
