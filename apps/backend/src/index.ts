@@ -195,7 +195,7 @@ app.get('/api/health', async (_req, res) => {
   }
 
   try {
-    const derniere = listFullBackups()[0]
+    const derniere = listFullBackups().find((backup) => backup.complete)
     base.derniereSauvegarde = derniere
       ? { fichier: derniere.filename, ageHeures: Math.round((Date.now() - derniere.createdAt) / 3_600_000) }
       : null

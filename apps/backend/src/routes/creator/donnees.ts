@@ -411,7 +411,7 @@ router.get('/health', async (_req: CreatorRequest, res: Response) => {
       disque,
       dossierData: { tailleOctets: tailleDossier(dataDir) },
       sauvegardes: {
-        dernierZip: zips[0] ?? null,
+        dernierZip: zips.find((backup) => backup.complete) ?? null,
         dernierDump: dumps[0] ?? null,
         nbZips: zips.length,
         nbDumps: dumps.length,

@@ -2,6 +2,7 @@ import { execFile } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { promisify } from 'util'
+import { randomInt } from 'node:crypto'
 import logger from '../lib/logger'
 
 const execFileAsync = promisify(execFile)
@@ -97,7 +98,7 @@ export async function detectStrategy(): Promise<DumpStrategy | null> {
 export async function runPgDump(): Promise<PgDumpResult> {
   ensureDir()
   const conn = parseDatabaseUrl()
-  const filename = `creorga-db-${timestamp()}.dump`
+  const filename = `creorga-db-${timestamp()}-${Date.now()}-${randomInt(100000)}.dump`
   const outPath = path.join(DB_BACKUP_DIR, filename)
 
   const strategy = await detectStrategy()

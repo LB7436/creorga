@@ -553,7 +553,7 @@ const sauvegardeAgee: Regle = {
   async evaluer(ctx) {
     const seuilHeures = ctx.reglage.seuil ?? 24
     const zips = listFullBackups()
-    const dernier = zips[0]
+    const dernier = zips.find((backup) => backup.complete !== false)
     const ageHeures = dernier
       ? Math.floor((ctx.maintenant.getTime() - dernier.createdAt) / (60 * 60 * 1000))
       : Infinity
