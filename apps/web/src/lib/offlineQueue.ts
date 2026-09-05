@@ -1,16 +1,11 @@
 /**
- * v4.8 — File de synchronisation offline pour les commandes POS.
- *
- * queuedFetch() essaie un fetch normal ; si le réseau est indisponible sur
- * une méthode mutante, la requête est sérialisée dans IndexedDB et rejouée
- * plus tard (retour en ligne, ou toutes les 30s). Le service ne s'arrête
- * jamais faute de réseau.
+ * Anciennes écritures hors ligne : conservées pour récupération contrôlée.
+ * Aucun rejeu d'une requête sans identité, société et référence idempotente.
  */
 import { useEffect, useState } from 'react'
 
 const DB_NAME = 'creorga-offline'
 const STORE = 'queue'
-const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 interface QueuedRequest {
   id: string
@@ -31,16 +26,6 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
-async function enqueue(item: QueuedRequest): Promise<void> {
-  const db = await openDb()
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite')
-    tx.objectStore(STORE).put(item)
-    tx.oncomplete = () => resolve()
-    tx.onerror = () => reject(tx.error)
-  })
-}
-
 async function listQueued(): Promise<QueuedRequest[]> {
   const db = await openDb()
   return new Promise((resolve, reject) => {
@@ -51,63 +36,24 @@ async function listQueued(): Promise<QueuedRequest[]> {
   })
 }
 
-async function removeQueued(id: string): Promise<void> {
-  const db = await openDb()
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite')
-    tx.objectStore(STORE).delete(id)
-    tx.oncomplete = () => resolve()
-    tx.onerror = () => reject(tx.error)
-  })
-}
-
 export async function getQueueCount(): Promise<number> {
   try { return (await listQueued()).length } catch { return 0 }
 }
 
 export async function queuedFetch(url: string, options: RequestInit = {}): Promise<{ queued: boolean; response?: Response }> {
-  const method = (options.method || 'GET').toUpperCase()
-  try {
-    const response = await fetch(url, options)
-    return { queued: false, response }
-  } catch (err) {
-    if (!MUTATING.has(method)) throw err
-    const item: QueuedRequest = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      url,
-      options: {
-        method,
-        headers: options.headers as Record<string, string> | undefined,
-        body: typeof options.body === 'string' ? options.body : undefined,
-      },
-      ts: Date.now(),
-    }
-    await enqueue(item)
-    window.dispatchEvent(new Event('creorga:offline-queue-changed'))
-    return { queued: true }
-  }
+  return { queued: false, response: await fetch(url, options) }
 }
 
 export async function flushQueue(): Promise<void> {
-  let items: QueuedRequest[]
-  try { items = await listQueued() } catch { return }
-  items.sort((a, b) => a.ts - b.ts)
-  for (const item of items) {
-    try {
-      await fetch(item.url, item.options)
-      await removeQueued(item.id)
-      window.dispatchEvent(new Event('creorga:offline-queue-changed'))
-    } catch {
-      break // réseau toujours indisponible — on réessaiera au prochain cycle
-    }
-  }
+  // Ne pas supprimer ni rejouer les anciennes écritures sans identité vérifiable.
+  window.dispatchEvent(new Event('creorga:offline-queue-changed'))
 }
 
 let flushTimer: number | null = null
 
 export function startOfflineSync(): void {
-  window.addEventListener('online', () => { flushQueue() })
   if (flushTimer) return
+  window.addEventListener('online', () => { void flushQueue() })
   flushTimer = window.setInterval(() => { flushQueue() }, 30_000)
 }
 

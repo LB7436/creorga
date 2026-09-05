@@ -41,6 +41,7 @@ export function useCustomer(id?: string) {
 export function useCreateCustomer() {
   const qc = useQueryClient()
   return useMutation({
+    networkMode: 'always',
     mutationFn: (data: Partial<Customer>) =>
       api.post('/crm/customers', data).then((r) => r.data),
     onSuccess: () => {
@@ -54,6 +55,7 @@ export function useCreateCustomer() {
 export function useUpdateCustomer() {
   const qc = useQueryClient()
   return useMutation({
+    networkMode: 'always',
     mutationFn: ({ id, data }: { id: string; data: Partial<Customer> }) =>
       api.put(`/crm/customers/${id}`, data).then((r) => r.data),
     onSuccess: () => {

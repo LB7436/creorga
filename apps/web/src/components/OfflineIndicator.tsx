@@ -61,19 +61,19 @@ function OfflineIndicator() {
       bg: '#fef2f2',
       fg: '#991b1b',
       icon: '⚠️',
-      text: 'Hors ligne - Les modifications seront synchronisées',
+      text: 'Hors ligne — les enregistrements serveur sont suspendus. Conservez vos brouillons.',
     },
     syncing: {
       bg: '#eef2ff',
       fg: '#3730a3',
       icon: '🔄',
-      text: 'Synchronisation en cours…',
+      text: 'Connexion rétablie — vérifiez vos actions en attente.',
     },
     online: {
       bg: '#ecfdf5',
       fg: '#065f46',
       icon: '✅',
-      text: 'Reconnecté - Données synchronisées',
+      text: 'Connexion rétablie. La réussite de chaque enregistrement doit être confirmée.',
     },
   };
 

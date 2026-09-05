@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Download, Mail, MessageSquare, Pencil, Phone, Plus, RefreshCw,
   Search, Trash2, UserRound, Users, Wallet, X,
@@ -14,6 +14,7 @@ import {
 } from '@/hooks/api/useCustomers'
 import { downloadCsv } from '@/lib/csv'
 import { toastError, toastSuccess } from '@/lib/toast'
+import { useAuthStore } from '@/stores/authStore'
 
 type CustomerForm = {
   firstName: string
@@ -40,6 +41,33 @@ export default function ClientsPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<CustomerForm>(emptyForm)
   const [walletAmount, setWalletAmount] = useState('')
+  const { companyId, user } = useAuthStore()
+  const draftScope = `creorga-client-draft:${companyId}:${user?.id}`
+  const draftKey = `${draftScope}:${editingId || 'new'}`
+  const [draftOwner, setDraftOwner] = useState('')
+  const [draftSaved, setDraftSaved] = useState(false)
+  useEffect(() => {
+    if (!editorOpen || !companyId || !user?.id || draftOwner !== draftScope) return
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({ version: 1, editingId, form, savedAt: Date.now() }))
+      setDraftSaved(true)
+    } catch {
+      setDraftSaved(false)
+      toastError('Le brouillon ne peut pas être conservé sur cet appareil. Ne fermez pas le formulaire.')
+    }
+  }, [draftKey, editorOpen, editingId, form, companyId, user?.id, draftOwner, draftScope])
+
+  function restoreDraft(id: string | null) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(`${draftScope}:${id || 'new'}`) || 'null')
+      if (saved?.version === 1 && saved.editingId === id && Object.keys(emptyForm).every((key) => typeof saved.form?.[key] === 'string')) {
+        setForm(saved.form)
+        toastSuccess('Brouillon récupéré sur cet appareil ; il reste à l’enregistrer sur le serveur.')
+        return true
+      }
+    } catch { /* Aucun brouillon exploitable : le formulaire reste disponible. */ }
+    return false
+  }
 
   const filtered = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('fr')
@@ -56,14 +84,16 @@ export default function ClientsPage() {
   const busy = createCustomer.isPending || updateCustomer.isPending
 
   function openCreate() {
+    setDraftOwner(draftScope)
     setEditingId(null)
-    setForm(emptyForm)
+    if (!restoreDraft(null)) setForm(emptyForm)
     setEditorOpen(true)
   }
 
   function openEdit(customer: Customer) {
+    setDraftOwner(draftScope)
     setEditingId(customer.id)
-    setForm({
+    if (!restoreDraft(customer.id)) setForm({
       firstName: customer.firstName,
       lastName: customer.lastName,
       email: customer.email || '',
@@ -75,6 +105,12 @@ export default function ClientsPage() {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
+    if (busy) return
+    if (draftOwner !== draftScope) { toastError('Le compte ou la société a changé. Rouvrez le formulaire.'); return }
+    if (!navigator.onLine) {
+      toastError(draftSaved ? 'Hors ligne : brouillon conservé sur cet appareil. Reconnectez-vous puis cliquez sur Enregistrer.' : 'Hors ligne : gardez ce formulaire ouvert, le brouillon n’a pas pu être sauvegardé.')
+      return
+    }
     const clean = {
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
@@ -89,6 +125,7 @@ export default function ClientsPage() {
     try {
       if (editingId) await updateCustomer.mutateAsync({ id: editingId, data: clean })
       else await createCustomer.mutateAsync(clean)
+      try { localStorage.removeItem(draftKey) } catch { /* Enregistrement serveur déjà confirmé. */ }
       setEditorOpen(false)
       setEditingId(null)
       setForm(emptyForm)
@@ -284,7 +321,9 @@ export default function ClientsPage() {
             </div>
             <Field label="Email" type="email" value={form.email} onChange={(value) => setForm((current) => ({ ...current, email: value }))} />
             <Field label="Téléphone" type="tel" value={form.phone} onChange={(value) => setForm((current) => ({ ...current, phone: value }))} />
-            <label style={label}>Notes<textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={4} style={{ ...field, resize: 'vertical' }} /></label>
+            <label style={label}>Notes<textarea aria-label="Notes" value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={4} style={{ ...field, resize: 'vertical' }} /></label>
+            <p role="status" style={helperText}>{draftSaved ? 'Brouillon conservé sur cet appareil. Seul le bouton ci-dessous enregistre dans la société.' : 'Conservation locale du brouillon non confirmée.'}</p>
+            <button type="button" style={secondaryButton} onClick={() => { if (window.confirm('Effacer ce brouillon local ?')) { localStorage.removeItem(draftKey); setForm(emptyForm); setEditorOpen(false) } }}>Effacer le brouillon</button>
             <button type="submit" style={{ ...primaryButton, width: '100%', justifyContent: 'center', marginTop: 8 }} disabled={busy}>
               {busy ? 'Enregistrement…' : editingId ? 'Enregistrer les modifications' : 'Créer le client'}
             </button>
