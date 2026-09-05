@@ -78,12 +78,31 @@ const processQueue = (error: unknown, token: string | null) => {
   failedQueue = []
 }
 
+export function excludesRefresh(url = ''): boolean {
+  return /(?:^|\/)auth\/(?:login|register|refresh|logout)(?:[?#]|$)/.test(url)
+}
+
+async function refreshSession() {
+  const renew = async () => {
+    try { return await axios.post('/api/auth/refresh', {}, { withCredentials: true }) }
+    catch (error: any) {
+      if (error.response?.status !== 409) throw error
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      return axios.post('/api/auth/refresh', {}, { withCredentials: true })
+    }
+  }
+  // Le cookie est partagé par les onglets : leur rotation doit être sérialisée.
+  if (typeof navigator !== 'undefined' && navigator.locks) return navigator.locks.request('creorga-refresh', renew)
+  return renew()
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (originalRequest && error.response?.status === 401 && !originalRequest._retry && !excludesRefresh(originalRequest.url)) {
+      originalRequest._retry = true
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
@@ -93,19 +112,19 @@ api.interceptors.response.use(
         })
       }
 
-      originalRequest._retry = true
       isRefreshing = true
 
       try {
-        const { data } = await axios.post('/api/auth/refresh', {}, { withCredentials: true })
+        const { data } = await refreshSession()
         const { accessToken } = data
         useAuthStore.getState().setAccessToken(accessToken)
         processQueue(null, accessToken)
         originalRequest.headers.Authorization = `Bearer ${accessToken}`
         return api(originalRequest)
-      } catch (refreshError) {
+      } catch (refreshError: any) {
         processQueue(refreshError, null)
-        traiterSessionExpiree()
+        // Une panne réseau/serveur n'est pas une révocation de session.
+        if (refreshError.response?.status === 401) traiterSessionExpiree()
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false

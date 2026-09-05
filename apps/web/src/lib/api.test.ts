@@ -67,6 +67,15 @@ describe('traiterSessionExpiree', () => {
     expect(useAuthStore.getState().accessToken).toBeNull()
   })
 
+  it('ne masque pas un mauvais mot de passe par une tentative de refresh', async () => {
+    const { excludesRefresh } = await chargerApi()
+    expect(excludesRefresh('/auth/login')).toBe(true)
+    expect(excludesRefresh('/api/auth/refresh')).toBe(true)
+    expect(excludesRefresh('/auth/register')).toBe(true)
+    expect(excludesRefresh('/auth/me')).toBe(false)
+    expect(excludesRefresh('/invoices')).toBe(false)
+  })
+
   it('renvoie vers /login depuis une autre page', async () => {
     const faux = poserWindow('/dashboard')
     const { traiterSessionExpiree, useAuthStore } = await chargerApi()

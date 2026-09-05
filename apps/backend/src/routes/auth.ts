@@ -12,6 +12,8 @@ import { push as pushEvenement } from '../lib/eventSink'
 import { moduleRowsFor } from '../lib/company-modules'
 
 const router = Router()
+const refreshInFlight = new Set<string>()
+const refreshCookieOptions = () => ({ httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' as const, path: '/' })
 
 /** Jamais l'email en clair dans LoginEvent : empreinte sha256 normalisée. */
 function hachageEmail(email: string): string {
@@ -241,37 +243,45 @@ router.post('/login', validate(loginSchema), async (req, res) => {
 // ─── POST /api/auth/refresh ────────────────────────────
 
 router.post('/refresh', async (req, res) => {
+  const token = req.cookies?.refreshToken
+  if (typeof token !== 'string' || !token) {
+    res.clearCookie('refreshToken', refreshCookieOptions())
+    res.status(401).json({ message: 'Votre session a expiré. Reconnectez-vous.', code: 'SESSION_EXPIRED' })
+    return
+  }
+  const tokenKey = crypto.createHash('sha256').update(token).digest('hex')
+  if (refreshInFlight.has(tokenKey)) {
+    res.status(409).json({ message: 'Renouvellement déjà en cours.', code: 'REFRESH_IN_PROGRESS' })
+    return
+  }
+  refreshInFlight.add(tokenKey)
   try {
-    const token = req.cookies?.refreshToken
-    if (!token) {
-      res.status(401).json({ message: 'Refresh token manquant' })
-      return
-    }
-
     const stored = await prisma.refreshToken.findUnique({
       where: { token },
       include: { user: true },
     })
 
-    if (!stored || stored.expiresAt < new Date()) {
+    if (!stored || stored.expiresAt <= new Date()) {
       if (stored) {
-        await prisma.refreshToken.delete({ where: { id: stored.id } })
+        await prisma.refreshToken.deleteMany({ where: { id: stored.id } })
       }
-      res.status(401).json({ message: 'Refresh token invalide ou expiré' })
+      res.clearCookie('refreshToken', refreshCookieOptions())
+      res.status(401).json({ message: 'Votre session a expiré. Reconnectez-vous.', code: 'SESSION_EXPIRED' })
       return
     }
 
-    // Rotation du refresh token
-    await prisma.refreshToken.delete({ where: { id: stored.id } })
-
     const newRefreshToken = generateRefreshToken()
-    await prisma.refreshToken.create({
-      data: {
-        token: newRefreshToken,
-        userId: stored.userId,
-        expiresAt: getRefreshExpiry(),
-      },
+    // Consommation unique et création atomique : un échec ne détruit pas la session.
+    const rotated = await prisma.$transaction(async (tx) => {
+      const consumed = await tx.refreshToken.deleteMany({ where: { id: stored.id, expiresAt: { gt: new Date() } } })
+      if (consumed.count !== 1) return false
+      await tx.refreshToken.create({ data: { token: newRefreshToken, userId: stored.userId, expiresAt: getRefreshExpiry() } })
+      return true
     })
+    if (!rotated) {
+      res.status(409).json({ message: 'Renouvellement déjà en cours.', code: 'REFRESH_IN_PROGRESS' })
+      return
+    }
 
     const accessToken = generateAccessToken(stored.user.id, stored.user.email)
 
@@ -304,7 +314,9 @@ router.post('/refresh', async (req, res) => {
       return
     }
     logger.error('Erreur refresh:', error)
-    res.status(500).json({ message: 'Erreur lors du refresh' })
+    res.status(503).json({ message: 'Le service de connexion est momentanément indisponible. Réessayez.' })
+  } finally {
+    refreshInFlight.delete(tokenKey)
   }
 })
 
