@@ -243,6 +243,18 @@ const RELEASES: Release[] = [
   },
 ]
 
+function downloadRss() {
+  const xml = (value: string) => value.replace(/[<>&"']/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[char]!))
+  const link = `${window.location.origin}/changelog`
+  const content = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Journal Creorga</title><link>${xml(link)}</link><description>Export du journal affiché dans Creorga</description>${RELEASES.map((release) => `<item><title>${xml(`${release.version} — ${release.title}`)}</title><guid isPermaLink="false">${xml(release.version)}</guid><pubDate>${new Date(release.dateSort + 'T12:00:00Z').toUTCString()}</pubDate><description>${xml(release.changes.map((change) => change.text).join('\n'))}</description></item>`).join('')}</channel></rss>`
+  const url = URL.createObjectURL(new Blob([content], { type: 'application/rss+xml;charset=utf-8' }))
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = 'creorga-journal.rss.xml'
+  anchor.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
 const ROADMAP = [
   { title: 'Paiement par reconnaissance faciale', eta: 'Q3 2026', status: 'En développement' },
   { title: 'Application mobile native (iOS/Android)', eta: 'Q3 2026', status: 'Beta privée' },
@@ -330,8 +342,9 @@ export default function ChangelogPage() {
           >
             📧 S'abonner
           </a>
-          <a
-            href="#rss"
+          <button
+            type="button"
+            onClick={downloadRss}
             style={{
               padding: '12px 20px',
               background: PALETTE.card,
@@ -346,8 +359,8 @@ export default function ChangelogPage() {
               gap: 8,
             }}
           >
-            📡 RSS
-          </a>
+            📡 Télécharger le RSS
+          </button>
         </div>
 
         {/* FILTERS */}

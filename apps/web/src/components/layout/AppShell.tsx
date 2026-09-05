@@ -61,12 +61,12 @@ function OfflineQueueBadge() {
   const label = !online
     ? `🔴 Hors-ligne${pendingCount > 0 ? ` — ${pendingCount} en attente` : ''}`
     : pendingCount > 0
-      ? `🔄 Sync… ${pendingCount} en attente`
-      : `✓ Synchronisé`
+      ? `⚠ ${pendingCount} ancienne(s) opération(s) à examiner`
+      : `Connexion rétablie`
 
   return (
     <div
-      title={!online ? 'Connexion perdue — les commandes sont mises en attente' : `${pendingCount} commande(s) en cours de synchronisation`}
+      title={!online ? 'Connexion perdue — vérifiez les brouillons avant de fermer' : `${pendingCount} ancienne(s) opération(s) conservées, sans rejeu automatique`}
       style={{
         height: 36, padding: '0 12px', borderRadius: 999,
         border: !online ? '1px solid rgba(239,68,68,0.35)' : '1px solid rgba(34,197,94,0.35)',
@@ -208,7 +208,22 @@ export default function AppShell() {
       }}
     >
       {/* ── sticky header ── */}
+      <style>{`
+        .creorga-header > * { min-width: 0; }
+        .creorga-search-hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+        @media (max-width: 1280px) {
+          .creorga-header { height: auto !important; min-height: 60px; flex-wrap: wrap; gap: 12px; padding: 12px 16px !important; }
+          .creorga-header-search { order: 3; flex-basis: 100% !important; max-width: none !important; margin: 0 !important; justify-content: flex-start !important; flex-wrap: wrap; }
+          .creorga-header-actions { flex-wrap: wrap; justify-content: flex-end; max-width: 100%; }
+        }
+        @media (max-width: 600px) {
+          .creorga-header-actions { order: 4; flex-basis: 100%; justify-content: flex-start; }
+          .creorga-header-search { gap: 8px !important; }
+          .creorga-header-search > button:first-child { flex-basis: 100% !important; max-width: none !important; }
+        }
+      `}</style>
       <header
+        className="creorga-header"
         style={{
           position: 'sticky',
           top: 0,
@@ -257,7 +272,7 @@ export default function AppShell() {
         </div>
 
         {/* ── center: global search bar + breadcrumb ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, justifyContent: 'center', maxWidth: 600, margin: '0 24px' }}>
+        <div className="creorga-header-search" style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, justifyContent: 'center', maxWidth: 600, margin: '0 24px', minWidth: 0 }}>
           <button
             onClick={() => setPaletteOpen(true)}
             aria-label="Rechercher dans Creorga"
@@ -284,7 +299,7 @@ export default function AppShell() {
             }}
           >
             <span style={{ fontSize: 14 }}>{'\u{1F50D}'}</span>
-            <span style={{ flex: 1, textAlign: 'left' }}>Rechercher dans Creorga... (Cmd+K)</span>
+            <span className="creorga-search-hint" style={{ flex: 1, textAlign: 'left' }}>Rechercher dans Creorga... (Ctrl+K)</span>
             <kbd
               style={{
                 fontSize: 10,
@@ -354,7 +369,7 @@ export default function AppShell() {
         </div>
 
         {/* ── right: actions ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="creorga-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* modules button */}
           <ViewModeToggle />
 

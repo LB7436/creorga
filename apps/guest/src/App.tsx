@@ -3,7 +3,7 @@ import { usePortalConfig } from './usePortalConfig'
 
 export type GuestTab = 'home' | 'menu' | 'order' | 'games' | 'account' | 'feedback'
 
-function buildPortalUrl(tableNumber?: string) {
+export function buildPortalUrl(tableNumber?: string, companyId?: string) {
   const configured = import.meta.env.VITE_WEB_CLIENT_URL as string | undefined
   const fallback =
     typeof window !== 'undefined'
@@ -11,15 +11,18 @@ function buildPortalUrl(tableNumber?: string) {
       : 'http://127.0.0.1:5174'
   const base = (configured || fallback).replace(/\/$/, '')
   const url = new URL('/c', base)
-  url.searchParams.set('table', tableNumber || '1')
+  if (tableNumber) url.searchParams.set('table', tableNumber)
+  if (companyId) url.searchParams.set('companyId', companyId)
   return url.toString()
 }
 
 export default function App() {
   const { config } = usePortalConfig(2500)
   const accent = config?.accentColor || '#a855f7'
-  const tableNumber = config?.tableNumber || '1'
-  const portalUrl = useMemo(() => buildPortalUrl(tableNumber), [tableNumber])
+  const params = new URLSearchParams(window.location.search)
+  const tableNumber = params.get('table') || config?.tableNumber || ''
+  const companyId = params.get('companyId') || ''
+  const portalUrl = useMemo(() => buildPortalUrl(tableNumber, companyId), [tableNumber, companyId])
 
   return (
     <main className="guest-stage guest-stage-unified" style={{ ['--guest-accent' as string]: accent }}>
@@ -28,7 +31,7 @@ export default function App() {
           <div className="guest-unified-topbar">
             <div>
               <strong>Creorga Client</strong>
-              <span>Table {tableNumber}</span>
+              <span>{tableNumber ? `Table ${tableNumber}` : 'Scannez le QR code de votre table'}</span>
             </div>
             <a href={portalUrl} target="_blank" rel="noreferrer">
               Ouvrir

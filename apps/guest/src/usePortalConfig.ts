@@ -25,7 +25,9 @@ export function usePortalConfig(pollMs = 3000) {
 
   const fetchConfig = useCallback(async () => {
     try {
-      const r = await fetch(`${BACKEND}/api/portal-config`)
+      const companyId = new URLSearchParams(window.location.search).get('companyId')
+      if (!companyId) return
+      const r = await fetch(`${BACKEND}/api/portal-config?companyId=${encodeURIComponent(companyId)}`)
       if (!r.ok) return
       const data = await r.json() as PortalConfig
       setConfig(data)

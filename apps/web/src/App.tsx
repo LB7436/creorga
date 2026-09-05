@@ -373,13 +373,15 @@ function App() {
         <Route path="/delivery" element={<Navigate to="/sales/delivery" replace />} />
         <Route path="/clickcollect" element={<Navigate to="/sales/clickcollect" replace />} />
         <Route path="/catering" element={<Navigate to="/sales/catering" replace />} />
-        <Route path="/centralkitchen" element={<Navigate to="/inventory/cuisine-centrale" replace />} />
+        <Route path="/centralkitchen" element={<Navigate to="/inventory/stock" replace />} />
         <Route path="/billing" element={<Navigate to="/owner/abonnement" replace />} />
         <Route path="/billing/success" element={<Navigate to="/owner/abonnement" replace />} />
 
         {/* v3.18.5 — Auto-Réapprovisionnement fusionné dans Inventaire.
          * Ancienne URL redirige vers /inventory/autoorder. */}
-        <Route path="/autoorder" element={<Navigate to="/inventory/autoorder" replace />} />
+        <Route path="/autoorder" element={<Navigate to="/inventory/commandes" replace />} />
+        <Route path="/inventory/cuisine-centrale" element={<Navigate to="/inventory/stock" replace />} />
+        <Route path="/inventory/autoorder" element={<Navigate to="/inventory/commandes" replace />} />
 
         {/* v3.18.5 — Modules Durabilité / Communauté / Status supprimés */}
         <Route path="/sustainability" element={<Navigate to="/" replace />} />

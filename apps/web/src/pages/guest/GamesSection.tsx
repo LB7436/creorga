@@ -15,6 +15,7 @@ import {
   type GuestClientProfile,
 } from './guestClient'
 import { ACCENT, TEXT, MUTED } from './games/theme'
+import { contrastInk } from '@/lib/contrast'
 import {
   CATEGORY_META,
   GAME_ID_ALIASES,
@@ -1289,7 +1290,7 @@ export default function GamesSection({ companyId: explicitCompanyId }: { company
               {featured.rendu === '3d' && <span className="flex items-center gap-1"><Sparkles size={10} />vraie 3D</span>}
               <span className="flex items-center gap-1"><Gamepad2 size={10} />{progress.playsByGame[featured.id] ?? 0} parties</span>
             </div>
-            <div className="mt-4 py-2.5 rounded-lg text-center text-sm font-black" style={{ background: accent, color: '#fff' }}>
+            <div className="mt-4 py-2.5 rounded-lg text-center text-sm font-black" style={{ background: accent, color: contrastInk(accent) }}>
               Jouer maintenant
             </div>
           </div>
@@ -1327,7 +1328,7 @@ export default function GamesSection({ companyId: explicitCompanyId }: { company
               title={cat.hint}
               className="shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold"
               style={activeCat
-                ? { background: cat.color, color: '#fff' }
+                ? { background: cat.color, color: contrastInk(cat.color) }
                 : { background: ui.surface, color: ui.muted, border: `1px solid ${ui.border}` }}
             >
               <span>{cat.icon}</span>
@@ -1355,7 +1356,7 @@ export default function GamesSection({ companyId: explicitCompanyId }: { company
               onClick={() => setDifficulty(d)}
               className="py-2 rounded-lg text-[11px] font-bold capitalize"
               style={difficulty === d
-                ? { background: d === 'facile' ? '#22c55e' : d === 'moyen' ? '#f59e0b' : d === 'difficile' ? '#ef4444' : accent, color: '#fff' }
+                ? { background: d === 'facile' ? '#22c55e' : d === 'moyen' ? '#f59e0b' : d === 'difficile' ? '#ef4444' : accent, color: contrastInk(d === 'facile' ? '#22c55e' : d === 'moyen' ? '#f59e0b' : d === 'difficile' ? '#ef4444' : accent) }
                 : { background: ui.soft, color: ui.muted, border: `1px solid ${ui.border}` }}
             >
               {d === 'all' ? 'Tous' : d}
