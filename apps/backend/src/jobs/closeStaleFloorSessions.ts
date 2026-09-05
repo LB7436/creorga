@@ -1,90 +1,43 @@
-/**
- * Janitor — auto-close any table session opened > MAX_HOURS without payment.
- *
- * Runs on app start + every 30 minutes. Uses the in-memory floorState module's
- * mutators directly (since the data lives in `apps/backend/src/routes/floorState.ts`).
- *
- * Why : the audit found Table 1 stuck on "34h50" — a session forgotten across
- * 2 days. This causes the "tables occupées" KPI to lie to the owner.
- *
- * Strategy :
- *   - Any table.openedAt older than MAX_HOURS hours is considered stale
- *   - Mark it NETTOYAGE, clear items, drop attached chairs
- *   - Append an entry to data/audit-log.json with reason "auto-closed-stale"
- */
-
-import fs from 'fs'
-import path from 'path'
-import { getLoadedFloorStates, sauvegarderPlanDeSalle } from '../routes/floorState'
+/** Une ancienne session est signalée, jamais encaissée ou effacée automatiquement. */
+import { getLoadedFloorStates, type FloorState } from '../routes/floorState'
+import logger from '../lib/logger'
 
 const MAX_HOURS = Number(process.env.STALE_TABLE_MAX_HOURS) || 8
-const TICK_MS = 30 * 60 * 1000 // 30 min
+const TICK_MS = 30 * 60 * 1000
 
-const DATA_DIR = path.resolve(process.cwd(), 'data')
-const AUDIT_FILE = path.join(DATA_DIR, 'audit-log.json')
-
-interface AuditEntry {
-  ts: number
-  iso: string
-  source: 'janitor.closeStaleFloorSessions'
-  companyId: string
-  tableId: string
-  reason: 'auto-closed-stale'
-  hoursOpen: number
+export function findStaleSessions(state: FloorState, now = Date.now(), maxHours = MAX_HOURS) {
+  return state.tables.filter((table) => table.status === 'OCCUPEE' && table.openedAt && table.openedAt < now - maxHours * 3600_000)
+    .map((table) => ({
+      tableId: table.id,
+      hoursOpen: Math.round((now - table.openedAt!) / 360_000) / 10,
+      unpaidTotal: [...table.items, ...state.chairs.filter((chair) => chair.tableId === table.id).flatMap((chair) => chair.items)]
+        .reduce((sum, item) => sum + item.price * item.qty, 0),
+    }))
 }
 
-function appendAudit(entry: AuditEntry) {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
-  let log: AuditEntry[] = []
-  if (fs.existsSync(AUDIT_FILE)) {
-    try { log = JSON.parse(fs.readFileSync(AUDIT_FILE, 'utf8')) } catch { /* corrupt, restart */ }
-  }
-  log.unshift(entry) // newest first
-  // Keep last 10 000 entries
-  if (log.length > 10_000) log.length = 10_000
-  fs.writeFileSync(AUDIT_FILE, JSON.stringify(log, null, 2), 'utf8')
-}
-
+let timer: NodeJS.Timeout | undefined
+let initial: NodeJS.Timeout | undefined
 export function startStaleSessionJanitor() {
+  if (timer) return
   const tick = () => {
-    try {
-      const now = Date.now()
-      const cutoff = now - MAX_HOURS * 3600_000
-      for (const { companyId, state } of getLoadedFloorStates()) {
-        if (!state || !Array.isArray(state.tables)) continue
-        let closedCount = 0
-        for (const t of state.tables) {
-          if (t.openedAt && t.status === 'OCCUPEE' && t.openedAt < cutoff) {
-            const hoursOpen = (now - t.openedAt) / 3600_000
-            t.status = 'NETTOYAGE'
-            t.items = []
-            t.openedAt = undefined
-            state.chairs = state.chairs.filter((c: any) => c.tableId !== t.id)
-            state.updatedAt = now
-            appendAudit({
-              ts: now, iso: new Date(now).toISOString(),
-              source: 'janitor.closeStaleFloorSessions', companyId,
-              tableId: t.id, reason: 'auto-closed-stale',
-              hoursOpen: Math.round(hoursOpen * 10) / 10,
-            })
-            closedCount++
-          }
-        }
-        if (closedCount > 0) {
-          // Ce travail modifie l'état hors du routeur : il doit persister lui-même,
-          // sinon les fermetures automatiques seraient perdues au redémarrage.
-          sauvegarderPlanDeSalle(companyId)
-          // eslint-disable-next-line no-console
-          console.log(`[janitor] auto-closed ${closedCount} stale table session(s) for ${companyId} (> ${MAX_HOURS}h)`)
-        }
+    for (const { companyId, state } of getLoadedFloorStates()) {
+      const stale = findStaleSessions(state)
+      if (!stale.length) continue
+      logger.warn('[salles] Sessions anciennes à vérifier ; additions et chaises conservées', { companyId, sessions: stale })
+      const broadcast = (globalThis as any).liveBroadcast
+      if (typeof broadcast === 'function') {
+        try { broadcast(`floor-${companyId}`, 'floor-stale-sessions', { sessions: stale }) }
+        catch (err) { logger.warn('[salles] Notification des sessions anciennes indisponible', err) }
       }
-    } catch (e: any) {
-      // eslint-disable-next-line no-console
-      console.warn('[janitor] tick failed:', e?.message || e)
     }
   }
+  initial = setTimeout(tick, 5_000)
+  timer = setInterval(tick, TICK_MS)
+}
 
-  // Run after a short delay so the floorState route is fully loaded
-  setTimeout(tick, 5_000)
-  setInterval(tick, TICK_MS)
+export function stopStaleSessionJanitor() {
+  clearTimeout(initial)
+  clearInterval(timer)
+  initial = undefined
+  timer = undefined
 }

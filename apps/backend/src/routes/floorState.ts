@@ -97,11 +97,12 @@ const DEFAULT_STATE: FloorState = {
 }
 
 const FICHIER_HISTORIQUE = 'floor-state.json'
-const floorContext = new AsyncLocalStorage<string>()
+interface FloorContext { companyId: string; draft?: FloorState }
+const floorContext = new AsyncLocalStorage<FloorContext>()
 
 /** Société portée par la requête courante (routes montées derrière floorCompanyContext). */
 export function currentFloorCompanyId(): string | undefined {
-  return floorContext.getStore()
+  return floorContext.getStore()?.companyId
 }
 const states = new Map<string, FloorState>()
 
@@ -132,7 +133,7 @@ function chargerPlanDeSalle(companyId: string): FloorState {
 }
 
 function companyIdCourante(companyId?: string): string {
-  const resolved = companyId || floorContext.getStore()
+  const resolved = companyId || floorContext.getStore()?.companyId
   if (!resolved) throw new Error('Contexte société absent pour le plan de salle')
   return resolved
 }
@@ -140,6 +141,8 @@ function companyIdCourante(companyId?: string): string {
 /** Retourne uniquement le plan de la société courante (ou explicitement fournie). */
 export function getFloorState(companyId?: string): FloorState {
   const resolved = companyIdCourante(companyId)
+  const context = floorContext.getStore()
+  if (context?.companyId === resolved && context.draft) return context.draft
   let plan = states.get(resolved)
   if (!plan) {
     plan = chargerPlanDeSalle(resolved)
@@ -150,7 +153,9 @@ export function getFloorState(companyId?: string): FloorState {
 
 export function remplacerPlanDeSalle(plan: FloorState, companyId?: string): FloorState {
   const resolved = companyIdCourante(companyId)
-  states.set(resolved, plan)
+  const context = floorContext.getStore()
+  if (context?.companyId === resolved && context.draft) context.draft = plan
+  else states.set(resolved, plan)
   return plan
 }
 
@@ -173,6 +178,7 @@ export function sauvegarderPlanDeSalle(companyId?: string): void {
     safeWriteJson(dataPath(fichier), plan)
   } catch (err) {
     logger.error(`[floor-state] échec de la sauvegarde de ${fichier}`, err)
+    throw err
   }
 }
 
@@ -187,26 +193,42 @@ export function floorCompanyContext(req: Request, res: Response, next: NextFunct
     res.status(500).json({ error: 'Contexte société absent pour le plan de salle' })
     return
   }
+  // Plusieurs routeurs de l'assistant partagent ce middleware sur la même requête.
+  if (floorContext.getStore()?.companyId === companyId) { next(); return }
 
-  floorContext.run(companyId, () => {
-    if (MUTATING.has(req.method)) {
-      res.on('finish', () => {
-        if (res.statusCode >= 200 && res.statusCode < 400 && states.has(companyId)) {
-          sauvegarderPlanDeSalle(companyId)
-          try {
-            const broadcast = (globalThis as any).liveBroadcast
-            if (typeof broadcast === 'function') {
-              broadcast(`floor-${companyId}`, 'floor-updated', {
-                companyId,
-                updatedAt: getFloorState(companyId).updatedAt,
-              })
-            }
-          } catch { /* broadcast indisponible */ }
+  // Une copie par requête : une erreur ne modifie jamais l'état partagé.
+  const original = getFloorState(companyId)
+  const context: FloorContext = { companyId }
+  if (MUTATING.has(req.method)) {
+    context.draft = structuredClone(original)
+    const originalJson = res.json.bind(res)
+    res.json = (body: any) => {
+      const draft = context.draft!
+      const changed = JSON.stringify(draft) !== JSON.stringify(original)
+      if (res.statusCode < 400 && changed) {
+        const expected = req.get('If-Match')?.replace(/"/g, '')
+        if (states.get(companyId) !== original || (expected && expected !== String(original.updatedAt))) {
+          res.status(409)
+          return originalJson({ error: 'Le plan a changé dans une autre session. Rechargez avant de réessayer.', code: 'FLOOR_CONFLICT' })
         }
-      })
+        draft.updatedAt = Math.max(Date.now(), original.updatedAt + 1)
+        try {
+          safeWriteJson(dataPath(companyFloorFilename(companyId)), draft)
+        } catch (err) {
+          logger.error('[floor-state] Enregistrement refusé, état précédent conservé', err)
+          res.status(503)
+          return originalJson({ error: 'Le plan n’a pas été enregistré. Vos dernières données sauvegardées sont conservées.', code: 'FLOOR_SAVE_FAILED' })
+        }
+        states.set(companyId, draft)
+        try {
+          const broadcast = (globalThis as any).liveBroadcast
+          if (typeof broadcast === 'function') broadcast(`floor-${companyId}`, 'floor-updated', { companyId, updatedAt: draft.updatedAt })
+        } catch { /* L'écriture est déjà confirmée ; notification facultative. */ }
+      }
+      return originalJson(body)
     }
-    next()
-  })
+  }
+  floorContext.run(context, next)
 }
 
 // Proxy de compatibilité : les nombreuses actions ci-dessous et l'assistant
@@ -362,8 +384,12 @@ router.post('/tables/:id/close', (req, res) => {
   }
   t.status = 'NETTOYAGE'
   t.openedAt = undefined
-  // Also clear chairs of this table
-  state.chairs = state.chairs.filter((c) => c.tableId !== req.params.id)
+  // Les chaises appartiennent à la configuration, pas à l'addition clôturée.
+  for (const chair of relatedChairs) {
+    chair.customerName = undefined
+    chair.openedAt = undefined
+    chair.status = 'LIBRE'
+  }
   state.updatedAt = Date.now()
   res.json(state)
 })
