@@ -2,8 +2,16 @@ import { Router, type Response } from 'express'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
 import { createAvecNumero, NumerotationIndisponibleError } from '../lib/numerotation'
+import { invoicePdf } from '../lib/invoice-pdf'
+import { invoiceTransitionAllowed } from '../lib/invoice-status'
+import { requireRole } from '../middleware/requireCompany'
 
 const router = Router()
+router.use((req, res, next) => {
+  if (['GET', 'HEAD'].includes(req.method)) return next()
+  return requireRole('OWNER', 'MANAGER')(req, res, next)
+})
+class QuoteConflict extends Error {}
 
 const QUOTE_STATUSES = new Set(['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED'])
 const INVOICE_STATUSES = new Set(['DRAFT', 'SENT', 'PAID', 'OVERDUE', 'CANCELLED'])
@@ -22,8 +30,8 @@ function prepareLines(raw: unknown): { lines?: DocumentLine[]; subtotal?: number
     const unitPrice = Number(line?.unitPrice)
     const taxRate = Number(line?.taxRate ?? 17)
     if (!description || description.length > 500) return { error: 'Chaque ligne doit avoir une description de 1 à 500 caractères' }
-    if (!Number.isFinite(quantity) || quantity <= 0) return { error: 'Chaque ligne doit avoir une quantité strictement positive' }
-    if (!Number.isFinite(unitPrice) || unitPrice < 0) return { error: 'Chaque ligne doit avoir un prix unitaire positif ou nul' }
+    if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 100_000) return { error: 'Quantité attendue : entre 0 et 100 000' }
+    if (!Number.isFinite(unitPrice) || unitPrice < 0 || unitPrice > 1_000_000) return { error: 'Prix unitaire attendu : de 0 à 1 000 000 €' }
     if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) return { error: 'Le taux de TVA doit être compris entre 0 et 100' }
     lines.push({ description, quantity, unitPrice, taxRate })
   }
@@ -107,6 +115,7 @@ router.put('/quotes/:id', async (req: any, res: Response) => {
   try {
     const existing = await prisma.quote.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Devis non trouvé' }); return }
+    if (existing.status === 'ACCEPTED') return res.status(409).json({ message: 'Un devis converti ne peut plus être modifié.' })
     const { customerId, validUntil, notes, status, items } = req.body
     if (status !== undefined && (!QUOTE_STATUSES.has(status) || status === 'ACCEPTED')) {
       res.status(400).json({ message: status === 'ACCEPTED' ? 'Convertissez le devis pour le marquer accepté' : 'Statut de devis invalide' })
@@ -118,7 +127,7 @@ router.put('/quotes/:id', async (req: any, res: Response) => {
     const prepared = items === undefined ? null : prepareLines(items)
     if (prepared?.error) { res.status(400).json({ message: prepared.error }); return }
     const quote = await prisma.quote.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id, status: existing.status, updatedAt: existing.updatedAt },
       data: {
         customerId: customerId === undefined ? existing.customerId : (customerId || null),
         validUntil: validity.value === undefined ? existing.validUntil : validity.value,
@@ -140,7 +149,8 @@ router.delete('/quotes/:id', async (req: any, res: Response) => {
   try {
     const existing = await prisma.quote.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Devis non trouvé' }); return }
-    await prisma.quote.delete({ where: { id: req.params.id } })
+    if (existing.status === 'ACCEPTED') return res.status(409).json({ message: 'Un devis converti doit être conservé.' })
+    await prisma.quote.delete({ where: { id: req.params.id, status: existing.status, updatedAt: existing.updatedAt } })
     res.json({ message: 'Devis supprimé' })
   } catch (error) {
     logger.error('Erreur DELETE /quotes/:id:', error)
@@ -156,7 +166,7 @@ router.post('/quotes/:id/convert', async (req: any, res: Response) => {
     })
     if (!quote) { res.status(404).json({ message: 'Devis non trouvé' }); return }
 
-    if (quote.status === 'ACCEPTED') {
+    if (!['DRAFT', 'SENT'].includes(quote.status)) {
       res.status(409).json({ message: 'Ce devis a déjà été converti en facture' })
       return
     }
@@ -169,14 +179,20 @@ router.post('/quotes/:id/convert', async (req: any, res: Response) => {
     const centimes = (n: number) => Math.round(n * 100) / 100
     const subtotal = centimes(quote.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0))
     const taxAmount = centimes(quote.items.reduce((s, i) => s + i.quantity * i.unitPrice * (i.taxRate / 100), 0))
-    const invoice = await createAvecNumero(req.companyId, 'INV', (number) => prisma.invoice.create({
+    const invoice = await createAvecNumero(req.companyId, 'INV', (number) => prisma.$transaction(async (tx) => {
+      const locked = await tx.quote.updateMany({
+        where: { id: quote.id, companyId: req.companyId, status: { in: ['DRAFT', 'SENT'] }, updatedAt: quote.updatedAt },
+        data: { status: 'ACCEPTED' },
+      })
+      if (locked.count !== 1) throw new QuoteConflict()
+      return tx.invoice.create({
       data: {
         companyId: req.companyId,
         customerId: quote.customerId,
         number,
         subtotal,
         taxAmount,
-        total: subtotal + taxAmount,
+        total: centimes(subtotal + taxAmount),
         notes: quote.notes,
         items: {
           create: quote.items.map((i) => ({
@@ -188,14 +204,15 @@ router.post('/quotes/:id/convert', async (req: any, res: Response) => {
         },
       },
       include: { customer: true, items: true },
+      })
     }))
-    await prisma.quote.update({ where: { id: req.params.id }, data: { status: 'ACCEPTED' } })
     res.status(201).json(invoice)
   } catch (error) {
     if (error instanceof NumerotationIndisponibleError) {
       res.status(503).json({ message: error.message })
       return
     }
+    if (error instanceof QuoteConflict) return res.status(409).json({ message: 'Ce devis a changé ou a déjà été converti. Aucune deuxième facture créée.' })
     logger.error('Erreur POST /quotes/:id/convert:', error)
     res.status(500).json({ message: 'Erreur serveur' })
   }
@@ -229,6 +246,9 @@ router.get('/', async (req: any, res: Response) => {
 router.post('/', async (req: any, res: Response) => {
   try {
     const { customerId, dueDate, notes, orderId, items } = req.body
+    if (orderId && !await prisma.order.findFirst({ where: { id: String(orderId), companyId: req.companyId }, select: { id: true } })) {
+      return res.status(400).json({ message: 'Commande introuvable dans cette société' })
+    }
     const prepared = prepareLines(items)
     if (prepared.error) { res.status(400).json({ message: prepared.error }); return }
     if (!(await validateCustomer(req.companyId, customerId))) { res.status(400).json({ message: "Le client n'appartient pas à cette entreprise" }); return }
@@ -288,6 +308,7 @@ router.put('/:id', async (req: any, res: Response) => {
   try {
     const existing = await prisma.invoice.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Facture non trouvée' }); return }
+    if (existing.status !== 'DRAFT') return res.status(409).json({ message: 'Seule une facture brouillon peut être modifiée. Une facture émise doit être conservée.' })
     const { customerId, dueDate, notes, items } = req.body
     if (!(await validateCustomer(req.companyId, customerId))) { res.status(400).json({ message: "Le client n'appartient pas à cette entreprise" }); return }
     const deadline = parseOptionalDate(dueDate)
@@ -295,7 +316,7 @@ router.put('/:id', async (req: any, res: Response) => {
     const prepared = items === undefined ? null : prepareLines(items)
     if (prepared?.error) { res.status(400).json({ message: prepared.error }); return }
     const invoice = await prisma.invoice.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id, status: 'DRAFT', updatedAt: existing.updatedAt },
       data: {
         customerId: customerId === undefined ? existing.customerId : (customerId || null),
         dueDate: deadline.value === undefined ? existing.dueDate : deadline.value,
@@ -322,8 +343,11 @@ router.put('/:id/status', async (req: any, res: Response) => {
     }
     const existing = await prisma.invoice.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Facture non trouvée' }); return }
+    if (!invoiceTransitionAllowed(existing.status, req.body.status)) {
+      return res.status(409).json({ message: 'Transition refusée : une facture payée ou annulée ne peut pas redevenir un brouillon.' })
+    }
     const invoice = await prisma.invoice.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id, status: existing.status },
       data: { status: req.body.status },
     })
     res.json(invoice)
@@ -340,7 +364,12 @@ router.get('/:id/pdf', async (req: any, res: Response) => {
       include: { customer: true, items: true, company: true },
     })
     if (!invoice) { res.status(404).json({ message: 'Facture non trouvée' }); return }
-    res.json({ invoice, generatedAt: new Date().toISOString() })
+    const bytes = await invoicePdf(invoice)
+    const filename = `facture-${invoice.number.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.setHeader('Cache-Control', 'private, no-store')
+    res.send(bytes)
   } catch (error) {
     logger.error('Erreur GET /invoices/:id/pdf:', error)
     res.status(500).json({ message: 'Erreur serveur' })

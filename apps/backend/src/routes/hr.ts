@@ -3,6 +3,7 @@ import prisma from '../lib/prisma'
 import logger from '../lib/logger'
 import { emailConfigured, emailTemplates, sendEmail } from '../lib/email'
 import { requireRole } from '../middleware/requireCompany'
+import { withShiftSlot, ShiftConflict, validateShiftTimes } from '../lib/shift-slot'
 
 const router = Router()
 
@@ -74,7 +75,8 @@ router.post('/shifts', async (req: any, res: Response) => {
       return
     }
 
-    const shift = await prisma.shift.create({
+    if (!validateShiftTimes(début, fin, breakMinutes ?? 0)) return res.status(400).json({ message: 'Horaires ou durée de pause invalides.' })
+    const shift = await withShiftSlot(req.companyId, userId, début, fin, undefined, (tx) => tx.shift.create({
       data: {
         companyId: req.companyId,
         userId,
@@ -85,9 +87,10 @@ router.post('/shifts', async (req: any, res: Response) => {
         notes: notes || null,
       },
       include: { user: { select: { id: true, firstName: true, lastName: true } } },
-    })
+    }))
     res.status(201).json(shift)
   } catch (error) {
+    if (error instanceof ShiftConflict) return res.status(409).json({ message: error.message, code: 'SHIFT_OVERLAP' })
     logger.error('Erreur POST /shifts:', error)
     res.status(500).json({ message: 'Erreur serveur' })
   }
@@ -99,19 +102,24 @@ router.put('/shifts/:id', async (req: any, res: Response) => {
     const existing = await prisma.shift.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Shift non trouvé' }); return }
     const { role, startTime, endTime, breakMinutes, notes, status } = req.body
-    const shift = await prisma.shift.update({
+    const début = startTime === undefined ? existing.startTime : new Date(startTime)
+    const fin = endTime === undefined ? existing.endTime : new Date(endTime)
+    if (!validateShiftTimes(début, fin, breakMinutes ?? existing.breakMinutes)) return res.status(400).json({ message: 'Horaires ou durée de pause invalides.' })
+    if (status !== undefined && !['SCHEDULED', 'CONFIRMED', 'COMPLETED'].includes(status)) return res.status(400).json({ message: 'Statut de planning invalide.' })
+    const shift = await withShiftSlot(req.companyId, existing.userId, début, fin, existing.id, (tx) => tx.shift.update({
       where: { id: req.params.id },
       data: {
         role: role ?? existing.role,
-        startTime: startTime ? new Date(startTime) : existing.startTime,
-        endTime: endTime ? new Date(endTime) : existing.endTime,
+        startTime: début,
+        endTime: fin,
         breakMinutes: breakMinutes ?? existing.breakMinutes,
         notes: notes ?? existing.notes,
         status: status ?? existing.status,
       },
-    })
+    }))
     res.json(shift)
   } catch (error) {
+    if (error instanceof ShiftConflict) return res.status(409).json({ message: error.message, code: 'SHIFT_OVERLAP' })
     logger.error('Erreur PUT /shifts/:id:', error)
     res.status(500).json({ message: 'Erreur serveur' })
   }

@@ -3,8 +3,13 @@ import prisma from '../lib/prisma'
 import logger from '../lib/logger'
 import { z } from 'zod'
 import { validate } from '../middleware/validate'
+import { requireRole } from '../middleware/requireCompany'
 
 const router = Router()
+router.use('/expenses', (req, res, next) => {
+  if (['GET', 'HEAD'].includes(req.method)) return next()
+  return requireRole('OWNER', 'MANAGER')(req, res, next)
+})
 
 // ─── CASH DRAWERS ─────────────────────────────────────
 

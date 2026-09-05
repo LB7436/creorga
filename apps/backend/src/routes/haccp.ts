@@ -32,12 +32,13 @@ router.get('/logs', async (req: any, res: Response) => {
 
 router.post('/logs', async (req: any, res: Response) => {
   try {
-    const { type, value, notes, loggedBy, isCompliant } = req.body
+    const { type, value, notes, isCompliant } = req.body
     if (!LOG_TYPES.has(String(type))) return res.status(400).json({ message: 'Type de contrôle invalide' })
     const numericValue = value === null || value === undefined || value === '' ? null : Number(value)
     if (numericValue !== null && !Number.isFinite(numericValue)) return res.status(400).json({ message: 'Valeur invalide' })
-    const author = String(loggedBy || '').trim()
-    if (!author) return res.status(400).json({ message: 'Auteur du contrôle requis' })
+    if (!req.user?.userId) return res.status(401).json({ message: 'Utilisateur non identifié' })
+    const author = req.user.userId // Identité issue du jeton vérifié, jamais de la saisie.
+    if (isCompliant !== undefined && typeof isCompliant !== 'boolean') return res.status(400).json({ message: 'Conformité invalide' })
     const log = await prisma.haccpLog.create({
       data: {
         companyId: req.companyId,

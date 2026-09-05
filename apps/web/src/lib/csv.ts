@@ -29,7 +29,9 @@ export function csvField(valeur: unknown): string {
     return String(valeur).replace('.', ',')
   }
 
-  const texte = String(valeur)
+  const brut = String(valeur)
+  // Les guillemets CSV seuls n'empêchent pas Excel d'exécuter une formule.
+  const texte = /^[\s\u0000-\u001f]*[=+\-@]/.test(brut) || /^[\t\r\n]/.test(brut) ? `'${brut}` : brut
   // Toujours encadrer : un texte contenant ; " ou un retour-ligne casse la
   // ligne sinon.
   return `"${texte.replace(/"/g, '""')}"`
