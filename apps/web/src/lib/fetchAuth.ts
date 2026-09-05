@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/stores/authStore'
+import { refreshSession } from './api'
 
 /**
  * `fetch` qui porte le jeton — pour les appels que `lib/api.ts` (axios) ne
@@ -26,20 +27,11 @@ const avecJeton = (init: RequestInit, jeton: string | null): RequestInit => {
   return { ...init, headers, credentials: init.credentials ?? 'include' }
 }
 
-/** Rafraîchit le jeton d'accès. Renvoie null si la session est bel et bien morte. */
+/** Partage la rotation avec axios ; un échec temporaire ne déconnecte pas le compte. */
 const rafraichirJeton = async (): Promise<string | null> => {
   try {
-    const reponse = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    })
-    if (!reponse.ok) return null
-    const { accessToken } = await reponse.json()
-    if (!accessToken) return null
-    useAuthStore.getState().setAccessToken(accessToken)
-    return accessToken
+    const { data } = await refreshSession()
+    return data.accessToken
   } catch {
     return null
   }
@@ -59,7 +51,7 @@ export async function fetchAuth(
     // `catch {}` muet, c'est précisément ce qui rendait ces fonctionnalités
     // mortes sans le moindre signal.
     console.error(
-      `[fetchAuth] 401 non récupérable sur ${typeof entree === 'string' ? entree : String(entree)} — session expirée`,
+      '[fetchAuth] Renouvellement non confirmé ; vérifiez la connexion et la session.',
     )
     return reponse
   }

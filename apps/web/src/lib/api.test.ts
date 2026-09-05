@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import axios from 'axios'
 
 /**
  * Non-régression du défaut 4.2 : boucle de rechargement infinie.
@@ -50,6 +51,7 @@ describe('traiterSessionExpiree', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     delete (globalThis as any).window
   })
 
@@ -65,6 +67,28 @@ describe('traiterSessionExpiree', () => {
     expect(faux.affectations).toEqual([])
     // La purge du jeton doit avoir lieu malgré tout : elle ne recharge rien.
     expect(useAuthStore.getState().accessToken).toBeNull()
+  })
+
+  it('partage une seule rotation entre requêtes concurrentes et téléchargements', async () => {
+    const { refreshSession, useAuthStore } = await chargerApi()
+    let finish!: (value: any) => void
+    const post = vi.spyOn(axios, 'post').mockImplementation(() => new Promise(resolve => { finish = resolve }) as any)
+    const a = refreshSession(), b = refreshSession()
+    expect(a).toBe(b)
+    expect(post).toHaveBeenCalledTimes(1)
+    finish({ data: { accessToken: 'nouveau-jeton' } })
+    await Promise.all([a, b])
+    expect(useAuthStore.getState().accessToken).toBe('nouveau-jeton')
+  })
+
+  it('conserve la session pendant une panne de renouvellement et permet de réessayer', async () => {
+    const { refreshSession, useAuthStore } = await chargerApi()
+    useAuthStore.getState().setAccessToken('ancien-jeton')
+    vi.spyOn(axios, 'post').mockRejectedValueOnce({ response: { status: 503 } }).mockResolvedValueOnce({ data: { accessToken: 'retabli' } })
+    await expect(refreshSession()).rejects.toMatchObject({ response: { status: 503 } })
+    expect(useAuthStore.getState().accessToken).toBe('ancien-jeton')
+    await refreshSession()
+    expect(useAuthStore.getState().accessToken).toBe('retabli')
   })
 
   it('ne masque pas un mauvais mot de passe par une tentative de refresh', async () => {

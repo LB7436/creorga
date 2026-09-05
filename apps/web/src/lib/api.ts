@@ -82,7 +82,11 @@ export function excludesRefresh(url = ''): boolean {
   return /(?:^|\/)auth\/(?:login|register|refresh|logout)(?:[?#]|$)/.test(url)
 }
 
-async function refreshSession() {
+let refreshPromise: Promise<{ data: { accessToken: string } }> | null = null
+
+/** Même rotation pour axios et les téléchargements fetch, y compris entre onglets. */
+export function refreshSession(): Promise<{ data: { accessToken: string } }> {
+  if (refreshPromise) return refreshPromise
   const renew = async () => {
     try { return await axios.post('/api/auth/refresh', {}, { withCredentials: true }) }
     catch (error: any) {
@@ -92,8 +96,15 @@ async function refreshSession() {
     }
   }
   // Le cookie est partagé par les onglets : leur rotation doit être sérialisée.
-  if (typeof navigator !== 'undefined' && navigator.locks) return navigator.locks.request('creorga-refresh', renew)
-  return renew()
+  refreshPromise = (async () => {
+    const response = await (typeof navigator !== 'undefined' && navigator.locks
+      ? navigator.locks.request('creorga-refresh', renew)
+      : renew())
+    if (typeof response.data?.accessToken !== 'string' || !response.data.accessToken) throw new Error('Renouvellement de session incomplet.')
+    useAuthStore.getState().setAccessToken(response.data.accessToken)
+    return response
+  })().finally(() => { refreshPromise = null })
+  return refreshPromise
 }
 
 api.interceptors.response.use(
