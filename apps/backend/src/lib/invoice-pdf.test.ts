@@ -1,8 +1,12 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { PDFDocument } from 'pdf-lib'
-import { invoicePdf } from './invoice-pdf'
+import { invoicePdf, invoiceFontPath } from './invoice-pdf'
 import { invoiceTransitionAllowed } from './invoice-status'
 describe('Factures réellement téléchargeables', () => {
+  it('retrouve sa police même si le service démarre depuis un autre dossier', () => {
+    const cwd = vi.spyOn(process, 'cwd').mockReturnValue('/dossier-independant')
+    try { expect(invoiceFontPath()).toMatch(/NotoSans-Regular\.ttf$/) } finally { cwd.mockRestore() }
+  })
   it('produit un PDF ouvrable, paginé, avec noms accentués', async () => {
     const bytes = await invoicePdf({ number: 'INV-TEST-001', status: 'DRAFT', createdAt: new Date(), company: { name: 'Café de l’Étoile' }, customer: { firstName: 'Émilie', lastName: 'Müller' }, subtotal: 500, taxAmount: 85, total: 585,
       items: Array.from({ length: 40 }, (_, i) => ({ description: `Prestation ${i + 1} — Crème brûlée`, quantity: 1, unitPrice: 12.5, taxRate: 17 })),

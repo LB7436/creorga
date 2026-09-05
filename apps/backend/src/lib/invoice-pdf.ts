@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { PDFDocument, rgb } from 'pdf-lib'
 import fontkit from '@pdf-lib/fontkit'
 
@@ -11,8 +12,18 @@ export interface PrintableInvoice {
   items: Array<{ description: string; quantity: number; unitPrice: number; taxRate: number }>
 }
 let fontBytes: Buffer | undefined
+export function invoiceFontPath(): string {
+  const candidates = [
+    fileURLToPath(new URL('../../assets/fonts/NotoSans-Regular.ttf', import.meta.url)),
+    fileURLToPath(new URL('../../../assets/fonts/NotoSans-Regular.ttf', import.meta.url)),
+    path.resolve(process.cwd(), 'assets/fonts/NotoSans-Regular.ttf'),
+  ]
+  const found = candidates.find(candidate => existsSync(candidate))
+  if (!found) throw new Error('Police PDF absente du déploiement : assets/fonts/NotoSans-Regular.ttf requis.')
+  return found
+}
 export async function invoicePdf(invoice: PrintableInvoice): Promise<Buffer> {
-  fontBytes ||= readFileSync(path.resolve(process.cwd(), 'assets/fonts/NotoSans-Regular.ttf'))
+  fontBytes ||= readFileSync(invoiceFontPath())
   const pdf = await PDFDocument.create()
   pdf.registerFontkit(fontkit)
   const font = await pdf.embedFont(fontBytes, { subset: true })
