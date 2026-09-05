@@ -19,6 +19,10 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ): void {
+  if ((err as any).type === 'entity.too.large' || (err as any).status === 413) {
+    res.status(413).json({ message: 'Fichier ou requête trop volumineux. Les documents RH sont limités à 25 Mo.' })
+    return
+  }
   if (isBodyParserSyntaxError(err)) {
     logger.warn(`Corps de requête JSON invalide sur ${req.method} ${req.path}`)
     res.status(400).json({ message: 'Corps de requête JSON invalide' })

@@ -5,6 +5,8 @@ import path from 'path'
 import crypto from 'crypto'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
+import { canManageHr, hrMembershipScope } from '../lib/hr-access'
+import { MAX_DOCUMENT_BYTES, validateDocument } from '../lib/document-validation'
 
 /**
  * Dossier employé — fiche RH complète, notes internes et documents.
@@ -34,7 +36,7 @@ import logger from '../lib/logger'
 const DOSSIER_FICHIERS = path.resolve(process.cwd(), 'data', 'rh-documents')
 
 /** 25 Mo : un contrat ou une fiche de paie numérisée tient largement dedans. */
-const TAILLE_MAX = 25 * 1024 * 1024
+const TAILLE_MAX = MAX_DOCUMENT_BYTES
 
 const TYPES_ACCEPTES: Record<string, string> = {
   'application/pdf': 'pdf',
@@ -47,6 +49,14 @@ const TYPES_DOCUMENT = ['CONTRAT', 'FICHE_PAIE', 'DIPLOME', 'AUTRE']
 const STATUTS = ['ACTIF', 'INACTIF', 'CONGE', 'SORTI']
 
 const router = Router()
+// Une permission d'interface ne suffit pas : protéger aussi chaque écriture API.
+router.use((req: any, res, next) => {
+  if (!req.user?.userId || !req.companyId || !req.role) return void res.status(403).json({ message: 'Accès RH refusé' })
+  if (!['GET', 'HEAD'].includes(req.method) && !canManageHr(req)) {
+    return void res.status(403).json({ message: 'La gestion des dossiers est réservée au propriétaire et aux responsables.' })
+  }
+  next()
+})
 
 /** Champ date facultatif : chaîne vide et valeur absente valent « non renseigné ». */
 function dateOuNull(valeur: unknown): Date | null {
@@ -71,9 +81,9 @@ function texteOuNull(valeur: unknown, max = 400): string | null {
  * Retrouve l'adhésion visée en vérifiant qu'elle appartient à la société de
  * l'appelant. Renvoie null si elle n'existe pas OU si elle est ailleurs.
  */
-async function adhesionDeLaSociete(userCompanyId: string, companyId: string) {
+async function adhesionDeLaSociete(userCompanyId: string, req: any) {
   return prisma.userCompany.findFirst({
-    where: { id: userCompanyId, companyId },
+    where: { id: userCompanyId, ...hrMembershipScope(req) },
     include: {
       user: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true } },
       profile: true,
@@ -86,7 +96,7 @@ async function adhesionDeLaSociete(userCompanyId: string, companyId: string) {
 router.get('/employes', async (req: any, res: Response) => {
   try {
     const adhesions = await prisma.userCompany.findMany({
-      where: { companyId: req.companyId },
+      where: hrMembershipScope(req),
       include: {
         user: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true } },
         profile: true,
@@ -95,6 +105,7 @@ router.get('/employes', async (req: any, res: Response) => {
     })
 
     res.json({
+      permissions: { canManage: canManageHr(req) },
       employes: adhesions.map((a) => ({
         id: a.id,
         userId: a.userId,
@@ -104,7 +115,7 @@ router.get('/employes', async (req: any, res: Response) => {
         nom: a.user.lastName,
         email: a.user.email,
         avatar: a.user.avatar,
-        profil: a.profile,
+        profil: canManageHr(req) ? a.profile : null,
       })),
     })
   } catch (error) {
@@ -117,14 +128,14 @@ router.get('/employes', async (req: any, res: Response) => {
 
 router.get('/employes/:id', async (req: any, res: Response) => {
   try {
-    const adhesion = await adhesionDeLaSociete(req.params.id, req.companyId)
+    const adhesion = await adhesionDeLaSociete(req.params.id, req)
     if (!adhesion) {
       res.status(404).json({ message: 'Employé introuvable' })
       return
     }
 
     const [notes, documents, shifts, conges] = await Promise.all([
-      adhesion.profile
+      adhesion.profile && canManageHr(req)
         ? prisma.employeeNote.findMany({
             where: { profileId: adhesion.profile.id },
             orderBy: { createdAt: 'desc' },
@@ -138,12 +149,12 @@ router.get('/employes/:id', async (req: any, res: Response) => {
             select: { id: true, type: true, nom: true, mime: true, taille: true, periode: true, createdAt: true },
           })
         : [],
-      prisma.shift.count({ where: { userId: adhesion.userId, companyId: req.companyId } }),
-      prisma.leaveRequest.findMany({
+      canManageHr(req) ? prisma.shift.count({ where: { userId: adhesion.userId, companyId: req.companyId } }) : 0,
+      canManageHr(req) ? prisma.leaveRequest.findMany({
         where: { userId: adhesion.userId, companyId: req.companyId },
         orderBy: { startDate: 'desc' },
         take: 20,
-      }),
+      }) : [],
     ])
 
     res.json({
@@ -157,7 +168,8 @@ router.get('/employes/:id', async (req: any, res: Response) => {
         email: adhesion.user.email,
         avatar: adhesion.user.avatar,
       },
-      profil: adhesion.profile,
+      permissions: { canManage: canManageHr(req) },
+      profil: canManageHr(req) ? adhesion.profile : null,
       notes,
       documents,
       shifts,
@@ -173,7 +185,7 @@ router.get('/employes/:id', async (req: any, res: Response) => {
 
 router.put('/employes/:id', async (req: any, res: Response) => {
   try {
-    const adhesion = await adhesionDeLaSociete(req.params.id, req.companyId)
+    const adhesion = await adhesionDeLaSociete(req.params.id, req)
     if (!adhesion) {
       res.status(404).json({ message: 'Employé introuvable' })
       return
@@ -222,7 +234,7 @@ async function profilOuCreation(userCompanyId: string) {
 
 router.post('/employes/:id/notes', async (req: any, res: Response) => {
   try {
-    const adhesion = await adhesionDeLaSociete(req.params.id, req.companyId)
+    const adhesion = await adhesionDeLaSociete(req.params.id, req)
     if (!adhesion) {
       res.status(404).json({ message: 'Employé introuvable' })
       return
@@ -269,7 +281,7 @@ router.post(
   express.raw({ type: '*/*', limit: TAILLE_MAX }),
   async (req: any, res: Response) => {
     try {
-      const adhesion = await adhesionDeLaSociete(req.params.id, req.companyId)
+      const adhesion = await adhesionDeLaSociete(req.params.id, req)
       if (!adhesion) {
         res.status(404).json({ message: 'Employé introuvable' })
         return
@@ -289,6 +301,10 @@ router.post(
         res.status(400).json({ message: 'Fichier vide' })
         return
       }
+      if (!await validateDocument(contenu, mime)) {
+        res.status(422).json({ message: 'Document illisible, corrompu ou incompatible avec le format annoncé. Envoyez un PDF non chiffré ou une image valide.' })
+        return
+      }
 
       const typeRecu = String(req.headers['x-type-document'] || '')
       const type = TYPES_DOCUMENT.includes(typeRecu) ? typeRecu : 'AUTRE'
@@ -297,6 +313,7 @@ router.post(
       const entete = req.headers['x-nom-fichier']
       if (typeof entete === 'string' && entete) {
         try { nom = decodeURIComponent(entete).slice(0, 160) } catch { nom = entete.slice(0, 160) }
+        nom = nom.replace(/[\x00-\x1f\x7f\\/]/g, '_').trim() || 'document'
       }
 
       const periodeBrute = req.headers['x-periode']
@@ -310,10 +327,15 @@ router.post(
       fs.mkdirSync(DOSSIER_FICHIERS, { recursive: true })
       fs.writeFileSync(path.join(DOSSIER_FICHIERS, fichier), contenu)
 
-      const document = await prisma.employeeDocument.create({
+      let document
+      try { document = await prisma.employeeDocument.create({
         data: { profileId: profil.id, type, nom, fichier, mime, taille: contenu.length, periode },
         select: { id: true, type: true, nom: true, mime: true, taille: true, periode: true, createdAt: true },
-      })
+      }) } catch (error) {
+        // Pas de métadonnée en base : retirer uniquement le fichier que cette requête vient de créer.
+        try { fs.unlinkSync(path.join(DOSSIER_FICHIERS, fichier)) } catch (cleanup) { logger.error('Nettoyage du document orphelin impossible', cleanup) }
+        throw error
+      }
 
       res.status(201).json(document)
     } catch (error) {
@@ -328,7 +350,7 @@ router.post(
 router.get('/documents/:docId/fichier', async (req: any, res: Response) => {
   try {
     const document = await prisma.employeeDocument.findFirst({
-      where: { id: req.params.docId, profile: { userCompany: { companyId: req.companyId } } },
+      where: { id: req.params.docId, profile: { userCompany: hrMembershipScope(req) } },
     })
     if (!document) {
       res.status(404).json({ message: 'Document introuvable' })
@@ -337,7 +359,7 @@ router.get('/documents/:docId/fichier', async (req: any, res: Response) => {
 
     // `fichier` est construit par le serveur, mais on vérifie tout de même que
     // le chemin résolu ne sort pas du dossier prévu.
-    const chemin = path.join(DOSSIER_FICHIERS, document.fichier)
+    const chemin = path.resolve(DOSSIER_FICHIERS, document.fichier)
     if (!chemin.startsWith(DOSSIER_FICHIERS + path.sep)) {
       res.status(400).json({ message: 'Chemin de document invalide' })
       return
@@ -354,7 +376,13 @@ router.get('/documents/:docId/fichier', async (req: any, res: Response) => {
       // Donnée personnelle : jamais mise en cache par un intermédiaire.
       'Cache-Control': 'private, no-store',
     })
-    fs.createReadStream(chemin).pipe(res)
+    const stream = fs.createReadStream(chemin)
+    stream.on('error', (error) => {
+      logger.error('Lecture du document impossible', error)
+      if (!res.headersSent) res.status(500).json({ message: 'Lecture du document impossible' })
+      else res.destroy()
+    })
+    stream.pipe(res)
   } catch (error) {
     logger.error('Erreur GET /hr-dossier/documents/:id/fichier:', error)
     res.status(500).json({ message: 'Erreur serveur' })

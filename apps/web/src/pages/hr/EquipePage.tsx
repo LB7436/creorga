@@ -29,6 +29,7 @@ export default function EquipePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [dossierId, setDossierId] = useState<string | null>(null)
+  const [canManage, setCanManage] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -38,6 +39,7 @@ export default function EquipePage() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const data = await response.json()
       setEmployees(Array.isArray(data?.employes) ? data.employes : [])
+      setCanManage(data?.permissions?.canManage === true)
     } catch (loadError: any) {
       setEmployees([])
       setError(true)
@@ -66,10 +68,10 @@ export default function EquipePage() {
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
           <p style={eyebrow}>Ressources humaines</p>
-          <h1 style={{ margin: 0, fontSize: 'clamp(27px, 4vw, 38px)', letterSpacing: '-.03em' }}>Équipe</h1>
-          <p style={{ margin: '8px 0 0', color: '#64748b' }}>Les membres et dossiers affichés viennent uniquement de votre établissement.</p>
+          <h1 style={{ margin: 0, fontSize: 'clamp(27px, 4vw, 38px)', letterSpacing: '-.03em' }}>{canManage ? 'Équipe' : 'Mes documents'}</h1>
+          <p style={{ margin: '8px 0 0', color: '#64748b' }}>{canManage ? 'Gérez les dossiers et les documents de votre établissement.' : 'Consultez vos documents personnels. Leur gestion est réservée à votre responsable.'}</p>
         </div>
-        <Link to="/admin/users" style={primaryLink}><Settings size={17} /> Gérer les accès</Link>
+        {canManage && <Link to="/admin/users" style={primaryLink}><Settings size={17} /> Gérer les accès</Link>}
       </header>
 
       <section className="team-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 13, marginTop: 24 }}>
@@ -87,7 +89,7 @@ export default function EquipePage() {
         {loading ? <Empty title="Chargement de l'équipe…" /> : error ? (
           <Empty title="Impossible de charger l'équipe" action={<button type="button" onClick={load} style={button}>Réessayer</button>} />
         ) : filtered.length === 0 ? (
-          <Empty title={search ? 'Aucun membre ne correspond' : 'Aucun membre dans cet établissement'} action={!search ? <Link to="/admin/users" style={primaryLink}>Configurer les utilisateurs</Link> : undefined} />
+          <Empty title={search ? 'Aucun membre ne correspond' : 'Aucun dossier disponible'} action={!search && canManage ? <Link to="/admin/users" style={primaryLink}>Configurer les utilisateurs</Link> : undefined} />
         ) : (
           <div className="team-grid" style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 13 }}>
             {filtered.map((employee) => {
@@ -108,7 +110,7 @@ export default function EquipePage() {
                     </div>
                   </div>
                   <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #f1f5f9', display: 'flex', gap: 7, alignItems: 'center', color: '#64748b', fontSize: 12 }}><Mail size={14} /> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{employee.email}</span></div>
-                  <span style={{ display: 'block', marginTop: 12, color: '#4f46e5', fontSize: 12, fontWeight: 750 }}>Ouvrir le dossier RH →</span>
+                  <span style={{ display: 'block', marginTop: 12, color: '#4f46e5', fontSize: 12, fontWeight: 750 }}>{canManage ? 'Ouvrir le dossier RH →' : 'Consulter mes documents →'}</span>
                 </button>
               )
             })}

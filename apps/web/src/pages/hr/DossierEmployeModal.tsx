@@ -113,6 +113,7 @@ function poids(octets: number): string {
 
 export default function DossierEmployeModal({ userCompanyId, onClose, onEnregistre }: Props) {
   const [onglet, setOnglet] = useState<Onglet>('fiche')
+  const [canManage, setCanManage] = useState(false)
   const [employe, setEmploye] = useState<Employe | null>(null)
   const [profil, setProfil] = useState<Profil>(vide)
   const [notes, setNotes] = useState<Note[]>([])
@@ -136,6 +137,8 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
         const corps = await r.json().catch(() => ({}))
         if (!r.ok) throw new Error(corps.message || `HTTP ${r.status}`)
         setEmploye(corps.employe)
+        setCanManage(corps.permissions?.canManage === true)
+        if (corps.permissions?.canManage !== true) setOnglet('documents')
         setProfil(corps.profil ? { ...vide, ...corps.profil } : vide)
         setNotes(corps.notes || [])
         setDocuments(corps.documents || [])
@@ -340,7 +343,7 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
             { id: 'notes', label: `Notes${notes.length ? ` (${notes.length})` : ''}`, icon: StickyNote },
             { id: 'documents', label: `Documents${documents.length ? ` (${documents.length})` : ''}`, icon: FileText },
             { id: 'activite', label: 'Activité', icon: CalendarClock },
-          ] as const).map((t) => {
+          ] as const).filter(t => canManage || t.id === 'documents').map((t) => {
             const Icone = t.icon
             const actif = onglet === t.id
             return (
@@ -364,7 +367,7 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
           ) : (
             <>
               {/* ─── FICHE ───────────────────────────────────────────── */}
-              {onglet === 'fiche' && (
+              {canManage && onglet === 'fiche' && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
                   {([
                     { cle: 'poste', label: 'Poste', type: 'text', placeholder: 'Serveur, cuisinier, manager…' },
@@ -436,7 +439,7 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
               )}
 
               {/* ─── NOTES ───────────────────────────────────────────── */}
-              {onglet === 'notes' && (
+              {canManage && onglet === 'notes' && (
                 <div>
                   <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-start' }}>
                     <textarea
@@ -470,7 +473,7 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
               {/* ─── DOCUMENTS ───────────────────────────────────────── */}
               {onglet === 'documents' && (
                 <div>
-                  <div style={{ ...carte, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                  {canManage && <div style={{ ...carte, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                     <label style={{ ...etiquette, minWidth: 190 }}>
                       Type de pièce
                       <select value={typeAjout} onChange={(e) => setTypeAjout(e.target.value)} style={saisie}>
@@ -499,10 +502,10 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
                     <span style={{ fontSize: 11, color: '#94a3b8', flexBasis: '100%' }}>
                       PDF, JPEG, PNG ou WebP — 25 Mo maximum.
                     </span>
-                  </div>
+                  </div>}
 
                   {documents.length === 0 ? (
-                    <div style={cadreVide}>Aucun document. Ajoutez le contrat, les fiches de paie, les diplômes.</div>
+                    <div style={cadreVide}>{canManage ? 'Aucun document. Ajoutez le contrat, les fiches de paie, les diplômes.' : 'Aucun document disponible pour le moment. Votre responsable peut en ajouter.'}</div>
                   ) : Object.keys(TYPES_DOC).map((type) => {
                     const lot = documents.filter((d) => d.type === type)
                     if (!lot.length) return null
@@ -525,9 +528,9 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
                             <button type="button" onClick={() => ouvrirDocument(d)} style={btnSecondaire}>
                               <Download size={14} /> Ouvrir
                             </button>
-                            <button type="button" onClick={() => supprimerDocument(d)} style={btnDanger} aria-label="Supprimer le document">
+                            {canManage && <button type="button" onClick={() => supprimerDocument(d)} style={btnDanger} aria-label="Supprimer le document">
                               <Trash2 size={14} />
-                            </button>
+                            </button>}
                           </div>
                         ))}
                       </section>
@@ -537,7 +540,7 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
               )}
 
               {/* ─── ACTIVITÉ ────────────────────────────────────────── */}
-              {onglet === 'activite' && (
+              {canManage && onglet === 'activite' && (
                 <div>
                   <div style={{ ...carte, marginBottom: 18 }}>
                     <div style={{ fontSize: 28, fontWeight: 900, color: '#1e293b' }}>{shifts}</div>
