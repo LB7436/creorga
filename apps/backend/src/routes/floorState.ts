@@ -4,6 +4,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { safeReadJson, safeWriteJson } from '../lib/safe-json'
 import { dataPath } from '../middleware/audit-log'
 import logger from '../lib/logger'
+import { floorSchema, protectedFloorFieldsChanged } from '../lib/floor-validation'
 
 /**
  * Shared floor state — used by both 5174 (/pos/floor) and 5175 (POS standalone).
@@ -74,6 +75,8 @@ export interface FloorTable {
 }
 
 export interface FloorState {
+  posEditor?: any
+  kitchenTickets?: Record<string, any>
   tables: FloorTable[]
   chairs: FloorChair[]
   photos: FloorPhoto[]
@@ -97,8 +100,18 @@ const DEFAULT_STATE: FloorState = {
 }
 
 const FICHIER_HISTORIQUE = 'floor-state.json'
-interface FloorContext { companyId: string; draft?: FloorState }
+interface FloorContext { companyId: string; draft?: FloorState; paymentLock?: symbol }
 const floorContext = new AsyncLocalStorage<FloorContext>()
+const paymentLocks = new Map<string, symbol>()
+
+/** Empêche de modifier une addition pendant son commit comptable PostgreSQL. */
+export function lockFloorForPayment(): (() => void) | null {
+  const context = floorContext.getStore()
+  if (!context || paymentLocks.has(context.companyId)) return null
+  const token = Symbol('payment')
+  paymentLocks.set(context.companyId, token); context.paymentLock = token
+  return () => { if (paymentLocks.get(context.companyId) === token) paymentLocks.delete(context.companyId) }
+}
 
 /** Société portée par la requête courante (routes montées derrière floorCompanyContext). */
 export function currentFloorCompanyId(): string | undefined {
@@ -206,6 +219,26 @@ export function floorCompanyContext(req: Request, res: Response, next: NextFunct
       const draft = context.draft!
       const changed = JSON.stringify(draft) !== JSON.stringify(original)
       if (res.statusCode < 400 && changed) {
+        if (req.baseUrl === '/api/floor-state') {
+          for (const table of Array.isArray(draft.tables) ? draft.tables : []) {
+            const previous: any = original.tables.find(t => t.id === table.id)
+            if (previous?.posCovers && JSON.stringify(previous.items) !== JSON.stringify(table.items)) (table as any).posCovers = undefined
+          }
+        }
+        if (!floorSchema.safeParse(draft).success) {
+          res.status(400)
+          return originalJson({ error: 'Plan invalide : vérifiez les tables, les quantités, les images et leurs dimensions.', code: 'FLOOR_INVALID' })
+        }
+        const missingUnpaid = original.tables.some(t => !draft.tables.some(d => d.id === t.id) && (t.items.length || original.chairs.some(c => c.tableId === t.id && c.items.length)))
+        if (missingUnpaid) {
+          res.status(409)
+          return originalJson({ error: 'Une table impayée ne peut pas être supprimée ou remplacée.', code: 'FLOOR_UNPAID' })
+        }
+        const paymentLock = paymentLocks.get(companyId)
+        if (paymentLock && paymentLock !== context.paymentLock) {
+          res.status(409)
+          return originalJson({ error: 'Un encaissement est en cours. Réessayez après sa confirmation.', code: 'FLOOR_PAYMENT_IN_PROGRESS' })
+        }
         const expected = req.get('If-Match')?.replace(/"/g, '')
         if (states.get(companyId) !== original || (expected && expected !== String(original.updatedAt))) {
           res.status(409)
@@ -250,6 +283,20 @@ const router = Router()
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const TABLE_SHAPES = new Set<FloorTable['shape']>(['round', 'square', 'rect', 'bar'])
 const TABLE_STATUSES = new Set<TableStatus>(['LIBRE', 'OCCUPEE', 'RESERVEE', 'NETTOYAGE'])
+
+router.use((req, res, next) => {
+  const layoutAction = ['PUT', 'PATCH'].includes(req.method) && req.path === '/'
+    || /^\/(zones|photos|background|ai-generate|reset)(\/|$)/.test(req.path)
+    || /^\/tables$/.test(req.path) || /^\/tables\/[^/]+(\/position)?$/.test(req.path)
+  if (MUTATING.has(req.method) && layoutAction && !['OWNER', 'MANAGER'].includes((req as any).role)) return res.status(403).json({ error: 'La configuration des salles est réservée aux responsables.' })
+  if (['PUT', 'PATCH'].includes(req.method) && req.path === '/') {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Plan invalide.' })
+    if (protectedFloorFieldsChanged(getFloorState(), req.body)) return res.status(400).json({ error: 'Les règlements et la préparation cuisine ne peuvent pas être modifiés par un import de plan.' })
+    if (!req.get('If-Match')) return res.status(428).json({ error: 'Rechargez le plan avant de le remplacer.' })
+    if (Array.isArray(req.body.tables)) req.body.tables = req.body.tables.map((t: any) => ({ ...t, posCovers: (getFloorState().tables.find(old => old.id === t.id) as any)?.posCovers }))
+  }
+  next()
+})
 
 function texteCourt(value: unknown, max = 80): string | null {
   if (typeof value !== 'string') return null

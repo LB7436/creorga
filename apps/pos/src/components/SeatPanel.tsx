@@ -3,6 +3,7 @@ import { useEcranEtroit } from '../lib/ecran'
 import { motion } from 'framer-motion'
 import { useSeats, seatTotal, type Seat } from '../store/seatStore'
 import { usePOS } from '../store/posStore'
+import { checkoutServer } from '../lib/floorBridge'
 
 /**
  * Slide-out panel for a single chair (seat).
@@ -14,64 +15,9 @@ interface Props {
   onClose: () => void
 }
 
-const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
-
-/**
- * Menu rapide de la caisse.
- *
- * Ces huit lignes étaient CODÉES EN DUR et servaient à facturer. Mesuré le
- * 27/07/2026 sur la base réelle : « Burger » y était à 4,50 € quand le
- * back-office affichait 16,00 € pour « Burger maison » — soit 11,50 € de
- * manque à gagner par burger encaissé. La caisse doit facturer les prix du
- * back-office, jamais une copie locale.
- *
- * Les libellés ci-dessous ne servent plus qu'à choisir, parmi la carte
- * réelle, les produits mis en avant. Les PRIX viennent toujours du serveur.
- */
-const RACCOURCIS = ['Café', 'Espresso', 'Bière', 'Vin', 'Crémant', 'Burger', 'Frites', 'Plancha']
-
-interface ProduitCaisse { name: string; price: number }
-
-function useCarteCaisse(): { produits: ProduitCaisse[]; pret: boolean } {
-  const [produits, setProduits] = useState<ProduitCaisse[]>([])
-  const [pret, setPret] = useState(false)
-
-  useEffect(() => {
-    let annule = false
-    const companyId = (import.meta as any).env?.VITE_COMPANY_ID || ''
-
-    fetch(`${BACKEND}/api/portal-config/menu${companyId ? `?companyId=${encodeURIComponent(companyId)}` : ''}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((data) => {
-        if (annule) return
-        const tous: ProduitCaisse[] = (data.products || [])
-          .filter((p: any) => p.isActive !== false)
-          .map((p: any) => ({ name: p.name, price: Number(p.price) }))
-
-        // On met en avant les raccourcis quand ils existent dans la carte,
-        // puis on complète avec le reste : aucun produit n'est inventé.
-        const parNom = new Map(tous.map((p) => [p.name.toLowerCase(), p]))
-        const avant: ProduitCaisse[] = []
-        for (const libelle of RACCOURCIS) {
-          const trouve =
-            parNom.get(libelle.toLowerCase()) ||
-            tous.find((p) => p.name.toLowerCase().startsWith(libelle.toLowerCase()))
-          if (trouve && !avant.includes(trouve)) avant.push(trouve)
-        }
-        const reste = tous.filter((p) => !avant.includes(p))
-        setProduits([...avant, ...reste].slice(0, 24))
-        setPret(true)
-      })
-      .catch(() => {
-        // Aucun repli sur des prix locaux : encaisser un tarif non confirmé
-        // est pire que ne pas proposer le raccourci.
-        if (!annule) { setProduits([]); setPret(true) }
-      })
-
-    return () => { annule = true }
-  }, [])
-
-  return { produits, pret }
+function useCarteCaisse() {
+  const menu = usePOS(s => s.menu)
+  return { produits: menu.filter(p => p.active), pret: true }
 }
 
 export default function SeatPanel({ seatId, onClose }: Props) {
@@ -85,12 +31,25 @@ export default function SeatPanel({ seatId, onClose }: Props) {
   } = useSeats()
 
   const [showTransfer, setShowTransfer] = useState(false)
+  const [payMethod, setPayMethod] = useState<'cash' | 'card'>('cash')
+  const [payBusy, setPayBusy] = useState(false)
+  const [payMessage, setPayMessage] = useState('')
   const carte = useCarteCaisse()
 
   if (!seat) return null
 
   const parentTable = seat.tableId ? tables.find((t) => t.id === seat.tableId) : null
   const total = seatTotal(seat)
+  async function pay() {
+    if (!seat || payBusy || total <= 0) return
+    if (!window.confirm(payMethod === 'cash' ? `Confirmez avoir reçu ${total.toFixed(2)} € en espèces.` : `Le terminal bancaire a-t-il accepté ${total.toFixed(2)} € ?`)) return
+    setPayBusy(true); setPayMessage('')
+    try {
+      const sale = await checkoutServer(seat.tableId || `standalone-seat:${seat.id}`, payMethod, 0, [`seat:${seat.id}:${seat.createdAt}`], {}, total, payMethod === 'cash' ? total : undefined)
+      setPayMessage(`Règlement n° ${sale.numero} enregistré : ${sale.total.toFixed(2)} €. Ticket disponible au journal.`)
+    } catch (e: any) { setPayMessage(e.message) }
+    finally { setPayBusy(false) }
+  }
 
   return (
     <motion.div
@@ -170,15 +129,17 @@ export default function SeatPanel({ seatId, onClose }: Props) {
           color={seat.tableId ? '#06b6d4' : '#10b981'}
           disabled={!seat.tableId}
         />
-        <ActionBtn emoji="💳" label={`Payer ${total > 0 ? total.toFixed(2) + '€' : ''}`}
-                   onClick={() => alert(`Paiement chaise ${total.toFixed(2)} €`)}
-                   color="#10b981" disabled={total === 0} />
+        <label>Moyen de règlement<select aria-label="Moyen de règlement de la chaise" value={payMethod} onChange={e => setPayMethod(e.target.value as 'cash' | 'card')}><option value="cash">Espèces reçues</option><option value="card">Carte acceptée sur le terminal</option></select></label>
+        <ActionBtn emoji="💳" label={payBusy ? 'Confirmation…' : `Payer ${total > 0 ? total.toFixed(2) + '€' : ''}`}
+                   onClick={() => void pay()}
+                   color="#10b981" disabled={total === 0 || payBusy} />
         <ActionBtn emoji="🗑" label="Supprimer"
-                   onClick={() => { if (confirm('Supprimer cette chaise ?')) { removeSeat(seat.id); onClose() } }}
+                   onClick={() => { if (seat.items.length) { setPayMessage('Retirez ou réglez les articles avant de supprimer la chaise.'); return } if (confirm('Supprimer cette chaise ?')) { removeSeat(seat.id); onClose() } }}
                    color="#ef4444" />
       </div>
 
       {/* Items */}
+      {payMessage && <p role="status" style={{ padding: 14 }}>{payMessage}</p>}
       <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', letterSpacing: 1, marginBottom: 10 }}>
           📋 COMMANDE
@@ -205,7 +166,7 @@ export default function SeatPanel({ seatId, onClose }: Props) {
                   style={{ ...qtyBtn, background: 'rgba(239,68,68,0.2)', color: '#fca5a5' }}>×</button>
               </div>
             ))}
-            <button onClick={() => clearItems(seat.id)} style={{
+            <button onClick={() => { if (window.confirm('Annuler tous les articles de cette chaise sans encaissement ?')) clearItems(seat.id) }} style={{
               marginTop: 8, padding: '6px 12px', background: 'rgba(239,68,68,0.1)',
               border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6,
               color: '#fca5a5', cursor: 'pointer', fontSize: 11, fontWeight: 600,
@@ -227,7 +188,7 @@ export default function SeatPanel({ seatId, onClose }: Props) {
         <div style={{ display: 'grid', gap: 4, gridTemplateColumns: 'repeat(4, 1fr)' }}>
           {carte.produits.map((m) => (
             <button key={m.name}
-              onClick={() => addItem(seat.id, { menuItemId: m.name, name: m.name, price: m.price, qty: 1, note: '' })}
+              onClick={() => addItem(seat.id, { menuItemId: m.id, name: m.name, price: m.price, qty: 1, note: '' })}
               style={{
                 padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',
                 background: 'rgba(255,255,255,0.04)', color: '#e2e8f0', cursor: 'pointer',

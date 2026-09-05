@@ -162,7 +162,8 @@ export const useSeats = create<SeatState>()(
 
       reset: () => set({ seats: [] }),
     }),
-    { name: 'creorga-pos-seats' }
+    // L'ancien cache reste récupérable, mais n'est jamais importé entre sociétés.
+    { name: 'creorga-pos-seats-ui-v3', partialize: () => ({}) }
   )
 )
 

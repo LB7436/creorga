@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { usePOS, Cover, PayMethod, Remise, coverTotal, tableTotal } from '../store/posStore'
+import { usePOS, Cover, PayMethod, Remise, Vente, coverTotal, tableTotal } from '../store/posStore'
 import { useEcranEtroit } from '../lib/ecran'
+import { checkoutServer, flushFloor } from '../lib/floorBridge'
+import { api, sessionCompany } from '../lib/server'
 
 interface Props {
   tableId: string
@@ -23,15 +25,12 @@ const PAY_METHODS: { id: PayMethod; label: string; icon: string }[] = [
 
 const QUICK_CASH = [5, 10, 20, 50, 100]
 const TIP_PRESETS = [5, 10, 15, 20]
-const STAFF_LIST = ['Marie', 'Thomas', 'Sophie', 'Paul']
-const DEMO_PROMOS: Record<string, number> = { 'BIENVENUE10': 10, 'ETE5': 5, 'FIDELE20': 20 }
-const DEMO_GIFTS: Record<string, number> = { 'GC-2024-ABCD': 25, 'GC-XMAS-1234': 50 }
 
 const LS_RECEIPT_PREFS = 'creorga_pos_receipt_prefs'
 
 function fmt(n: number) { return n.toFixed(2) + ' €' }
 function uid() { return Math.random().toString(36).slice(2, 9) }
-function roundUp50(n: number) { return Math.ceil(n / 50) * 50 }
+function roundUp50(n: number) { return Math.ceil(n) }
 
 /* ── Seeded QR pattern (stable across renders) ───────────────────────────────── */
 function useQrPattern(seed: string) {
@@ -114,7 +113,7 @@ function Receipt({
           textAlign: 'center' as const,
         }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: '#a5b4fc', letterSpacing: '0.2em' }}>CREORGA</div>
-          <div style={{ fontSize: 9, color: '#64748b' }}>Restaurant démo · Luxembourg</div>
+          <div style={{ fontSize: 11, color: '#cbd5e1' }}>{usePOS.getState().settings.restaurantName}</div>
         </div>
       )}
       {covers.map(cover => (
@@ -191,7 +190,7 @@ function Receipt({
               textAlign: 'center' as const,
             }}>
               <div style={{ fontSize: 9, color: '#6ee7b7', fontWeight: 700, letterSpacing: '0.05em' }}>
-                PROCHAINE VISITE
+                CODE UTILISÉ
               </div>
               <div style={{ fontSize: 13, fontWeight: 800, color: '#10b981' }}>{promoNext}</div>
             </div>
@@ -226,16 +225,23 @@ function SuccessOverlay({
   amount, change, method, onFinish, defaultMode,
 }: {
   amount: number; change: number | null; method: PayMethod
-  onFinish: (mode: ReceiptMode) => void; defaultMode: ReceiptMode | null
+  onFinish: (mode: ReceiptMode, contact: string) => Promise<void>; defaultMode: ReceiptMode | null
 }) {
   const [receiptMode, setReceiptMode] = useState<ReceiptMode | null>(defaultMode)
   const [contact, setContact] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function finish() {
+    if (!receiptMode || busy) return
+    setBusy(true); setError('')
+    try { await onFinish(receiptMode, contact) } catch (e: any) { setError(e.message) } finally { setBusy(false) }
+  }
 
   const options: { id: ReceiptMode; label: string; icon: string }[] = [
     { id: 'paper', label: 'Ticket papier',  icon: '🧾' },
     { id: 'email', label: 'Email client',    icon: '✉️' },
     { id: 'sms',   label: 'SMS',             icon: '💬' },
-    { id: 'qr',    label: 'QR code',         icon: '🔳' },
+    { id: 'qr',    label: 'Ticket numérique', icon: '📄' },
     { id: 'none',  label: 'Pas de ticket',   icon: '✕' },
   ]
 
@@ -267,7 +273,7 @@ function SuccessOverlay({
       </motion.div>
 
       <div style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', marginBottom: 6 }}>
-        Paiement reçu
+        Règlement enregistré
       </div>
       <div style={{ fontSize: 30, fontWeight: 900, color: '#10b981', marginBottom: 10 }}>
         {fmt(amount)}
@@ -333,8 +339,8 @@ function SuccessOverlay({
 
         <motion.button
           whileTap={{ scale: 0.97 }}
-          onClick={() => receiptMode && onFinish(receiptMode)}
-          disabled={!receiptMode}
+          onClick={finish}
+          disabled={!receiptMode || busy}
           style={{
             marginTop: 14, width: '100%', padding: '12px 0',
             borderRadius: 12, border: 'none',
@@ -346,8 +352,9 @@ function SuccessOverlay({
             cursor: receiptMode ? 'pointer' : 'not-allowed', fontFamily: 'inherit',
           }}
         >
-          {receiptMode ? 'Terminer' : 'Sélectionnez une option'}
+          {busy ? 'Traitement…' : receiptMode === 'email' ? 'Envoyer le ticket' : receiptMode ? 'Terminer' : 'Sélectionnez une option'}
         </motion.button>
+        {error && <p role="alert" style={{ color: '#fda4af' }}>{error}</p>}
       </div>
     </motion.div>
   )
@@ -356,7 +363,9 @@ function SuccessOverlay({
 /* ── Main ────────────────────────────────────────────────────────────────────── */
 export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   const table = usePOS(s => s.tables.find(t => t.id === tableId))
-  const processPayment = usePOS(s => s.processPayment)
+  const [confirmed, setConfirmed] = useState<{ sale: Vente; change: number | null } | null>(null)
+  const [paying, setPaying] = useState(false)
+  const [receiptRequestId] = useState(() => crypto.randomUUID())
   // Telephone : recap et paiement s'empilent, plus de panneau de 40 % sur 375 px.
   const etroit = useEcranEtroit()
 
@@ -375,14 +384,14 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   const [tipIsCustom, setTipIsCustom] = useState(false)
   const [tipMode, setTipMode] = useState<TipMode>('percent')
   const [splitTip, setSplitTip] = useState(false)
-  const [connectedStaff] = useState(STAFF_LIST.slice(0, 3))
+  const connectedStaff = usePOS(s => s.staff.map(member => member.name))
 
   const [equalParts, setEqualParts] = useState(2)
   const [done, setDone] = useState(false)
   const [cashInput, setCashInput] = useState('')
 
   const [promoCode, setPromoCode] = useState('')
-  const [appliedPromo, setAppliedPromo] = useState<{ code: string; pct: number } | null>(null)
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; pct: number; fixed?: number } | null>(null)
   const [promoError, setPromoError] = useState('')
 
   const [giftCode, setGiftCode] = useState('')
@@ -410,7 +419,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
 
   // Receipt customization
   const [receiptLogo, setReceiptLogo] = useState(true)
-  const [receiptMsg, setReceiptMsg] = useState('Merci de votre visite !')
+  const [receiptMsg, setReceiptMsg] = useState(usePOS.getState().settings.receiptFooter || 'Merci de votre visite !')
   const [receiptPromo, setReceiptPromo] = useState(true)
 
   // Print/save preferences (last 3 modes)
@@ -427,20 +436,13 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   }, [])
 
   // Demo loyalty state
-  const hasClient = true
-  const clientPoints = 142
+  const hasClient = false
+  const clientPoints = 0
   const pointsValue = Math.floor(clientPoints / 10)
 
   const qrCells = useQrPattern(tableId + Date.now().toString().slice(-4))
 
-  // Simulate QR status progression when modal opens
-  useEffect(() => {
-    if (!showQr) return
-    setQrStatus('waiting')
-    const t1 = setTimeout(() => setQrStatus('scanned'), 2600)
-    const t2 = setTimeout(() => setQrStatus('paid'), 5200)
-    return () => { clearTimeout(t1); clearTimeout(t2) }
-  }, [showQr])
+  // Aucun paiement n'est simulé : seul le fournisseur peut confirmer un paiement en ligne.
 
   if (!table) return null
 
@@ -451,33 +453,37 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   const dejaRegles = table.covers.filter(c => c.paidAt)
   const grandTotal = covers.reduce((s, c) => s + coverTotal(c), 0)
 
-  const payingCovers = useMemo(() => {
+  const payingCovers = (() => {
     if (splitMode === 'full') return covers
     if (splitMode === 'by-cover') return covers.filter(c => selectedCoverIds.has(c.id))
     return covers
-  }, [splitMode, covers, selectedCoverIds])
+  })()
 
   const subtotal = payingCovers.reduce((s, c) => s + coverTotal(c), 0)
 
-  const promoDiscount = appliedPromo ? subtotal * (appliedPromo.pct / 100) : 0
+  const promoDiscount = appliedPromo ? Math.min(subtotal, appliedPromo.fixed ?? subtotal * (appliedPromo.pct / 100)) : 0
   const giftDiscount = appliedGift ? Math.min(appliedGift.balance, subtotal - promoDiscount) : 0
   const pointsDiscount = usePoints ? pointsValue : 0
   const memberReduction = memberDiscount > 0 ? subtotal * (memberDiscount / 100) : 0
-  const totalDiscount = promoDiscount + giftDiscount + pointsDiscount + memberReduction
+  const gesture = table.orderDiscount
+  const gestureDiscount = (gesture ? gesture.type === 'free' ? subtotal : gesture.type === 'percent' ? subtotal * Math.min(100, gesture.value) / 100 : Math.min(subtotal, gesture.value * subtotal / Math.max(0.01, grandTotal)) : 0)
+    + payingCovers.flatMap(c => c.items).filter(i => table.offeredItemIds?.includes(i.id)).reduce((s, i) => s + i.price * i.qty, 0)
+  const appliedGesture = Math.max(0, Math.min(subtotal - promoDiscount - giftDiscount, gestureDiscount))
+  const totalDiscount = promoDiscount + giftDiscount + pointsDiscount + memberReduction + appliedGesture
   const afterDiscount = Math.max(0, subtotal - totalDiscount)
 
-  const tipAmount = useMemo(() => {
+  const tipAmount = (() => {
     if (tipIsCustom) {
       const v = parseFloat(customTip)
       if (isNaN(v)) return 0
       return tipMode === 'percent' ? afterDiscount * (v / 100) : v
     }
     return afterDiscount * (tipPercent / 100)
-  }, [tipIsCustom, customTip, tipPercent, afterDiscount, tipMode])
+  })()
 
   const perPersonAmount = splitMode === 'equal' ? (afterDiscount + tipAmount) / equalParts : 0
 
-  // Round up to next 50€
+  // Arrondi volontaire au prochain euro, à reverser par l'établissement.
   const baseTotal = afterDiscount + tipAmount
   const roundUpTarget = roundUp ? roundUp50(baseTotal) : baseTotal
   const charityAmount = roundUp ? roundUpTarget - baseTotal : 0
@@ -489,10 +495,10 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   const remaining = Math.max(0, totalToPay - paidSoFar)
   const paidPct = totalToPay > 0 ? Math.min(100, (paidSoFar / totalToPay) * 100) : 0
 
-  const cashChange = useMemo(() => {
+  const cashChange = (() => {
     const v = parseFloat(cashInput)
     return isNaN(v) ? null : v - totalToPay
-  }, [cashInput, totalToPay])
+  })()
 
   function toggleCover(coverId: string) {
     setSelectedCoverIds(prev => {
@@ -515,36 +521,27 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
     setPartials(p => p.filter(x => x.id !== id))
   }
 
-  function applyPromo() {
+  async function applyPromo() {
     const code = promoCode.trim().toUpperCase()
     if (!code) return
-    const pct = DEMO_PROMOS[code]
-    if (!pct) {
-      setPromoError('Code invalide')
-      setTimeout(() => setPromoError(''), 2000)
-      return
-    }
-    setAppliedPromo({ code, pct })
-    setPromoCode('')
+    try {
+      const benefit = await api('/pos/benefit', { method: 'POST', body: JSON.stringify({ type: 'promo', code }) })
+      setAppliedPromo({ code, pct: benefit.type === 'PERCENT' ? benefit.value : 0, fixed: benefit.type === 'FIXED' ? benefit.value : undefined })
+      setPromoCode(''); setPromoError('')
+    } catch (e: any) { setPromoError(e.message) }
   }
 
-  function applyGift() {
+  async function applyGift() {
     const code = giftCode.trim().toUpperCase()
     if (!code) return
-    const bal = DEMO_GIFTS[code]
-    if (!bal) {
-      setGiftError('Carte introuvable')
-      setTimeout(() => setGiftError(''), 2000)
-      return
-    }
-    setAppliedGift({ code, balance: bal })
-    setGiftCode('')
+    try {
+      const benefit = await api('/pos/benefit', { method: 'POST', body: JSON.stringify({ type: 'gift', code }) })
+      setAppliedGift({ code, balance: benefit.balance }); setGiftCode(''); setGiftError('')
+    } catch (e: any) { setGiftError(e.message) }
   }
 
   function completeMemberSignup() {
-    if (!memberName.trim() || !memberEmail.trim()) return
-    setIsMember(true)
-    setMemberDiscount(10)
+    setErreurEncaissement('Créez ou rattachez ce client dans le fichier clients. Une remise membre nécessite un programme client vérifié.')
     setShowMemberForm(false)
   }
 
@@ -557,16 +554,23 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
    * — le ticket Z surévaluait l'encaissé. Même chose pour le règlement mixte,
    * inscrit sur la seule méthode principale.
    */
-  function handleConfirm() {
+  async function handleConfirm() {
+    if (paying) return
+    setPaying(true); setErreurEncaissement(null)
+    if (keepOpen) {
+      try { await flushFloor(); onDone() } catch (e: any) { setErreurEncaissement(e.message) } finally { setPaying(false) }
+      return
+    }
     const ids = splitMode === 'by-cover' ? [...selectedCoverIds] : undefined
 
     const remises: Remise[] = []
     if (appliedPromo && promoDiscount > 0) {
-      remises.push({ type: 'promo', libelle: `Code ${appliedPromo.code} (-${appliedPromo.pct} %)`, montant: promoDiscount })
+      remises.push({ type: 'promo', code: appliedPromo.code, libelle: `Code ${appliedPromo.code}`, montant: promoDiscount })
     }
     if (appliedGift && giftDiscount > 0) {
-      remises.push({ type: 'carte_cadeau', libelle: `Carte cadeau ${appliedGift.code}`, montant: giftDiscount })
+      remises.push({ type: 'carte_cadeau', code: appliedGift.code, libelle: `Carte cadeau ${appliedGift.code}`, montant: giftDiscount })
     }
+    if (appliedGesture > 0) remises.push({ type: 'geste', libelle: 'Geste commercial responsable', montant: Math.round(appliedGesture * 100) / 100 })
     if (usePoints && pointsDiscount > 0) {
       remises.push({ type: 'points', libelle: `${clientPoints} points fidélité`, montant: pointsDiscount })
     }
@@ -582,18 +586,37 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
       : undefined
 
     try {
-      processPayment(tableId, method, tipAmount, ids, {
+      const received = Number.parseFloat(cashInput)
+      const sale = await checkoutServer(tableId, method, tipAmount, ids, {
         remises,
         arrondiCaritatif: charityAmount,
         reglements,
-      })
+        receipt: { message: receiptMsg, includeBrand: receiptLogo, includePromo: receiptPromo },
+      }, totalToPay, Number.isFinite(received) ? received : undefined)
+      setConfirmed({ sale, change: method === 'cash' && Number.isFinite(received) ? Math.round((received - sale.total) * 100) / 100 : null })
       setDone(true)
     } catch (e) {
       setErreurEncaissement(e instanceof Error ? e.message : 'Encaissement refusé.')
-    }
+    } finally { setPaying(false) }
   }
 
-  function handleFinish(mode: ReceiptMode) {
+  async function handleFinish(mode: ReceiptMode, contact: string) {
+    if (!confirmed) throw new Error('Aucun règlement confirmé.')
+    if (mode === 'sms') throw new Error('Aucun fournisseur SMS n’est configuré. Choisissez email, papier ou ticket numérique.')
+    if (mode === 'email') {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) throw new Error('Saisissez une adresse email valide.')
+      await api(`/pos/sales/${confirmed.sale.id}/email`, { method: 'POST', body: JSON.stringify({ requestId: receiptRequestId, to: contact }) })
+    }
+    if (mode === 'paper' || mode === 'qr') {
+      const popup = mode === 'paper' ? window.open('', '_blank') : null
+      try {
+        const html = await api<string>(`/pos/sales/${confirmed.sale.id}/receipt`)
+        const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }))
+        if (mode === 'paper' && popup) { popup.location.href = url; popup.onload = () => { popup.focus(); popup.print() } }
+        else { const a = document.createElement('a'); a.href = url; a.download = `ticket-${confirmed.sale.numero}.html`; a.click() }
+        setTimeout(() => URL.revokeObjectURL(url), 60000)
+      } catch (e) { popup?.close(); throw e }
+    }
     // Persist last 3 choices
     const next = [mode, ...recentReceiptModes.filter(m => m !== mode)].slice(0, 3)
     setRecentReceiptModes(next)
@@ -610,9 +633,9 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
       <AnimatePresence>
         {done && (
           <SuccessOverlay
-            amount={totalToPay}
-            change={cashChange}
-            method={method}
+            amount={confirmed?.sale.total ?? 0}
+            change={confirmed?.change ?? null}
+            method={confirmed?.sale.methode ?? method}
             onFinish={handleFinish}
             defaultMode={recentReceiptModes[0] ?? null}
           />
@@ -887,7 +910,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
             customMsg={receiptMsg}
             includeLogo={receiptLogo}
             includePromo={receiptPromo}
-            promoNext="REVENEZ10 · −10% prochaine visite"
+            promoNext={appliedPromo?.code}
           />
 
           {/* Receipt customization */}
@@ -909,7 +932,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
                 onChange={e => setReceiptPromo(e.target.checked)}
                 style={{ accentColor: '#6366f1', width: 15, height: 15 }}
               />
-              <span style={{ fontSize: 12, color: '#94a3b8' }}>Code promo prochaine visite</span>
+              <span style={{ fontSize: 12, color: '#cbd5e1' }}>Afficher le code promo utilisé</span>
             </label>
             <input
               placeholder="Message personnalisé"
@@ -976,7 +999,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
             </div>
             {roundUp && charityAmount > 0 && (
               <div style={{ fontSize: 12, color: '#fca5a5', marginTop: 6 }}>
-                dont <strong>+{fmt(charityAmount)}</strong> pour la Croix-Rouge 🤝
+                dont <strong>+{fmt(charityAmount)}</strong> à reverser par l’établissement
               </div>
             )}
             {splitMode === 'equal' && (
@@ -1138,10 +1161,10 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
               <span style={{ fontSize: 20 }}>➕</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 700, color: '#e2e8f0' }}>
-                  Arrondir à {roundUp50(baseTotal)}€ pour Croix-Rouge Luxembourg
+                  Arrondir à {roundUp50(baseTotal)}€ — montant à reverser
                 </div>
                 <div style={{ fontSize: 11, color: '#fca5a5', marginTop: 2 }}>
-                  +{fmt(roundUp50(baseTotal) - baseTotal)} pour solidarité 🤝
+                  +{fmt(roundUp50(baseTotal) - baseTotal)} collectés ; aucun reversement automatique
                 </div>
               </div>
             </label>
@@ -1159,7 +1182,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
               }}>
               <span style={{ fontSize: 18 }}>💚</span>
               <span style={{ fontSize: 12, color: '#6ee7b7' }}>
-                D'autres clients laissent en moyenne <strong>15%</strong> de pourboire
+                Le pourboire est facultatif : choisissez librement son montant.
               </span>
             </motion.div>
           )}
@@ -1205,7 +1228,13 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                   <motion.button
                     whileTap={{ scale: 0.96 }}
-                    onClick={() => setShowQr(true)}
+                    onClick={async () => {
+                      if (covers.some(c => !c.id.startsWith('guest:'))) { setErreurEncaissement('Le paiement en ligne concerne les commandes passées depuis le portail QR. Pour cette addition, utilisez les espèces ou votre terminal bancaire.'); return }
+                      try {
+                        const payment = await api('/guest/pay', { method: 'POST', body: JSON.stringify({ companyId: sessionCompany(), tableId }) })
+                        if (payment.url) window.location.assign(payment.url)
+                      } catch (e: any) { setErreurEncaissement(e.message) }
+                    }}
                     style={walletBtn('linear-gradient(135deg, #6366f1, #4f46e5)')}
                   >
                     <span style={{ fontSize: 14 }}>🔳</span>
@@ -1214,6 +1243,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
                   <motion.button
                     whileTap={{ scale: 0.96 }}
                     style={walletBtn('#000')}
+                    onClick={() => { setMethod('contactless'); setErreurEncaissement('Apple Pay : utilisez votre terminal bancaire compatible et ne confirmez l’encaissement qu’après son acceptation.') }}
                   >
                     <span style={{ fontSize: 14 }}>&#63743;</span>
                     <span style={{ fontSize: 11, fontWeight: 700 }}>Apple Pay</span>
@@ -1221,6 +1251,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
                   <motion.button
                     whileTap={{ scale: 0.96 }}
                     style={walletBtn('#1a73e8')}
+                    onClick={() => { setMethod('contactless'); setErreurEncaissement('Google Pay : utilisez votre terminal bancaire compatible et ne confirmez l’encaissement qu’après son acceptation.') }}
                   >
                     <span style={{ fontSize: 14 }}>G</span>
                     <span style={{ fontSize: 11, fontWeight: 700 }}>Google Pay</span>
@@ -1473,6 +1504,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
               whileTap={{ scale: 0.97 }}
               whileHover={{ boxShadow: '0 6px 36px rgba(16,185,129,0.45)' }}
               onClick={handleConfirm}
+              disabled={paying}
               style={{
                 display: 'block', width: '100%', padding: '16px 0',
                 borderRadius: 16, border: 'none',

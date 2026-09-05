@@ -8,7 +8,7 @@ import { findStaleSessions } from '../jobs/closeStaleFloorSessions'
 
 function appFor(companyId: string) {
   const app = express().use(express.json())
-  app.use((req, _res, next) => { (req as any).companyId = companyId; next() })
+  app.use((req, _res, next) => { (req as any).companyId = companyId; (req as any).role = 'OWNER'; next() })
   app.use(floorCompanyContext)
   app.post('/delayed', async (_req, res) => {
     getFloorState().zones.push({ id: 'delayed', name: 'Conflit' })

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { checkoutServer, flushFloor } from '../lib/floorBridge'
 import {
   usePOS,
   MENU_CATEGORIES,
@@ -29,11 +30,7 @@ const STATION_LABELS: Record<Station, string> = {
 }
 
 // Customer notes (per recurring customer, mock stored)
-const CUSTOMER_NOTES: Record<string, string[]> = {
-  't5': ['Préfère sans épices', 'Allergie aux arachides', 'Toujours vin rouge léger'],
-  't3': ['Client VIP — service attentif', 'Anniversaire en octobre'],
-  't7': ['Régime sans gluten strict'],
-}
+const CUSTOMER_NOTES: Record<string, string[]> = {}
 
 // Performance stats (mocked)
 const INITIAL_STATS = {
@@ -43,18 +40,19 @@ const INITIAL_STATS = {
 export default function WaiterMode({ onExit }: { onExit: () => void }) {
   const tables = usePOS(s => s.tables)
   const menu = usePOS(s => s.menu).filter(m => m.active)
+  const categories = [...new Set(menu.map(m => m.category))]
   const settings = usePOS(s => s.settings)
   const currentStaff = usePOS(s => s.currentStaff)
   const addItem = usePOS(s => s.addItem)
   const removeItem = usePOS(s => s.removeItem)
   const setItemQty = usePOS(s => s.setItemQty)
-  const processPayment = usePOS(s => s.processPayment)
+  const [paying, setPaying] = useState(false)
   const openTable = usePOS(s => s.openTable)
 
-  const [selectedTableId, setSelectedTableId] = useState<string>('t3')
+  const [selectedTableId, setSelectedTableId] = useState<string>(tables[0]?.id || '')
   const [secondaryTableId, setSecondaryTableId] = useState<string | null>(null)
   const [tertiaryTableId, setTertiaryTableId] = useState<string | null>(null)
-  const [activeCat, setActiveCat] = useState(MENU_CATEGORIES[0])
+  const [activeCat, setActiveCat] = useState(categories[0] || '')
   const [clock, setClock] = useState(new Date())
   const [toast, setToast] = useState<{ text: string; color?: string } | null>(null)
   const [flashItemId, setFlashItemId] = useState<string | null>(null)
@@ -82,7 +80,8 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
 
   // Stats panel
   const [statsOpen, setStatsOpen] = useState(false)
-  const stats = INITIAL_STATS
+  const sales = usePOS(s => s.ventes).filter(v => v.vendeur === currentStaff?.name)
+  const stats = { tables: new Set(sales.map(v => v.tableId)).size, avgTime: 0, tips: sales.reduce((s, v) => s + v.pourboire, 0), orders: sales.length }
 
   // Help
   const [helpSent, setHelpSent] = useState(false)
@@ -134,7 +133,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
   const totalTTC = total
   const coverCount = selectedTable?.covers.length ?? 0
 
-  const customerNotes = CUSTOMER_NOTES[selectedTableId] || []
+  const customerNotes = [selectedTable?.orderNote, selectedTable?.kitchenNote].filter(Boolean) as string[]
 
   // Auto-open table
   useEffect(() => {
@@ -170,16 +169,23 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
     }
   }
 
-  function sendToStation(station: Station | 'auto') {
+  async function sendToStation(station: Station | 'auto') {
     const label = station === 'auto' ? 'stations auto' : STATION_LABELS[station]
-    setToast({ text: `Envoyé vers ${label} ✓`, color: station === 'auto' ? '#10b981' : STATION_COLORS[station] })
+    try { await flushFloor(); setToast({ text: `Commande enregistrée — visible en cuisine (${label})`, color: '#10b981' }) }
+    catch (e: any) { setToast({ text: e.message, color: '#fb7185' }) }
   }
 
-  function handlePayment() {
-    processPayment(selectedTableId, 'card', 0)
-    setToast({ text: 'Paiement effectué ✓' })
-    const nextOccupied = tables.find(t => t.id !== selectedTableId && t.status === 'occupied')
-    if (nextOccupied) setSelectedTableId(nextOccupied.id)
+  async function handlePayment() {
+    if (paying || !window.confirm('Confirmer que le paiement a été accepté par votre terminal bancaire ?')) return
+    setPaying(true)
+    try {
+      const table = tables.find(t => t.id === selectedTableId)
+      const total = table?.covers.filter(c => !c.paidAt).flatMap(c => c.items).reduce((s, i) => s + i.price * i.qty, 0) || 0
+      await checkoutServer(selectedTableId, 'card', 0, undefined, {}, total)
+      setToast({ text: 'Règlement enregistré sur le serveur ✓' })
+      const nextOccupied = tables.find(t => t.id !== selectedTableId && t.status === 'occupied')
+      if (nextOccupied) setSelectedTableId(nextOccupied.id)
+    } catch (e: any) { setToast({ text: e.message, color: '#fb7185' }) } finally { setPaying(false) }
   }
 
   function submitNote() {
@@ -202,9 +208,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
   }
 
   function callHelp() {
-    setHelpSent(true)
-    setToast({ text: '🆘 Manager alerté !', color: '#f43f5e' })
-    setTimeout(() => setHelpSent(false), 5000)
+    setToast({ text: 'Aucun canal d’alerte responsable n’est configuré. Appelez votre responsable directement.', color: '#f43f5e' })
   }
 
   const formatTime = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
@@ -499,7 +503,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
             overflowX: 'auto', flexShrink: 0,
             borderBottom: '1px solid rgba(255,255,255,0.04)',
           }}>
-            {MENU_CATEGORIES.map(cat => {
+            {categories.map(cat => {
               const isActive = cat === activeCat
               return (
                 <button
@@ -935,7 +939,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
               {[
                 { label: 'Tables servies', value: stats.tables, unit: '', color: '#6366f1' },
-                { label: 'Temps moyen', value: stats.avgTime, unit: 'min', color: '#10b981' },
+                { label: 'Temps moyen', value: 'Non mesuré', unit: '', color: '#10b981' },
                 { label: 'Pourboires', value: stats.tips.toFixed(2), unit: '€', color: '#f59e0b' },
                 { label: 'Commandes', value: stats.orders, unit: '', color: '#ec4899' },
               ].map(s => (
@@ -1034,7 +1038,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                 🎤 Note vocale pour cuisine
               </div>
               <motion.button
-                onClick={() => setIsRecording(v => !v)}
+                onClick={() => setToast({ text: 'La capture vocale n’est pas raccordée. Utilisez une note texte : aucun son n’a été enregistré.', color: '#f43f5e' })}
                 animate={isRecording ? { scale: [1, 1.1, 1] } : {}}
                 transition={{ repeat: isRecording ? Infinity : 0, duration: 1.2 }}
                 style={{
@@ -1048,7 +1052,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                 {isRecording ? '⏹' : '🎤'}
               </motion.button>
               <div style={{ marginTop: 20, fontSize: 16, fontWeight: 700, color: '#fff' }}>
-                {isRecording ? `Enregistrement... ${recordDuration}s` : 'Appuyez pour parler'}
+                {isRecording ? `Enregistrement... ${recordDuration}s` : 'Capture vocale non raccordée — utilisez une note texte'}
               </div>
               {isRecording && (
                 <div style={{
@@ -1070,7 +1074,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                 onClick={() => {
                   setShowVoiceModal(false)
                   setIsRecording(false)
-                  if (recordDuration > 0) setToast({ text: `🎤 Note envoyée (${recordDuration}s)`, color: '#8b5cf6' })
+                  setToast({ text: 'Aucun enregistrement vocal envoyé.', color: '#8b5cf6' })
                 }}
                 style={{
                   marginTop: 20, padding: '10px 24px', borderRadius: 10,
@@ -1128,7 +1132,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                   <>
                     <span style={{ fontSize: 64, opacity: 0.3 }}>📸</span>
                     <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>
-                      Viseur caméra (mock)
+                      Ajout de photo non raccordé — aucune capture effectuée
                     </div>
                   </>
                 )}
@@ -1147,13 +1151,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                 </button>
                 <button
                   onClick={() => {
-                    if (photoTaken) {
-                      setShowPhotoModal(false)
-                      setPhotoTaken(false)
-                      setToast({ text: '📷 Photo jointe à la commande', color: '#06b6d4' })
-                    } else {
-                      setPhotoTaken(true)
-                    }
+                    setToast({ text: 'Aucune photo enregistrée. Cette fonction nécessite un véritable parcours de capture et de stockage.', color: '#f43f5e' })
                   }}
                   style={{
                     flex: 2, padding: '12px 0', borderRadius: 10, border: 'none',

@@ -653,19 +653,23 @@ export default function FloorPlanEditor({ onBack }: Props) {
   const [showResetConfirm, setShowResetConfirm] = useState(false)
 
   /* ── Fixtures */
-  const [fixtures, setFixtures] = useState<Fixture[]>(loadFixtures)
+  const editor = usePOS(s => s.editor)
+  const fixtures: Fixture[] = editor.fixtures
+  const setFixtures = (next: Fixture[] | ((previous: Fixture[]) => Fixture[])) => usePOS.setState(s => ({ editor: { ...s.editor, fixtures: typeof next === 'function' ? next(s.editor.fixtures) : next } }))
   const [placementFixture, setPlacementFixture] = useState<string | null>(null)
   const [selectedFixtureId, setSelectedFixtureId] = useState<string | null>(null)
   const [fixtureDeleteConfirm, setFixtureDeleteConfirm] = useState(false)
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({})
 
   /* ── Rooms (multi-room support) */
-  const [rooms, setRooms] = useState<Room[]>(loadRooms)
+  const rooms: Room[] = editor.rooms
+  const setRooms = (next: Room[] | ((previous: Room[]) => Room[])) => usePOS.setState(s => ({ editor: { ...s.editor, rooms: typeof next === 'function' ? next(s.editor.rooms) : next } }))
   const [activeRoom, setActiveRoom] = useState<string>(rooms[0]?.id || 'Salle')
   const [showRoomEditor, setShowRoomEditor] = useState(false)
 
   /* ── Scenes (presets) */
-  const [scenes, setScenes] = useState<Scene[]>(loadScenes)
+  const scenes: Scene[] = editor.scenes
+  const setScenes = (next: Scene[] | ((previous: Scene[]) => Scene[])) => usePOS.setState(s => ({ editor: { ...s.editor, scenes: typeof next === 'function' ? next(s.editor.scenes) : next } }))
   const [showScenesPanel, setShowScenesPanel] = useState(false)
 
   /* ── Drag state */
@@ -705,7 +709,8 @@ export default function FloorPlanEditor({ onBack }: Props) {
   const [importText, setImportText] = useState('')
 
   /* ── Background image */
-  const [bgImage, setBgImage] = useState<string | null>(loadBackground)
+  const bgImage = editor.background
+  const setBgImage = (background: string | null) => usePOS.setState(s => ({ editor: { ...s.editor, background } }))
   const [bgOpacity, setBgOpacity] = useState(0.35)
 
   /* ── Walk mode */
@@ -736,11 +741,7 @@ export default function FloorPlanEditor({ onBack }: Props) {
     return FIXTURE_DEFS.find(d => d.type === placementFixture) ?? null
   }, [placementFixture])
 
-  /* ── Persist */
-  useEffect(() => { saveFixtures(fixtures) }, [fixtures])
-  useEffect(() => { saveRooms(rooms) }, [rooms])
-  useEffect(() => { saveScenes(scenes) }, [scenes])
-  useEffect(() => { saveBackground(bgImage) }, [bgImage])
+  // L'éditeur partage l'état serveur du plan ; aucune copie locale divergente.
 
   /* ── History push ─ */
   const pushHistory = useCallback(() => {
@@ -1057,9 +1058,9 @@ export default function FloorPlanEditor({ onBack }: Props) {
   }
   const handleReset = () => {
     if (!showResetConfirm) { setShowResetConfirm(true); return }
-    resetData()
+    try { resetData() } catch (e: any) { window.alert(e.message); setShowResetConfirm(false); return }
     setFixtures([])
-    setRooms(DEFAULT_ROOMS)
+    setRooms([])
     setSelectedId(null); setSelectedFixtureId(null); setShowResetConfirm(false)
     pushHistory()
   }
@@ -1219,6 +1220,7 @@ export default function FloorPlanEditor({ onBack }: Props) {
   }
   const removeRoom = (id: string) => {
     if (rooms.length <= 1) return
+    if (tables.some(t => t.section === id)) { window.alert('Déplacez les tables avant de supprimer cette salle.'); return }
     setRooms(prev => prev.filter(r => r.id !== id))
     if (activeRoom === id && rooms[0]) setActiveRoom(rooms[0].id)
     pushHistory()
@@ -2556,7 +2558,7 @@ function RoomEditorModal({ rooms, onUpdate, onRemove, onAdd, onClose }: any) {
                 width: 16, height: 16, borderRadius: 4,
                 background: r.color,
               }} />
-              <input value={r.label}
+              <input aria-label="Nom de la salle" value={r.label}
                 onChange={e => onUpdate(r.id, { label: e.target.value })}
                 style={{
                   flex: 1, padding: '6px 10px', borderRadius: 6,
@@ -2642,6 +2644,7 @@ function ModalShell({ children, onClose, title, wide }: {
       }}
     >
       <motion.div
+        role="dialog" aria-modal="true" aria-label={title}
         initial={{ scale: 0.92, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.92, y: 20 }}
@@ -2667,7 +2670,7 @@ function ModalShell({ children, onClose, title, wide }: {
           }}>
             {title}
           </span>
-          <button onClick={onClose} style={{
+          <button aria-label="Fermer" onClick={onClose} style={{
             width: 32, height: 32, borderRadius: 8,
             border: '1px solid rgba(255,255,255,0.1)',
             background: 'rgba(255,255,255,0.05)',

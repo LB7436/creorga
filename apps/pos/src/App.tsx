@@ -4,7 +4,8 @@ import FloorPlanPage from './pages/FloorPlanPage'
 import OrderPage from './pages/OrderPage'
 import PaymentPage from './pages/PaymentPage'
 import ConfigPage from './pages/ConfigPage'
-import PinLoginPage from './pages/PinLoginPage'
+import ServerLoginPage from './pages/ServerLoginPage'
+import { flushFloor, loadServerState, logoutServer, enterPublicKiosk } from './lib/floorBridge'
 import KioskPage from './pages/KioskPage'
 import FloorPlanEditor from './pages/FloorPlanEditor'
 import WaiterMode from './pages/WaiterMode'
@@ -15,19 +16,26 @@ import { usePOS } from './store/posStore'
 export type AppView = 'pin_login' | 'floor' | 'order' | 'payment' | 'config' | 'kiosk' | 'editor' | 'waiter' | 'kitchen' | 'journal'
 
 export default function App() {
+  const [ready, setReady] = useState(false)
+  const [sync, setSync] = useState({ message: '', error: false })
   const [view, setView] = useState<AppView>('pin_login')
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
   const tables = usePOS(s => s.tables)
   const settings = usePOS(s => s.settings)
   const currentStaff = usePOS(s => s.currentStaff)
-  const logoutStaff = usePOS(s => s.logoutStaff)
+  const logoutStaff = () => { logoutServer(); setReady(false); setView('pin_login') }
   const kioskMode = usePOS(s => s.kioskMode)
   const setKioskMode = usePOS(s => s.setKioskMode)
 
   // Auto-transition when staff logs in
-  if (view === 'pin_login' && currentStaff) {
+  if (ready && view === 'pin_login' && currentStaff) {
     setView('floor')
   }
+  useEffect(() => {
+    const listener = (event: Event) => setSync((event as CustomEvent).detail)
+    window.addEventListener('pos-sync', listener)
+    return () => window.removeEventListener('pos-sync', listener)
+  }, [])
 
   /**
    * Reverrouillage automatique après 10 minutes sans interaction.
@@ -142,14 +150,12 @@ export default function App() {
     }
   }
 
-  // ── PIN login screen (full takeover) ──
-  if (view === 'pin_login' || !currentStaff) {
-    return <PinLoginPage />
-  }
+  // Le kiosque public n'a ni jeton employé ni accès au journal. Sortir exige une nouvelle connexion.
+  if (view === 'kiosk' && kioskMode) return <KioskPage onExit={logoutStaff} />
 
-  // ── Kiosk mode (full takeover) ──
-  if (view === 'kiosk' || kioskMode) {
-    return <KioskPage onExit={() => { setKioskMode(false); setView('floor') }} />
+  // ── Connexion réelle (full takeover) ──
+  if (!ready || view === 'pin_login' || !currentStaff) {
+    return <ServerLoginPage onReady={() => { setReady(true); setView('floor') }} />
   }
 
   // ── Waiter tablet mode (full takeover) ──
@@ -203,12 +209,18 @@ export default function App() {
       overflow: 'hidden',
     }}>
       {/* ── Header bar ── */}
+      <div role="status" style={{ padding: '6px 16px', background: sync.error ? '#601e32' : '#12332d', fontSize: 12, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {sync.message || 'Connexion au serveur'}
+        {sync.error && <><button onClick={() => void flushFloor().catch(() => {})}>Réessayer la sauvegarde</button><button onClick={() => { if (window.confirm('Recharger le serveur ? Le brouillon local sera conservé, sans fusion automatique.')) void loadServerState().catch(e => setSync({ message: e.message, error: true })) }}>Recharger le serveur</button></>}
+      </div>
       <header style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0 20px',
-        height: 52,
+        padding: '10px 20px',
+        minHeight: 52,
+        flexWrap: 'wrap',
+        gap: 10,
         background: 'rgba(10,10,22,0.9)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
@@ -217,7 +229,7 @@ export default function App() {
         zIndex: 20,
       }}>
         {/* Left: logo + breadcrumb */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           {/* Logo icon (4 squares) */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
@@ -237,7 +249,7 @@ export default function App() {
         </div>
 
         {/* Right: badges + actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {/* Occupied table count badge */}
           {occupiedCount > 0 && (
             <div style={{
@@ -306,7 +318,7 @@ export default function App() {
           {/* Kiosque button */}
           {view === 'floor' && (
             <button
-              onClick={() => { setKioskMode(true); setView('kiosk') }}
+              onClick={async () => { try { await enterPublicKiosk(); setReady(false); setView('kiosk') } catch (e: any) { setSync({ message: e.message, error: true }) } }}
               style={headerBtn()}
             >
               Kiosque

@@ -461,17 +461,22 @@ function GuestMenu({
   const [lastOrderId, setLastOrderId] = useState<string | null>(null)
 
   const handleSendOrder = () => {
+    if (orderState === 'sending') return
     if (!requireGuestClient('Inscrivez-vous pour envoyer une commande: le serveur verra votre nom, mobile, table et historique client.')) return
     setOrderState('sending')
     setOrderError(null)
     // Le serveur recalcule les prix depuis sa base ; on n'envoie que les
     // identifiants et quantités (le nom sert au journal client local).
     const orderItems = cart.map((item) => ({ productId: item.id, name: item.name, qty: item.qty, price: item.price }))
+    const requestKey = `creorga-guest-order:${companyId}:${tableNumber}:${orderItems.map(i => `${i.productId}:${i.qty}`).sort().join('|')}`
+    let requestId: string
+    try { requestId = localStorage.getItem(requestKey) || crypto.randomUUID(); localStorage.setItem(requestKey, requestId) }
+    catch { setOrderState('idle'); setOrderError('Stockage local indisponible : appelez le serveur pour éviter une commande en double.'); return }
 
     fetch(`${(import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'}/api/guest/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyId, tableId: tableNumber || 'sans-table', items: orderItems.map(({ productId, qty }) => ({ productId, qty })) }),
+      body: JSON.stringify({ requestId, companyId, tableId: tableNumber || 'sans-table', items: orderItems.map(({ productId, qty }) => ({ productId, qty })) }),
     })
       .then(async (r) => {
         const data = await r.json().catch(() => ({}))
@@ -488,6 +493,7 @@ function GuestMenu({
           orderId: data?.id,
         }, companyId)
         setOrderState('success')
+        localStorage.removeItem(requestKey)
         clearCart()
       })
       .catch((e: any) => {

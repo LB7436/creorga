@@ -15,23 +15,14 @@ const VH = 680
 // ─── Demo waiters & reservations ─────────────────────────────────────────────
 type Waiter = { id: string; name: string; color: string; initial: string }
 
-const WAITERS: Waiter[] = [
-  { id: 'w1', name: 'Marie',   color: '#f472b6', initial: 'M' },
-  { id: 'w2', name: 'Thomas',  color: '#60a5fa', initial: 'T' },
-  { id: 'w3', name: 'Sophie',  color: '#fbbf24', initial: 'S' },
-  { id: 'w4', name: 'Paul',    color: '#a78bfa', initial: 'P' },
-]
-
 function assignWaiter(tableId: string): Waiter {
-  let h = 0
-  for (let i = 0; i < tableId.length; i++) h = (h * 31 + tableId.charCodeAt(i)) >>> 0
-  return WAITERS[h % WAITERS.length]
+  const state = usePOS.getState()
+  const user = state.staff.find(s => s.id === state.tables.find(t => t.id === tableId)?.waiterId)
+  return user ? { ...user, initial: user.name.slice(0, 1) } : { id: '', name: 'Non attribué', color: '#94a3b8', initial: '—' }
 }
 
 function isVIP(tableId: string): boolean {
-  let h = 0
-  for (let i = 0; i < tableId.length; i++) h = (h * 17 + tableId.charCodeAt(i)) >>> 0
-  return h % 7 === 0
+  return usePOS.getState().tables.find(t => t.id === tableId)?.vip === true
 }
 
 type Ghost = { id: string; x: number; y: number; seats: number; shape: Table['shape']; name: string; inMinutes: number }
@@ -282,6 +273,10 @@ function TableCard({
   return (
     <g
       transform={`translate(${table.x},${table.y})`}
+      role="button"
+      aria-label={`${table.name} — ${STATUS_LABELS[table.status]}`}
+      tabIndex={0}
+      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick(event as any) } }}
       onClick={onClick}
       onContextMenu={onContextMenu}
       onMouseEnter={() => setHover(true)}
@@ -773,6 +768,7 @@ function TableModal({ table, onClose, onOpenOrder }: ModalProps) {
 function ReassignPopup({ current, onSelect, onClose }: {
   current: Waiter; onSelect: (w: Waiter) => void; onClose: () => void
 }) {
+  const waiters = usePOS(s => s.staff).map(s => ({ ...s, initial: s.name.slice(0, 1) }))
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -797,7 +793,7 @@ function ReassignPopup({ current, onSelect, onClose }: {
           Réassigner le serveur
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
-          {WAITERS.map(w => (
+          {waiters.map(w => (
             <button
               key={w.id}
               onClick={() => { onSelect(w); onClose() }}
@@ -964,21 +960,20 @@ function useTimeTick(interval = 15000) {
 
 // ─── Demo ghosts generator ──────────────────────────────────────────────────
 function useGhosts(show: boolean, tables: Table[]): Ghost[] {
+  const reservations = usePOS(s => s.reservations)
   return useMemo(() => {
-    if (!show) return GHOSTS
-    const available = tables.filter(t => t.status === 'available' && !t.isMergedInto).slice(0, 3)
-    return available.map((t, i) => ({
-      id: `ghost-${t.id}`,
-      x: t.x, y: t.y, seats: t.seats, shape: t.shape,
-      name: ['Mr. Dupont', 'Table Weber', 'Famille Klein'][i] || 'Réservation',
-      inMinutes: [12, 20, 28][i] || 25,
-    }))
-  }, [show, tables])
+    if (!show) return []
+    return reservations.flatMap(r => {
+      const t = tables.find(t => t.id === r.tableId)
+      return t ? [{ id: r.id, x: t.x, y: t.y, seats: t.seats, shape: t.shape, name: r.guestName, inMinutes: Math.max(0, Math.round((new Date(r.date).getTime() - Date.now()) / 60000)) }] : []
+    })
+  }, [show, tables, reservations])
 }
 
 // ─── Main component ─────────────────────────────────────────────────────────
 export default function FloorPlanPage({ onOpenOrder }: Props) {
   const tables = usePOS(s => s.tables)
+  const rooms = usePOS(s => s.editor.rooms)
   const setTableStatus = usePOS(s => s.setTableStatus)
   const ensureSeat = useSeats(s => s.ensureSeat)
   const [selectedSeatId, setSelectedSeatId] = useState<string | null>(null)
@@ -1123,7 +1118,8 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
   // Context menu actions
   function ctxViewOrder(t: Table) { onOpenOrder(t.id) }
   function ctxMarkVIP(t: Table) {
-    setVipNotice(`${t.name} marquée VIP ⭐`)
+    usePOS.getState().updateTable(t.id, { vip: !t.vip })
+    setVipNotice(`${t.name} : statut VIP ${t.vip ? 'retiré' : 'demandé'} — confirmation dans la barre de sauvegarde.`)
     setTimeout(() => setVipNotice(null), 2000)
   }
   function ctxTransfer(t: Table) {
@@ -1175,11 +1171,7 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
         <rect data-bg="1" width={VW} height={VH} fill="url(#floorGrid)" />
         <rect data-bg="1" width={VW} height={VH} fill="url(#dotGrid)" />
 
-        <SectionBg x={20} y={20} w={600} h={576} label="Salle principale" color="#6366f1" gradId="gradSalle" heatmap={heatmap} occupancy={sectionOccupancy.salle} />
-        <SectionBg x={632} y={20} w={450} h={250} label="Bar" color="#f59e0b" gradId="gradBar" heatmap={heatmap} occupancy={sectionOccupancy.bar} />
-        <SectionBg x={632} y={290} w={450} h={306} label="Terrasse" color="#10b981" gradId="gradTerr" heatmap={heatmap} occupancy={sectionOccupancy.terr} />
-
-        <Decorations />
+        {rooms.map(room => { const list = visibleTables.filter(t => t.section === room.id || t.section === room.label); return <SectionBg key={room.id} x={room.x} y={room.y} w={room.w} h={room.h} label={room.label} color={room.color} gradId="gradSalle" heatmap={heatmap} occupancy={list.length ? list.filter(t => t.status === 'occupied').length / list.length : 0} /> })}
 
         <line x1={628} y1={20} x2={628} y2={598} stroke="rgba(255,255,255,0.03)" strokeWidth={1.5} />
         <line x1={632} y1={276} x2={1078} y2={276} stroke="rgba(255,255,255,0.03)" strokeWidth={1.5} />
@@ -1295,7 +1287,8 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
             current={assignWaiter(reassignFor.id)}
             onClose={() => setReassignFor(null)}
             onSelect={w => {
-              setVipNotice(`${reassignFor.name} assignée à ${w.name}`)
+              usePOS.getState().updateTable(reassignFor.id, { waiterId: w.id })
+              setVipNotice(`${reassignFor.name} : affectation à ${w.name} en cours d’enregistrement.`)
               setTimeout(() => setVipNotice(null), 2000)
             }}
           />

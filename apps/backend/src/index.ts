@@ -50,6 +50,7 @@ import tablesRoutes from './routes/tables'
 import categoriesRoutes from './routes/categories'
 import productsRoutes from './routes/products'
 import ordersRoutes from './routes/orders'
+import posRoutes from './routes/pos'
 import statsRoutes from './routes/stats'
 import companiesRoutes from './routes/companies'
 import modulesRoutes from './routes/modules'
@@ -166,6 +167,7 @@ const LARGE_BODY_PATHS = ['/api/agent', '/api/floor-state', '/api/inventory-ocr'
 // express.json(), qui marquerait le corps comme déjà lu.
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '1mb' }), stripeWebhook)
 app.use(LARGE_BODY_PATHS, express.json({ limit: '20mb' }))
+app.use('/api/pos/draft', express.json({ limit: '5mb' }))
 app.use(express.json({ limit: '1mb' }))
 app.use(cookieParser())
 app.use(auditLog)
@@ -215,6 +217,7 @@ app.use('/api/products', authenticate, productsRoutes)
 // Routes partagées POS/web : token device (X-Device-Token) ou JWT utilisateur.
 // Strict en production uniquement — cf. middleware/deviceAuth.
 app.use('/api/orders', deviceOrUserAuth, ordersRoutes)
+app.use('/api/pos', authenticate, requireCompany, floorCompanyContext, posRoutes)
 app.use('/api/stats', authenticate, statsRoutes)
 app.use('/api/companies', authenticate, companiesRoutes)
 app.use('/api/modules', authenticate, requireCompany, modulesRoutes)
@@ -343,10 +346,10 @@ httpServer.listen(PORT, () => {
   logger.info(`Environnement: ${process.env.NODE_ENV || 'development'}`)
   // Réplication stock JSON → Prisma Ingredient (no-op si DB indisponible)
   startStockSyncJob()
-  // Janitor : auto-close any table session opened > 8h sans encaissement
+  // Signalement des sessions anciennes, sans effacer les additions ni les chaises.
   import('./jobs/closeStaleFloorSessions').then(({ startStaleSessionJanitor }) => {
     startStaleSessionJanitor()
-    logger.info('[janitor] auto-close stale floor sessions activé (toutes les 30 min, > 8h)')
+    logger.info('[salles] surveillance non destructive des sessions anciennes activée')
   }).catch((e) => logger.warn('[janitor] non démarré:', e?.message))
 
   // L'ancien planificateur utilisait un unique scheduled-tasks.json et un

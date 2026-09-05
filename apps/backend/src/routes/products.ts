@@ -2,7 +2,7 @@ import { Router, type Response } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma'
 import { authenticate, type AuthRequest } from '../middleware/auth'
-import { requireCompany } from '../middleware/requireCompany'
+import { requireCompany, requireRole } from '../middleware/requireCompany'
 import { validate } from '../middleware/validate'
 import logger from '../lib/logger'
 
@@ -11,6 +11,7 @@ router.use(authenticate)
 // Adhésion vérifiée : le header x-company-id était cru tel quel, et les routes
 // par id n'avaient aucun filtre société.
 router.use(requireCompany)
+router.use((req, res, next) => ['GET', 'HEAD'].includes(req.method) ? next() : requireRole('OWNER', 'MANAGER')(req, res, next))
 
 // ─── GET /api/products ─────────────────────────────────
 
@@ -49,6 +50,7 @@ const createProductSchema = z.object({
   allergens: z.array(z.string()).default([]),
   sortOrder: z.number().int().default(0),
   stock: z.number().int().nullable().optional(),
+  isActive: z.boolean().optional(),
 }).strict()
 
 const updateProductSchema = createProductSchema.partial().refine((data) => Object.keys(data).length > 0, {

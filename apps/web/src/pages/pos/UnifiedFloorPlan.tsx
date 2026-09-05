@@ -118,13 +118,14 @@ export default function UnifiedFloorPlan() {
         color: couleurs[index % couleurs.length],
       }
     })
-    await fetchAuth((import.meta as any).env?.VITE_BACKEND_URL ?
+    const response = await fetchAuth((import.meta as any).env?.VITE_BACKEND_URL ?
       `${(import.meta as any).env.VITE_BACKEND_URL}/api/floor-state` :
       'http://localhost:3002/api/floor-state', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'If-Match': String(floor.state.updatedAt) },
       body: JSON.stringify({ tables: newTables, chairs: [], zones: newZones }),
     })
+    if (!response.ok) { const message = await response.json().catch(() => ({})); toastError(message.error || 'Le modèle n’a pas été enregistré.'); return }
     floor.refresh()
   }, [floor])
 

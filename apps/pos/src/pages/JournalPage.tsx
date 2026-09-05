@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { usePOS, type Cloture } from '../store/posStore'
+import { closeServerDay } from '../lib/floorBridge'
 
 /**
  * Journal des ventes et clôture de journée (ticket Z).
@@ -34,18 +35,19 @@ const NOM_METHODE: Record<string, string> = {
 export default function JournalPage({ onExit }: { onExit: () => void }) {
   const ventes = usePOS(s => s.ventes)
   const clotures = usePOS(s => s.clotures)
-  const cloturerJournee = usePOS(s => s.cloturerJournee)
+  const [closing, setClosing] = useState(false)
   const [confirmation, setConfirmation] = useState(false)
   const [ticket, setTicket] = useState<Cloture | null>(null)
 
-  const totalTTC = ventes.reduce((s, v) => s + v.total - v.pourboire, 0)
+  const totalTTC = ventes.reduce((s, v) => s + v.total - v.pourboire - (v.arrondiCaritatif || 0), 0)
   const totalPourboires = ventes.reduce((s, v) => s + v.pourboire, 0)
   const totalTva = ventes.reduce((s, v) => s + v.tva, 0)
 
-  function cloturer() {
-    const z = cloturerJournee()
-    setConfirmation(false)
-    if (z) setTicket(z)
+  async function cloturer() {
+    if (closing) return
+    setClosing(true)
+    try { const z = await closeServerDay(); setConfirmation(false); setTicket(z) }
+    catch (e: any) { window.alert(e.message) } finally { setClosing(false) }
   }
 
   // ─── Ticket Z affiché après clôture ───────────────────────────────────────

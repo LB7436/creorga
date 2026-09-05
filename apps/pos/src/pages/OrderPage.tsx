@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePOS, Cover, OrderItem, coverTotal, tableTotal, elapsed, MENU_CATEGORIES } from '../store/posStore'
 import { useEcranEtroit } from '../lib/ecran'
+import { api } from '../lib/server'
+import { flushFloor } from '../lib/floorBridge'
 
 interface Props {
   tableId: string
@@ -40,14 +42,14 @@ const MODIFIER_GROUPS: ModifierGroup[] = [
     { label: 'Bien cuit', extra: 0 },
   ]},
   { id: 'sauces', label: 'Sauces extra', modifiers: [
-    { label: 'Mayo', extra: 0.5 },
-    { label: 'Ketchup', extra: 0.5 },
-    { label: 'Poivre', extra: 1 },
-    { label: 'Béarnaise', extra: 1.5 },
+    { label: 'Mayo', extra: 0 },
+    { label: 'Ketchup', extra: 0 },
+    { label: 'Poivre', extra: 0 },
+    { label: 'Béarnaise', extra: 0 },
   ]},
   { id: 'sans', label: 'Sans', modifiers: [
-    { label: 'Sans gluten', extra: 2 },
-    { label: 'Sans lactose', extra: 1 },
+    { label: 'Sans gluten', extra: 0 },
+    { label: 'Sans lactose', extra: 0 },
     { label: 'Sans oignon', extra: 0 },
   ]},
 ]
@@ -58,13 +60,7 @@ const WEIGHTED_KEYWORDS = ['fromage', 'charcuterie', 'viande']
 // ─── Mock clients / staff ───────────────────────────────────────────────
 interface MockClient { id: string; name: string; phone: string; tier: 'Gold' | 'Silver' | 'Bronze' | 'Guest'; points: number; discount: number }
 
-const MOCK_CLIENTS: MockClient[] = [
-  { id: 'cl1', name: 'Jean Dupont',   phone: '+352 621 123 456', tier: 'Gold',   points: 2450, discount: 15 },
-  { id: 'cl2', name: 'Marie Weber',   phone: '+352 691 234 567', tier: 'Silver', points: 1280, discount: 10 },
-  { id: 'cl3', name: 'Pierre Muller', phone: '+352 661 345 678', tier: 'Bronze', points: 340,  discount: 5 },
-  { id: 'cl4', name: 'Sophie Klein',  phone: '+352 621 456 789', tier: 'Silver', points: 980,  discount: 10 },
-  { id: 'cl5', name: 'Luc Braun',     phone: '+352 691 567 890', tier: 'Guest',  points: 0,    discount: 0 },
-]
+// Les clients sont lus dans la société authentifiée.
 
 const TIER_COLORS: Record<string, { bg: string; border: string; text: string }> = {
   'Gold':   { bg: 'rgba(251,191,36,0.15)', border: 'rgba(251,191,36,0.4)', text: '#fbbf24' },
@@ -75,16 +71,11 @@ const TIER_COLORS: Record<string, { bg: string; border: string; text: string }> 
 
 // ─── Mock order history ─────────────────────────────────────────────────────
 interface HistoryOrder { id: string; time: string; total: number; itemCount: number; label: string }
-const MOCK_HISTORY: HistoryOrder[] = [
-  { id: 'h1', time: '12:45', total: 47.50, itemCount: 5, label: '2 Burger, 2 Coca, 1 café' },
-  { id: 'h2', time: '14:20', total: 28.00, itemCount: 3, label: '1 Salade, 2 Limonade' },
-  { id: 'h3', time: '15:10', total: 18.50, itemCount: 2, label: '2 Cafés, 1 Tiramisu' },
-]
+// L'historique vient du journal serveur, jamais d'exemples.
 
 // ─── Helper ─────────────────────────────────────────────────────────────
 const fmt = (n: number) => n.toFixed(2).replace('.', ',')
-const isWeighted = (item: { name: string; category?: string }) =>
-  WEIGHTED_CATEGORIES.has(item.category ?? '') && WEIGHTED_KEYWORDS.some(k => item.name.toLowerCase().includes(k))
+const isWeighted = (_item: { name: string; category?: string }) => false // Vente au poids : unité et balance à configurer.
 
 // ─── Page ─────────────────────────────────────────────────────────────────
 export default function OrderPage({ tableId, onBack, onPay }: Props) {
@@ -93,6 +84,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
   const etroit = useEcranEtroit()
   const table = usePOS(s => s.tables.find(t => t.id === tableId))
   const menu = usePOS(s => s.menu)
+  const categories = [...new Set(menu.filter(m => m.active).map(m => m.category))]
   const tables = usePOS(s => s.tables)
   const addItem = usePOS(s => s.addItem)
   const setItemQty = usePOS(s => s.setItemQty)
@@ -102,7 +94,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
   const addCover = usePOS(s => s.addCover)
 
   const [activeCover, setActiveCover] = useState<string | null>(null)
-  const [category, setCategory] = useState<string>(MENU_CATEGORIES[0])
+  const [category, setCategory] = useState<string>(categories[0] || '')
   const [course, setCourse] = useState<string>('plat')
   const [search, setSearch] = useState('')
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
@@ -118,14 +110,21 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
   const [showWeight, setShowWeight] = useState<string | null>(null)
 
   // Data state
-  const [selectedClient, setSelectedClient] = useState<MockClient | null>(null)
-  const [discount, setDiscount] = useState<{ type: 'percent' | 'amount' | 'free'; value: number } | null>(null)
-  const [offeredItems, setOfferedItems] = useState<Set<string>>(new Set())
+  const [clients, setClients] = useState<MockClient[]>([])
+  const [operationError, setOperationError] = useState('')
+  useEffect(() => { api<MockClient[]>('/pos/customers').then(setClients).catch(e => setOperationError(e.message)) }, [])
+  const selectedClient = clients.find(c => c.id === table?.customerId) || null
+  const setSelectedClient = (client: MockClient | null) => usePOS.getState().updateTable(tableId, { customerId: client?.id || null })
+  const discount = table?.orderDiscount || null
+  const setDiscount = (value: { type: 'percent' | 'amount' | 'free'; value: number } | null) => usePOS.getState().updateTable(tableId, { orderDiscount: value })
+  const offeredItems = new Set<string>(table?.offeredItemIds || [])
+  const setOfferedItems = (update: (previous: Set<string>) => Set<string>) => usePOS.getState().updateTable(tableId, { offeredItemIds: [...update(offeredItems)] })
   const [itemModifiers, setItemModifiers] = useState<Record<string, Modifier[]>>({})
   const [itemWeights, setItemWeights] = useState<Record<string, number>>({})
-  const [onHold, setOnHold] = useState(false)
+  const onHold = !!table?.onHold
+  const setOnHold = (value: boolean) => usePOS.getState().updateTable(tableId, { onHold: value })
   const [recentIds, setRecentIds] = useState<string[]>([])
-  const [favoriteIds] = useState<string[]>(['m7', 'm21', 'm14', 'm4', 'm11', 'm26'])
+  const favoriteIds = menu.slice(0, 6).map(m => m.id)
 
   const currentCover = useMemo(
     () => table?.covers.find(c => c.id === activeCover) ?? table?.covers[0],
@@ -198,14 +197,14 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
     }
   }
 
-  const selectedItem = useMemo(() => {
+  const selectedItem = (() => {
     if (!selectedItemId) return null
     for (const c of table.covers) {
       const it = c.items.find(i => i.id === selectedItemId)
       if (it) return it
     }
     return null
-  }, [table, selectedItemId])
+  })()
 
   // ── Totals
   const rawTotal = tableTotal(table)
@@ -238,6 +237,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
       display: 'grid',
       gridTemplateColumns: etroit ? 'minmax(0, 1fr)' : 'minmax(0, 30%) minmax(0, 70%)',
     }}>
+      {operationError && <p role="alert" style={{ gridColumn: '1 / -1', color: '#fecdd3', padding: 16 }}>{operationError}</p>}
       {/* ═══ LEFT : TICKET ═══ */}
       <div style={{ borderRight: etroit ? 'none' : '1px solid rgba(255,255,255,0.06)', borderBottom: etroit ? '1px solid rgba(255,255,255,0.06)' : 'none', display: 'flex', flexDirection: 'column', minHeight: etroit ? 'auto' : '100vh', order: etroit ? 2 : 0 }}>
         {/* Header */}
@@ -456,6 +456,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
             <ActionBtn label="Transfert" onClick={() => setShowTransfer(true)} />
             <ActionBtn label="Offrir" onClick={() => {
               if (!selectedItemId) { alert('Sélectionnez un article'); return }
+              if (!['OWNER', 'MANAGER'].includes(usePOS.getState().currentStaff?.role || '')) { setOperationError('Connectez-vous comme responsable pour un geste commercial.'); return }
               setOfferedItems(prev => {
                 const s = new Set(prev)
                 if (s.has(selectedItemId)) s.delete(selectedItemId); else s.add(selectedItemId)
@@ -463,7 +464,10 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
               })
             }} />
             <ActionBtn label="Split item" onClick={() => setShowSplitItem(true)} />
-            <ActionBtn label="Historique" onClick={() => alert(MOCK_HISTORY.map(h => `${h.time} · ${h.label} · ${fmt(h.total)}€`).join('\n'))} />
+            <ActionBtn label="Historique" onClick={() => {
+              const sales = [...usePOS.getState().ventes, ...usePOS.getState().clotures.flatMap(c => c.ventes)].filter(v => v.tableId === tableId)
+              alert(sales.length ? sales.map(v => `Ticket n° ${v.numero} · ${new Date(v.horodatage).toLocaleString('fr-LU')} · ${fmt(v.total)} €`).join('\n') : 'Aucun règlement enregistré pour cette table.')
+            }} />
           </div>
 
           <button
@@ -552,7 +556,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
 
         {/* Categories */}
         <div style={{ padding: '12px 16px', display: 'flex', gap: 6, overflowX: 'auto', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-          {MENU_CATEGORIES.map(cat => {
+          {categories.map(cat => {
             const active = cat === category
             const color = CATEGORY_COLORS[cat] ?? '#6366f1'
             return (
@@ -626,7 +630,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
       <AnimatePresence>
         {showClientSearch && (
           <ClientSearchModal
-            clients={MOCK_CLIENTS}
+            clients={clients}
             onClose={() => setShowClientSearch(false)}
             onSelect={c => { setSelectedClient(c); if (c.discount > 0) setDiscount({ type: 'percent', value: c.discount }); setShowClientSearch(false) }}
           />
@@ -643,7 +647,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
             title="Note sur le ticket"
             placeholder="Ex : Client pressé, allergie aux fruits à coque..."
             onClose={() => setShowNote(false)}
-            onConfirm={() => setShowNote(false)}
+            onConfirm={value => { usePOS.getState().updateTable(tableId, { orderNote: value }); setShowNote(false) }}
           />
         )}
         {showCuisine && (
@@ -651,7 +655,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
             title="Message cuisine"
             placeholder="Ex : Servir en même temps, sans coriandre..."
             onClose={() => setShowCuisine(false)}
-            onConfirm={() => setShowCuisine(false)}
+            onConfirm={value => { usePOS.getState().updateTable(tableId, { kitchenNote: value }); setShowCuisine(false); void flushFloor().catch(e => setOperationError(e.message)) }}
             color="#f97316"
           />
         )}
@@ -661,6 +665,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
             onClose={() => setShowModifiers(null)}
             onConfirm={mods => {
               setItemModifiers(prev => ({ ...prev, [showModifiers]: mods }))
+              setItemNote(tableId, showModifiers, mods.map(m => m.label).join(' · '))
               setShowModifiers(null)
             }}
           />
@@ -670,7 +675,9 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
             tables={availableTables}
             onClose={() => setShowTransfer(false)}
             onConfirm={(toId) => {
-              alert(`Commande transférée vers ${tables.find(t => t.id === toId)?.name}`)
+              if (table.covers.some(c => c.id.startsWith('guest:') || c.id.startsWith('seat:'))) { setOperationError('Pour une commande QR ou une chaise, utilisez son transfert dédié ; le transfert global n’a pas été effectué.'); return }
+              usePOS.getState().transferTable(tableId, toId)
+              void flushFloor().then(() => { onBack() }).catch(e => setOperationError(e.message))
               setShowTransfer(false)
             }}
           />
@@ -834,24 +841,19 @@ function ClientSearchModal({ clients, onClose, onSelect }: { clients: MockClient
 function RemiseModal({ onClose, onConfirm, rawTotal }: { onClose: () => void; onConfirm: (d: { type: 'percent' | 'amount' | 'free'; value: number }) => void; rawTotal: number }) {
   const [type, setType] = useState<'percent' | 'amount' | 'free'>('percent')
   const [val, setVal] = useState('')
-  const [pin, setPin] = useState('')
+  const canDiscount = ['OWNER', 'MANAGER'].includes(usePOS(s => s.currentStaff)?.role || '')
   const [error, setError] = useState('')
 
   const submit = () => {
+    if (!canDiscount) { setError('Une connexion propriétaire ou responsable est nécessaire.'); return }
     if (type === 'free') {
-      // Free entire order — manager PIN required
-      if (pin !== '9999') {
-        setError('PIN manager requis pour offrir une commande complète (indice : 9999)'); return
-      }
+
       onConfirm({ type: 'free', value: rawTotal })
       return
     }
     const v = parseFloat(val.replace(',', '.'))
     if (!v || v <= 0) { setError('Valeur invalide'); return }
-    // Manager PIN required for > 20%
-    if (type === 'percent' && v > 20 && pin !== '9999') {
-      setError('PIN manager requis pour remise > 20% (indice : 9999)'); return
-    }
+    if (type === 'percent' && v > 100) { setError('Maximum 100 %.'); return }
     onConfirm({ type, value: v })
   }
 
@@ -889,18 +891,7 @@ function RemiseModal({ onClose, onConfirm, rawTotal }: { onClose: () => void; on
         Sous-total : {fmt(rawTotal)} €
       </div>
 
-      {(percentThreshold || type === 'free') && (
-        <>
-          <div style={{ fontSize: 11, color: '#fbbf24', marginTop: 10, fontWeight: 600 }}>
-            ⚠ {type === 'free' ? 'Commande complète offerte' : 'Remise supérieure à 20%'} — PIN manager requis
-          </div>
-          <input
-            type="password" value={pin} onChange={e => { setPin(e.target.value); setError('') }}
-            placeholder="PIN manager" maxLength={4}
-            style={{ width: '100%', padding: 10, borderRadius: 8, marginTop: 6, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(251,191,36,0.3)', color: '#fff', fontSize: 14, outline: 'none', boxSizing: 'border-box', textAlign: 'center', letterSpacing: 4 }}
-          />
-        </>
-      )}
+      <p>Le serveur vérifie vos droits responsables lors de l’enregistrement et de l’encaissement.</p>
 
       {error && <div style={{ color: '#f43f5e', fontSize: 11, marginTop: 8, fontWeight: 600 }}>{error}</div>}
 

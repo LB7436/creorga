@@ -50,6 +50,8 @@ model Company {
   reviews         Review[]
   eventQuotes     EventQuote[]
   portalConfig    PortalConfiguration?
+  posSales        PosSale[]
+  posClosures     PosClosure[]
 }
 
 model CompanySettings {
@@ -195,7 +197,11 @@ model Order {
   id            String    @id @default(cuid())
   companyId     String
   tableId       String?
-  userId        String
+  userId        String?
+  source        String    @default("BACKOFFICE")
+  externalTableId String?
+  publicToken   String?   @unique
+  guestStatus   String?
   customerId    String?
   orderNumber   Int
   status        String    @default("OPEN")
@@ -212,7 +218,7 @@ model Order {
 
   company  Company    @relation(fields: [companyId], references: [id])
   table    Table?     @relation(fields: [tableId], references: [id])
-  user     User       @relation(fields: [userId], references: [id])
+  user     User?      @relation(fields: [userId], references: [id])
   customer Customer?  @relation("CustomerOrders", fields: [customerId], references: [id])
   items    OrderItem[]
 
@@ -231,6 +237,7 @@ model OrderItem {
   id        String   @id @default(cuid())
   orderId   String
   productId String
+  productName String?
   quantity  Int
   unitPrice Float
   taxRate   Float
@@ -240,6 +247,51 @@ model OrderItem {
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
+}
+
+// Journal serveur immuable : un même règlement ne peut être enregistré deux fois.
+model PosSale {
+  id        String   @id
+  companyId String
+  userId    String
+  number    Int
+  snapshot  Json
+  closedId  String?
+  createdAt DateTime @default(now())
+  company   Company  @relation(fields: [companyId], references: [id])
+  covers    PosCoverPayment[]
+  @@unique([companyId, number])
+  @@index([companyId, closedId])
+}
+
+model PosCoverPayment {
+  id        String @id @default(cuid())
+  companyId String
+  coverId   String
+  saleId    String
+  sale      PosSale @relation(fields: [saleId], references: [id])
+  @@unique([companyId, coverId])
+}
+
+model PosClosure {
+  id        String   @id
+  companyId String
+  userId    String
+  snapshot  Json
+  createdAt DateTime @default(now())
+  company   Company @relation(fields: [companyId], references: [id])
+  @@index([companyId, createdAt])
+}
+
+model PosReceiptDelivery {
+  id        String @id
+  companyId String
+  saleId    String
+  recipient String
+  status    String @default("PENDING")
+  providerId String?
+  createdAt DateTime @default(now())
+  @@index([companyId, saleId])
 }
 
 // ─── MODULES ───────────────────────────────────────────

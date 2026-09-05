@@ -1,11 +1,14 @@
 import { Router, type Request, type Response } from 'express'
 import path from 'path'
 import Stripe from 'stripe'
+import { randomUUID } from 'node:crypto'
 import { safeReadJson, safeWriteJson } from '../lib/safe-json'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
 import { deviceOrUserAuth } from '../middleware/deviceAuth'
 import { requireCompany } from '../middleware/requireCompany'
+import { getFloorState } from './floorState'
+import { PosError } from '../lib/pos-ledger'
 
 /**
  * Endpoints du portail client (le convive scanne le QR, sans compte) :
@@ -29,7 +32,6 @@ const ORDERS_FILE = path.join(DATA_DIR, 'guest-orders.json')
 const NOTIFS_FILE = path.join(DATA_DIR, 'proactive-notifs.json')
 
 /** Fenêtre d'une visite : au-delà, une commande impayée n'est plus rattachée à l'addition courante. */
-const FENETRE_ADDITION_MS = 6 * 60 * 60 * 1000
 const MAX_LIGNES = 50
 const MAX_QTE = 50
 
@@ -59,6 +61,13 @@ export interface GuestOrder {
 }
 
 const router = Router()
+const asyncRoute = (handler: (req: Request, res: Response) => Promise<any>) => async (req: Request, res: Response) => {
+  try { await handler(req, res) }
+  catch (error) {
+    logger.error('[guest] opération non confirmée', error)
+    if (!res.headersSent) res.status(error instanceof PosError ? error.status : 503).json({ error: error instanceof PosError ? error.message : 'Le serveur ne peut pas confirmer cette opération. Réessayez avec la même référence.' })
+  }
+}
 
 const arrondi = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
@@ -86,25 +95,53 @@ function companyValide(companyId: unknown): companyId is string {
 }
 
 /** Commandes non réglées de la table pendant la visite courante (nouveau format seulement). */
-export function commandesARegler(orders: GuestOrder[], tableId: string, now = Date.now()): GuestOrder[] {
+export function commandesARegler(orders: GuestOrder[], tableId: string, _now = Date.now()): GuestOrder[] {
   return orders.filter((o) =>
     o.tableId === tableId &&
     !!o.companyId &&
-    !o.paid &&
-    now - o.createdAt <= FENETRE_ADDITION_MS,
+    !o.paid,
   )
+}
+
+/** Le QR doit désigner une table réelle, pas seulement une chaîne bien formée. */
+async function resolveTable(companyId: string, value: string): Promise<string | null> {
+  const fromDb = await prisma.table.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true } })
+  const tables = [...new Map([...fromDb, ...getFloorState(companyId).tables].map(t => [t.id, t])).values()]
+  const exact = tables.find(t => t.id === value)
+  if (exact) return exact.id
+  const normal = (s: string) => s.toLowerCase().trim().replace(/^table\s*/i, '')
+  const matches = tables.filter(t => normal(t.name) === normal(value))
+  return matches.length === 1 ? matches[0].id : null
+}
+
+async function readOrders(companyId: string): Promise<GuestOrder[]> {
+  const stored = await prisma.order.findMany({ where: { companyId, source: 'GUEST' }, include: { items: { include: { product: true } } } })
+  const central = stored.map(o => ({ id: o.publicToken!, companyId, tableId: o.externalTableId!,
+    items: o.items.map(i => ({ productId: i.productId, name: i.productName || i.product.name, qty: i.quantity, price: i.unitPrice })),
+    total: o.total, status: (o.guestStatus || 'received') as OrderStatus, paid: !!o.paidAt || o.status === 'CANCELLED',
+    paidAt: o.paidAt?.getTime(), createdAt: o.createdAt.getTime(), updatedAt: o.updatedAt.getTime(),
+    stripeSessionId: o.paymentMethod?.startsWith('stripe:') ? o.paymentMethod.slice(7) : undefined }))
+  // Les impayés historiques restent visibles : aucune purge ni conversion destructive automatique.
+  return [...central, ...safeReadJson<GuestOrder[]>(ORDERS_FILE, []).filter(o => o.companyId === companyId && !central.some(c => c.id === o.id))]
 }
 
 // ─── Suivi de commande ──────────────────────────────────
 
 router.post('/orders', async (req, res) => {
-  const { companyId, tableId, items } = req.body as { companyId?: unknown; tableId?: unknown; items?: unknown }
+  const { companyId, items, requestId } = req.body as { companyId?: unknown; tableId?: unknown; items?: unknown; requestId?: unknown }
+  let tableId = req.body.tableId as unknown
   if (!companyValide(companyId)) {
     return res.status(400).json({ error: 'Établissement requis : scannez le QR code de votre table.' })
   }
   if (!tableValide(tableId)) {
     return res.status(400).json({ error: 'Table requise : scannez le QR code de votre table.' })
   }
+  try {
+    const realTable = await resolveTable(companyId, tableId)
+    if (!realTable) return res.status(404).json({ error: 'Table inconnue : scannez son QR code actuel.' })
+    tableId = realTable
+  } catch { return res.status(503).json({ error: 'Vérification de la table impossible.' }) }
+  if (requestId !== undefined && (typeof requestId !== 'string' || !/^[a-f0-9-]{36}$/i.test(requestId))) return res.status(400).json({ error: 'Référence de commande invalide.' })
   if (!Array.isArray(items) || items.length === 0 || items.length > MAX_LIGNES) {
     return res.status(400).json({ error: `items[] requis (1 à ${MAX_LIGNES} lignes)` })
   }
@@ -122,6 +159,7 @@ router.post('/orders', async (req, res) => {
     if (existante) existante.qty += qty
     else lignes.push({ productId, qty })
   }
+  if (lignes.some(l => l.qty > MAX_QTE)) return res.status(400).json({ error: `Maximum ${MAX_QTE} unités par produit, lignes répétées comprises.` })
 
   let produits: { id: string; name: string; price: number; companyId: string }[]
   try {
@@ -158,7 +196,7 @@ router.post('/orders', async (req, res) => {
   const order: GuestOrder = {
     id: 'gord-' + Math.random().toString(36).slice(2, 10),
     companyId,
-    tableId,
+    tableId: String(tableId),
     items: orderItems,
     total,
     status: 'received',
@@ -166,29 +204,63 @@ router.post('/orders', async (req, res) => {
     createdAt: now,
     updatedAt: now,
   }
-  const orders = safeReadJson<GuestOrder[]>(ORDERS_FILE, [])
-  safeWriteJson(ORDERS_FILE, [order, ...orders].slice(0, 500))
-  broadcast(`table-${companyId}-${tableId}`, 'order-status', { orderId: order.id, status: order.status, ts: order.updatedAt })
-  res.status(201).json(order)
+  try {
+    const token = typeof requestId === 'string' ? requestId : randomUUID()
+    await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext('pos-ledger'))::text`
+      const previous = await tx.order.findUnique({ where: { publicToken: token } })
+      if (previous) {
+        if (previous.companyId !== companyId || previous.externalTableId !== tableId) throw new Error('Référence déjà utilisée.')
+        return
+      }
+      const products = await tx.product.findMany({ where: { companyId, id: { in: lignes.map(l => l.productId) }, isActive: true } })
+      if (products.length !== lignes.length) throw new Error('Un produit est devenu indisponible.')
+      const lineData = lignes.map(l => {
+        const p = products.find(p => p.id === l.productId)!
+        if (p.stock !== null && p.stock < l.qty) throw new Error(`Stock insuffisant pour ${p.name}.`)
+        return { productId: p.id, productName: p.name, quantity: l.qty, unitPrice: arrondi(p.price), taxRate: p.taxRate }
+      })
+      const amount = arrondi(lineData.reduce((s, l) => s + l.unitPrice * l.quantity, 0))
+      const ht = arrondi(lineData.reduce((s, l) => s + l.unitPrice * l.quantity / (1 + l.taxRate / 100), 0))
+      const last = await tx.order.findFirst({ where: { companyId }, orderBy: { orderNumber: 'desc' } })
+      await tx.order.create({ data: { companyId, userId: null, source: 'GUEST', externalTableId: String(tableId), publicToken: token,
+        guestStatus: 'received', orderNumber: (last?.orderNumber || 0) + 1, subtotal: ht, taxAmount: arrondi(amount - ht), total: amount,
+        items: { create: lineData } } })
+    })
+    const saved = (await readOrders(companyId)).find(o => o.id === token)!
+    broadcast(`table-${companyId}-${tableId}`, 'order-status', { orderId: saved.id, status: saved.status, ts: saved.updatedAt })
+    res.status(201).json(saved)
+  } catch (e: any) {
+    logger.warn('[guest] commande centrale refusée', { code: e?.code })
+    res.status(e?.code === 'P2002' ? 409 : 503).json({ error: 'Commande non confirmée. Réessayez avec la même référence ou appelez le serveur.' })
+  }
 })
 
-router.get('/orders/:id', (req, res) => {
+router.get('/orders/:id', asyncRoute(async (req, res) => {
   const companyId = req.query.companyId
   if (!companyValide(companyId)) return res.status(400).json({ error: 'Établissement requis' })
-  const orders = safeReadJson<GuestOrder[]>(ORDERS_FILE, [])
+  const orders = await readOrders(companyId)
   const order = orders.find((o) => o.id === req.params.id && o.companyId === companyId)
   if (!order) return res.status(404).json({ error: 'not found' })
   res.json(order)
-})
+}))
 
 const VALID_STATUSES: OrderStatus[] = ['received', 'preparing', 'on_the_way']
 
 // Réservé au personnel : cette route était publique, n'importe qui pouvait
 // passer n'importe quelle commande « en route » depuis son téléphone.
-router.patch('/orders/:id/status', deviceOrUserAuth, requireCompany, (req: Request, res: Response) => {
+router.patch('/orders/:id/status', deviceOrUserAuth, requireCompany, asyncRoute(async (req: Request, res: Response) => {
   const { status } = req.body as { status?: OrderStatus }
   if (!status || !VALID_STATUSES.includes(status)) {
     return res.status(400).json({ error: `status doit être l'un de ${VALID_STATUSES.join(', ')}` })
+  }
+  const companyId = (req as any).companyId
+  const central = await prisma.order.findFirst({ where: { companyId, publicToken: req.params.id, source: 'GUEST' } })
+  if (central) {
+    if (central.paidAt || central.status === 'CANCELLED') return res.status(409).json({ error: 'Commande terminée.' })
+    const changed = await prisma.order.updateMany({ where: { id: central.id, companyId, paidAt: null, status: { not: 'CANCELLED' } }, data: { guestStatus: status, status: status === 'received' ? 'OPEN' : status === 'preparing' ? 'IN_PROGRESS' : 'READY' } })
+    if (!changed.count) return res.status(409).json({ error: 'Commande terminée dans une autre session.' })
+    return res.json((await readOrders(companyId)).find(o => o.id === req.params.id))
   }
   const orders = safeReadJson<GuestOrder[]>(ORDERS_FILE, [])
   const order = orders.find((o) => o.id === req.params.id)
@@ -199,14 +271,14 @@ router.patch('/orders/:id/status', deviceOrUserAuth, requireCompany, (req: Reque
   safeWriteJson(ORDERS_FILE, orders)
   broadcast(`table-${order.companyId}-${order.tableId}`, 'order-status', { orderId: order.id, status: order.status, ts: order.updatedAt })
   res.json(order)
-})
+}))
 
 // ─── Appel serveur / addition ───────────────────────────
 
 const lastCallByTable = new Map<string, number>()
 const CALL_COOLDOWN_MS = 30_000
 
-router.post('/call-waiter', async (req, res) => {
+router.post('/call-waiter', asyncRoute(async (req, res) => {
   const { companyId, tableId, type } = req.body as { companyId?: unknown; tableId?: unknown; type?: 'waiter' | 'bill' }
   if (!companyValide(companyId) || !tableValide(tableId) || (type !== 'waiter' && type !== 'bill')) {
     return res.status(400).json({ error: 'companyId, tableId et type (waiter|bill) requis' })
@@ -214,6 +286,7 @@ router.post('/call-waiter', async (req, res) => {
   try {
     const company = await prisma.company.findUnique({ where: { id: companyId }, select: { id: true } })
     if (!company) return res.status(404).json({ error: 'Établissement inconnu' })
+    if (!await resolveTable(companyId, tableId)) return res.status(404).json({ error: 'Table inconnue.' })
   } catch {
     return res.status(503).json({ error: 'Appel impossible pour le moment' })
   }
@@ -222,7 +295,6 @@ router.post('/call-waiter', async (req, res) => {
   if (Date.now() - last < CALL_COOLDOWN_MS) {
     return res.status(429).json({ error: 'Appel déjà envoyé, patientez quelques secondes.' })
   }
-  lastCallByTable.set(callKey, Date.now())
 
   const isBill = type === 'bill'
   pushStaffNotif({
@@ -234,22 +306,25 @@ router.post('/call-waiter', async (req, res) => {
     severity: 'info',
     cta: { label: 'Voir la table', route: '/pos/floor' },
   })
+  lastCallByTable.set(callKey, Date.now())
   res.json({ ok: true })
-})
+}))
 
 // ─── Paiement à table ───────────────────────────────────
 
 /** Addition serveur d'une table : montant et commandes concernées. */
-router.get('/bill/:tableId', (req, res) => {
+router.get('/bill/:tableId', asyncRoute(async (req, res) => {
   const tableId = req.params.tableId
   const companyId = req.query.companyId
   if (!companyValide(companyId) || !tableValide(tableId)) return res.status(400).json({ error: 'Établissement ou table invalide' })
-  const orders = commandesARegler(safeReadJson<GuestOrder[]>(ORDERS_FILE, []), tableId).filter((order) => order.companyId === companyId)
+  const realTable = await resolveTable(companyId, tableId)
+  if (!realTable) return res.status(404).json({ error: 'Table inconnue.' })
+  const orders = commandesARegler(await readOrders(companyId), realTable)
   const total = arrondi(orders.reduce((s, o) => s + o.total, 0))
   res.json({ tableId, total, orderIds: orders.map((o) => o.id), count: orders.length })
-})
+}))
 
-router.post('/pay', async (req, res) => {
+router.post('/pay', asyncRoute(async (req, res) => {
   const { companyId, tableId } = req.body as { companyId?: unknown; tableId?: unknown; total?: unknown }
   if (!companyValide(companyId) || !tableValide(tableId)) {
     return res.status(400).json({ error: 'companyId et tableId requis' })
@@ -260,7 +335,9 @@ router.post('/pay', async (req, res) => {
 
   // Le montant vient des commandes enregistrées côté serveur, jamais du corps
   // de la requête (l'ancien `total` du navigateur est ignoré).
-  const orders = commandesARegler(safeReadJson<GuestOrder[]>(ORDERS_FILE, []), tableId).filter((order) => order.companyId === companyId)
+  const realTable = await resolveTable(companyId, tableId)
+  if (!realTable) return res.status(404).json({ error: 'Table inconnue.' })
+  const orders = commandesARegler(await readOrders(companyId), realTable)
   const total = arrondi(orders.reduce((s, o) => s + o.total, 0))
   if (!orders.length || total <= 0) {
     return res.status(400).json({ error: 'Aucune commande à régler pour cette table.' })
@@ -289,7 +366,7 @@ router.post('/pay', async (req, res) => {
     logger.error(`[guest] création de session Stripe impossible (table ${tableId}) : ${err?.message || err}`)
     res.status(502).json({ error: 'Paiement en ligne indisponible pour le moment.' })
   }
-})
+}))
 
 /**
  * Confirmation de paiement en ligne, au retour de Stripe Checkout.
@@ -299,7 +376,7 @@ router.post('/pay', async (req, res) => {
  * session ait été émise pour CETTE table, et on ne prévient le personnel
  * qu'une seule fois (rejouer la page /c/paid ne renotifie pas).
  */
-router.post('/paid-confirm', async (req, res) => {
+router.post('/paid-confirm', asyncRoute(async (req, res) => {
   const { companyId, tableId, sessionId } = req.body as { companyId?: unknown; tableId?: unknown; sessionId?: unknown }
   if (!companyValide(companyId) || !tableValide(tableId)) return res.status(400).json({ error: 'companyId et tableId requis' })
   if (typeof sessionId !== 'string' || !/^cs_[\w]+$/.test(sessionId)) {
@@ -313,7 +390,7 @@ router.post('/paid-confirm', async (req, res) => {
     return res.status(503).json({ error: "Le paiement en ligne n'est pas configuré sur ce serveur." })
   }
 
-  const orders = safeReadJson<GuestOrder[]>(ORDERS_FILE, [])
+  const orders = await readOrders(companyId)
   if (orders.some((o) => o.companyId === companyId && o.stripeSessionId === sessionId)) {
     // Déjà traitée : idempotent, sans nouvelle notification.
     return res.json({ ok: true, dejaConfirme: true })
@@ -333,11 +410,29 @@ router.post('/paid-confirm', async (req, res) => {
     }
 
     const ids = new Set((session.metadata?.orderIds ?? '').split(',').filter(Boolean))
+    const expected = orders.filter(o => ids.has(o.id))
+    const realTable = await resolveTable(companyId, tableId)
+    if (!expected.length || expected.length !== ids.size || expected.some(o => o.tableId !== realTable || o.paid) || session.currency !== 'eur' || session.amount_total !== Math.round(expected.reduce((s, o) => s + o.total, 0) * 100)) {
+      return res.status(409).json({ error: 'Les commandes ou le montant ne correspondent plus à ce paiement. Contactez le responsable.' })
+    }
     const now = Date.now()
+    await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext('pos-ledger'))::text`
+      const central = await tx.order.findMany({ where: { companyId, publicToken: { in: [...ids] } }, include: { items: true } })
+      // Recontrôler SOUS le même verrou que la caisse : un paiement concurrent
+      // ne doit pas être accepté ni décrémenter le stock une deuxième fois.
+      if (central.length !== ids.size || central.some(o => o.externalTableId !== realTable || o.status === 'CANCELLED')) throw new PosError('Commandes non rapprochables : le responsable doit vérifier le paiement Stripe.', 409)
+      if (central.every(o => o.paidAt && o.paymentMethod === `stripe:${sessionId}`)) return
+      if (central.some(o => o.paidAt)) throw new PosError('Cette addition a été réglée ailleurs. Le responsable doit rapprocher le paiement Stripe avant remboursement éventuel.', 409)
+      for (const o of central) for (const i of o.items) await tx.product.updateMany({ where: { id: i.productId, companyId, stock: { not: null } }, data: { stock: { decrement: i.quantity } } })
+      await tx.order.updateMany({ where: { companyId, id: { in: central.map(o => o.id) }, paidAt: null }, data: { status: 'PAID', paidAt: new Date(now), paymentMethod: `stripe:${sessionId}` } })
+    })
     for (const o of orders) {
       if (o.companyId === companyId && ids.has(o.id)) { o.paid = true; o.paidAt = now; o.stripeSessionId = sessionId; o.updatedAt = now }
     }
-    safeWriteJson(ORDERS_FILE, orders)
+    const legacy = safeReadJson<GuestOrder[]>(ORDERS_FILE, [])
+    for (const o of legacy) if (o.companyId === companyId && ids.has(o.id)) { o.paid = true; o.paidAt = now; o.stripeSessionId = sessionId; o.updatedAt = now }
+    safeWriteJson(ORDERS_FILE, legacy)
 
     pushStaffNotif({
       type: 'guest-paid',
@@ -353,9 +448,9 @@ router.post('/paid-confirm', async (req, res) => {
     // Ne jamais retomber sur « ok » : un échec de vérification n'est pas un
     // paiement. Le personnel ne doit pas être notifié dans le doute.
     logger.error(`[guest] vérification Stripe impossible (${sessionId}) : ${e?.message || e}`)
-    return res.status(502).json({ error: 'Paiement invérifiable pour le moment.' })
+    return res.status(e instanceof PosError ? e.status : 502).json({ error: e instanceof PosError ? e.message : 'Paiement invérifiable pour le moment.' })
   }
-})
+}))
 
 // ─── Fidélité ───────────────────────────────────────────
 

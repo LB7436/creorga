@@ -24,6 +24,7 @@ export interface MenuItem {
   emoji: string
   active: boolean
   stock?: number
+  taxRate?: number
 }
 
 export interface OrderItem {
@@ -68,6 +69,7 @@ export interface Remise {
   libelle: string
   /** Montant TTC déduit, en euros positifs. */
   montant: number
+  code?: string
 }
 
 /** Une part d'un règlement mixte (ex. 30 € en espèces + le reste en carte). */
@@ -114,6 +116,7 @@ export interface Vente {
 
 /** Ce que l'écran de paiement transmet au store en plus de la méthode et du pourboire. */
 export interface OptionsPaiement {
+  receipt?: { message: string; includeBrand: boolean; includePromo: boolean }
   remises?: Remise[]
   arrondiCaritatif?: number
   /** Ventilation d'un règlement mixte. Si absent : tout sur `method`. */
@@ -140,6 +143,14 @@ export interface Cloture {
 }
 
 export interface Table {
+  waiterId?: string
+  vip?: boolean
+  customerId?: string | null
+  orderNote?: string
+  kitchenNote?: string
+  onHold?: boolean
+  orderDiscount?: { type: 'percent' | 'amount' | 'free'; value: number } | null
+  offeredItemIds?: string[]
   id: string
   name: string
   shape: TableShape
@@ -156,6 +167,7 @@ export interface Table {
 }
 
 export interface POSSettings {
+  receiptFooter?: string
   restaurantName: string
   currency: string
   taxRate: number
@@ -165,7 +177,7 @@ export interface POSSettings {
 
 // ─── Default data ────────────────────────────────────────────────────────────
 
-const uid = () => Math.random().toString(36).slice(2, 9)
+const uid = () => crypto.randomUUID()
 
 /** Arrondi au centime. Sans lui, 3 × 3,30 € donne 9,899999999999999. */
 const centimes = (n: number) => Math.round(n * 100) / 100
@@ -463,6 +475,8 @@ const DEFAULT_STAFF: StaffMember[] = [
 // ─── Store ───────────────────────────────────────────────────────────────────
 
 interface POSStore {
+  reservations: Array<{ id: string; tableId: string | null; guestName: string; date: string }>
+  editor: { rooms: any[]; fixtures: any[]; scenes: any[]; background: string | null }
   tables: Table[]
   menu: MenuItem[]
   settings: POSSettings
@@ -579,10 +593,12 @@ export function migrerEtatPersistant(etat: any, versionPrecedente: number): any 
 export const usePOS = create<POSStore>()(
   persist(
     (set, get) => ({
-      tables: DEFAULT_TABLES,
-      menu: DEFAULT_MENU,
+      reservations: [],
+      editor: { rooms: [], fixtures: [], scenes: [], background: null },
+      tables: import.meta.env.MODE === 'test' ? DEFAULT_TABLES : [],
+      menu: import.meta.env.MODE === 'test' ? DEFAULT_MENU : [],
       settings: DEFAULT_SETTINGS,
-      staff: DEFAULT_STAFF,
+      staff: import.meta.env.MODE === 'test' ? DEFAULT_STAFF : [],
       currentStaff: null,
       kioskMode: false,
       echecsPin: 0,
@@ -836,6 +852,7 @@ export const usePOS = create<POSStore>()(
               ...t,
               status: 'occupied',
               openedAt: from.openedAt ?? Date.now(),
+              ...(!t.covers.some(c => c.items.length) ? { orderDiscount: from.orderDiscount, offeredItemIds: from.offeredItemIds, customerId: from.customerId, orderNote: from.orderNote, kitchenNote: from.kitchenNote } : {}),
               covers: [...t.covers, ...from.covers],
             }
             if (t.id === fromId) return {
@@ -843,6 +860,7 @@ export const usePOS = create<POSStore>()(
               status: 'dirty',
               covers: [],
               openedAt: undefined,
+              orderDiscount: null, offeredItemIds: [], customerId: null, orderNote: '', kitchenNote: '',
             }
             return t
           })
@@ -1069,22 +1087,15 @@ export const usePOS = create<POSStore>()(
 
       setKioskMode: (on) => set({ kioskMode: on }),
 
-      resetData: () => set(() => ({
-        tables: DEFAULT_TABLES,
-        menu: DEFAULT_MENU,
-        settings: DEFAULT_SETTINGS,
-        staff: DEFAULT_STAFF,
-        currentStaff: null,
-        kioskMode: false,
-        echecsPin: 0,
-        pinBloqueJusqua: 0,
-        // Les clôtures survivent : ce sont des pièces comptables, pas des
-        // données de démonstration. Seul le journal en cours repart à zéro.
-        ventes: [],
-      })),
+      resetData: () => {
+        if (get().tables.some(t => t.covers.some(c => !c.paidAt && c.items.length))) throw new Error('Des additions restent ouvertes. Le plan ne peut pas être vidé.')
+        set({ tables: [], editor: { rooms: [], fixtures: [], scenes: [], background: null } })
+      },
     }),
     {
-      name: 'creorga-pos-v2',
+      // Le cache historique reste intact pour export contrôlé, sans import implicite dans une autre société.
+      name: 'creorga-pos-ui-v3',
+      partialize: () => ({}),
       /**
        * Le magasin n'avait NI version NI migration : toute évolution de la
        * structure faisait repartir un poste déjà déployé sur des données

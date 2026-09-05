@@ -129,7 +129,7 @@ export function useFloorState(pollMs = 2000) {
   async function fetchFn(url: string, method: string, body?: any) {
     return fetchAuth(url, {
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      headers: { 'If-Match': String(lastUpdate.current), ...(body ? { 'Content-Type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     })
   }
