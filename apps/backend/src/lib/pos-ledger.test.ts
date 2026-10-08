@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { calculateSale, checkoutSchema, posTableSchema, buildClosure, receiptHtml } from './pos-ledger'
 
 describe('Journal serveur de caisse', () => {
+  it('arrondit la base taxable par taux sans inventer une TVA entre deux groupes', () => {
+    expect(calculateSale([{ price: 0.03, qty: 1, taxRate: 17 }, { price: 0.03, qty: 1, taxRate: 3 }], 0, 0, 0))
+      .toEqual({ brut: 0.06, sousTotal: 0.06, tva: 0, total: 0.06 })
+  })
   it('extrait la TVA TTC par produit et préserve les centimes', () => {
     expect(calculateSale([{ price: 11.7, qty: 1, taxRate: 17 }, { price: 10.3, qty: 1, taxRate: 3 }], 0, 2, 1))
       .toEqual({ brut: 22, sousTotal: 20, tva: 2, total: 25 })

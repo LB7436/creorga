@@ -1,489 +1,147 @@
-import { Router, type Response } from 'express'
+import { Router, type Request, type Response } from 'express'
 import { z } from 'zod'
+import { randomUUID, createHash } from 'node:crypto'
 import prisma from '../lib/prisma'
-import type { AuthRequest } from '../middleware/auth'
 import { requireCompany } from '../middleware/requireCompany'
-import { validate } from '../middleware/validate'
+import { moneyMinor, totalsFromTtc } from '../lib/money'
+import { ACTIVE_PAYMENT_STATES, lockOrderPayment, PaymentError } from '../lib/payments/ledger'
 import logger from '../lib/logger'
 
-const router = Router()
-// Adhésion vérifiée : le header x-company-id était cru tel quel, et les routes
-// par id (statut, encaissement, articles) n'avaient aucun filtre société.
-// `deviceOrUserAuth` est appliqué dans index.ts AVANT ce routeur : remettre ici
-// `authenticate` refusait systématiquement les vrais terminaux POS, qui ont un
-// X-Device-Token mais aucun Bearer JWT.
-router.use(requireCompany)
-
-/**
- * Arrondi monétaire au centime.
- * Les totaux étaient stockés bruts : une commande de 3 × 2,50 € à 17 % donnait
- * taxAmount = 1.275 et total = 8.775, soit un ticket et une caisse impossibles
- * à faire tomber juste au centime.
- */
-const cents = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100
-
-/** Erreur métier → réponse 4xx explicite (au lieu d'un 500 générique). */
-class OrderInputError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'OrderInputError'
+const router = Router(); router.use(requireCompany)
+const wrap = (fn: (req: any, res: Response) => Promise<any>) => async (req: any, res: Response) => {
+  try { await fn(req, res) } catch (error) {
+    if (error instanceof z.ZodError || error instanceof RangeError) return res.status(400).json({ message: 'Saisie de commande invalide.' })
+    if (error instanceof PaymentError) return res.status(error.status).json({ message: error.message })
+    logger.error('[orders] opération refusée', error)
+    return res.status(503).json({ message: 'Opération non confirmée. Actualisez avant de réessayer.' })
   }
 }
-
-// ─── GET /api/orders ───────────────────────────────────
-
-router.get('/', async (req: AuthRequest, res: Response) => {
-  try {
-    const companyId = (req as any).companyId as string
-
-    const { status, tableId } = req.query
-
-    const orders = await prisma.order.findMany({
-      where: {
-        companyId,
-        ...(status && { status: status as string }),
-        ...(tableId && { tableId: tableId as string }),
-      },
-      include: {
-        items: { include: { product: true } },
-        table: true,
-        user: { select: { firstName: true, lastName: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    })
-
-    res.json(orders)
-  } catch (error) {
-    logger.error('Erreur GET /orders:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
+const id = z.string().min(1).max(100), note = z.string().max(2000).nullable().optional()
+const itemSchema = z.object({ productId: id, quantity: z.number().int().positive().max(100000), notes: note }).strict()
+const createSchema = z.object({ tableId: id.nullable().optional(), items: z.array(itemSchema).min(1).max(500), notes: note }).strict()
+async function openOrder(tx: any, companyId: string, orderId: string) {
+  await lockOrderPayment(tx, companyId, orderId)
+  const order = await tx.order.findFirst({ where: { id: orderId, companyId } })
+  if (!order) throw new PaymentError(404, 'Commande non trouvée.')
+  if (order.paidAt || ['PAID', 'CANCELLED'].includes(order.status)) throw new PaymentError(409, 'Commande réglée ou annulée : utilisez une correction traçable.')
+  if (await tx.paymentAttempt.count({ where: { companyId, orderId, status: { in: ACTIVE_PAYMENT_STATES } } })) throw new PaymentError(409, 'Un règlement est en cours ou incertain. Vérifiez-le avant de modifier la commande.')
+  return order
+}
+async function recalculate(tx: any, orderId: string) {
+  const items = await tx.orderItem.findMany({ where: { orderId } })
+  const totals = totalsFromTtc(items.map((i: any) => ({ price: i.unitPrice, qty: i.quantity, taxRate: i.taxRate })))
+  await tx.order.update({ where: { id: orderId }, data: { subtotal: totals.baseCents / 100, taxAmount: totals.taxCents / 100, total: totals.totalCents / 100 } })
+}
+router.get('/', wrap(async (req, res) => {
+  const filters = z.object({ status: z.string().max(40).optional(), tableId: id.optional() }).parse(req.query)
+  res.json(await prisma.order.findMany({ where: { companyId: req.companyId, ...filters },
+    include: { items: { include: { product: true } }, table: true, user: { select: { firstName: true, lastName: true } } }, orderBy: { createdAt: 'desc' }, take: 1000 }))
+}))
+router.get('/:id', wrap(async (req, res) => {
+  const order = await prisma.order.findFirst({ where: { id: req.params.id, companyId: req.companyId }, include: { items: { include: { product: true } }, table: true, user: { select: { firstName: true, lastName: true } } } })
+  if (!order) throw new PaymentError(404, 'Commande non trouvée.')
+  res.json(order)
+}))
+router.post('/', wrap(async (req, res) => {
+  const input = createSchema.parse(req.body), companyId = req.companyId
+  if (input.tableId && !await prisma.table.findFirst({ where: { id: input.tableId, companyId, isActive: true } })) throw new PaymentError(400, 'Table absente de cet établissement.')
+  const products = await prisma.product.findMany({ where: { companyId, isActive: true, id: { in: input.items.map(i => i.productId) } } })
+  const lines = input.items.map(i => {
+    const product = products.find(p => p.id === i.productId)
+    if (!product) throw new PaymentError(400, 'Produit indisponible dans cet établissement.')
+    return { productId: product.id, productName: product.name, quantity: i.quantity, unitPrice: product.price, taxRate: product.taxRate, notes: i.notes || null }
+  })
+  const totals = totalsFromTtc(lines.map(i => ({ price: i.unitPrice, qty: i.quantity, taxRate: i.taxRate })))
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      const order = await prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext('order-number'))::text`
+        const last = await tx.order.findFirst({ where: { companyId }, orderBy: { orderNumber: 'desc' }, select: { orderNumber: true } })
+        return tx.order.create({ data: { companyId, userId: req.user?.userId || null, tableId: input.tableId || null, notes: input.notes,
+          orderNumber: (last?.orderNumber || 0) + 1, subtotal: totals.baseCents / 100, taxAmount: totals.taxCents / 100, total: totals.totalCents / 100,
+          items: { create: lines } }, include: { items: { include: { product: true } }, table: true } })
+      }, { maxWait: 15000, timeout: 10000 })
+      return res.status(201).json(order)
+    } catch (error: any) {
+      if (error?.code !== 'P2002') throw error
+      await new Promise(resolve => setTimeout(resolve, 5 + Math.floor(Math.random() * 20) * (attempt + 1)))
+    }
   }
-})
-
-// ─── GET /api/orders/:id ───────────────────────────────
-
-router.get('/:id', async (req: AuthRequest, res: Response) => {
-  try {
-    const order = await prisma.order.findFirst({
-      where: { id: req.params.id, companyId: (req as any).companyId },
-      include: {
-        items: { include: { product: true } },
-        table: true,
-        user: { select: { firstName: true, lastName: true } },
-      },
-    })
-
-    if (!order) {
-      res.status(404).json({ message: 'Commande non trouvée' })
-      return
+  throw new PaymentError(503, 'Numérotation momentanément indisponible.')
+}))
+router.put('/:id/status', wrap(async (req, res) => {
+  const { status } = z.object({ status: z.enum(['OPEN', 'IN_PROGRESS', 'READY', 'PAID', 'CANCELLED']) }).strict().parse(req.body)
+  if (status === 'PAID') throw new PaymentError(409, 'Le paiement doit être enregistré par l’encaissement.')
+  if (status === 'CANCELLED' && !['OWNER', 'MANAGER'].includes(req.role)) throw new PaymentError(403, 'Annulation réservée au responsable.')
+  const order = await prisma.$transaction(async tx => {
+    await openOrder(tx, req.companyId, req.params.id)
+    return tx.order.update({ where: { id: req.params.id }, data: { status }, include: { items: { include: { product: true } }, table: true } })
+  })
+  res.json(order)
+}))
+const checkoutSchema = z.object({ requestId: z.string().uuid().optional(), paymentMethod: z.enum(['CASH', 'CARD', 'MIXED']),
+  cashReceived: z.number().finite().min(0).max(10_000_000).nullable().optional(),
+  allocations: z.array(z.object({ method: z.enum(['CASH', 'CARD']), amount: z.number().finite().positive().max(10_000_000) }).strict()).min(2).max(10).optional(),
+}).strict()
+router.post('/:id/checkout', wrap(async (req, res) => {
+  const input = checkoutSchema.parse(req.body), requestId = input.requestId || randomUUID()
+  const hash = createHash('sha256').update(JSON.stringify({ ...input, requestId })).digest('hex')
+  const order = await prisma.$transaction(async tx => {
+    await lockOrderPayment(tx, req.companyId, req.params.id)
+    const replay = await tx.paymentAttempt.findUnique({ where: { companyId_requestId: { companyId: req.companyId, requestId } } })
+    if (replay) {
+      if (replay.orderId !== req.params.id || replay.provider !== 'manual' || replay.requestHash !== hash || replay.userId !== (req.user?.userId || null)) throw new PaymentError(409, 'Référence de règlement incompatible.')
+      return tx.order.findFirstOrThrow({ where: { id: req.params.id, companyId: req.companyId }, include: { items: { include: { product: true } }, table: true } })
     }
-
-    res.json(order)
-  } catch (error) {
-    logger.error('Erreur GET /orders/:id:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
-  }
-})
-
-// ─── POST /api/orders ──────────────────────────────────
-
-const createOrderSchema = z.object({
-  tableId: z.string().nullable().optional(),
-  items: z.array(z.object({
-    productId: z.string(),
-    quantity: z.number().int().positive(),
-    notes: z.string().nullable().optional(),
-  })).min(1, 'Au moins un article requis'),
-  notes: z.string().nullable().optional(),
-})
-
-router.post('/', validate(createOrderSchema), async (req: AuthRequest, res: Response) => {
-  try {
-    const companyId = (req as any).companyId as string
-
-    const { tableId, items, notes } = req.body
-
-    // Récupérer les prix des produits — restreint à la société : un produit
-    // d'une autre société ne doit pas pouvoir être commandé ici.
-    const productIds = items.map((i: { productId: string }) => i.productId)
-    const products = await prisma.product.findMany({
-      where: { id: { in: productIds }, companyId },
-    })
-
-    const productMap = new Map(products.map((p) => [p.id, p]))
-
-    // Calculer les totaux — TVA ligne par ligne (les produits peuvent avoir
-    // des taux différents : 17 % standard, 3 % restauration, etc.).
-    let subtotal = 0
-    let taxAmount = 0
-
-    const orderItems = items.map((item: { productId: string; quantity: number; notes?: string | null }) => {
-      const product = productMap.get(item.productId)
-      if (!product) throw new OrderInputError(`Produit ${item.productId} introuvable`)
-
-      const lineTotal = product.price * item.quantity
-      const lineTax = lineTotal * (product.taxRate / 100)
-      subtotal += lineTotal
-      taxAmount += lineTax
-
-      return {
-        productId: item.productId,
-        quantity: item.quantity,
-        unitPrice: product.price,
-        taxRate: product.taxRate,
-        notes: item.notes || null,
-      }
-    })
-
-    // Arrondi au centime avant écriture (cf. `cents`).
-    subtotal = cents(subtotal)
-    taxAmount = cents(taxAmount)
-    const total = cents(subtotal + taxAmount)
-
-    // Numéro séquentiel : `findFirst` + 1 n'est pas atomique — sous charge,
-    // huit commandes simultanées repartaient toutes du même dernier numéro.
-    // On sérialise lecture et écriture dans une transaction, et on réessaie
-    // si une autre transaction a pris le numéro entre-temps (P2002).
-    //
-    // Le réessai seul ne suffit pas : sans attente entre deux tours, les
-    // requêtes concurrentes se resynchronisent et rejouent la même collision.
-    // Mesuré sur PC le 27/07/2026 : 8 commandes simultanées -> 2 échecs en
-    // 500. Le délai aléatoire croissant les désynchronise, exactement comme
-    // dans `createAvecNumero` (routes/invoices.ts).
-    const MAX_TENTATIVES = 10
-    let order: any = null
-    let derniereErreur: unknown = null
-
-    for (let tentative = 0; tentative < MAX_TENTATIVES; tentative++) {
-      try {
-        order = await prisma.$transaction(async (tx) => {
-          const lastOrder = await tx.order.findFirst({
-            where: { companyId },
-            orderBy: { orderNumber: 'desc' },
-            select: { orderNumber: true },
-          })
-          const orderNumber = (lastOrder?.orderNumber ?? 0) + 1
-
-          return tx.order.create({
-            data: {
-              companyId,
-              tableId: tableId || null,
-              userId: req.user!.userId,
-              orderNumber,
-              notes: notes || null,
-              subtotal,
-              taxAmount,
-              total,
-              items: { create: orderItems },
-            },
-            include: {
-              items: { include: { product: true } },
-              table: true,
-            },
-          })
-        })
-        break
-      } catch (e: any) {
-        // P2002 = violation d'unicité sur (companyId, orderNumber)
-        if (e?.code !== 'P2002') throw e
-        derniereErreur = e
-        const attente = 5 + Math.floor(Math.random() * 20) * (tentative + 1)
-        await new Promise((r) => setTimeout(r, attente))
-      }
-    }
-
-    // Numérotation saturée : c'est une indisponibilité temporaire, pas une
-    // faute du client ni un bug applicatif. Un 500 opaque empêchait le POS de
-    // distinguer « réessaie » de « la commande est perdue ».
-    if (!order) {
-      logger.error(`Numérotation de commande saturée après ${MAX_TENTATIVES} tentatives`, derniereErreur)
-      res.status(503).json({ message: 'Numérotation de commande momentanément indisponible' })
-      return
-    }
-
-    logger.info(`Nouvelle commande #${order.orderNumber} créée`)
-    res.status(201).json(order)
-  } catch (error) {
-    // Produit inconnu ou hors société : faute du client, pas du serveur.
-    if (error instanceof OrderInputError) {
-      res.status(400).json({ message: error.message })
-      return
-    }
-    logger.error('Erreur POST /orders:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
-  }
-})
-
-// ─── PUT /api/orders/:id/status ────────────────────────
-
-const updateStatusSchema = z.object({
-  status: z.enum(['OPEN', 'IN_PROGRESS', 'READY', 'PAID', 'CANCELLED']),
-})
-
-router.put('/:id/status', validate(updateStatusSchema), async (req: AuthRequest, res: Response) => {
-  try {
-    const cible = req.body.status as string
-    const role = String((req as any).role || '')
-    const superviseur = role === 'OWNER' || role === 'MANAGER'
-
-    // v5.0 — Un statut n'est pas un règlement : « PAYÉE » ne se pose que par
-    // l'encaissement (POST /:id/checkout), qui enregistre le moyen de paiement,
-    // le montant reçu et la monnaie. Sinon une commande pouvait passer payée
-    // sans aucune trace comptable.
-    if (cible === 'PAID') {
-      res.status(409).json({ message: 'Le passage en PAYÉE se fait par l’encaissement (POST /orders/:id/checkout).' })
-      return
-    }
-    // L'annulation efface du chiffre : responsable ou propriétaire seulement.
-    if (cible === 'CANCELLED' && !superviseur) {
-      res.status(403).json({ message: 'Annulation réservée au responsable ou au propriétaire' })
-      return
-    }
-
-    const appartient = await prisma.order.findFirst({
-      where: { id: req.params.id, companyId: (req as any).companyId },
-      select: { id: true, status: true },
-    })
-    if (!appartient) {
-      res.status(404).json({ message: 'Commande non trouvée' })
-      return
-    }
-    // Une commande encaissée ou annulée est close : on ne la rouvre pas par un
-    // simple changement de statut.
-    if (appartient.status === 'PAID' || appartient.status === 'CANCELLED') {
-      res.status(409).json({ message: `Commande ${appartient.status === 'PAID' ? 'déjà encaissée' : 'annulée'} : statut figé` })
-      return
-    }
-
-    const order = await prisma.order.update({
-      where: { id: req.params.id },
-      data: { status: req.body.status },
-      include: { items: { include: { product: true } }, table: true },
-    })
-
-    res.json(order)
-  } catch (error) {
-    logger.error('Erreur PUT /orders/status:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
-  }
-})
-
-// ─── POST /api/orders/:id/checkout ─────────────────────
-
-const checkoutSchema = z.object({
-  paymentMethod: z.enum(['CASH', 'CARD', 'MIXED']),
-  cashReceived: z.number().nullable().optional(),
-})
-
-router.post('/:id/checkout', validate(checkoutSchema), async (req: AuthRequest, res: Response) => {
-  try {
-    const { paymentMethod, cashReceived } = req.body
-
-    const existing = await prisma.order.findFirst({
-      where: { id: req.params.id, companyId: (req as any).companyId },
-    })
-
-    if (!existing) {
-      res.status(404).json({ message: 'Commande non trouvée' })
-      return
-    }
-
-    // Une commande déjà réglée ne doit pas pouvoir l'être une seconde fois :
-    // le second encaissement écrasait paidAt et comptait le montant deux fois
-    // dans le chiffre d'affaires du jour.
-    if (existing.status === 'PAID') {
-      res.status(409).json({ message: 'Commande déjà encaissée' })
-      return
-    }
-    if (existing.status === 'CANCELLED') {
-      res.status(409).json({ message: 'Commande annulée : encaissement impossible' })
-      return
-    }
-
-    if (paymentMethod === 'CASH' && cashReceived != null && cashReceived < existing.total) {
-      res.status(400).json({
-        message: `Montant reçu insuffisant (${cashReceived} € pour ${existing.total} €)`,
-      })
-      return
-    }
-
-    const cashChange = paymentMethod === 'CASH' && cashReceived
-      ? cents(cashReceived - existing.total)
-      : null
-
-    const order = await prisma.order.update({
-      where: { id: req.params.id },
-      data: {
-        status: 'PAID',
-        paymentMethod,
-        cashReceived: cashReceived || null,
-        cashChange,
-        paidAt: new Date(),
-      },
-      include: { items: { include: { product: true } }, table: true },
-    })
-
-    logger.info(`Commande #${order.orderNumber} encaissée (${paymentMethod})`)
-    res.json(order)
-  } catch (error) {
-    logger.error('Erreur POST /orders/checkout:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
-  }
-})
-
-// ─── POST /api/orders/:id/items ────────────────────────
-
-const addItemSchema = z.object({
-  productId: z.string(),
-  quantity: z.number().int().positive(),
-  notes: z.string().nullable().optional(),
-})
-
-router.post('/:id/items', validate(addItemSchema), async (req: AuthRequest, res: Response) => {
-  try {
-    const companyId = (req as any).companyId as string
-    const { productId, quantity, notes } = req.body
-
-    const commande = await prisma.order.findFirst({
-      where: { id: req.params.id, companyId },
-      select: { id: true },
-    })
-    if (!commande) {
-      res.status(404).json({ message: 'Commande non trouvée' })
-      return
-    }
-
-    // Produit restreint à la société : on ne facture pas la carte d'un autre.
-    const product = await prisma.product.findFirst({ where: { id: productId, companyId } })
-    if (!product) {
-      res.status(404).json({ message: 'Produit non trouvé' })
-      return
-    }
-
-    const item = await prisma.orderItem.create({
-      data: {
-        orderId: req.params.id,
-        productId,
-        quantity,
-        unitPrice: product.price,
-        taxRate: product.taxRate,
-        notes: notes || null,
-      },
-      include: { product: true },
-    })
-
-    // Recalculer les totaux
-    const allItems = await prisma.orderItem.findMany({ where: { orderId: req.params.id } })
-    let subtotal = 0
-    let taxAmount = 0
-    for (const oi of allItems) {
-      subtotal += oi.unitPrice * oi.quantity
-      taxAmount += oi.unitPrice * oi.quantity * (oi.taxRate / 100)
-    }
-
-    const order = await prisma.order.update({
-      where: { id: req.params.id },
-      data: { subtotal: cents(subtotal), taxAmount: cents(taxAmount), total: cents(subtotal + taxAmount) },
-      include: { items: { include: { product: true } }, table: true },
-    })
-
-    res.status(201).json(item)
-  } catch (error) {
-    logger.error('Erreur POST /orders/items:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
-  }
-})
-
-// ─── PUT /api/orders/:id/items/:itemId ─────────────────
-
-router.put('/:id/items/:itemId', async (req: AuthRequest, res: Response) => {
-  try {
-    const commande = await prisma.order.findFirst({
-      where: { id: req.params.id, companyId: (req as any).companyId },
-      select: { id: true },
-    })
-    if (!commande) {
-      res.status(404).json({ message: 'Commande non trouvée' })
-      return
-    }
-    const existant = await prisma.orderItem.findFirst({
-      where: { id: req.params.itemId, orderId: req.params.id },
-      select: { id: true },
-    })
-    if (!existant) {
-      res.status(404).json({ message: 'Article non trouvé' })
-      return
-    }
-
-    // Le corps ne doit pas pouvoir déplacer l'article vers une autre commande.
-    const { orderId: _commande, id: _id, ...donnees } = req.body ?? {}
-    const item = await prisma.orderItem.update({
-      where: { id: req.params.itemId },
-      data: donnees,
-      include: { product: true },
-    })
-
-    // Recalculer les totaux
-    const allItems = await prisma.orderItem.findMany({ where: { orderId: req.params.id } })
-    let subtotal = 0
-    let taxAmount = 0
-    for (const oi of allItems) {
-      subtotal += oi.unitPrice * oi.quantity
-      taxAmount += oi.unitPrice * oi.quantity * (oi.taxRate / 100)
-    }
-
-    const order = await prisma.order.update({
-      where: { id: req.params.id },
-      data: { subtotal: cents(subtotal), taxAmount: cents(taxAmount), total: cents(subtotal + taxAmount) },
-      include: { items: { include: { product: true } }, table: true },
-    })
-
-    res.json(item)
-  } catch (error) {
-    logger.error('Erreur PUT /orders/items:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
-  }
-})
-
-// ─── DELETE /api/orders/:id/items/:itemId ──────────────
-
-router.delete('/:id/items/:itemId', async (req: AuthRequest, res: Response) => {
-  try {
-    const commande = await prisma.order.findFirst({
-      where: { id: req.params.id, companyId: (req as any).companyId },
-      select: { id: true },
-    })
-    if (!commande) {
-      res.status(404).json({ message: 'Commande non trouvée' })
-      return
-    }
-    const { count } = await prisma.orderItem.deleteMany({
-      where: { id: req.params.itemId, orderId: req.params.id },
-    })
-    if (count === 0) {
-      res.status(404).json({ message: 'Article non trouvé' })
-      return
-    }
-
-    // Recalculer les totaux
-    const allItems = await prisma.orderItem.findMany({ where: { orderId: req.params.id } })
-    let subtotal = 0
-    let taxAmount = 0
-    for (const oi of allItems) {
-      subtotal += oi.unitPrice * oi.quantity
-      taxAmount += oi.unitPrice * oi.quantity * (oi.taxRate / 100)
-    }
-
-    const order = await prisma.order.update({
-      where: { id: req.params.id },
-      data: { subtotal: cents(subtotal), taxAmount: cents(taxAmount), total: cents(subtotal + taxAmount) },
-      include: { items: { include: { product: true } }, table: true },
-    })
-
-    res.json({ message: 'Article supprimé' })
-  } catch (error) {
-    logger.error('Erreur DELETE /orders/items:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
-  }
-})
-
+    const current = await openOrder(tx, req.companyId, req.params.id)
+    const totalCents = moneyMinor(current.total)
+    if (input.paymentMethod === 'MIXED' && (!input.allocations || input.allocations.reduce((sum, p) => sum + moneyMinor(p.amount), 0) !== totalCents)) throw new PaymentError(400, 'Ventilation du paiement mixte requise au centime.')
+    const cashDue = input.paymentMethod === 'CASH' ? totalCents : input.paymentMethod === 'MIXED' ? input.allocations!.filter(p => p.method === 'CASH').reduce((n, p) => n + moneyMinor(p.amount), 0) : 0
+    const received = input.cashReceived == null ? cashDue : moneyMinor(input.cashReceived)
+    if (cashDue && received < cashDue) throw new PaymentError(400, 'Montant espèces reçu insuffisant.')
+    if (!totalCents) throw new PaymentError(409, 'Commande sans montant à régler.')
+    await tx.paymentAttempt.create({ data: { companyId: req.companyId, orderId: current.id, userId: req.user?.userId || null, requestId, requestHash: hash,
+      provider: 'manual', merchantId: `manual:${req.companyId}`, amountCents: totalCents, currency: req.company.currency, status: 'DECLARED',
+      response: { confirmation: 'manual_declaration', method: input.paymentMethod, allocations: input.allocations || [{ method: input.paymentMethod, amount: current.total }] } } })
+    return tx.order.update({ where: { id: current.id }, data: { status: 'PAID', paymentMethod: input.paymentMethod, paidAt: new Date(),
+      cashReceived: cashDue ? received / 100 : null, cashChange: cashDue ? (received - cashDue) / 100 : null }, include: { items: { include: { product: true } }, table: true } })
+  }, { maxWait: 15000, timeout: 10000 })
+  res.json({ ...order, paymentConfirmation: 'manual_declaration' })
+}))
+router.post('/:id/items', wrap(async (req, res) => {
+  const input = itemSchema.parse(req.body)
+  const item = await prisma.$transaction(async tx => {
+    await openOrder(tx, req.companyId, req.params.id)
+    const product = await tx.product.findFirst({ where: { id: input.productId, companyId: req.companyId, isActive: true } })
+    if (!product) throw new PaymentError(404, 'Produit indisponible.')
+    const item = await tx.orderItem.create({ data: { orderId: req.params.id, productId: product.id, productName: product.name, unitPrice: product.price, taxRate: product.taxRate, quantity: input.quantity, notes: input.notes }, include: { product: true } })
+    await recalculate(tx, req.params.id)
+    return item
+  })
+  res.status(201).json(item)
+}))
+router.put('/:id/items/:itemId', wrap(async (req, res) => {
+  const input = z.object({ quantity: z.number().int().positive().max(100000).optional(), notes: note,
+    status: z.enum(['PENDING', 'PREPARING', 'READY', 'SERVED']).optional() }).strict().parse(req.body)
+  const item = await prisma.$transaction(async tx => {
+    await openOrder(tx, req.companyId, req.params.id)
+    const previous = await tx.orderItem.findFirst({ where: { id: req.params.itemId, orderId: req.params.id } })
+    if (!previous) throw new PaymentError(404, 'Article non trouvé.')
+    const item = await tx.orderItem.update({ where: { id: previous.id }, data: input, include: { product: true } })
+    await recalculate(tx, req.params.id)
+    return item
+  })
+  res.json(item)
+}))
+router.delete('/:id/items/:itemId', wrap(async (req, res) => {
+  await prisma.$transaction(async tx => {
+    await openOrder(tx, req.companyId, req.params.id)
+    const item = await tx.orderItem.findFirst({ where: { id: req.params.itemId, orderId: req.params.id } })
+    if (!item) throw new PaymentError(404, 'Article non trouvé.')
+    if (item.status !== 'PENDING') throw new PaymentError(409, 'Article envoyé en préparation : correction avec motif requise.')
+    await tx.orderItem.delete({ where: { id: item.id } })
+    await recalculate(tx, req.params.id)
+  })
+  res.json({ message: 'Article supprimé.' })
+}))
 export default router

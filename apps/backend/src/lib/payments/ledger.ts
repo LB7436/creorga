@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import prisma from '../prisma'
-import { charge, SUPPORTED_PROVIDERS, type PaymentProvider } from './gateway'
+import { charge, getGateway, SUPPORTED_PROVIDERS, type PaymentProvider } from './gateway'
 
 export class PaymentError extends Error {
   constructor(public status: number, message: string) { super(message) }
@@ -31,14 +31,16 @@ export function merchantFor(provider: string, companyId: string): string {
   if (process.env.PAYMENT_MERCHANT_COMPANY_ID !== companyId) throw new PaymentError(503, 'Compte marchand de cet établissement non configuré.')
   const id = process.env[`${provider.toUpperCase()}_MERCHANT_ID`]
   if (!id) throw new PaymentError(503, 'Identifiant marchand vérifiable requis.')
+  if (provider === 'paypal' && (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET || (process.env.PAYPAL_ENV === 'live' && process.env.PAYPAL_LIVE_ENABLED !== 'true'))) throw new PaymentError(503, 'PayPal de cet établissement non configuré.')
+  if (provider === 'stripe' && !process.env.STRIPE_SECRET_KEY) throw new PaymentError(503, 'Stripe de cet établissement non configuré.')
   return id
 }
-function publicAttempt(attempt: any) {
+export function publicAttempt(attempt: any) {
   const cached = attempt.response || {}
-  return { ok: !['FAILED', 'REVIEW'].includes(attempt.status), attemptId: attempt.id, provider: attempt.provider,
+  return { ok: ['PENDING', 'AWAITING_TERMINAL', 'SUCCEEDED'].includes(attempt.status), attemptId: attempt.id, provider: attempt.provider,
     transactionId: attempt.externalId || undefined, status: attempt.status.toLowerCase(), amount: attempt.amountCents / 100, currency: attempt.currency,
     redirectUrl: cached.redirectUrl, qrPayload: cached.qrPayload,
-    confirmation: attempt.provider === 'sumup' ? 'manual_terminal_required' : 'provider_not_confirmed' }
+    confirmation: attempt.status === 'SUCCEEDED' ? 'provider_verified' : attempt.provider === 'sumup' ? 'manual_terminal_required' : 'provider_not_confirmed' }
 }
 export async function createPayment(companyId: string, userId: string | null, raw: unknown) {
   const input = inputSchema.parse(raw)
@@ -86,4 +88,50 @@ export async function findAttempt(companyId: string, provider: string, externalI
   const attempt = await prisma.paymentAttempt.findFirst({ where: { companyId, provider, externalId } })
   if (!attempt) throw new PaymentError(404, 'Tentative introuvable dans cet établissement.')
   return attempt
+}
+
+const evidenceSchema = z.object({ amountCents: z.number().int().positive(), currency: z.string().length(3), merchantId: z.string().min(1),
+  orderId: z.string().min(1), attemptId: z.string().min(1), captureId: z.string().min(1).max(200),
+  feesCents: z.number().int().min(0).optional(), netCents: z.number().int().optional() })
+
+export async function reconcilePayment(companyId: string, attemptId: string, capture = false) {
+  const attempt = await prisma.paymentAttempt.findFirst({ where: { id: attemptId, companyId } })
+  if (!attempt) throw new PaymentError(404, 'Tentative introuvable.')
+  if (attempt.status === 'SUCCEEDED') return publicAttempt(attempt)
+  if (!attempt.externalId) throw new PaymentError(409, 'Résultat de création inconnu : vérification du prestataire nécessaire.')
+  const gateway = getGateway(attempt.provider as PaymentProvider)
+  if (!gateway?.verify || (capture && !gateway.capture)) throw new PaymentError(409, 'Ce terminal demande une déclaration manuelle et un rapprochement.')
+  // Retrouver la même configuration marchande ; ne pas rapprocher dans un autre compte.
+  if (merchantFor(attempt.provider, companyId) !== attempt.merchantId) throw new PaymentError(409, 'Configuration marchande modifiée : rapprochement responsable requis.')
+  let result
+  try { result = capture ? await gateway.capture!(attempt.externalId, attempt.captureRequestId) : await gateway.verify(attempt.externalId) }
+  catch {
+    await prisma.paymentAttempt.updateMany({ where: { id: attempt.id, status: { not: 'SUCCEEDED' } }, data: { status: 'UNKNOWN' } })
+    throw new PaymentError(503, 'Prestataire non joignable. Référence conservée ; aucun nouveau débit lancé.')
+  }
+  if (result.status !== 'succeeded') return publicAttempt(attempt)
+  const checked = evidenceSchema.safeParse(result.evidence)
+  if (!checked.success || checked.data.amountCents !== attempt.amountCents || checked.data.currency !== attempt.currency
+      || checked.data.merchantId !== attempt.merchantId || checked.data.orderId !== attempt.orderId || checked.data.attemptId !== attempt.id) {
+    await prisma.paymentAttempt.updateMany({ where: { id: attempt.id, status: { not: 'SUCCEEDED' } }, data: { status: 'REVIEW' } })
+    throw new PaymentError(409, 'Preuve de capture incohérente. Aucune vente n’est marquée payée ; rapprochement requis.')
+  }
+  const proof = checked.data
+  if (proof.feesCents !== undefined && proof.netCents !== undefined && proof.netCents + proof.feesCents !== proof.amountCents) throw new PaymentError(409, 'Montants brut, frais et net incohérents.')
+  const confirmed = await prisma.$transaction(async tx => {
+    await lockOrderPayment(tx, companyId, attempt.orderId)
+    const current = await tx.paymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } })
+    const existing = await tx.paymentSettlement.findUnique({ where: { attemptId: attempt.id } })
+    if (existing) {
+      if (existing.captureId !== proof.captureId || existing.amountCents !== proof.amountCents) throw new PaymentError(409, 'Capture différente sur une référence déjà rapprochée.')
+      return current
+    }
+    const order = await tx.order.findFirstOrThrow({ where: { id: attempt.orderId, companyId } })
+    if (order.paidAt || order.status === 'CANCELLED' || amountInCents(order.total) !== attempt.amountCents) throw new PaymentError(409, 'La commande a été réglée ou modifiée ailleurs : vérifier ce paiement avant toute nouvelle opération.')
+    await tx.paymentSettlement.create({ data: { companyId, orderId: order.id, attemptId: attempt.id, provider: attempt.provider,
+      merchantId: proof.merchantId, captureId: proof.captureId, amountCents: proof.amountCents, currency: proof.currency, feesCents: proof.feesCents, netCents: proof.netCents } })
+    await tx.order.update({ where: { id: order.id }, data: { status: 'PAID', paidAt: new Date(), paymentMethod: `${attempt.provider}:${proof.captureId}` } })
+    return tx.paymentAttempt.update({ where: { id: attempt.id }, data: { status: 'SUCCEEDED' } })
+  }, { maxWait: 15000, timeout: 10000 })
+  return publicAttempt(confirmed)
 }

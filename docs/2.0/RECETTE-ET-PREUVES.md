@@ -20,3 +20,12 @@ rejeu simultané, références concurrentes et anonymat.
 Non prouvés par ces tests : paiement PayPal sandbox, débit bancaire réel, sortie de papier,
 caméra, cent scénarios du cahier des charges, panne électrique, performance durant un service.
 Les résultats à venir complètent ce fichier ; aucune donnée fictive ne sert de preuve matérielle.
+
+Seconde vérification : 255 unités (178 backend, 46 web, 31 POS), 25 intégrations
+(19 paiement, 6 commande), puis cinq observations de navigateur réussies : inscription,
+société reçue, nom sauvegardé, salle vide, aucune exception JavaScript.
+Preuve privée : `BROWSER-SMOKE.json`.
+
+Un test de concurrence de salle dépendait de délais 30/100 ms. Il utilise maintenant
+des barrières explicites : la première requête entre, la seconde confirme son écriture,
+puis la première reprend et doit obtenir 409. La protection n'a pas été affaiblie.

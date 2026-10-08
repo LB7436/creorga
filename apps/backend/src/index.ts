@@ -67,7 +67,7 @@ import reputationRoutes from './routes/reputation'
 import eventsRoutes from './routes/events'
 import stripeRoutes, { stripeWebhook } from './routes/stripe'
 import emailRoutes from './routes/email'
-import paymentsRoutes from './routes/payments'
+import paymentsRoutes, { paypalWebhook, processPendingPaymentWebhooks } from './routes/payments'
 import portalConfigRoutes from './routes/portalConfig'
 import floorStateRoutes, { floorCompanyContext } from './routes/floorState'
 import moduleConfigRoutes from './routes/moduleConfig'
@@ -166,6 +166,7 @@ const LARGE_BODY_PATHS = ['/api/agent', '/api/floor-state', '/api/inventory-ocr'
 // exacts) et hors `authenticate` (Stripe n'a pas de JWT). Doit précéder
 // express.json(), qui marquerait le corps comme déjà lu.
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '1mb' }), stripeWebhook)
+app.post('/api/payments/webhooks/paypal', express.json({ limit: '256kb' }), paypalWebhook)
 app.use(LARGE_BODY_PATHS, express.json({ limit: '20mb' }))
 app.use('/api/pos/draft', express.json({ limit: '5mb' }))
 app.use(express.json({ limit: '1mb' }))
@@ -346,6 +347,7 @@ httpServer.listen(PORT, () => {
   logger.info(`Environnement: ${process.env.NODE_ENV || 'development'}`)
   // Réplication stock JSON → Prisma Ingredient (no-op si DB indisponible)
   startStockSyncJob()
+  setInterval(() => { void processPendingPaymentWebhooks().catch(() => logger.warn('[payments] reprise des notifications différée')) }, 60000).unref()
   // Signalement des sessions anciennes, sans effacer les additions ni les chaises.
   import('./jobs/closeStaleFloorSessions').then(({ startStaleSessionJanitor }) => {
     startStaleSessionJanitor()

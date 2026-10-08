@@ -223,6 +223,7 @@ model Order {
   customer Customer?  @relation("CustomerOrders", fields: [customerId], references: [id])
   items    OrderItem[]
   paymentAttempts PaymentAttempt[]
+  paymentSettlements PaymentSettlement[]
 
   // Deux commandes ne peuvent pas porter le même numéro dans une société :
   // la numérotation applicative (lecture du max + 1) ne suffit pas sous
@@ -273,9 +274,46 @@ model PaymentAttempt {
   updatedAt        DateTime @updatedAt
   company Company @relation(fields: [companyId], references: [id])
   order   Order   @relation(fields: [companyId, orderId], references: [companyId, id])
+  settlement PaymentSettlement?
+  @@unique([companyId, id])
   @@unique([companyId, requestId])
   @@unique([provider, merchantId, externalId])
   @@index([companyId, orderId, status])
+}
+
+model PaymentSettlement {
+  id          String   @id @default(uuid())
+  companyId   String
+  orderId     String
+  attemptId   String   @unique
+  provider    String
+  merchantId  String
+  captureId   String
+  amountCents Int
+  currency    String
+  feesCents   Int?
+  netCents    Int?
+  createdAt   DateTime @default(now())
+  order       Order @relation(fields: [companyId, orderId], references: [companyId, id])
+  attempt     PaymentAttempt @relation(fields: [companyId, attemptId], references: [companyId, id])
+  @@unique([companyId, attemptId])
+  @@unique([provider, merchantId, captureId])
+  @@index([companyId, orderId])
+}
+
+model PaymentWebhook {
+  id              String   @id
+  companyId       String
+  provider        String
+  eventId         String
+  eventType       String
+  externalOrderId String?
+  payloadHash     String
+  status          String   @default("RECEIVED")
+  receivedAt      DateTime @default(now())
+  processedAt     DateTime?
+  @@unique([companyId, provider, eventId])
+  @@index([companyId, status])
 }
 
 // Journal serveur immuable : un même règlement ne peut être enregistré deux fois.

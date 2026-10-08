@@ -7,18 +7,23 @@ import prisma from '../lib/prisma'
 import { deviceOrUserAuth } from '../middleware/deviceAuth'
 
 // Seul le prestataire bancaire est remplacé : autorisations, HTTP et base sont réels.
-const remote = vi.hoisted(() => ({ requests: [] as any[] }))
+const remote = vi.hoisted(() => ({ requests: [] as any[], evidence: undefined as any, failCreation: false }))
 vi.mock('../lib/payments/gateway', () => ({
-  SUPPORTED_PROVIDERS: ['stripe', 'sumup', 'mypos', 'viva', 'worldline', 'servipay'],
-  getGateway: () => ({ verify: async (id: string) => ({ ok: true, provider: 'stripe', transactionId: id, status: 'succeeded', raw: { secret: 'do-not-expose' } }) }),
+  SUPPORTED_PROVIDERS: ['paypal', 'stripe', 'sumup', 'mypos', 'viva', 'worldline', 'servipay'],
+  getGateway: () => ({ verify: async (id: string) => ({ ok: true, provider: 'paypal', transactionId: id, status: 'succeeded', evidence: remote.evidence, raw: { secret: 'do-not-expose' } }),
+    capture: async (id: string) => ({ ok: true, provider: 'paypal', transactionId: id, status: 'succeeded', evidence: remote.evidence }) }),
   charge: async (body: any) => {
     remote.requests.push(body)
+    if (remote.failCreation) throw new Error('timeout-after-provider-acceptance')
     return { ok: true, provider: body.provider, transactionId: 'provider-' + body.requestId, status: 'pending', requestedAmount: body.amount }
   },
 }))
-import payments from './payments'
+import payments, { paypalWebhook } from './payments'
 
-const app = express(); app.use(express.json()); app.use('/api/payments', deviceOrUserAuth, payments)
+vi.mock('../lib/payments/paypal', () => ({ PayPalClient: class { async verifyWebhook(headers: any) { return headers['paypal-transmission-sig'] === 'fixture-verified' } } }))
+const app = express(); app.use(express.json())
+app.post('/api/payments/webhooks/paypal', (req, res, next) => typeof paypalWebhook === 'function' ? paypalWebhook(req, res) : res.sendStatus(501))
+app.use('/api/payments', deviceOrUserAuth, payments)
 const a = 'integration-payment-a', b = 'integration-payment-b', userId = 'integration-payment-owner'
 let token: string, orderA: string, orderB: string
 const auth = (builder: any) => builder.set('Authorization', 'Bearer ' + token).set('x-company-id', a)
@@ -33,6 +38,9 @@ describe('Paiement : cloisonnement et montant serveur', () => {
     token = jwt.sign({ userId, email: 'payment-owner@localhost.invalid' }, process.env.JWT_SECRET!, { expiresIn: '10m' })
   })
   beforeEach(async () => {
+    vi.stubEnv('PAYMENT_MERCHANT_COMPANY_ID', a); vi.stubEnv('PAYPAL_MERCHANT_ID', 'merchant-test')
+    vi.stubEnv('PAYPAL_CLIENT_ID', 'fixture-only'); vi.stubEnv('PAYPAL_CLIENT_SECRET', 'fixture-only')
+    remote.evidence = undefined; remote.failCreation = false
     remote.requests.length = 0
     for (const [companyId, setter] of [[a, (id: string) => { orderA = id }], [b, (id: string) => { orderB = id }]] as const) {
       const last = await prisma.order.aggregate({ where: { companyId }, _max: { orderNumber: true } })
@@ -40,12 +48,15 @@ describe('Paiement : cloisonnement et montant serveur', () => {
     }
   })
   afterAll(async () => {
+    await (prisma as any).paymentWebhook?.deleteMany({ where: { companyId: a } })
+    await (prisma as any).paymentSettlement?.deleteMany({ where: { companyId: { in: [a, b] } } })
     await prisma.paymentAttempt.deleteMany({ where: { companyId: { in: [a, b] } } })
     await prisma.order.deleteMany({ where: { companyId: { in: [a, b] } } })
     await prisma.userCompany.deleteMany({ where: { userId } })
     await prisma.user.deleteMany({ where: { id: userId } })
     await prisma.company.deleteMany({ where: { id: { in: [a, b] } } })
     await prisma.$disconnect()
+    vi.unstubAllEnvs()
   })
   it('refuse une commande appartenant à une autre société', async () => {
     expect((await auth(request(app).post('/api/payments/charge')).send(input(orderB))).status).toBe(404)
@@ -87,5 +98,48 @@ describe('Paiement : cloisonnement et montant serveur', () => {
   })
   it('refuse un appel anonyme même avec un identifiant de société', async () => {
     expect((await request(app).post('/api/payments/charge').set('x-company-id', a).send(input())).status).toBe(401)
+  })
+  it('une capture sans montant ou marchand vérifié ne marque jamais payé', async () => {
+    const created = await auth(request(app).post('/api/payments/charge')).send({ ...input(), provider: 'paypal' })
+    expect(created.status).toBe(200)
+    expect((await auth(request(app).post(`/api/payments/attempts/${created.body.attemptId}/capture`))).status).toBe(409)
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: orderA } })).paidAt).toBeNull()
+  })
+  it('un rapprochement payé crée une seule écriture même rejoué', async () => {
+    const created = await auth(request(app).post('/api/payments/charge')).send({ ...input(), provider: 'paypal' })
+    remote.evidence = { amountCents: 2400, currency: 'EUR', merchantId: 'merchant-test', orderId: orderA, attemptId: created.body.attemptId, captureId: randomUUID() }
+    const first = await auth(request(app).post(`/api/payments/attempts/${created.body.attemptId}/reconcile`))
+    expect(first.status).toBe(200); expect(first.body.status).toBe('succeeded'); expect(first.body.confirmation).toBe('provider_verified')
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: orderA } })).paidAt).not.toBeNull()
+    await auth(request(app).post(`/api/payments/attempts/${created.body.attemptId}/reconcile`)).expect(200)
+    expect(await (prisma as any).paymentSettlement.count({ where: { companyId: a, orderId: orderA } })).toBe(1)
+    expect(first.body.raw).toBeUndefined()
+  })
+  it.each([{ amountCents: 1 }, { currency: 'USD' }, { merchantId: 'other-merchant' }, { orderId: 'other-order' }])('rejette une preuve incohérente %j', async mismatch => {
+    const created = await auth(request(app).post('/api/payments/charge')).send({ ...input(), provider: 'paypal' })
+    remote.evidence = { amountCents: 2400, currency: 'EUR', merchantId: 'merchant-test', orderId: orderA, attemptId: created.body.attemptId, captureId: randomUUID(), ...mismatch }
+    expect((await auth(request(app).post(`/api/payments/attempts/${created.body.attemptId}/reconcile`))).status).toBe(409)
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: orderA } })).paidAt).toBeNull()
+  })
+  it('après timeout une nouvelle référence ne déclenche pas un autre débit', async () => {
+    remote.failCreation = true
+    const body = { ...input(), provider: 'paypal' }
+    const created = await auth(request(app).post('/api/payments/charge')).send(body)
+    expect(created.status).toBe(202); expect(created.body.status).toBe('unknown')
+    await auth(request(app).post('/api/payments/charge')).send({ ...body, requestId: randomUUID() }).expect(409)
+    expect(remote.requests).toHaveLength(1)
+  })
+  it('rejette un webhook non vérifié sans marquer payé', async () => {
+    expect((await request(app).post('/api/payments/webhooks/paypal').send({ id: 'forged-event', event_type: 'PAYMENT.CAPTURE.COMPLETED', resource: {} })).status).toBe(401)
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: orderA } })).paidAt).toBeNull()
+  })
+  it('deux notifications vérifiées du même événement produisent une seule affectation', async () => {
+    const created = await auth(request(app).post('/api/payments/charge')).send({ ...input(), provider: 'paypal' })
+    remote.evidence = { amountCents: 2400, currency: 'EUR', merchantId: 'merchant-test', orderId: orderA, attemptId: created.body.attemptId, captureId: randomUUID() }
+    const event = { id: randomUUID(), event_type: 'PAYMENT.CAPTURE.COMPLETED', resource: { supplementary_data: { related_ids: { order_id: created.body.transactionId } } } }
+    await request(app).post('/api/payments/webhooks/paypal').set('paypal-transmission-sig', 'fixture-verified').send(event).expect(200)
+    await request(app).post('/api/payments/webhooks/paypal').set('paypal-transmission-sig', 'fixture-verified').send(event).expect(200)
+    expect(await prisma.paymentSettlement.count({ where: { companyId: a, orderId: orderA } })).toBe(1)
+    expect(await prisma.paymentWebhook.count({ where: { companyId: a, eventId: event.id, status: 'PROCESSED' } })).toBe(1)
   })
 })

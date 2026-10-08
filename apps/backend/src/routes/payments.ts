@@ -1,8 +1,12 @@
-import { Router } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { requireCompany } from '../middleware/requireCompany'
 import { SUPPORTED_PROVIDERS } from '../lib/payments/gateway'
-import { createPayment, findAttempt, merchantFor, PaymentError } from '../lib/payments/ledger'
+import { createPayment, findAttempt, merchantFor, publicAttempt, reconcilePayment, PaymentError } from '../lib/payments/ledger'
+import prisma from '../lib/prisma'
+import { PayPalClient } from '../lib/payments/paypal'
+import logger from '../lib/logger'
 
 const router = Router()
 // Pas de repli anonyme ou administrateur sans base pour des opérations financières.
@@ -35,8 +39,69 @@ router.post('/charge', wrap(async (req, res) => {
 
 /** GET /api/payments/verify/:provider/:id */
 router.get('/verify/:provider/:id', wrap(async (req, res) => {
-  await findAttempt(req.companyId, req.params.provider, req.params.id)
-  throw new PaymentError(409, 'Une preuve de capture complète est requise : la redirection ne confirme pas un encaissement.')
+  res.json(publicAttempt(await findAttempt(req.companyId, req.params.provider, req.params.id)))
 }))
+router.get('/attempts/:id', wrap(async (req, res) => {
+  const attempt = await prisma.paymentAttempt.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
+  if (!attempt) throw new PaymentError(404, 'Tentative introuvable.')
+  res.set('Cache-Control', 'private, no-store').json(publicAttempt(attempt))
+}))
+router.post('/attempts/:id/reconcile', wrap(async (req, res) => res.json(await reconcilePayment(req.companyId, req.params.id))))
+router.post('/attempts/:id/capture', wrap(async (req, res) => res.json(await reconcilePayment(req.companyId, req.params.id, true))))
 
+function canonical(value: any): any {
+  if (Array.isArray(value)) return value.map(canonical)
+  if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])]))
+  return value
+}
+/** Signature vérifiée auprès de PayPal, puis relecture de la capture : jamais confiance au montant du webhook. */
+export async function paypalWebhook(req: Request, res: Response) {
+  try {
+    const companyId = process.env.PAYMENT_MERCHANT_COMPANY_ID || ''
+    merchantFor('paypal', companyId)
+    if (!await new PayPalClient().verifyWebhook(req.headers, req.body)) return res.status(401).json({ error: 'Notification PayPal non vérifiée.' })
+    const event = z.object({ id: z.string().min(1).max(200), event_type: z.string().min(1).max(200), resource: z.record(z.unknown()) }).parse(req.body)
+    const payloadHash = createHash('sha256').update(JSON.stringify(canonical(req.body))).digest('hex')
+    const externalOrderId = (event.resource.supplementary_data as any)?.related_ids?.order_id
+    const key = { companyId, provider: 'paypal', eventId: event.id }
+    const receipt = await prisma.paymentWebhook.upsert({ where: { companyId_provider_eventId: key }, update: {}, create: {
+      ...key, id: createHash('sha256').update(JSON.stringify(key)).digest('hex'), eventType: event.event_type, payloadHash,
+      externalOrderId: typeof externalOrderId === 'string' ? externalOrderId.slice(0, 200) : null,
+    } })
+    if (receipt.payloadHash !== payloadHash) return res.status(409).json({ error: 'Identifiant de notification réutilisé avec un autre contenu.' })
+    if (receipt.status === 'PROCESSED') return res.json({ ok: true, duplicate: true })
+    if (event.event_type !== 'PAYMENT.CAPTURE.COMPLETED') {
+      await prisma.paymentWebhook.update({ where: { id: receipt.id }, data: { status: 'REVIEW' } })
+      return res.json({ ok: true, reviewRequired: true })
+    }
+    const attempt = typeof externalOrderId === 'string' ? await prisma.paymentAttempt.findFirst({ where: { companyId, provider: 'paypal', externalId: externalOrderId } }) : null
+    if (!attempt) {
+      await prisma.paymentWebhook.update({ where: { id: receipt.id }, data: { status: 'VERIFIED_UNMATCHED' } })
+      return res.status(202).json({ ok: true, pendingReconciliation: true })
+    }
+    const payment = await reconcilePayment(companyId, attempt.id)
+    if (payment.status !== 'succeeded') return res.status(503).json({ error: 'Capture non confirmée, notification conservée pour reprise.' })
+    await prisma.paymentWebhook.update({ where: { id: receipt.id }, data: { status: 'PROCESSED', processedAt: new Date() } })
+    return res.json({ ok: true })
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Notification invalide.' })
+    if (error instanceof PaymentError) return res.status(error.status).json({ error: error.message })
+    return res.status(503).json({ error: 'Notification non rapprochée. Reprise nécessaire.' })
+  }
+}
+
+/** Reprise des notifications vérifiées reçues avant l'enregistrement de la référence externe. */
+export async function processPendingPaymentWebhooks() {
+  const companyId = process.env.PAYMENT_MERCHANT_COMPANY_ID
+  if (!companyId || !process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) return
+  const receipts = await prisma.paymentWebhook.findMany({ where: { companyId, provider: 'paypal', status: 'VERIFIED_UNMATCHED', externalOrderId: { not: null } }, take: 50 })
+  for (const receipt of receipts) {
+    const attempt = await prisma.paymentAttempt.findFirst({ where: { companyId, provider: 'paypal', externalId: receipt.externalOrderId } })
+    if (!attempt) continue
+    try {
+      const payment = await reconcilePayment(companyId, attempt.id)
+      if (payment.status === 'succeeded') await prisma.paymentWebhook.update({ where: { id: receipt.id }, data: { status: 'PROCESSED', processedAt: new Date() } })
+    } catch { logger.warn('[payments] notification conservée pour reprise', { eventId: receipt.eventId }) }
+  }
+}
 export default router

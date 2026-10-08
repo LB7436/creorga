@@ -7,6 +7,7 @@
  */
 
 export type PaymentProvider =
+  | 'paypal'
   | 'stripe'
   | 'sumup'
   | 'mypos'
@@ -41,17 +42,24 @@ export interface ChargeResult {
   status: 'pending' | 'succeeded' | 'failed' | 'awaiting_terminal'
   error?: string
   raw?: unknown
+  evidence?: PaymentEvidence
+}
+
+export interface PaymentEvidence {
+  amountCents: number; currency: string; merchantId: string; orderId: string; attemptId: string; captureId: string
 }
 
 export interface PaymentGateway {
   provider: PaymentProvider
   charge(req: ChargeRequest): Promise<ChargeResult>
   verify?(transactionId: string): Promise<ChargeResult>
+  capture?(transactionId: string, requestId: string): Promise<ChargeResult>
   refund?(transactionId: string, amount?: number): Promise<ChargeResult>
 }
 
 // ─── Stripe ──────────────────────────────────────────────────────────────────
 import Stripe from 'stripe'
+import { paypalGateway } from './paypal'
 
 const stripeKey = process.env.STRIPE_SECRET_KEY || ''
 const stripe = stripeKey ? new Stripe(stripeKey, { apiVersion: '2024-06-20' as never }) : null
@@ -76,7 +84,7 @@ const stripeGateway: PaymentGateway = {
         cancel_url: req.cancelUrl || 'https://app.creorga.lu/pos?cancelled=1',
         customer_email: req.customerEmail,
         metadata: { orderId: req.orderId, ...(req.metadata || {}) },
-      })
+      }, req.requestId ? { idempotencyKey: req.requestId } : undefined)
       return {
         ok: true, provider: 'stripe',
         transactionId: session.id,
@@ -90,12 +98,14 @@ const stripeGateway: PaymentGateway = {
   async verify(id) {
     if (!stripe) return { ok: false, provider: 'stripe', status: 'failed' }
     const s = await stripe.checkout.sessions.retrieve(id)
+    const account = await stripe.accounts.retrieve()
     return {
       ok: s.payment_status === 'paid',
       provider: 'stripe',
       transactionId: id,
       status: s.payment_status === 'paid' ? 'succeeded' : 'pending',
-      raw: s,
+      ...(s.payment_status === 'paid' ? { evidence: { amountCents: s.amount_total || 0, currency: (s.currency || '').toUpperCase(),
+        merchantId: account.id, orderId: s.metadata?.orderId || '', attemptId: s.metadata?.attemptId || '', captureId: typeof s.payment_intent === 'string' ? s.payment_intent : s.payment_intent?.id || '' } } : {}),
     }
   },
 }
@@ -272,6 +282,7 @@ const servipayGateway: PaymentGateway = {
 
 // ─── Registry + dispatcher ──────────────────────────────────────────────────
 const GATEWAYS: Record<PaymentProvider, PaymentGateway> = {
+  paypal: paypalGateway,
   stripe: stripeGateway,
   sumup: sumupGateway,
   mypos: myposGateway,
@@ -291,5 +302,5 @@ export async function charge(req: ChargeRequest): Promise<ChargeResult> {
 }
 
 export const SUPPORTED_PROVIDERS: PaymentProvider[] = [
-  'stripe', 'sumup', 'mypos', 'viva', 'worldline', 'servipay',
+  'paypal', 'stripe', 'sumup', 'mypos', 'viva', 'worldline', 'servipay',
 ]

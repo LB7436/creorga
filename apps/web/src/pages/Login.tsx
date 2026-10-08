@@ -79,7 +79,7 @@ const PRE_REMPLISSAGE = import.meta.env.DEV
   // Adresse seulement : le mot de passe reste hors du dépôt, même ici.
   // Un mot de passe écrit dans le code finit toujours par sortir — c'est
   // exactement ce qui est arrivé à `Demo1234!`.
-  ? { email: 'bryanl1994.bl@gmail.com', password: '', firstName: '', lastName: '', companyName: '', confirmPassword: '' }
+  ? { email: '', password: '', firstName: '', lastName: '', companyName: '', confirmPassword: '' }
   : { email: '', password: '', firstName: '', lastName: '', companyName: '', confirmPassword: '' }
 
 const STATS = [

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { moneyMinor, totalsFromTtc } from './money'
 
 export const cents = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 export class PosError extends Error {
@@ -40,11 +41,10 @@ export const checkoutSchema = z.object({
 })
 
 export function calculateSale(lines: Array<{ price: number; qty: number; taxRate: number }>, discount: number, tip: number, charity: number) {
-  const brut = cents(lines.reduce((s, l) => s + l.price * l.qty, 0))
-  if (!lines.length || brut <= 0 || discount > brut) throw new PosError('Addition ou remise invalide.')
-  const net = cents(brut - discount)
-  const ht = cents(lines.reduce((s, l) => s + (l.price * l.qty * net / brut) / (1 + l.taxRate / 100), 0))
-  return { brut, sousTotal: ht, tva: cents(net - ht), total: cents(net + tip + charity) }
+  const amounts = totalsFromTtc(lines, moneyMinor(discount))
+  if (!lines.length || amounts.grossCents <= 0) throw new PosError('Addition ou remise invalide.')
+  return { brut: amounts.grossCents / 100, sousTotal: amounts.baseCents / 100, tva: amounts.taxCents / 100,
+    total: (amounts.totalCents + moneyMinor(tip) + moneyMinor(charity)) / 100 }
 }
 
 export function buildClosure(ventes: any[], id: string, now = Date.now()) {
