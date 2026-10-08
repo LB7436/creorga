@@ -15,6 +15,7 @@ export type PaymentProvider =
   | 'servipay'
 
 export interface ChargeRequest {
+  requestId?: string
   provider: PaymentProvider
   amount: number // in euros (will be converted to cents by provider)
   currency?: 'EUR' | 'USD'

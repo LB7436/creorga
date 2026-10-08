@@ -52,6 +52,7 @@ model Company {
   portalConfig    PortalConfiguration?
   posSales        PosSale[]
   posClosures     PosClosure[]
+  paymentAttempts PaymentAttempt[]
 }
 
 model CompanySettings {
@@ -221,11 +222,13 @@ model Order {
   user     User?      @relation(fields: [userId], references: [id])
   customer Customer?  @relation("CustomerOrders", fields: [customerId], references: [id])
   items    OrderItem[]
+  paymentAttempts PaymentAttempt[]
 
   // Deux commandes ne peuvent pas porter le même numéro dans une société :
   // la numérotation applicative (lecture du max + 1) ne suffit pas sous
   // charge, c'est la base qui doit trancher.
   @@unique([companyId, orderNumber])
+  @@unique([companyId, id])
   // Tous les agrégats de la console créateur (CA du jour, extraits, snapshot
   // quotidien) filtrent par société puis paidAt/status : sans ces index,
   // chaque calcul balaie la table entière.
@@ -247,6 +250,32 @@ model OrderItem {
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
+}
+
+// Tentative persistée AVANT l'appel bancaire. Une réponse perdue ne libère pas le solde.
+model PaymentAttempt {
+  id               String   @id @default(uuid())
+  companyId        String
+  orderId          String
+  userId           String?
+  requestId        String
+  requestHash      String
+  provider         String
+  merchantId       String
+  amountCents      Int
+  currency         String
+  status           String   @default("CREATING")
+  externalId       String?
+  createRequestId  String   @default(uuid())
+  captureRequestId String   @default(uuid())
+  response         Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  company Company @relation(fields: [companyId], references: [id])
+  order   Order   @relation(fields: [companyId, orderId], references: [companyId, id])
+  @@unique([companyId, requestId])
+  @@unique([provider, merchantId, externalId])
+  @@index([companyId, orderId, status])
 }
 
 // Journal serveur immuable : un même règlement ne peut être enregistré deux fois.

@@ -6,13 +6,14 @@ vi.mock('../lib/safe-json', () => ({ safeWriteJson: disk.write, safeReadJson: di
 import router, { floorCompanyContext, getFloorState } from './floorState'
 import { findStaleSessions } from '../jobs/closeStaleFloorSessions'
 
-function appFor(companyId: string) {
+function appFor(companyId: string, gate?: { entered: () => void; resume: Promise<void> }) {
   const app = express().use(express.json())
   app.use((req, _res, next) => { (req as any).companyId = companyId; (req as any).role = 'OWNER'; next() })
   app.use(floorCompanyContext)
   app.post('/delayed', async (_req, res) => {
     getFloorState().zones.push({ id: 'delayed', name: 'Conflit' })
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    gate?.entered()
+    if (gate) await gate.resume
     res.json(getFloorState())
   })
   app.use(router)
@@ -47,10 +48,14 @@ describe('Salle — sauvegarde transactionnelle', () => {
     expect(disk.write).not.toHaveBeenCalled()
   })
   it('une requête lente n’écrase pas la modification concurrente', async () => {
-    const app = appFor('persist-concurrent')
+    let entered!: () => void, resume!: () => void
+    const started = new Promise<void>(resolve => { entered = resolve })
+    const finish = new Promise<void>(resolve => { resume = resolve })
+    const app = appFor('persist-concurrent', { entered, resume: finish })
     const delayed = request(app).post('/delayed').send({}).then((res) => res)
-    await new Promise((resolve) => setTimeout(resolve, 30))
+    await started
     await request(app).post('/zones').send({ name: 'Prioritaire' }).expect(200)
+    resume()
     expect((await delayed).status).toBe(409)
     expect((await request(app).get('/')).body.zones.map((z: any) => z.name)).toEqual(['Salle principale', 'Prioritaire'])
   })
