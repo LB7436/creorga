@@ -1,12 +1,13 @@
 import { Router, type Request, type Response } from 'express'
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
-import { requireCompany } from '../middleware/requireCompany'
+import { requireCompany, requireRole } from '../middleware/requireCompany'
 import { SUPPORTED_PROVIDERS } from '../lib/payments/gateway'
 import { createPayment, findAttempt, merchantFor, publicAttempt, reconcilePayment, PaymentError } from '../lib/payments/ledger'
 import prisma from '../lib/prisma'
 import { PayPalClient } from '../lib/payments/paypal'
 import logger from '../lib/logger'
+import Stripe from 'stripe'
 
 const router = Router()
 // Pas de repli anonyme ou administrateur sans base pour des opérations financières.
@@ -15,6 +16,7 @@ router.use((req: any, res, next) => {
   next()
 })
 router.use(requireCompany)
+router.use(requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', 'CASHIER'))
 const wrap = (fn: (req: any, res: any) => Promise<any>) => async (req: any, res: any) => {
   try { await fn(req, res) } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: 'Demande de paiement invalide.' })
@@ -65,7 +67,7 @@ export async function paypalWebhook(req: Request, res: Response) {
     const externalOrderId = (event.resource.supplementary_data as any)?.related_ids?.order_id
     const key = { companyId, provider: 'paypal', eventId: event.id }
     const receipt = await prisma.paymentWebhook.upsert({ where: { companyId_provider_eventId: key }, update: {}, create: {
-      ...key, id: createHash('sha256').update(JSON.stringify(key)).digest('hex'), eventType: event.event_type, payloadHash,
+      ...key, id: createHash('sha256').update(JSON.stringify(key)).digest('hex'), eventType: event.event_type, payloadHash, status: 'VERIFIED_UNMATCHED',
       externalOrderId: typeof externalOrderId === 'string' ? externalOrderId.slice(0, 200) : null,
     } })
     if (receipt.payloadHash !== payloadHash) return res.status(409).json({ error: 'Identifiant de notification réutilisé avec un autre contenu.' })
@@ -90,13 +92,53 @@ export async function paypalWebhook(req: Request, res: Response) {
   }
 }
 
+/** Hors authentification et AVANT express.json : signature sur les octets d'origine.
+ * Secret et compte distincts des abonnements SaaS CréOrga.
+ */
+export async function stripePaymentWebhook(req: Request, res: Response) {
+  const companyId = process.env.PAYMENT_MERCHANT_COMPANY_ID || ''
+  try {
+    merchantFor('stripe', companyId)
+    const secret = process.env.STRIPE_PAYMENT_WEBHOOK_SECRET
+    if (!secret) throw new PaymentError(503, 'Webhook d’encaissement Stripe non configuré.')
+    const signature = req.get('stripe-signature')
+    if (!signature || !Buffer.isBuffer(req.body)) return res.status(401).json({ error: 'Notification Stripe non vérifiée.' })
+    const client = new Stripe(process.env.STRIPE_PAYMENT_KEY!, { apiVersion: '2026-09-30.endive' })
+    let event: Stripe.Event
+    try { event = client.webhooks.constructEvent(req.body, signature, secret) }
+    catch { return res.status(401).json({ error: 'Signature Stripe invalide.' }) }
+    if (event.account && event.account !== process.env.STRIPE_MERCHANT_ID) return res.status(403).json({ error: 'Notification d’un autre compte marchand.' })
+    const object = event.data.object as any
+    const key = { companyId, provider: 'stripe', eventId: event.id }
+    const payloadHash = createHash('sha256').update(JSON.stringify(canonical(event))).digest('hex')
+    const receipt = await prisma.paymentWebhook.upsert({ where: { companyId_provider_eventId: key }, update: {}, create: {
+      ...key, id: createHash('sha256').update(JSON.stringify(key)).digest('hex'), eventType: event.type, payloadHash, status: 'VERIFIED_UNMATCHED',
+      externalOrderId: typeof object.id === 'string' ? object.id.slice(0, 200) : null,
+    } })
+    if (receipt.payloadHash !== payloadHash) return res.status(409).json({ error: 'Identifiant de notification réutilisé.' })
+    if (receipt.status === 'PROCESSED') return res.json({ ok: true, duplicate: true })
+    if (!['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type)) {
+      await prisma.paymentWebhook.update({ where: { id: receipt.id }, data: { status: 'REVIEW' } })
+      return res.json({ ok: true, reviewRequired: true })
+    }
+    const attempt = typeof object.id === 'string' ? await prisma.paymentAttempt.findFirst({ where: { companyId, provider: 'stripe', externalId: object.id } }) : null
+    if (!attempt) return res.status(202).json({ ok: true, pendingReconciliation: true })
+    const payment = await reconcilePayment(companyId, attempt.id)
+    if (payment.status !== 'succeeded') return res.status(503).json({ error: 'Capture non confirmée. Notification conservée pour reprise.' })
+    await prisma.paymentWebhook.update({ where: { id: receipt.id }, data: { status: 'PROCESSED', processedAt: new Date() } })
+    return res.json({ ok: true })
+  } catch (error) {
+    return res.status(error instanceof PaymentError ? error.status : 503).json({ error: error instanceof PaymentError ? error.message : 'Notification non rapprochée. Reprise nécessaire.' })
+  }
+}
+
 /** Reprise des notifications vérifiées reçues avant l'enregistrement de la référence externe. */
 export async function processPendingPaymentWebhooks() {
   const companyId = process.env.PAYMENT_MERCHANT_COMPANY_ID
-  if (!companyId || !process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) return
-  const receipts = await prisma.paymentWebhook.findMany({ where: { companyId, provider: 'paypal', status: 'VERIFIED_UNMATCHED', externalOrderId: { not: null } }, take: 50 })
+  if (!companyId) return
+  const receipts = await prisma.paymentWebhook.findMany({ where: { companyId, provider: { in: ['paypal', 'stripe'] }, status: 'VERIFIED_UNMATCHED', externalOrderId: { not: null } }, take: 50 })
   for (const receipt of receipts) {
-    const attempt = await prisma.paymentAttempt.findFirst({ where: { companyId, provider: 'paypal', externalId: receipt.externalOrderId } })
+    const attempt = await prisma.paymentAttempt.findFirst({ where: { companyId, provider: receipt.provider, externalId: receipt.externalOrderId } })
     if (!attempt) continue
     try {
       const payment = await reconcilePayment(companyId, attempt.id)

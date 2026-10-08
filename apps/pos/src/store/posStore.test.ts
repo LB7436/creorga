@@ -246,7 +246,7 @@ describe('remises comptabilisees', () => {
 
   it('la TVA est calculee sur le net apres remise (base imposable reelle)', () => {
     const vente = usePOS.getState().processPayment('t-test', 'cash', 0, undefined, {
-      remises: [{ type: 'carte_cadeau', libelle: 'Bon 10 €', montant: 10 }],
+      remises: [{ type: 'promo', libelle: 'Promotion 10 €', montant: 10 }],
     })!
     // 19,10 - 10 = 9,10 TTC -> HT 7,78, TVA 1,32
     expect(vente.sousTotal + vente.tva).toBeCloseTo(9.10, 2)
@@ -255,10 +255,17 @@ describe('remises comptabilisees', () => {
 
   it('une remise superieure a l addition ne cree jamais un total negatif', () => {
     const vente = usePOS.getState().processPayment('t-test', 'cash', 0, undefined, {
-      remises: [{ type: 'carte_cadeau', libelle: 'Bon 50 €', montant: 50 }],
+      remises: [{ type: 'geste', libelle: 'Offert responsable', montant: 50 }],
     })!
     expect(vente.total).toBe(0)
     expect(vente.sousTotal).toBe(0)
+  })
+  it('ne transforme pas un crédit cadeau en remise ni en règlement local sans vérifier le serveur', () => {
+    expect(() => usePOS.getState().processPayment('t-test', 'cash', 0, undefined, {
+      remises: [{ type: 'carte_cadeau', libelle: 'Crédit prépayé', montant: 10 }],
+    })).toThrow('serveur')
+    expect(() => usePOS.getState().processPayment('t-test', 'cash', 0, undefined, { giftCard: { code: 'fixture-only', amount: 10 } })).toThrow('serveur')
+    expect(usePOS.getState().ventes).toHaveLength(0)
   })
 
   it('l arrondi caritatif est encaisse mais n entre pas dans le chiffre d affaires', () => {

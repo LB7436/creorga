@@ -25,6 +25,7 @@ export interface LigneDocument {
   unitPrice: number
   /** Pourcentage de TVA : 17, 14, 8, 3 ou 0. */
   taxRate: number
+  taxReason?: string | null
 }
 
 export interface ClientLie {
@@ -32,6 +33,8 @@ export interface ClientLie {
   firstName: string
   lastName: string
   email?: string | null
+  businessName?: string | null
+  address?: string | null
 }
 
 export interface Invoice {
@@ -41,6 +44,10 @@ export interface Invoice {
   number: string
   status: InvoiceStatus
   dueDate?: string | null
+  issuedAt?: string | null
+  serviceDate?: string | null
+  documentMode?: 'AUTO' | 'COMPLETE'
+  issuedPdfHash?: string | null
   subtotal: number
   taxAmount: number
   total: number
@@ -84,6 +91,8 @@ export interface QuoteFilters {
 export interface BrouillonFacture {
   customerId?: string | null
   dueDate?: string | null
+  serviceDate?: string | null
+  documentMode?: 'AUTO' | 'COMPLETE'
   notes?: string | null
   items: LigneDocument[]
 }

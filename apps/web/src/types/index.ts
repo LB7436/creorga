@@ -12,6 +12,7 @@ export interface Company {
   id: string
   name: string
   legalName: string | null
+  legalProfile?: { legalForm: string; rcsNumber: string; authorizationNumber: string; profession: string; legalMention: string; rcsExemptionReason: string } | null
   vatNumber: string | null
   address?: string | null
   phone?: string | null

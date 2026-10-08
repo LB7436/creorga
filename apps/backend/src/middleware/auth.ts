@@ -1,7 +1,7 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import logger from '../lib/logger'
-import { INTERNAL_API_TOKEN } from '../lib/security'
+import { fallbackAdminAllowed, INTERNAL_API_TOKEN } from '../lib/security'
 
 export interface AuthPayload {
   userId: string
@@ -30,6 +30,10 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as AuthPayload
+    if (payload.userId === 'fallback-admin' && !fallbackAdminAllowed()) {
+      res.status(401).json({ message: 'Session de démonstration désactivée' })
+      return
+    }
     req.user = payload
     next()
   } catch {

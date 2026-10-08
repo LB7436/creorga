@@ -15,6 +15,13 @@ const router = Router()
 const refreshInFlight = new Set<string>()
 const refreshCookieOptions = () => ({ httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' as const, path: '/' })
 
+function authUnavailable(res: Response): void {
+  res.status(503).json({
+    code: 'AUTH_SERVICE_UNAVAILABLE',
+    message: 'Le service de connexion est momentanément indisponible. Réessayez.',
+  })
+}
+
 /** Jamais l'email en clair dans LoginEvent : empreinte sha256 normalisée. */
 function hachageEmail(email: string): string {
   return crypto.createHash('sha256').update(String(email).trim().toLowerCase()).digest('hex')
@@ -169,6 +176,7 @@ function buildFallbackResponse() {
 
 router.post('/login', validate(loginSchema), async (req, res) => {
   const { email, password } = req.body
+  let databaseUnavailable = false
 
   // 1) Try the real database first
   try {
@@ -216,8 +224,10 @@ router.post('/login', validate(loginSchema), async (req, res) => {
     }
     // User not in DB → fall through to fallback check
   } catch (error: any) {
-    // DB unreachable → fall through to fallback check
-    logger.warn(`DB indisponible, bascule fallback admin: ${error?.message || error}`)
+    // Seuls les identifiants explicites de démonstration peuvent encore être
+    // vérifiés ci-dessous. Une panne ne prouve pas un mot de passe incorrect.
+    databaseUnavailable = true
+    logger.error(`Service de connexion indisponible: ${error?.message || error}`)
   }
 
   // 2) Fallback admin (dev uniquement — désactivé en production, cf. lib/security)
@@ -232,6 +242,11 @@ router.post('/login', validate(loginSchema), async (req, res) => {
     })
     logger.info(`Connexion FALLBACK: ${email}`)
     res.json({ accessToken: r.accessToken, user: r.user, companies: r.companies })
+    return
+  }
+
+  if (databaseUnavailable) {
+    authUnavailable(res)
     return
   }
 
@@ -298,23 +313,10 @@ router.post('/refresh', async (req, res) => {
     pushEvenement('loginEvent', { kind: 'REFRESH', userId: stored.userId })
     res.json({ accessToken })
   } catch (error) {
-    // DB indisponible (mode sans Docker) → en dev, ré-émettre une session
-    // fallback pour ne pas déconnecter l'utilisateur toutes les 15 min.
-    if (fallbackAdminAllowed() && req.cookies?.refreshToken) {
-      const r = buildFallbackResponse()
-      res.cookie('refreshToken', r.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-        path: '/',
-      })
-      logger.warn('Refresh: DB indisponible, session fallback ré-émise')
-      res.json({ accessToken: r.accessToken })
-      return
-    }
+    // Un cookie non vérifié ne peut devenir un administrateur de démonstration.
+    // Préserver le cookie permet de réessayer lorsque la base est rétablie.
     logger.error('Erreur refresh:', error)
-    res.status(503).json({ message: 'Le service de connexion est momentanément indisponible. Réessayez.' })
+    authUnavailable(res)
   } finally {
     refreshInFlight.delete(tokenKey)
   }
@@ -342,8 +344,12 @@ router.post('/logout', async (req, res) => {
 // ─── GET /api/auth/me ──────────────────────────────────
 
 router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
-  // Fallback admin → short-circuit (no DB call)
+  // Même autorisation que lors de l'émission et de la vérification du jeton.
   if (req.user!.userId === FALLBACK_ADMIN.id) {
+    if (!fallbackAdminAllowed()) {
+      res.status(401).json({ message: 'Session de démonstration désactivée' })
+      return
+    }
     res.json({
       user: {
         id: FALLBACK_ADMIN.id,
@@ -375,18 +381,10 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
 
     res.json({ user, companies })
   } catch (error: any) {
-    // DB down → serve fallback profile for the authenticated token
-    logger.warn(`DB indisponible sur /me, renvoi profil fallback: ${error?.message || error}`)
-    res.json({
-      user: {
-        id: req.user!.userId,
-        email: req.user!.email,
-        firstName: 'Admin',
-        lastName: 'Creorga',
-        avatar: null,
-      },
-      companies: [FALLBACK_COMPANY],
-    })
+    // L'identité et les adhésions doivent être lues, jamais inventées lorsque
+    // PostgreSQL manque : les droits affichés suivent l'autorité persistée.
+    logger.error(`Service de profil indisponible: ${error?.message || error}`)
+    authUnavailable(res)
   }
 })
 

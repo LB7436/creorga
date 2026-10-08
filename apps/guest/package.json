@@ -4,7 +4,7 @@
   "version": "4.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host --port 5176",
+    "dev": "vite --port 5178",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host --port 5176"
   },
@@ -17,6 +17,6 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "typescript": "^5.5.3",
-    "vite": "^5.4.11"
+    "vite": "^6.4.4"
   }
 }

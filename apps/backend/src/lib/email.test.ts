@@ -56,9 +56,13 @@ describe('sendEmail', () => {
   })
 
   it('ne retente que les erreurs survenues avant l’envoi SMTP', () => {
-    expect(retryableSmtpConnectionError({ code: 'ETIMEDOUT', command: 'CONN' })).toBe(true)
+    expect(retryableSmtpConnectionError({ code: 'ETIMEDOUT', command: 'CONN' })).toBe(false)
     expect(retryableSmtpConnectionError({ code: 'EAI_AGAIN', command: 'CONN' })).toBe(true)
     expect(retryableSmtpConnectionError({ code: 'ETIMEDOUT', command: 'DATA' })).toBe(false)
     expect(retryableSmtpConnectionError({ code: 'EAUTH', command: 'AUTH LOGIN' })).toBe(false)
+  })
+  it('ne considère pas une fermeture générique CONN comme une preuve d’absence d’envoi', () => {
+    expect(retryableSmtpConnectionError({ code: 'ECONNECTION', command: 'CONN' })).toBe(false)
+    expect(retryableSmtpConnectionError({ code: 'ESOCKET', command: 'CONN' })).toBe(false)
   })
 })

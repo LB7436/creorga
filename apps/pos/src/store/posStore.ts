@@ -5,7 +5,7 @@ import { persist } from 'zustand/middleware'
 
 export type TableShape = 'round' | 'square' | 'rect' | 'bar'
 export type TableStatus = 'available' | 'occupied' | 'reserved' | 'dirty'
-export type PayMethod = 'cash' | 'card' | 'contactless'
+export type PayMethod = 'cash' | 'card' | 'contactless' | 'GIFT_CARD'
 export type StaffRole = 'OWNER' | 'WAITER' | 'KITCHEN' | 'MANAGER'
 
 export interface StaffMember {
@@ -53,6 +53,8 @@ export interface LigneVente {
   qty: number
   /** Prix unitaire TTC au moment de la vente. */
   price: number
+  taxRate?: number
+  productId?: string
 }
 
 /** Nature d'une remise accordée à l'encaissement. */
@@ -76,6 +78,7 @@ export interface Remise {
 export interface Reglement {
   methode: PayMethod
   montant: number
+  giftCardId?: string
 }
 
 /**
@@ -84,6 +87,12 @@ export interface Reglement {
  */
 export interface Vente {
   id: string
+  version?: number
+  currency?: string
+  issuer?: { name: string; legalName?: string | null; address?: string | null; vatNumber?: string | null; legalProfile?: unknown }
+  taxGroups?: Array<{ taxRate: number; baseCents: number; taxCents: number; totalCents: number }>
+  orderIds?: string[]
+  cashChange?: number | null
   /** Numéro séquentiel dans la journée, reparti à 1 après chaque clôture. */
   numero: number
   horodatage: number
@@ -116,6 +125,7 @@ export interface Vente {
 
 /** Ce que l'écran de paiement transmet au store en plus de la méthode et du pourboire. */
 export interface OptionsPaiement {
+  giftCard?: { code: string; amount: number }
   receipt?: { message: string; includeBrand: boolean; includePromo: boolean }
   remises?: Remise[]
   arrondiCaritatif?: number
@@ -883,6 +893,9 @@ export const usePOS = create<POSStore>()(
        * lorsque plus rien n'est dû.
        */
       processPayment: (tableId, method, tip, coverIds, options) => {
+        if (method === 'GIFT_CARD' || options?.giftCard || options?.remises?.some(r => r.type === 'carte_cadeau') || options?.reglements?.some(r => r.methode === 'GIFT_CARD')) {
+          throw new Error('Une carte cadeau prépayée nécessite la validation du solde par la caisse serveur.')
+        }
         const etat = get()
         const table = etat.tables.find(t => t.id === tableId)
         if (!table) return null
@@ -990,7 +1003,7 @@ export const usePOS = create<POSStore>()(
         // paiement mixte 30 € espèces + 50 € carte tombe dans les deux
         // colonnes, pas entièrement dans « carte ». Les ventes antérieures à
         // ce champ (magasin migré) retombent sur leur méthode unique.
-        const parMethode: Record<PayMethod, number> = { cash: 0, card: 0, contactless: 0 }
+        const parMethode: Record<PayMethod, number> = { cash: 0, card: 0, contactless: 0, GIFT_CARD: 0 }
         for (const v of ventes) {
           const parts = v.reglements?.length ? v.reglements : [{ methode: v.methode, montant: v.total }]
           for (const p of parts) parMethode[p.methode] = centimes(parMethode[p.methode] + p.montant)

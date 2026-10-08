@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Bell, Receipt, CreditCard } from 'lucide-react'
 import { useGuestLang } from './i18n'
 
@@ -14,6 +14,19 @@ export default function GuestCallButtons({ tableId, companyId, billTotal }: { ta
   const [paying, setPaying] = useState(false)
   const [payError, setPayError] = useState<string | null>(null)
   const [callError, setCallError] = useState<string | null>(null)
+  const [providers, setProviders] = useState<string[]>([])
+  const [provider, setProvider] = useState('stripe')
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch(`${BACKEND}/api/guest/bill/${encodeURIComponent(tableId)}?companyId=${encodeURIComponent(companyId)}`, { signal: controller.signal })
+      .then(async r => r.ok ? await r.json() as { paymentProviders?: unknown } : { paymentProviders: [] })
+      .then(data => {
+        const available = Array.isArray(data.paymentProviders) ? data.paymentProviders.filter((p): p is string => typeof p === 'string') : []
+        setProviders(available)
+        if (available.length) setProvider(available[0])
+      }).catch(() => {})
+    return () => controller.abort()
+  }, [tableId, companyId])
 
   const call = async (type: 'waiter' | 'bill') => {
     try {
@@ -36,21 +49,26 @@ export default function GuestCallButtons({ tableId, companyId, billTotal }: { ta
   }
 
   const pay = async () => {
-    if (!billTotal) return
+    if (!billTotal || paying) return
     setPaying(true)
     setPayError(null)
     try {
+      const key = `creorga-payment:${companyId}:${tableId}:${provider}`
+      // Conserver la même référence après timeout, rechargement ou double clic.
+      let requestId = localStorage.getItem(key)
+      if (!requestId) { requestId = crypto.randomUUID(); localStorage.setItem(key, requestId) }
       // Le montant est calculé par le serveur depuis les commandes de la
       // table : on n'envoie plus de total depuis le navigateur.
       const r = await fetch(`${BACKEND}/api/guest/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, tableId }),
+        body: JSON.stringify({ companyId, tableId, provider, requestId }),
       })
       const data = await r.json().catch(() => ({}))
       if (r.status === 501) { setPayError(t('pay_bill_unavailable')); return }
       if (!r.ok) { setPayError(data?.error || t('pay_bill_unavailable')); return }
       if (data.url) window.location.href = data.url
+      else setPayError(data.error || 'Référence conservée : paiement en attente ou résultat incertain. Demandez une vérification avant de réessayer.')
     } catch {
       setPayError(t('pay_bill_unavailable'))
     } finally {
@@ -76,13 +94,16 @@ export default function GuestCallButtons({ tableId, companyId, billTotal }: { ta
           {billSent ? t('call_bill_sent') : t('call_bill')}
         </button>
       </div>
+      {providers.length > 1 && <label style={{ fontSize: 13 }}>Moyen de paiement <select value={provider} onChange={e => setProvider(e.target.value)} disabled={paying}>
+        {providers.map(p => <option key={p} value={p}>{p === 'paypal' ? 'PayPal' : 'Paiement bancaire'}</option>)}
+      </select></label>}
       {typeof billTotal === 'number' && billTotal > 0 && (
-        <button onClick={pay} disabled={paying} style={{
+        <button onClick={pay} disabled={paying || !providers.length} style={{
           ...btnStyle, flexDirection: 'row', justifyContent: 'center',
           background: 'linear-gradient(135deg,#a855f7,#06b6d4)', border: 'none',
         }}>
           <CreditCard size={16} />
-          {paying ? t('pay_bill_processing') : t('pay_bill')}
+          {!providers.length ? 'Paiement en ligne non configuré' : paying ? t('pay_bill_processing') : t('pay_bill')}
         </button>
       )}
       {payError && <div style={{ fontSize: 11, color: '#f87171', textAlign: 'center' }}>{payError}</div>}

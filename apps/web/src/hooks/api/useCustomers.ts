@@ -6,6 +6,9 @@ export interface Customer {
   id: string
   firstName: string
   lastName: string
+  businessName?: string | null
+  address?: string | null
+  vatNumber?: string | null
   email?: string
   phone?: string
   birthDate?: string

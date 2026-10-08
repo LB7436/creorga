@@ -66,7 +66,6 @@ router.post('/create-checkout', requireCompany, requireRole('OWNER'), async (req
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
-      payment_method_types: ['card', 'sepa_debit'],
       line_items: [{ price: prices[plan], quantity: 1 }],
       customer_email: email,
       client_reference_id: companyId,

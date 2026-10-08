@@ -2,8 +2,19 @@ import { Router, type Response } from 'express'
 import crypto from 'crypto'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
+import { z } from 'zod'
+import { requireRole } from '../middleware/requireCompany'
+import { moneyMinor } from '../lib/money'
 
 const router = Router()
+const businessProfile = z.object({ businessName: z.string().trim().max(200).nullable().optional(), address: z.string().trim().max(1000).nullable().optional(), vatNumber: z.string().trim().max(40).nullable().optional() })
+// Une carte contient du crédit utilisable. L'émission et l'inventaire des codes
+// relèvent du responsable ; la caisse vérifie un code via son API dédiée.
+router.use('/gift-cards', requireRole('OWNER', 'MANAGER'))
+const financialReason = z.string().trim().min(1).max(500).optional()
+class WalletError extends Error {
+  constructor(message: string, public status: number) { super(message) }
+}
 
 // ─── GET /api/crm/customers ────────────────────────────
 
@@ -24,6 +35,7 @@ router.get('/customers', async (req: any, res: Response) => {
         { lastName: { contains: search as string, mode: 'insensitive' } },
         { email: { contains: search as string, mode: 'insensitive' } },
         { phone: { contains: search as string, mode: 'insensitive' } },
+        { businessName: { contains: search as string, mode: 'insensitive' } },
       ]
     }
 
@@ -87,8 +99,10 @@ router.get('/customers/:id', async (req: any, res: Response) => {
 router.post('/customers', async (req: any, res: Response) => {
   try {
     const { firstName, lastName, email, phone, notes, isGuest } = req.body
-    if (typeof firstName !== 'string' || !firstName.trim() || firstName.trim().length > 80 ||
-        typeof lastName !== 'string' || !lastName.trim() || lastName.trim().length > 80) {
+    const business = businessProfile.safeParse(req.body)
+    if (!business.success) return res.status(400).json({ message: 'Informations de société client invalides.' })
+    if (typeof firstName !== 'string' || (!firstName.trim() && !business.data.businessName) || firstName.trim().length > 80 ||
+        typeof lastName !== 'string' || (!lastName.trim() && !business.data.businessName) || lastName.trim().length > 80) {
       res.status(400).json({ message: 'Prénom et nom valides requis (80 caractères maximum)' })
       return
     }
@@ -97,6 +111,7 @@ router.post('/customers', async (req: any, res: Response) => {
         companyId: req.companyId,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        ...business.data,
         email: typeof email === 'string' ? email.trim() || null : null,
         phone: typeof phone === 'string' ? phone.trim() || null : null,
         notes: typeof notes === 'string' ? notes.trim().slice(0, 2000) || null : null,
@@ -117,8 +132,10 @@ router.put('/customers/:id', async (req: any, res: Response) => {
     const existing = await prisma.customer.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Client non trouvé' }); return }
     const { firstName, lastName, email, phone, notes } = req.body
-    if (typeof firstName !== 'string' || !firstName.trim() || firstName.trim().length > 80 ||
-        typeof lastName !== 'string' || !lastName.trim() || lastName.trim().length > 80) {
+    const business = businessProfile.safeParse(req.body)
+    if (!business.success) return res.status(400).json({ message: 'Informations de société client invalides.' })
+    if (typeof firstName !== 'string' || (!firstName.trim() && !business.data.businessName) || firstName.trim().length > 80 ||
+        typeof lastName !== 'string' || (!lastName.trim() && !business.data.businessName) || lastName.trim().length > 80) {
       res.status(400).json({ message: 'Prénom et nom valides requis (80 caractères maximum)' })
       return
     }
@@ -127,6 +144,7 @@ router.put('/customers/:id', async (req: any, res: Response) => {
       data: {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        ...business.data,
         email: typeof email === 'string' ? email.trim() || null : null,
         phone: typeof phone === 'string' ? phone.trim() || null : null,
         notes: typeof notes === 'string' ? notes.trim().slice(0, 2000) || null : null,
@@ -202,33 +220,27 @@ router.post('/customers/:id/loyalty', async (req: any, res: Response) => {
 
 // ─── POST /api/crm/customers/:id/wallet ───────────────
 
-router.post('/customers/:id/wallet', async (req: any, res: Response) => {
+router.post('/customers/:id/wallet', requireRole('OWNER', 'MANAGER'), async (req: any, res: Response) => {
   try {
-    const existing = await prisma.customer.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
-    if (!existing) { res.status(404).json({ message: 'Client non trouvé' }); return }
     const montant = Number(req.body?.amount)
     // parseFloat sur une valeur non numérique donnait NaN, écrit tel quel en base.
-    if (!Number.isFinite(montant) || montant === 0) {
-      res.status(400).json({ message: 'amount doit être un nombre non nul' })
+    if (!Number.isFinite(montant) || Math.abs(montant) > 100000 || moneyMinor(montant) === 0) {
+      res.status(400).json({ message: 'amount doit être un montant non nul d’au moins un centime, limité à 100 000 €' })
       return
     }
-
-    // Le portefeuille est un solde prépayé : il ne peut pas passer sous zéro,
-    // sinon le client consomme un crédit que l'établissement n'a jamais reçu.
-    if (existing.walletBalance + montant < 0) {
-      res.status(400).json({
-        message: `Solde insuffisant : ${existing.walletBalance.toFixed(2)} € disponible(s), ${Math.abs(montant).toFixed(2)} € demandé(s)`,
-      })
-      return
-    }
-
-    const customer = await prisma.customer.update({
-      where: { id: req.params.id },
-      // Arrondi au centime : un solde monétaire ne porte pas de millièmes.
-      data: { walletBalance: Math.round((existing.walletBalance + montant) * 100) / 100 },
+    req.body.reason = financialReason.parse(req.body.reason)
+    const customer = await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${req.companyId}), hashtext(${`wallet:${req.params.id}`}))::text`
+      const existing = await tx.customer.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
+      if (!existing) throw new WalletError('Client non trouvé', 404)
+      const next = moneyMinor(existing.walletBalance) + moneyMinor(montant)
+      if (next < 0) throw new WalletError('Solde insuffisant. Rechargez le portefeuille avant de confirmer une nouvelle opération.', 409)
+      return tx.customer.update({ where: { id: req.params.id }, data: { walletBalance: next / 100 } })
     })
     res.json(customer)
   } catch (error) {
+    if (error instanceof WalletError) { res.status(error.status).json({ message: error.message }); return }
+    if (error instanceof z.ZodError) { res.status(400).json({ message: 'Motif invalide' }); return }
     logger.error('Erreur POST /customers/:id/wallet:', error)
     res.status(500).json({ message: 'Erreur serveur' })
   }
@@ -255,7 +267,8 @@ router.post('/gift-cards', async (req: any, res: Response) => {
   try {
     const { initialValue, expiresAt } = req.body
     const value = Number(initialValue)
-    if (!Number.isFinite(value) || value <= 0 || value > 100000) return res.status(400).json({ message: 'Montant de carte cadeau invalide' })
+    if (!Number.isFinite(value) || value <= 0 || value > 100000 || moneyMinor(value) < 1) return res.status(400).json({ message: 'Montant de carte cadeau invalide' })
+    req.body.reason = financialReason.parse(req.body.reason)
     const expiry = expiresAt ? new Date(expiresAt) : null
     if (expiry && Number.isNaN(expiry.getTime())) return res.status(400).json({ message: 'Date d’expiration invalide' })
     const code = crypto.randomBytes(4).toString('hex').toUpperCase()
@@ -263,13 +276,14 @@ router.post('/gift-cards', async (req: any, res: Response) => {
       data: {
         companyId: req.companyId,
         code,
-        initialValue: Math.round(value * 100) / 100,
-        currentBalance: Math.round(value * 100) / 100,
+        initialValue: moneyMinor(value) / 100,
+        currentBalance: moneyMinor(value) / 100,
         expiresAt: expiry,
       },
     })
     res.status(201).json(giftCard)
   } catch (error) {
+    if (error instanceof z.ZodError) { res.status(400).json({ message: 'Motif invalide' }); return }
     logger.error('Erreur POST /gift-cards:', error)
     res.status(500).json({ message: 'Erreur serveur' })
   }

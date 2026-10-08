@@ -11,7 +11,7 @@ const router = Router()
 router.use(authenticate)
 
 const updateSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().trim().min(1).max(200),
   legalName: z.string().optional(),
   vatNumber: z.string().optional(),
   address: z.string().optional(),
@@ -21,6 +21,9 @@ const updateSchema = z.object({
   // qu'un client envoie un corps arbitrairement gros dans la base.
   logo: z.string().max(3_000_000).nullable().optional(),
   portalAccentColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
+  legalProfile: z.object({ legalForm: z.string().trim().max(200), rcsNumber: z.string().trim().max(100),
+    authorizationNumber: z.string().trim().max(100), profession: z.string().trim().max(200),
+    legalMention: z.string().trim().max(1000), rcsExemptionReason: z.string().trim().max(500) }).strict().optional(),
 })
 
 const updateMemberSchema = z.object({
@@ -205,7 +208,7 @@ router.put('/:id', requireCompany, validate(updateSchema), async (req: AuthReque
       return res.status(403).json({ message: 'Accès réservé aux admins' })
     }
 
-    const { name, legalName, vatNumber, address, phone, email, logo, portalAccentColor } = req.body
+    const { name, legalName, vatNumber, address, phone, email, logo, portalAccentColor, legalProfile } = req.body
     // Le premier démarrage enregistre identité visuelle et couleur du portail
     // dans une seule transaction : pas d'état « nom sauvegardé, couleur perdue ».
     const company = await prisma.$transaction(async (tx) => {
@@ -219,6 +222,7 @@ router.put('/:id', requireCompany, validate(updateSchema), async (req: AuthReque
           ...(phone !== undefined ? { phone: phone.trim() || null } : {}),
           ...(email !== undefined ? { email: email.trim().toLowerCase() || null } : {}),
           ...(logo !== undefined ? { logo } : {}),
+          ...(legalProfile !== undefined ? { legalProfile } : {}),
         },
       })
       if (portalAccentColor) {

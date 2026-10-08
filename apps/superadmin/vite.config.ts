@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5177,
-    host: true,
+    host: '127.0.0.1',
     // Même patron qu'apps/web : tous les appels /api sont relatifs, le proxy
     // (dev) ou Caddy (prod) fait suivre au backend — jamais d'URL en dur.
     proxy: {

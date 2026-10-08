@@ -4,6 +4,7 @@ import logger from '../lib/logger'
 import { z } from 'zod'
 import { validate } from '../middleware/validate'
 import { requireRole } from '../middleware/requireCompany'
+import { moneyMinor, totalsFromTtc } from '../lib/money'
 
 const router = Router()
 router.use('/expenses', (req, res, next) => {
@@ -75,14 +76,14 @@ router.post('/cash-drawers/open', async (req: any, res: Response) => {
 // dans le tiroir : une vente carte n'y passe pas, et une vente mixte n'y
 // laisse que sa part espèces (cashReceived).
 export function especesEncaissees(
-  ventes: Array<{ total: number; paymentMethod: string | null; cashReceived: number | null }>,
+  ventes: Array<{ total: number; paymentMethod: string | null; cashReceived: number | null; cashChange?: number | null }>,
 ): number {
   const somme = ventes.reduce((acc, v) => {
-    if (v.paymentMethod === 'CASH') return acc + v.total
-    if (v.paymentMethod === 'MIXED') return acc + (v.cashReceived ?? 0)
+    if (v.paymentMethod === 'CASH') return acc + (v.cashReceived !== null && v.cashChange != null ? moneyMinor(v.cashReceived) - moneyMinor(v.cashChange) : moneyMinor(v.total))
+    if (v.paymentMethod === 'MIXED') return acc + Math.max(0, moneyMinor(v.cashReceived ?? 0) - moneyMinor(v.cashChange ?? 0))
     return acc
   }, 0)
-  return Math.round(somme * 100) / 100
+  return somme / 100
 }
 
 router.put('/cash-drawers/:id/close', async (req: any, res: Response) => {
@@ -111,7 +112,7 @@ router.put('/cash-drawers/:id/close', async (req: any, res: Response) => {
         status: 'PAID',
         paidAt: { gte: existing.openedAt, lte: maintenant },
       },
-      select: { total: true, paymentMethod: true, cashReceived: true },
+      select: { total: true, paymentMethod: true, cashReceived: true, cashChange: true },
     })
     const totalSales = especesEncaissees(ventes)
     const discrepancy = Math.round((existing.openAmount + totalSales - montantCompte) * 100) / 100
@@ -239,6 +240,40 @@ router.delete('/expenses/:id', async (req: any, res: Response) => {
 
 // ─── TAX REPORT ───────────────────────────────────────
 
+type TaxOrder = { id: string; total: number; subtotal: number; taxAmount: number; items: Array<{ unitPrice: number; quantity: number; taxRate: number }> }
+class TaxReconciliationError extends Error {
+  constructor(public orderIds: string[]) { super(`Ventilation fiscale non réconciliée : ${orderIds.join(', ')}`) }
+}
+
+/** Les ventes conservent les prix TTC et les taux au moment de la commande.
+ * Une remise déjà comprise dans le total est répartie avec la politique du
+ * moteur monétaire. Un historique HT/ancien arrondi incompatible n'est jamais
+ * réécrit ni présenté comme un rapport fiscal réconcilié. */
+export function taxReportFromOrders(orders: TaxOrder[]) {
+  const groups = new Map<number, { base: number; tax: number; total: number }>()
+  const mismatches: string[] = []
+  let baseCents = 0, taxCents = 0, totalCents = 0
+  for (const order of orders) {
+    try {
+      if (!order.items.length) throw new Error('Lignes absentes')
+      const lines = order.items.map(item => ({ price: item.unitPrice, qty: item.quantity, taxRate: item.taxRate }))
+      const storedTotal = moneyMinor(order.total), gross = totalsFromTtc(lines).grossCents
+      if (storedTotal < 0 || storedTotal > gross) throw new Error('Total incompatible avec les lignes TTC')
+      const amounts = totalsFromTtc(lines, gross - storedTotal)
+      if (amounts.baseCents !== moneyMinor(order.subtotal) || amounts.taxCents !== moneyMinor(order.taxAmount)) throw new Error('TVA historique incompatible')
+      for (const group of amounts.groups) {
+        const sum = groups.get(group.taxRate) || { base: 0, tax: 0, total: 0 }
+        sum.base += group.baseCents; sum.tax += group.taxCents; sum.total += group.totalCents
+        groups.set(group.taxRate, sum)
+      }
+      baseCents += amounts.baseCents; taxCents += amounts.taxCents; totalCents += storedTotal
+    } catch { mismatches.push(order.id) }
+  }
+  if (mismatches.length) throw new TaxReconciliationError(mismatches)
+  return { totalRevenue: baseCents / 100, totalTax: taxCents / 100, totalWithTax: totalCents / 100, orderCount: orders.length,
+    byTaxRate: Object.fromEntries([...groups].sort(([a], [b]) => a - b).map(([rate, amounts]) => [`${rate}%`, { base: amounts.base / 100, tax: amounts.tax / 100, total: amounts.total / 100 }])) }
+}
+
 router.get('/tax-report', async (req: any, res: Response) => {
   try {
     const { startDate, endDate } = req.query
@@ -254,33 +289,15 @@ router.get('/tax-report', async (req: any, res: Response) => {
       include: { items: true },
     })
 
-    const byTaxRate: Record<string, { base: number; tax: number; total: number }> = {}
-    let totalRevenue = 0
-    let totalTax = 0
-
-    for (const order of orders) {
-      for (const item of order.items) {
-        const base = item.unitPrice * item.quantity
-        const tax = base * (item.taxRate / 100)
-        const key = `${item.taxRate}%`
-        if (!byTaxRate[key]) byTaxRate[key] = { base: 0, tax: 0, total: 0 }
-        byTaxRate[key].base += base
-        byTaxRate[key].tax += tax
-        byTaxRate[key].total += base + tax
-        totalRevenue += base
-        totalTax += tax
-      }
-    }
-
     res.json({
       period: { startDate, endDate },
-      totalRevenue,
-      totalTax,
-      totalWithTax: totalRevenue + totalTax,
-      orderCount: orders.length,
-      byTaxRate,
+      ...taxReportFromOrders(orders),
     })
   } catch (error) {
+    if (error instanceof TaxReconciliationError) {
+      res.status(409).json({ message: 'Certaines ventes historiques ne se réconcilient pas avec leurs lignes et leur TVA. Vérifiez ces références avant de produire le rapport fiscal.', code: 'TAX_RECONCILIATION_REQUIRED', orderIds: error.orderIds })
+      return
+    }
     logger.error('Erreur GET /accounting/tax-report:', error)
     res.status(500).json({ message: 'Erreur serveur' })
   }

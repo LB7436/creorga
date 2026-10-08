@@ -1,16 +1,17 @@
 import express from 'express'
 import request from 'supertest'
 import jwt from 'jsonwebtoken'
+import Stripe from 'stripe'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import prisma from '../lib/prisma'
 import { deviceOrUserAuth } from '../middleware/deviceAuth'
 
 // Seul le prestataire bancaire est remplacé : autorisations, HTTP et base sont réels.
-const remote = vi.hoisted(() => ({ requests: [] as any[], evidence: undefined as any, failCreation: false }))
+const remote = vi.hoisted(() => ({ requests: [] as any[], evidence: undefined as any, failCreation: false, ok: true, provider: 'paypal', externalId: undefined as string | undefined }))
 vi.mock('../lib/payments/gateway', () => ({
   SUPPORTED_PROVIDERS: ['paypal', 'stripe', 'sumup', 'mypos', 'viva', 'worldline', 'servipay'],
-  getGateway: () => ({ verify: async (id: string) => ({ ok: true, provider: 'paypal', transactionId: id, status: 'succeeded', evidence: remote.evidence, raw: { secret: 'do-not-expose' } }),
+  getGateway: () => ({ verify: async (id: string) => ({ ok: remote.ok, provider: remote.provider, transactionId: remote.externalId || id, status: 'succeeded', evidence: remote.evidence, raw: { secret: 'do-not-expose' } }),
     capture: async (id: string) => ({ ok: true, provider: 'paypal', transactionId: id, status: 'succeeded', evidence: remote.evidence }) }),
   charge: async (body: any) => {
     remote.requests.push(body)
@@ -18,20 +19,39 @@ vi.mock('../lib/payments/gateway', () => ({
     return { ok: true, provider: body.provider, transactionId: 'provider-' + body.requestId, status: 'pending', requestedAmount: body.amount }
   },
 }))
-import payments, { paypalWebhook } from './payments'
+import payments, { paypalWebhook, stripePaymentWebhook } from './payments'
+import guest from './guest'
+import orders from './orders'
 
 vi.mock('../lib/payments/paypal', () => ({ PayPalClient: class { async verifyWebhook(headers: any) { return headers['paypal-transmission-sig'] === 'fixture-verified' } } }))
-const app = express(); app.use(express.json())
+const app = express()
+app.post('/api/payments/webhooks/stripe', express.raw({ type: 'application/json' }), stripePaymentWebhook)
+app.use(express.json())
 app.post('/api/payments/webhooks/paypal', (req, res, next) => typeof paypalWebhook === 'function' ? paypalWebhook(req, res) : res.sendStatus(501))
 app.use('/api/payments', deviceOrUserAuth, payments)
+app.use('/api/guest', guest)
+app.use('/api/orders', deviceOrUserAuth, orders)
 const a = 'integration-payment-a', b = 'integration-payment-b', userId = 'integration-payment-owner'
 let token: string, orderA: string, orderB: string
 const auth = (builder: any) => builder.set('Authorization', 'Bearer ' + token).set('x-company-id', a)
 const input = (orderId = orderA) => ({ provider: 'sumup', amount: 24, currency: 'EUR', orderId, requestId: randomUUID() })
+async function cleanup() {
+  const where = { companyId: { in: [a, b] } }
+  await prisma.paymentWebhook.deleteMany({ where })
+  await prisma.paymentAllocation.deleteMany({ where })
+  await prisma.paymentSettlement.deleteMany({ where })
+  await prisma.paymentAttempt.deleteMany({ where })
+  await prisma.order.deleteMany({ where })
+  await prisma.table.deleteMany({ where })
+  await prisma.userCompany.deleteMany({ where: { userId } })
+  await prisma.user.deleteMany({ where: { id: userId } })
+  await prisma.company.deleteMany({ where: { id: { in: [a, b] } } })
+}
 
 describe('Paiement : cloisonnement et montant serveur', () => {
   beforeAll(async () => {
     if (process.env.CREORGA_TEST_DATABASE !== 'creorga_tests' || !new URL(process.env.DATABASE_URL!).pathname.endsWith('/creorga_tests')) throw new Error('Base de test isolée obligatoire')
+    await cleanup()
     await prisma.company.createMany({ data: [{ id: a, name: 'Établissement fictif A' }, { id: b, name: 'Établissement fictif B' }] })
     await prisma.user.create({ data: { id: userId, email: 'payment-owner@localhost.invalid', password: 'unused', firstName: 'Test', lastName: 'Owner' } })
     await prisma.userCompany.create({ data: { userId, companyId: a, role: 'OWNER' } })
@@ -40,7 +60,9 @@ describe('Paiement : cloisonnement et montant serveur', () => {
   beforeEach(async () => {
     vi.stubEnv('PAYMENT_MERCHANT_COMPANY_ID', a); vi.stubEnv('PAYPAL_MERCHANT_ID', 'merchant-test')
     vi.stubEnv('PAYPAL_CLIENT_ID', 'fixture-only'); vi.stubEnv('PAYPAL_CLIENT_SECRET', 'fixture-only')
+    vi.stubEnv('STRIPE_PAYMENT_KEY', 'fixture-only'); vi.stubEnv('STRIPE_PAYMENT_WEBHOOK_SECRET', 'fixture-signing-secret'); vi.stubEnv('STRIPE_MERCHANT_ID', 'stripe-merchant-test')
     remote.evidence = undefined; remote.failCreation = false
+    remote.ok = true; remote.provider = 'paypal'; remote.externalId = undefined
     remote.requests.length = 0
     for (const [companyId, setter] of [[a, (id: string) => { orderA = id }], [b, (id: string) => { orderB = id }]] as const) {
       const last = await prisma.order.aggregate({ where: { companyId }, _max: { orderNumber: true } })
@@ -48,18 +70,28 @@ describe('Paiement : cloisonnement et montant serveur', () => {
     }
   })
   afterAll(async () => {
-    await (prisma as any).paymentWebhook?.deleteMany({ where: { companyId: a } })
-    await (prisma as any).paymentSettlement?.deleteMany({ where: { companyId: { in: [a, b] } } })
-    await prisma.paymentAttempt.deleteMany({ where: { companyId: { in: [a, b] } } })
-    await prisma.order.deleteMany({ where: { companyId: { in: [a, b] } } })
-    await prisma.userCompany.deleteMany({ where: { userId } })
-    await prisma.user.deleteMany({ where: { id: userId } })
-    await prisma.company.deleteMany({ where: { id: { in: [a, b] } } })
+    if (process.env.CREORGA_TEST_DATABASE === 'creorga_tests') await cleanup()
     await prisma.$disconnect()
     vi.unstubAllEnvs()
   })
   it('refuse une commande appartenant à une autre société', async () => {
     expect((await auth(request(app).post('/api/payments/charge')).send(input(orderB))).status).toBe(404)
+  })
+  it('refuse les opérations financières au rôle cuisine avant tout appel bancaire', async () => {
+    const created = await auth(request(app).post('/api/payments/charge')).send(input())
+    expect(created.status).toBe(200)
+    await prisma.userCompany.update({ where: { userId_companyId: { userId, companyId: a } }, data: { role: 'KITCHEN' } })
+    remote.requests.length = 0
+    try {
+      expect((await auth(request(app).post('/api/payments/charge')).send(input())).status).toBe(403)
+      expect((await auth(request(app).post(`/api/payments/attempts/${created.body.attemptId}/capture`))).status).toBe(403)
+      expect((await auth(request(app).post(`/api/payments/attempts/${created.body.attemptId}/reconcile`))).status).toBe(403)
+      expect((await auth(request(app).get(`/api/payments/attempts/${created.body.attemptId}`))).status).toBe(403)
+      expect(remote.requests).toHaveLength(0)
+      expect((await prisma.order.findUniqueOrThrow({ where: { id: orderA } })).paidAt).toBeNull()
+    } finally {
+      await prisma.userCompany.update({ where: { userId_companyId: { userId, companyId: a } }, data: { role: 'OWNER' } })
+    }
   })
   it('refuse un prix navigateur différent du solde serveur', async () => {
     const result = await auth(request(app).post('/api/payments/charge')).send({ ...input(), amount: 1 })
@@ -129,6 +161,15 @@ describe('Paiement : cloisonnement et montant serveur', () => {
     await auth(request(app).post('/api/payments/charge')).send({ ...body, requestId: randomUUID() }).expect(409)
     expect(remote.requests).toHaveLength(1)
   })
+  it.each(['error', 'other-provider', 'other-transaction'])('refuse une réponse bancaire contradictoire : %s', async kind => {
+    const created = await auth(request(app).post('/api/payments/charge')).send({ ...input(), provider: 'paypal' })
+    remote.evidence = { amountCents: 2400, currency: 'EUR', merchantId: 'merchant-test', orderId: orderA, attemptId: created.body.attemptId, captureId: randomUUID() }
+    if (kind === 'error') remote.ok = false
+    if (kind === 'other-provider') remote.provider = 'stripe'
+    if (kind === 'other-transaction') remote.externalId = 'other-transaction'
+    expect((await auth(request(app).post(`/api/payments/attempts/${created.body.attemptId}/reconcile`))).status).toBe(409)
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: orderA } })).paidAt).toBeNull()
+  })
   it('rejette un webhook non vérifié sans marquer payé', async () => {
     expect((await request(app).post('/api/payments/webhooks/paypal').send({ id: 'forged-event', event_type: 'PAYMENT.CAPTURE.COMPLETED', resource: {} })).status).toBe(401)
     expect((await prisma.order.findUniqueOrThrow({ where: { id: orderA } })).paidAt).toBeNull()
@@ -141,5 +182,37 @@ describe('Paiement : cloisonnement et montant serveur', () => {
     await request(app).post('/api/payments/webhooks/paypal').set('paypal-transmission-sig', 'fixture-verified').send(event).expect(200)
     expect(await prisma.paymentSettlement.count({ where: { companyId: a, orderId: orderA } })).toBe(1)
     expect(await prisma.paymentWebhook.count({ where: { companyId: a, eventId: event.id, status: 'PROCESSED' } })).toBe(1)
+  })
+  it('réserve et rapproche plusieurs tournées QR sans nouveau débit sur rejeu', async () => {
+    const table = await prisma.table.create({ data: { companyId: a, name: 'Table recette multi-tournées', capacity: 2 } })
+    await prisma.order.update({ where: { id: orderA }, data: { source: 'GUEST', externalTableId: table.id } })
+    const next = await prisma.order.aggregate({ where: { companyId: a }, _max: { orderNumber: true } })
+    const second = await prisma.order.create({ data: { companyId: a, source: 'GUEST', externalTableId: table.id, orderNumber: (next._max.orderNumber || 0) + 1, total: 12, subtotal: 10, taxAmount: 2 } })
+    const input = { companyId: a, tableId: table.id, provider: 'paypal', requestId: randomUUID(), total: 1 }
+    const created = await request(app).post('/api/guest/pay').send(input)
+    expect(created.status).toBe(200); expect(created.body.amount).toBe(36)
+    await request(app).post('/api/guest/pay').send(input).expect(200)
+    expect(remote.requests).toHaveLength(1)
+    await auth(request(app).post(`/api/orders/${second.id}/checkout`)).send({ paymentMethod: 'CASH', cashReceived: 20 }).expect(409)
+    const primary = await prisma.paymentAttempt.findUniqueOrThrow({ where: { id: created.body.attemptId } })
+    remote.evidence = { amountCents: 3600, currency: 'EUR', merchantId: 'merchant-test', orderId: primary.orderId, attemptId: primary.id, captureId: randomUUID() }
+    const event = { id: randomUUID(), event_type: 'PAYMENT.CAPTURE.COMPLETED', resource: { supplementary_data: { related_ids: { order_id: created.body.transactionId } } } }
+    await request(app).post('/api/payments/webhooks/paypal').set('paypal-transmission-sig', 'fixture-verified').send(event).expect(200)
+    expect(await prisma.order.count({ where: { id: { in: [orderA, second.id] }, status: 'PAID' } })).toBe(2)
+    expect(await prisma.paymentSettlement.count({ where: { attemptId: primary.id } })).toBe(1)
+    await prisma.table.delete({ where: { id: table.id } })
+  })
+  it('vérifie la signature Stripe sur le corps brut et déduplique l’événement', async () => {
+    const created = await auth(request(app).post('/api/payments/charge')).send({ ...input(), provider: 'stripe' })
+    expect(created.status).toBe(200)
+    remote.provider = 'stripe'
+    remote.evidence = { amountCents: 2400, currency: 'EUR', merchantId: 'stripe-merchant-test', orderId: orderA, attemptId: created.body.attemptId, captureId: randomUUID() }
+    const payload = JSON.stringify({ id: randomUUID(), object: 'event', type: 'checkout.session.completed', data: { object: { id: created.body.transactionId } } })
+    await request(app).post('/api/payments/webhooks/stripe').set('Content-Type', 'application/json').set('stripe-signature', 'forged').send(payload).expect(401)
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: orderA } })).paidAt).toBeNull()
+    const client = new Stripe('fixture-only')
+    const signature = client.webhooks.generateTestHeaderString({ payload, secret: 'fixture-signing-secret' })
+    for (let i = 0; i < 2; i++) await request(app).post('/api/payments/webhooks/stripe').set('Content-Type', 'application/json').set('stripe-signature', signature).send(payload).expect(200)
+    expect(await prisma.paymentSettlement.count({ where: { attemptId: created.body.attemptId } })).toBe(1)
   })
 })

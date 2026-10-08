@@ -45,6 +45,15 @@ const chargerApi = async () => {
   return { ...mod, useAuthStore }
 }
 
+const fixtureToken = (label: string) => `fixture.${btoa(JSON.stringify({ userId: 'fixture-user', label }))}.fixture-signature`
+const ouvrirSessionFixture = (store: Awaited<ReturnType<typeof chargerApi>>['useAuthStore']) => {
+  store.getState().setAuth({
+    accessToken: fixtureToken('initial'),
+    user: { id: 'fixture-user', email: 'session@fixture.invalid', firstName: 'Test', lastName: 'Session', avatar: null },
+    companies: [],
+  })
+}
+
 describe('traiterSessionExpiree', () => {
   beforeEach(() => {
     poserWindow('/login')
@@ -71,24 +80,26 @@ describe('traiterSessionExpiree', () => {
 
   it('partage une seule rotation entre requêtes concurrentes et téléchargements', async () => {
     const { refreshSession, useAuthStore } = await chargerApi()
+    ouvrirSessionFixture(useAuthStore)
     let finish!: (value: any) => void
     const post = vi.spyOn(axios, 'post').mockImplementation(() => new Promise(resolve => { finish = resolve }) as any)
     const a = refreshSession(), b = refreshSession()
     expect(a).toBe(b)
     expect(post).toHaveBeenCalledTimes(1)
-    finish({ data: { accessToken: 'nouveau-jeton' } })
+    finish({ data: { accessToken: fixtureToken('nouveau') } })
     await Promise.all([a, b])
-    expect(useAuthStore.getState().accessToken).toBe('nouveau-jeton')
+    expect(useAuthStore.getState().accessToken).toBe(fixtureToken('nouveau'))
   })
 
   it('conserve la session pendant une panne de renouvellement et permet de réessayer', async () => {
     const { refreshSession, useAuthStore } = await chargerApi()
+    ouvrirSessionFixture(useAuthStore)
     useAuthStore.getState().setAccessToken('ancien-jeton')
-    vi.spyOn(axios, 'post').mockRejectedValueOnce({ response: { status: 503 } }).mockResolvedValueOnce({ data: { accessToken: 'retabli' } })
+    vi.spyOn(axios, 'post').mockRejectedValueOnce({ response: { status: 503 } }).mockResolvedValueOnce({ data: { accessToken: fixtureToken('retabli') } })
     await expect(refreshSession()).rejects.toMatchObject({ response: { status: 503 } })
     expect(useAuthStore.getState().accessToken).toBe('ancien-jeton')
     await refreshSession()
-    expect(useAuthStore.getState().accessToken).toBe('retabli')
+    expect(useAuthStore.getState().accessToken).toBe(fixtureToken('retabli'))
   })
 
   it('ne masque pas un mauvais mot de passe par une tentative de refresh', async () => {

@@ -60,18 +60,22 @@ export interface PaymentGateway {
 // ─── Stripe ──────────────────────────────────────────────────────────────────
 import Stripe from 'stripe'
 import { paypalGateway } from './paypal'
+import { createHash } from 'node:crypto'
 
-const stripeKey = process.env.STRIPE_SECRET_KEY || ''
-const stripe = stripeKey ? new Stripe(stripeKey, { apiVersion: '2024-06-20' as never }) : null
+const stripeKey = process.env.STRIPE_PAYMENT_KEY || ''
+const stripe = stripeKey ? new Stripe(stripeKey, { apiVersion: '2026-09-30.endive' }) : null
 
-const stripeGateway: PaymentGateway = {
+export const createStripeGateway = (stripe: Stripe | null): PaymentGateway => ({
   provider: 'stripe',
   async charge(req) {
     if (!stripe) return { ok: false, provider: 'stripe', status: 'failed', error: 'STRIPE_SECRET_KEY missing' }
+    if (!req.requestId) return { ok: false, provider: 'stripe', status: 'failed', error: 'Référence idempotente requise.' }
     try {
+      const metadata = { orderId: req.orderId, ...(req.metadata || {}) }
+      const suffix = Array.from(createHash('sha256').update(req.requestId).digest().subarray(0, 8), byte => String.fromCharCode(97 + byte % 26)).join('')
       const session = await stripe.checkout.sessions.create({
         mode: 'payment',
-        payment_method_types: ['card'],
+        integration_identifier: `creorga-horeca-${suffix}`,
         line_items: [{
           price_data: {
             currency: (req.currency || 'EUR').toLowerCase(),
@@ -83,7 +87,8 @@ const stripeGateway: PaymentGateway = {
         success_url: req.returnUrl || 'https://app.creorga.lu/pos?paid=1',
         cancel_url: req.cancelUrl || 'https://app.creorga.lu/pos?cancelled=1',
         customer_email: req.customerEmail,
-        metadata: { orderId: req.orderId, ...(req.metadata || {}) },
+        metadata,
+        payment_intent_data: { metadata },
       }, req.requestId ? { idempotencyKey: req.requestId } : undefined)
       return {
         ok: true, provider: 'stripe',
@@ -91,24 +96,33 @@ const stripeGateway: PaymentGateway = {
         redirectUrl: session.url || undefined,
         status: 'pending',
       }
-    } catch (e: any) {
-      return { ok: false, provider: 'stripe', status: 'failed', error: e.message }
+    } catch {
+      return { ok: false, provider: 'stripe', status: 'failed', error: 'Création Stripe non confirmée.' }
     }
   },
   async verify(id) {
     if (!stripe) return { ok: false, provider: 'stripe', status: 'failed' }
     const s = await stripe.checkout.sessions.retrieve(id)
-    const account = await stripe.accounts.retrieve()
+    const intentId = typeof s.payment_intent === 'string' ? s.payment_intent : s.payment_intent?.id
+    if (s.id !== id || s.mode !== 'payment' || s.status !== 'complete' || s.payment_status !== 'paid' || !intentId) return { ok: false, provider: 'stripe', transactionId: id, status: 'pending' }
+    const p = await stripe.paymentIntents.retrieve(intentId)
+    // Un montant autorisé (requires_capture) n'est pas un encaissement.
+    if (p.id !== intentId || p.status !== 'succeeded' || !p.amount_received || p.amount !== p.amount_received || s.amount_total !== p.amount_received
+      || s.currency !== p.currency || ['companyId', 'orderId', 'attemptId'].some(key => !s.metadata?.[key] || s.metadata[key] !== p.metadata[key])) {
+      return { ok: false, provider: 'stripe', transactionId: id, status: 'pending' }
+    }
+    const account = await stripe.accounts.retrieveCurrent()
     return {
-      ok: s.payment_status === 'paid',
+      ok: true,
       provider: 'stripe',
       transactionId: id,
-      status: s.payment_status === 'paid' ? 'succeeded' : 'pending',
-      ...(s.payment_status === 'paid' ? { evidence: { amountCents: s.amount_total || 0, currency: (s.currency || '').toUpperCase(),
-        merchantId: account.id, orderId: s.metadata?.orderId || '', attemptId: s.metadata?.attemptId || '', captureId: typeof s.payment_intent === 'string' ? s.payment_intent : s.payment_intent?.id || '' } } : {}),
+      status: 'succeeded',
+      evidence: { amountCents: p.amount_received, currency: p.currency.toUpperCase(), merchantId: account.id,
+        orderId: s.metadata!.orderId, attemptId: s.metadata!.attemptId, captureId: p.id },
     }
   },
-}
+})
+const stripeGateway = createStripeGateway(stripe)
 
 // ─── SumUp (terminal deep-link) ──────────────────────────────────────────────
 const sumupGateway: PaymentGateway = {

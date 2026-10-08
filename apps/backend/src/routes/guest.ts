@@ -1,6 +1,5 @@
 import { Router, type Request, type Response } from 'express'
 import path from 'path'
-import Stripe from 'stripe'
 import { randomUUID } from 'node:crypto'
 import { safeReadJson, safeWriteJson } from '../lib/safe-json'
 import prisma from '../lib/prisma'
@@ -9,6 +8,7 @@ import { deviceOrUserAuth } from '../middleware/deviceAuth'
 import { requireCompany } from '../middleware/requireCompany'
 import { getFloorState } from './floorState'
 import { PosError } from '../lib/pos-ledger'
+import { createTablePayment, reconcilePayment, merchantFor, PaymentError } from '../lib/payments/ledger'
 
 /**
  * Endpoints du portail client (le convive scanne le QR, sans compte) :
@@ -65,7 +65,7 @@ const asyncRoute = (handler: (req: Request, res: Response) => Promise<any>) => a
   try { await handler(req, res) }
   catch (error) {
     logger.error('[guest] opération non confirmée', error)
-    if (!res.headersSent) res.status(error instanceof PosError ? error.status : 503).json({ error: error instanceof PosError ? error.message : 'Le serveur ne peut pas confirmer cette opération. Réessayez avec la même référence.' })
+    if (!res.headersSent) res.status(error instanceof PosError || error instanceof PaymentError ? error.status : 503).json({ error: error instanceof PosError || error instanceof PaymentError ? error.message : 'Le serveur ne peut pas confirmer cette opération. Réessayez avec la même référence.' })
   }
 }
 
@@ -321,7 +321,8 @@ router.get('/bill/:tableId', asyncRoute(async (req, res) => {
   if (!realTable) return res.status(404).json({ error: 'Table inconnue.' })
   const orders = commandesARegler(await readOrders(companyId), realTable)
   const total = arrondi(orders.reduce((s, o) => s + o.total, 0))
-  res.json({ tableId, total, orderIds: orders.map((o) => o.id), count: orders.length })
+  const paymentProviders = ['paypal', 'stripe'].filter(provider => { try { merchantFor(provider, companyId); return true } catch { return false } })
+  res.json({ tableId, total, orderIds: orders.map((o) => o.id), count: orders.length, paymentProviders })
 }))
 
 router.post('/pay', asyncRoute(async (req, res) => {
@@ -329,127 +330,32 @@ router.post('/pay', asyncRoute(async (req, res) => {
   if (!companyValide(companyId) || !tableValide(tableId)) {
     return res.status(400).json({ error: 'companyId et tableId requis' })
   }
-  if (!process.env.STRIPE_SECRET_KEY) {
-    return res.status(501).json({ error: 'Paiement en ligne non configuré' })
-  }
-
-  // Le montant vient des commandes enregistrées côté serveur, jamais du corps
-  // de la requête (l'ancien `total` du navigateur est ignoré).
   const realTable = await resolveTable(companyId, tableId)
   if (!realTable) return res.status(404).json({ error: 'Table inconnue.' })
-  const orders = commandesARegler(await readOrders(companyId), realTable)
-  const total = arrondi(orders.reduce((s, o) => s + o.total, 0))
-  if (!orders.length || total <= 0) {
-    return res.status(400).json({ error: 'Aucune commande à régler pour cette table.' })
-  }
-
-  try {
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' as Stripe.LatestApiVersion })
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'eur',
-          product_data: { name: `Addition — Table ${tableId}` },
-          unit_amount: Math.round(total * 100),
-        },
-        quantity: 1,
-      }],
-      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5174'}/c/paid?companyId=${encodeURIComponent(companyId)}&table=${encodeURIComponent(tableId)}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5174'}/c?companyId=${encodeURIComponent(companyId)}&table=${encodeURIComponent(tableId)}`,
-      locale: 'fr',
-      metadata: { tableId, companyId, orderIds: orders.map((o) => o.id).join(',') },
-    })
-    res.json({ url: session.url, total })
-  } catch (err: any) {
-    logger.error(`[guest] création de session Stripe impossible (table ${tableId}) : ${err?.message || err}`)
-    res.status(502).json({ error: 'Paiement en ligne indisponible pour le moment.' })
-  }
+  if (typeof req.body.requestId !== 'string' || !/^[a-f0-9-]{36}$/i.test(req.body.requestId)) return res.status(400).json({ error: 'Référence de paiement stable requise.' })
+  const result = await createTablePayment(companyId, realTable, { requestId: req.body.requestId, provider: req.body.provider })
+  res.status(result.httpStatus).json({ ...result.body, url: result.body.redirectUrl, total: result.body.amount })
 }))
 
 /**
- * Confirmation de paiement en ligne, au retour de Stripe Checkout.
- *
- * Route PUBLIQUE : un paiement ne se déclare pas, il se prouve. On exige
- * l'identifiant de session, on le vérifie AUPRÈS DE STRIPE, on exige que la
- * session ait été émise pour CETTE table, et on ne prévient le personnel
- * qu'une seule fois (rejouer la page /c/paid ne renotifie pas).
+ * Le retour ne prouve rien. On retrouve une tentative persistée pour cette
+ * table, puis on vérifie la capture. Les webhooks assurent aussi la reprise
+ * quand le navigateur ne revient jamais. Aucun nouvel encaissement local.
  */
 router.post('/paid-confirm', asyncRoute(async (req, res) => {
-  const { companyId, tableId, sessionId } = req.body as { companyId?: unknown; tableId?: unknown; sessionId?: unknown }
+  const { companyId, tableId, sessionId, attemptId } = req.body as { companyId?: unknown; tableId?: unknown; sessionId?: unknown; attemptId?: unknown }
   if (!companyValide(companyId) || !tableValide(tableId)) return res.status(400).json({ error: 'companyId et tableId requis' })
-  if (typeof sessionId !== 'string' || !/^cs_[\w]+$/.test(sessionId)) {
-    return res.status(400).json({ error: 'Preuve de paiement manquante (sessionId).' })
+  if (typeof attemptId !== 'string' && (typeof sessionId !== 'string' || !/^cs_[\w]+$/.test(sessionId))) {
+    return res.status(400).json({ error: 'Référence de paiement manquante.' })
   }
-
-  // Sans clé Stripe, aucun paiement en ligne ne peut avoir lieu sur ce serveur :
-  // toute confirmation reçue ici serait forcément fabriquée.
-  if (!process.env.STRIPE_SECRET_KEY) {
-    logger.warn(`[guest] confirmation de paiement refusée (Stripe non configuré) — table ${tableId}`)
-    return res.status(503).json({ error: "Le paiement en ligne n'est pas configuré sur ce serveur." })
-  }
-
-  const orders = await readOrders(companyId)
-  if (orders.some((o) => o.companyId === companyId && o.stripeSessionId === sessionId)) {
-    // Déjà traitée : idempotent, sans nouvelle notification.
-    return res.json({ ok: true, dejaConfirme: true })
-  }
-
-  try {
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
-    const session = await stripe.checkout.sessions.retrieve(sessionId)
-
-    if (session.payment_status !== 'paid') {
-      logger.warn(`[guest] session ${sessionId} non réglée (${session.payment_status}) — table ${tableId}`)
-      return res.status(402).json({ error: "Ce paiement n'est pas abouti." })
-    }
-    if (session.metadata?.tableId !== tableId || session.metadata?.companyId !== companyId) {
-      logger.warn(`[guest] session ${sessionId} émise pour la table ${session.metadata?.tableId ?? '?'}, confirmée pour ${tableId} : refusée`)
-      return res.status(400).json({ error: 'Cette preuve de paiement ne correspond pas à cette table.' })
-    }
-
-    const ids = new Set((session.metadata?.orderIds ?? '').split(',').filter(Boolean))
-    const expected = orders.filter(o => ids.has(o.id))
-    const realTable = await resolveTable(companyId, tableId)
-    if (!expected.length || expected.length !== ids.size || expected.some(o => o.tableId !== realTable || o.paid) || session.currency !== 'eur' || session.amount_total !== Math.round(expected.reduce((s, o) => s + o.total, 0) * 100)) {
-      return res.status(409).json({ error: 'Les commandes ou le montant ne correspondent plus à ce paiement. Contactez le responsable.' })
-    }
-    const now = Date.now()
-    await prisma.$transaction(async tx => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext('pos-ledger'))::text`
-      const central = await tx.order.findMany({ where: { companyId, publicToken: { in: [...ids] } }, include: { items: true } })
-      // Recontrôler SOUS le même verrou que la caisse : un paiement concurrent
-      // ne doit pas être accepté ni décrémenter le stock une deuxième fois.
-      if (central.length !== ids.size || central.some(o => o.externalTableId !== realTable || o.status === 'CANCELLED')) throw new PosError('Commandes non rapprochables : le responsable doit vérifier le paiement Stripe.', 409)
-      if (central.every(o => o.paidAt && o.paymentMethod === `stripe:${sessionId}`)) return
-      if (central.some(o => o.paidAt)) throw new PosError('Cette addition a été réglée ailleurs. Le responsable doit rapprocher le paiement Stripe avant remboursement éventuel.', 409)
-      for (const o of central) for (const i of o.items) await tx.product.updateMany({ where: { id: i.productId, companyId, stock: { not: null } }, data: { stock: { decrement: i.quantity } } })
-      await tx.order.updateMany({ where: { companyId, id: { in: central.map(o => o.id) }, paidAt: null }, data: { status: 'PAID', paidAt: new Date(now), paymentMethod: `stripe:${sessionId}` } })
-    })
-    for (const o of orders) {
-      if (o.companyId === companyId && ids.has(o.id)) { o.paid = true; o.paidAt = now; o.stripeSessionId = sessionId; o.updatedAt = now }
-    }
-    const legacy = safeReadJson<GuestOrder[]>(ORDERS_FILE, [])
-    for (const o of legacy) if (o.companyId === companyId && ids.has(o.id)) { o.paid = true; o.paidAt = now; o.stripeSessionId = sessionId; o.updatedAt = now }
-    safeWriteJson(ORDERS_FILE, legacy)
-
-    pushStaffNotif({
-      type: 'guest-paid',
-      companyId,
-      entityId: tableId,
-      title: `💳 Table ${tableId} a payé en ligne`,
-      message: `Paiement vérifié auprès de Stripe (${(session.amount_total ?? 0) / 100} ${(session.currency || 'eur').toUpperCase()}).`,
-      severity: 'success',
-      cta: { label: 'Voir la table', route: '/pos/floor' },
-    })
-    return res.json({ ok: true })
-  } catch (e: any) {
-    // Ne jamais retomber sur « ok » : un échec de vérification n'est pas un
-    // paiement. Le personnel ne doit pas être notifié dans le doute.
-    logger.error(`[guest] vérification Stripe impossible (${sessionId}) : ${e?.message || e}`)
-    return res.status(e instanceof PosError ? e.status : 502).json({ error: e instanceof PosError ? e.message : 'Paiement invérifiable pour le moment.' })
-  }
+  const realTable = await resolveTable(companyId, tableId)
+  if (!realTable) return res.status(404).json({ error: 'Table inconnue.' })
+  const attempt = await prisma.paymentAttempt.findFirst({ where: { companyId, scope: 'TABLE', tableId: realTable,
+    ...(typeof attemptId === 'string' ? { id: attemptId } : { provider: 'stripe', externalId: sessionId as string }) } })
+  if (!attempt) return res.status(404).json({ error: 'Référence inconnue pour cette addition. Le responsable doit vérifier les anciens règlements hors journal 2.0.' })
+  const payment = await reconcilePayment(companyId, attempt.id, attempt.provider === 'paypal' && attempt.status !== 'SUCCEEDED')
+  if (payment.status !== 'succeeded') return res.status(202).json({ ...payment, error: 'Paiement encore en attente ou incertain. Ne réglez pas une deuxième fois sans vérification.' })
+  return res.json({ ...payment, ok: true })
 }))
 
 // ─── Fidélité ───────────────────────────────────────────

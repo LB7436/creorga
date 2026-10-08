@@ -4,7 +4,8 @@ import { randomUUID, createHash } from 'node:crypto'
 import prisma from '../lib/prisma'
 import { requireCompany } from '../middleware/requireCompany'
 import { moneyMinor, totalsFromTtc } from '../lib/money'
-import { ACTIVE_PAYMENT_STATES, lockOrderPayment, PaymentError } from '../lib/payments/ledger'
+import { activePaymentExists, lockOrderPayment, PaymentError } from '../lib/payments/ledger'
+import { debitOrderInventory } from '../lib/order-inventory'
 import logger from '../lib/logger'
 
 const router = Router(); router.use(requireCompany)
@@ -24,7 +25,7 @@ async function openOrder(tx: any, companyId: string, orderId: string) {
   const order = await tx.order.findFirst({ where: { id: orderId, companyId } })
   if (!order) throw new PaymentError(404, 'Commande non trouvée.')
   if (order.paidAt || ['PAID', 'CANCELLED'].includes(order.status)) throw new PaymentError(409, 'Commande réglée ou annulée : utilisez une correction traçable.')
-  if (await tx.paymentAttempt.count({ where: { companyId, orderId, status: { in: ACTIVE_PAYMENT_STATES } } })) throw new PaymentError(409, 'Un règlement est en cours ou incertain. Vérifiez-le avant de modifier la commande.')
+  if (await activePaymentExists(tx, companyId, [orderId])) throw new PaymentError(409, 'Un règlement est en cours ou incertain. Vérifiez-le avant de modifier la commande.')
   return order
 }
 async function recalculate(tx: any, orderId: string) {
@@ -103,6 +104,7 @@ router.post('/:id/checkout', wrap(async (req, res) => {
     await tx.paymentAttempt.create({ data: { companyId: req.companyId, orderId: current.id, userId: req.user?.userId || null, requestId, requestHash: hash,
       provider: 'manual', merchantId: `manual:${req.companyId}`, amountCents: totalCents, currency: req.company.currency, status: 'DECLARED',
       response: { confirmation: 'manual_declaration', method: input.paymentMethod, allocations: input.allocations || [{ method: input.paymentMethod, amount: current.total }] } } })
+    await debitOrderInventory(tx, req.companyId, current.id)
     return tx.order.update({ where: { id: current.id }, data: { status: 'PAID', paymentMethod: input.paymentMethod, paidAt: new Date(),
       cashReceived: cashDue ? received / 100 : null, cashChange: cashDue ? (received - cashDue) / 100 : null }, include: { items: { include: { product: true } }, table: true } })
   }, { maxWait: 15000, timeout: 10000 })

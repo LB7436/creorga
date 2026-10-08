@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import prisma from '../lib/prisma'
-import { isProduction } from '../lib/security'
+import { fallbackAdminAllowed, isProduction } from '../lib/security'
 import logger from '../lib/logger'
 
 const FALLBACK_COMPANY = {
@@ -14,8 +14,13 @@ export async function requireCompany(req: Request, res: Response, next: NextFunc
   const user = (req as any).user
   let companyId = (req.headers['x-company-id'] as string) || ''
 
-  // Fallback admin token → grant access to fallback company without DB
+  // Un ancien jeton signé reste techniquement valide après le passage en
+  // production : contrôler l'autorisation de démonstration à chaque requête.
   if (user?.userId === 'fallback-admin') {
+    if (!fallbackAdminAllowed()) {
+      res.status(401).json({ error: 'Session de démonstration désactivée' })
+      return
+    }
     ;(req as any).companyId = FALLBACK_COMPANY.id
     ;(req as any).company = FALLBACK_COMPANY
     ;(req as any).role = 'OWNER'
@@ -31,10 +36,14 @@ export async function requireCompany(req: Request, res: Response, next: NextFunc
     if (!user?.userId) {
       if ((req as any).device) {
         const device = (req as any).device as { type: string; companyId?: string }
+        if (isProduction() && !device.companyId) {
+          res.status(403).json({ error: 'Terminal non rattaché à une société' })
+          return
+        }
         // v5.0 — Jeton lié à une société (POS_DEVICE_TOKENS ou
         // POS_DEVICE_COMPANY_ID) : la société annoncée doit être la sienne ;
         // sans en-tête, on prend celle du jeton. Un jeton global historique
-        // (sans société) garde l'ancien contrôle d'existence.
+        // (sans société) est accepté uniquement hors production.
         if (device.companyId) {
           if (companyId && companyId !== device.companyId) {
             res.status(403).json({ error: 'Ce terminal n’est pas rattaché à cette société' })
@@ -56,15 +65,9 @@ export async function requireCompany(req: Request, res: Response, next: NextFunc
         ;(req as any).role = null
         return next()
       }
-      if (isProduction()) {
-        res.status(401).json({ error: 'Authentification requise' })
-        return
-      }
-      // Compat dev de deviceOrUserAuth : requête sans aucun jeton hors production.
-      ;(req as any).companyId = companyId || FALLBACK_COMPANY.id
-      ;(req as any).company = FALLBACK_COMPANY
-      ;(req as any).role = 'OWNER'
-      return next()
+      // L'absence d'identité ne crée jamais une adhésion, même en local.
+      res.status(401).json({ error: 'Authentification requise' })
+      return
     }
 
     // If no header passed, pick the user's first active company.
@@ -100,27 +103,11 @@ export async function requireCompany(req: Request, res: Response, next: NextFunc
     ;(req as any).role = membership.role
     next()
   } catch (error: any) {
-    // Base injoignable.
-    //
-    // En production, NE JAMAIS basculer sur la société de repli : cela accordait
-    // le rôle OWNER à n'importe quel porteur d'un jeton valide dès que la base
-    // tombait. Une grande partie de l'état applicatif (plan de salle, config des
-    // modules, stock, régie pub, agent) vit dans data/*.json et reste servie sans
-    // base — l'élévation de privilèges était donc réellement exploitable.
-    // Une panne de base doit se traduire par un 503, pas par une promotion.
-    if (isProduction()) {
-      logger.error(`[requireCompany] base injoignable, accès refusé: ${error?.message || error}`)
-      res.status(503).json({ error: 'Service temporairement indisponible (base de données)' })
-      return
-    }
-
-    // Hors production uniquement : mode dégradé volontaire, pour pouvoir
-    // travailler sans Docker/Postgres sur une machine de développement.
-    logger.warn(`[requireCompany] base injoignable, repli dev sur la société fallback: ${error?.message || error}`)
-    ;(req as any).companyId = FALLBACK_COMPANY.id
-    ;(req as any).company = FALLBACK_COMPANY
-    ;(req as any).role = 'OWNER'
-    next()
+    // Les installations locales contiennent aussi des données métier. Une
+    // panne ne doit jamais transformer un membre en propriétaire du stockage
+    // JSON encore disponible. La démonstration explicite est traitée plus haut.
+    logger.error(`[requireCompany] base injoignable, accès refusé: ${error?.message || error}`)
+    res.status(503).json({ error: 'Service temporairement indisponible (base de données)' })
   }
 }
 

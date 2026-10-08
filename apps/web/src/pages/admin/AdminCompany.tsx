@@ -12,10 +12,17 @@ type CompanyForm = {
   phone: string
   email: string
   logo: string | null
+  legalForm: string
+  rcsNumber: string
+  authorizationNumber: string
+  profession: string
+  legalMention: string
+  rcsExemptionReason: string
 }
 
 const EMPTY: CompanyForm = {
   name: '', legalName: '', vatNumber: '', address: '', phone: '', email: '', logo: null,
+  legalForm: '', rcsNumber: '', authorizationNumber: '', profession: '', legalMention: '', rcsExemptionReason: '',
 }
 
 export default function AdminCompany() {
@@ -36,6 +43,9 @@ export default function AdminCompany() {
       phone: company.phone ?? '',
       email: company.email ?? '',
       logo: company.logo ?? null,
+      legalForm: company.legalProfile?.legalForm || '', rcsNumber: company.legalProfile?.rcsNumber || '',
+      authorizationNumber: company.legalProfile?.authorizationNumber || '', profession: company.legalProfile?.profession || '',
+      legalMention: company.legalProfile?.legalMention || '', rcsExemptionReason: company.legalProfile?.rcsExemptionReason || '',
     })
     setDirty(false)
   }, [company])
@@ -72,6 +82,8 @@ export default function AdminCompany() {
       const { data } = await api.put(`/companies/${company.id}`, {
         ...form,
         name: form.name.trim(),
+        legalProfile: { legalForm: form.legalForm, rcsNumber: form.rcsNumber, authorizationNumber: form.authorizationNumber,
+          profession: form.profession, legalMention: form.legalMention, rcsExemptionReason: form.rcsExemptionReason },
       })
       updateActiveCompany(data)
       setDirty(false)
@@ -120,7 +132,14 @@ export default function AdminCompany() {
           <Field label="Raison sociale" value={form.legalName} onChange={(value) => update('legalName', value)} />
           <Field label="Numéro de TVA" value={form.vatNumber} onChange={(value) => update('vatNumber', value)} />
           <Field label="Adresse complète" value={form.address} onChange={(value) => update('address', value)} icon={<MapPin size={16} />} />
+          <Field label="Forme juridique" value={form.legalForm} onChange={(value) => update('legalForm', value)} />
+          <Field label="R.C.S. Luxembourg" value={form.rcsNumber} onChange={(value) => update('rcsNumber', value)} />
+          <Field label="Autorisation d’établissement" value={form.authorizationNumber} onChange={(value) => update('authorizationNumber', value)} />
+          <Field label="Profession (entrepreneur individuel)" value={form.profession} onChange={(value) => update('profession', value)} />
+          <Field label="Mentions fiscales validées" value={form.legalMention} onChange={(value) => update('legalMention', value)} />
+          <Field label="Motif de non-application du RCS (si justifié)" value={form.rcsExemptionReason} onChange={(value) => update('rcsExemptionReason', value)} />
         </div>
+        <p style={{ color: '#64748b', fontSize: 13, lineHeight: 1.5 }}>Les données sont figées à l’émission des nouvelles factures. Complétez les mentions avec votre comptable ; ce formulaire ne certifie ni votre statut ni le régime fiscal.</p>
       </section>
 
       <section style={cardStyle}>

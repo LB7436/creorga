@@ -5,15 +5,15 @@
 | ID | Priorité | Exigence | État actuel |
 |---|---|---|---|
 | T01 | P0 | installation neuve complète | Partiel : installation locale ; recette UI en cours |
-| T02 | P0 | restauration sur copie avec pièces jointes | Reprise technique vérifiée ; consultation métier à compléter |
+| T02 | P0 | restauration sur copie avec pièces jointes | Vérifié localement : 57 tables, 6 fichiers, PDF émis intègre ; médias absents déclarés |
 | T03 | P0 | migration de la copie ancienne | Migrations additives appliquées à une copie |
 | T04 | P0 | export d’anciennes ventes navigateur sans perte | À implémenter ou à recetter |
 | T05 | P0 | refus d’accès intersociétés | Partiel : paiements et commandes testés sur API |
 | T06 | P0 | refus intersites selon rôle | À implémenter ou à recetter |
-| T07 | P0 | panne de base sans élévation de privilège | Partiel : garde-fous production couverts en unité |
+| T07 | P0 | panne de base sans élévation de privilège | Garde-fous testés avec panne simulée : middlewares, login, refresh, me ; aucun rôle inventé |
 | T08 | P0 | révocation d’une caisse | À implémenter ou à recetter |
-| T09 | P0 | restauration chiffrée de sauvegarde externe | À implémenter ou à recetter |
-| T10 | P0 | rapprochement avant/après des ventes, TVA, soldes et documents. | À implémenter ou à recetter |
+| T09 | P0 | restauration chiffrée de sauvegarde externe | Partiel : copie AES-GCM locale restaurée ; transfert/stockage externe non testé |
+| T10 | P0 | rapprochement avant/après des ventes, TVA, soldes et documents. | Tables et octets comparés égaux sur copie ; anciennes ventes navigateur non rapprochées |
 | T11 | P1 | vente café comptoir | À implémenter ou à recetter |
 | T12 | P1 | table avec plusieurs tournées | À implémenter ou à recetter |
 | T13 | P1 | transfert de table | À implémenter ou à recetter |
@@ -31,38 +31,38 @@
 | T25 | P1 | produit indisponible | À implémenter ou à recetter |
 | T26 | P1 | clôture avec écart déclaré. | À implémenter ou à recetter |
 | T27 | P0 | prix catalogue TTC | API et calcul TTC testés |
-| T28 | P1 | facture à prix HT | À implémenter ou à recetter |
-| T29 | P0 | plusieurs taux | Calcul par taux testé ; PDF à compléter |
-| T30 | P1 | remise répartie | À implémenter ou à recetter |
+| T28 | P1 | facture à prix HT | Testée : formulaire, calcul serveur, émission et PDF téléchargé |
+| T29 | P0 | plusieurs taux | Calcul, ventilation PDF et parcours navigateur testés ; régime fiscal à valider |
+| T30 | P1 | remise répartie | Calcul exact testé, dont ventilation fiscale du rapport ; parcours complet à recetter |
 | T31 | P1 | avoir partiel | À implémenter ou à recetter |
 | T32 | P1 | acompte puis solde | À implémenter ou à recetter |
 | T33 | P1 | facture complète depuis ticket sans double vente | À implémenter ou à recetter |
-| T34 | P1 | changement ultérieur de fiche société sans modification du document historique | À implémenter ou à recetter |
-| T35 | P0 | numérotation concurrente sur au moins vingt demandes | À implémenter ou à recetter |
+| T34 | P1 | changement ultérieur de fiche société sans modification du document historique | Testé : original A4 identique ; snapshot nouveau reçu POS testé |
+| T35 | P0 | numérotation concurrente sur au moins vingt demandes | Vingt créations concurrentes de factures testées sur PostgreSQL |
 | T36 | P1 | montant 99,99 €, 100 € et 100,01 € selon régime applicable | À implémenter ou à recetter |
 | T37 | P1 | long document multipage | À implémenter ou à recetter |
-| T38 | P1 | export fiscal réconcilié | À implémenter ou à recetter |
+| T38 | P1 | export fiscal réconcilié | Rapport TTC/remises corrigé et testé ; export comptable externe à qualifier |
 | T39 | P1 | acceptation de devis sans double conversion | À implémenter ou à recetter |
 | T40 | P1 | XML électronique valide et XML invalide clairement rejeté. | À implémenter ou à recetter |
 | T41 | P1 | PayPal sandbox payé | Accès sandbox manquants ; contrat HTTP simulé testé |
 | T42 | P1 | refus | À implémenter ou à recetter |
 | T43 | P1 | abandon | À implémenter ou à recetter |
 | T44 | P0 | timeout après capture effective | Partiel : solde réservé après erreur réseau |
-| T45 | P0 | webhook reçu deux fois | À implémenter ou à recetter |
-| T46 | P1 | webhook avant retour navigateur | À implémenter ou à recetter |
-| T47 | P0 | signature falsifiée rejetée | À implémenter ou à recetter |
-| T48 | P0 | montant/devise/marchand incohérent rejeté | Contrôles de preuve en cours |
+| T45 | P0 | webhook reçu deux fois | Déduplication testée avec échange prestataire remplacé |
+| T46 | P1 | webhook avant retour navigateur | Rapprochement sans retour navigateur testé ; vrai prestataire non raccordé |
+| T47 | P0 | signature falsifiée rejetée | Signature Stripe locale testée ; vérification PayPal HTTP simulée |
+| T48 | P0 | montant/devise/marchand incohérent rejeté | Incohérences rejetées en intégration, aucune fausse confirmation |
 | T49 | P0 | événements désordonnés | À implémenter ou à recetter |
 | T50 | P1 | remboursement partiel | À implémenter ou à recetter |
 | T51 | P0 | deux tentatives concurrentes sur le même solde | Tentatives concurrentes testées sur PostgreSQL |
-| T52 | P1 | paiement espèces + carte | À implémenter ou à recetter |
-| T53 | P1 | terminal autonome affiché comme déclaration manuelle | À implémenter ou à recetter |
-| T54 | P0 | paiement en attente sans faux solde nul | À implémenter ou à recetter |
+| T52 | P1 | paiement espèces + carte | Calculs et ventilation POS testés ; espèces + cadeau testé en base ; matériel non testé |
+| T53 | P1 | terminal autonome affiché comme déclaration manuelle | Snapshot identifié manual_declaration ; parcours terminal à qualifier |
+| T54 | P0 | paiement en attente sans faux solde nul | Tentative et solde conservés en intégration ; aucun prestataire réel |
 | T55 | P1 | rapprochement frais/net/brut | À implémenter ou à recetter |
-| T56 | P1 | séparation des abonnements CréOrga et recettes du commerçant. | À implémenter ou à recetter |
-| T57 | P1 | ticket 58 mm | À implémenter ou à recetter |
-| T58 | P1 | ticket 80 mm | À implémenter ou à recetter |
-| T59 | P1 | accents et euro | À implémenter ou à recetter |
+| T56 | P1 | séparation des abonnements CréOrga et recettes du commerçant. | Clés Stripe séparées et rattachement commerçant contrôlé ; onboarding multiple restant |
+| T57 | P1 | ticket 58 mm | Partiel : facture PDF 58 mm téléchargée et inspectée ; papier/ticket POS non qualifiés |
+| T58 | P1 | ticket 80 mm | Partiel : facture PDF 80 mm téléchargée et inspectée ; papier/ticket POS non qualifiés |
+| T59 | P1 | accents et euro | Rendus PDF inspectés FR/DE/PT ; codepages matériels non testés |
 | T60 | P1 | QR lisible | À implémenter ou à recetter |
 | T61 | P1 | fin de papier | Non exécuté : matériel / environnement à qualifier |
 | T62 | P1 | imprimante débranchée puis rebranchée | Non exécuté : matériel / environnement à qualifier |
@@ -70,10 +70,10 @@
 | T64 | P1 | duplicata sans écriture supplémentaire | Non exécuté : matériel / environnement à qualifier |
 | T65 | P1 | tiroir non ouvert à la réimpression | Non exécuté : matériel / environnement à qualifier |
 | T66 | P1 | cent lignes sans troncature | À implémenter ou à recetter |
-| T67 | P1 | facture reçue dans boîte de test avec vrai PDF | À implémenter ou à recetter |
-| T68 | P1 | échec d’envoi et reprise sans doublon | À implémenter ou à recetter |
+| T67 | P1 | facture reçue dans boîte de test avec vrai PDF | Dialogue SMTP loopback et PDF joint identique testés ; aucun envoi Zoho réel |
+| T68 | P1 | échec d’envoi et reprise sans doublon | Référence stable et perte accusé après DATA testées ; incertain sans renvoi automatique |
 | T69 | P1 | lien expiré | À implémenter ou à recetter |
-| T70 | P0 | pièce d’une autre société inaccessible. | À implémenter ou à recetter |
+| T70 | P0 | pièce d’une autre société inaccessible. | Facture/PDF intersociétés refusés ; toutes pièces RH à requalifier |
 | T71 | P1 | table 3 addition ouverte après départ déclaré | À implémenter ou à recetter |
 | T72 | P1 | client revenu | À implémenter ou à recetter |
 | T73 | P1 | personne encore à table | À implémenter ou à recetter |

@@ -13,6 +13,7 @@ model Company {
   id        String   @id @default(cuid())
   name      String
   legalName String?
+  legalProfile Json?
   vatNumber String?
   address   String?
   phone     String?
@@ -211,6 +212,7 @@ model Order {
   taxAmount     Float     @default(0)
   total         Float     @default(0)
   paidAt        DateTime?
+  inventoryDebitedAt DateTime?
   paymentMethod String?
   cashReceived  Float?
   cashChange    Float?
@@ -224,6 +226,7 @@ model Order {
   items    OrderItem[]
   paymentAttempts PaymentAttempt[]
   paymentSettlements PaymentSettlement[]
+  paymentAllocations PaymentAllocation[]
 
   // Deux commandes ne peuvent pas porter le même numéro dans une société :
   // la numérotation applicative (lecture du max + 1) ne suffit pas sous
@@ -258,6 +261,8 @@ model PaymentAttempt {
   id               String   @id @default(uuid())
   companyId        String
   orderId          String
+  tableId          String?
+  scope            String   @default("ORDER")
   userId           String?
   requestId        String
   requestHash      String
@@ -275,6 +280,7 @@ model PaymentAttempt {
   company Company @relation(fields: [companyId], references: [id])
   order   Order   @relation(fields: [companyId, orderId], references: [companyId, id])
   settlement PaymentSettlement?
+  allocations PaymentAllocation[]
   @@unique([companyId, id])
   @@unique([companyId, requestId])
   @@unique([provider, merchantId, externalId])
@@ -296,9 +302,28 @@ model PaymentSettlement {
   createdAt   DateTime @default(now())
   order       Order @relation(fields: [companyId, orderId], references: [companyId, id])
   attempt     PaymentAttempt @relation(fields: [companyId, attemptId], references: [companyId, id])
+  allocations PaymentAllocation[]
+  @@unique([companyId, id])
   @@unique([companyId, attemptId])
   @@unique([provider, merchantId, captureId])
   @@index([companyId, orderId])
+}
+
+// Affectation et réservation de chaque commande, y compris les additions multi-tournées.
+model PaymentAllocation {
+  id           String @id @default(uuid())
+  companyId    String
+  attemptId    String
+  orderId      String
+  amountCents  Int
+  active       Boolean @default(true)
+  settlementId String?
+  createdAt    DateTime @default(now())
+  order        Order @relation(fields: [companyId, orderId], references: [companyId, id])
+  attempt      PaymentAttempt @relation(fields: [companyId, attemptId], references: [companyId, id])
+  settlement   PaymentSettlement? @relation(fields: [companyId, settlementId], references: [companyId, id])
+  @@unique([attemptId, orderId])
+  @@index([companyId, orderId, active])
 }
 
 model PaymentWebhook {
@@ -384,6 +409,9 @@ model Customer {
   companyId     String
   firstName     String
   lastName      String
+  businessName  String?
+  address       String?
+  vatNumber     String?
   email         String?
   phone         String?
   points        Int      @default(0)
@@ -441,6 +469,15 @@ model Invoice {
   customerId String?
   number     String
   status     String    @default("DRAFT") // DRAFT|SENT|PAID|OVERDUE|CANCELLED
+  currency   String    @default("EUR")
+  priceBasis String    @default("HT")
+  discountCents Int    @default(0)
+  serviceDate DateTime?
+  documentMode String @default("AUTO")
+  issuedAt   DateTime?
+  issuedSnapshot Json?
+  issuedPdf  Bytes?
+  issuedPdfHash String?
   dueDate    DateTime?
   subtotal   Float     @default(0)
   taxAmount  Float     @default(0)
@@ -454,9 +491,30 @@ model Invoice {
   company  Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer Customer?     @relation(fields: [customerId], references: [id])
   items    InvoiceItem[]
+  deliveries InvoiceDelivery[]
 
   // Numérotation séquentielle unique : obligation légale de facturation.
   @@unique([companyId, number])
+  @@unique([companyId, id])
+  @@index([companyId, status])
+}
+
+model InvoiceDelivery {
+  id            String @id
+  companyId     String
+  invoiceId     String
+  userId        String
+  recipient     String
+  requestHash   String
+  documentHash  String
+  status        String @default("QUEUED")
+  attempts      Int @default(0)
+  providerId    String?
+  lastErrorCode String?
+  createdAt     DateTime @default(now())
+  claimedAt     DateTime?
+  acceptedAt    DateTime?
+  invoice       Invoice @relation(fields: [companyId, invoiceId], references: [companyId, id])
   @@index([companyId, status])
 }
 
@@ -467,6 +525,7 @@ model InvoiceItem {
   quantity    Float
   unitPrice   Float
   taxRate     Float   @default(17)
+  taxReason   String?
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 

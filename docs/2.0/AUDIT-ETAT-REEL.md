@@ -3,6 +3,32 @@
 Révision de départ : `350b35120f44d2508d863a3a73f644eb0aa6b141`, consultée localement le 8 octobre 2026.
 Le VPS Creorga a été retiré le 24 septembre ; le travail porte sur une copie Windows isolée.
 
+## Mise à jour après les lots locaux
+
+Les constats de départ du tableau ci-dessous sont historiques. Dans la copie 2.0 :
+
+- Commandes, captures et caisse utilisent des verrous communs ; montant et devise sont contrôlés
+  côté serveur. Stripe et PayPal distinguent demande, attente, preuve confirmée et résultat incertain.
+- Les nouvelles factures émises conservent leur contenu, PDF original et empreinte en PostgreSQL.
+  Les anciens documents sans original sont explicitement reconstitués. Le profil légal est désormais
+  persisté, la TVA ventilée, et les téléchargements ont été éprouvés par le navigateur.
+- La lecture des salles échoue explicitement sur corruption. Les écritures JSON sont flushées ;
+  la garantie matérielle en cas de coupure électrique reste à qualifier sur Windows.
+- Les replis d'authentification qui inventaient un propriétaire lors d'une panne sont supprimés.
+  Le routeur de sauvegarde client reste indisponible ; aucune fuite active par son ancien montage
+  n'a été démontrée. Les requêtes et caches sont isolés au changement de compte ou société ;
+  la qualification des anciens stores persistants reste distincte.
+- Le rapport fiscal extrayait à tort la TVA de prix interprétés HT. Il utilise désormais la base TTC
+  et les remises, et refuse un historique dont les totaux ne peuvent être réconciliés.
+- L'émission de cartes cadeaux et les crédits de portefeuille exigent un responsable. Une carte
+  prépayée est désormais un paiement, sans réduction de la vente ni de sa TVA.
+- La sauvegarde v2 inclut données, médias et dump avec empreintes. Une copie a été restaurée
+  et comparée : 57 tables, six fichiers et un PDF émis identiques. Médias absents de cette copie,
+  explicitement signalés ; leur inclusion est testée séparément.
+
+Les paiements bancaires sandbox, impressions physiques, vidéo et recette complète T01–T100
+restent non validés. Voir les preuves datées et limites dans `RECETTE-ET-PREUVES.md`.
+
 ## Constats vérifiés
 
 | Sujet | Constat | Preuve / conséquence |

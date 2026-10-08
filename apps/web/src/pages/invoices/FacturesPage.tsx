@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Download, Eye, FileText, Plus, Printer, Receipt, Search, Trash2, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Download, Eye, FileText, Plus, Receipt, Search, Trash2, X } from 'lucide-react'
 import {
   type Invoice,
   type InvoiceStatus,
@@ -11,11 +11,14 @@ import {
 import { useCustomers } from '@/hooks/api/useCustomers'
 import { downloadCsv } from '@/lib/csv'
 import { toastError, toastSuccess } from '@/lib/toast'
+import { totalsFromHt } from '@/lib/money'
+import api from '@/lib/api'
+import { useAuthStore } from '@/stores/authStore'
 
 const euro = new Intl.NumberFormat('fr-LU', { style: 'currency', currency: 'EUR' })
 const statuses: InvoiceStatus[] = ['DRAFT', 'SENT', 'PAID', 'OVERDUE', 'CANCELLED']
 const statusLabel: Record<InvoiceStatus, string> = {
-  DRAFT: 'Brouillon', SENT: 'Envoyée', PAID: 'Payée', OVERDUE: 'En retard', CANCELLED: 'Annulée',
+  DRAFT: 'Brouillon', SENT: 'Émise', PAID: 'Payée (statut financier)', OVERDUE: 'En retard', CANCELLED: 'Annulée',
 }
 const statusColor: Record<InvoiceStatus, { color: string; background: string }> = {
   DRAFT: { color: '#475569', background: '#f1f5f9' },
@@ -32,6 +35,8 @@ export default function FacturesPage() {
   const { data: customers = [] } = useCustomers()
   const createInvoice = useCreateInvoice()
   const updateStatus = useUpdateInvoiceStatus()
+  const actorId = useAuthStore(state => state.user?.id)
+  const companyId = useAuthStore(state => state.companyId)
 
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<InvoiceStatus | 'ALL'>('ALL')
@@ -39,15 +44,26 @@ export default function FacturesPage() {
   const [detail, setDetail] = useState<Invoice | null>(null)
   const [customerId, setCustomerId] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [serviceDate, setServiceDate] = useState('')
+  const [completeDocument, setCompleteDocument] = useState(false)
+  const [emailTo, setEmailTo] = useState('')
+  const [emailSending, setEmailSending] = useState(false)
+  const [deliveryState, setDeliveryState] = useState('')
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<LigneDocument[]>([emptyLine()])
+  const displayedInvoiceId = useRef<string | null>(null)
+  displayedInvoiceId.current = detail?.id || null
+  useEffect(() => {
+    setEmailTo('')
+    setDeliveryState('')
+  }, [detail?.id, actorId, companyId])
 
   const filtered = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('fr')
     return invoices.filter((invoice) => {
       if (filter !== 'ALL' && invoice.status !== filter) return false
       if (!query) return true
-      const customer = invoice.customer ? `${invoice.customer.firstName} ${invoice.customer.lastName}` : ''
+      const customer = invoice.customer ? `${invoice.customer.businessName || ''} ${invoice.customer.firstName} ${invoice.customer.lastName}` : ''
       return invoice.number.toLocaleLowerCase('fr').includes(query) || customer.toLocaleLowerCase('fr').includes(query)
     })
   }, [invoices, search, filter])
@@ -59,8 +75,8 @@ export default function FacturesPage() {
     paid: invoices.filter((invoice) => invoice.status === 'PAID').reduce((sum, invoice) => sum + invoice.total, 0),
   }), [invoices])
 
-  const previewSubtotal = lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unitPrice || 0), 0)
-  const previewTax = lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unitPrice || 0) * Number(line.taxRate || 0) / 100, 0)
+  const preview = useMemo(() => { try { return totalsFromHt(lines.map(line => ({ price: Number(line.unitPrice), qty: Number(line.quantity), taxRate: Number(line.taxRate) }))) } catch { return null } }, [lines])
+  const previewSubtotal = (preview?.baseCents || 0) / 100, previewTax = (preview?.taxCents || 0) / 100
 
   function changeLine(index: number, patch: Partial<LigneDocument>) {
     setLines((current) => current.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line))
@@ -69,6 +85,7 @@ export default function FacturesPage() {
   function resetCreator() {
     setCustomerId('')
     setDueDate('')
+    setServiceDate(''); setCompleteDocument(false)
     setNotes('')
     setLines([emptyLine()])
   }
@@ -80,6 +97,7 @@ export default function FacturesPage() {
       quantity: Number(line.quantity),
       unitPrice: Number(line.unitPrice),
       taxRate: Number(line.taxRate),
+      taxReason: line.taxReason?.trim() || null,
     }))
     if (cleanLines.some((line) => !line.description || !Number.isFinite(line.quantity) || line.quantity <= 0 || !Number.isFinite(line.unitPrice) || line.unitPrice < 0)) {
       toastError('Chaque ligne doit avoir une description, une quantité positive et un prix valide.')
@@ -89,6 +107,7 @@ export default function FacturesPage() {
       await createInvoice.mutateAsync({
         customerId: customerId || null,
         dueDate: dueDate || null,
+        serviceDate: serviceDate || null, documentMode: completeDocument ? 'COMPLETE' : 'AUTO',
         notes: notes.trim() || null,
         items: cleanLines,
       })
@@ -102,8 +121,8 @@ export default function FacturesPage() {
   async function changeStatus(invoice: Invoice, status: InvoiceStatus) {
     if (status === invoice.status) return
     try {
-      await updateStatus.mutateAsync({ id: invoice.id, status })
-      if (detail?.id === invoice.id) setDetail({ ...invoice, status })
+      const saved = await updateStatus.mutateAsync({ id: invoice.id, status })
+      if (detail?.id === invoice.id) setDetail(saved)
     } catch {
       // Le hook affiche le message précis du serveur.
     }
@@ -115,7 +134,7 @@ export default function FacturesPage() {
       ['Numéro', 'Client', 'Statut', 'Date', 'Échéance', 'HT', 'TVA', 'TTC'],
       filtered.map((invoice) => [
         invoice.number,
-        invoice.customer ? `${invoice.customer.firstName} ${invoice.customer.lastName}` : '',
+        invoice.customer ? invoice.customer.businessName || `${invoice.customer.firstName} ${invoice.customer.lastName}` : '',
         statusLabel[invoice.status],
         invoice.createdAt.slice(0, 10),
         invoice.dueDate?.slice(0, 10) || '',
@@ -126,14 +145,43 @@ export default function FacturesPage() {
     )
     toastSuccess('Export des factures téléchargé.')
   }
+  async function downloadDocument(invoice: Invoice, format: 'A4' | '58' | '80') {
+    try {
+      const response = await api.get(`/invoices/${invoice.id}/pdf`, { params: { format }, responseType: 'blob' })
+      if (!String(response.headers['content-type']).includes('application/pdf')) throw new Error('Fichier PDF non confirmé.')
+      const url = URL.createObjectURL(response.data), anchor = document.createElement('a')
+      anchor.href = url; anchor.download = `facture-${invoice.number}-${format}.pdf`; anchor.click()
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch { toastError('Impossible de télécharger ce justificatif.') }
+  }
+  async function sendDocument(invoice: Invoice) {
+    if (emailSending) return
+    setEmailSending(true)
+    try {
+      const to = emailTo.trim() || invoice.customer?.email || ''
+      if (!to) throw new Error('Saisissez le destinataire.')
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${companyId}:${actorId}:${invoice.id}:${to.toLowerCase()}`))
+      const key = `creorga-invoice-mail:${Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('')}`
+      const id = localStorage.getItem(key) || crypto.randomUUID(); localStorage.setItem(key, id)
+      const queued = await api.post(`/invoices/${invoice.id}/email`, { requestId: id, to })
+      if (displayedInvoiceId.current === invoice.id) setDeliveryState(queued.data.status)
+      for (let i = 0; i < 20; i++) {
+        const response = await api.get(`/invoices/deliveries/${id}`)
+        if (displayedInvoiceId.current === invoice.id) setDeliveryState(response.data.status)
+        if (['ACCEPTED', 'UNCERTAIN', 'FAILED'].includes(response.data.status)) break
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+    } catch (error: any) { toastError(error.response?.data?.message || error.message || 'Envoi non confirmé.') }
+    finally { setEmailSending(false) }
+  }
 
   return (
     <main style={{ maxWidth: 1280, margin: '0 auto', padding: '28px 22px 50px', color: '#0f172a' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <p style={eyebrow}>Facturation réelle</p>
+          <p style={eyebrow}>Gestion</p>
           <h1 style={{ margin: 0, fontSize: 'clamp(27px, 4vw, 38px)', letterSpacing: '-.03em' }}>Factures</h1>
-          <p style={{ margin: '8px 0 0', color: '#64748b' }}>Numéros et montants sont calculés par le serveur, jamais inventés dans l'écran.</p>
+          <p style={{ margin: '8px 0 0', color: '#64748b' }}>Préparez vos factures, téléchargez les justificatifs et suivez leur envoi.</p>
         </div>
         <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
           <button type="button" onClick={exportInvoices} disabled={filtered.length === 0} style={secondaryButton}><Download size={17} /> Exporter</button>
@@ -145,7 +193,7 @@ export default function FacturesPage() {
         <Stat label="Factures" value={String(totals.count)} />
         <Stat label="Brouillons" value={String(totals.drafts)} />
         <Stat label="En retard" value={String(totals.overdue)} danger={totals.overdue > 0} />
-        <Stat label="CA encaissé" value={euro.format(totals.paid)} />
+        <Stat label="Factures marquées payées" value={euro.format(totals.paid)} />
       </section>
 
       <section style={{ marginTop: 18, border: '1px solid #e2e8f0', borderRadius: 20, overflow: 'hidden', background: '#fff', boxShadow: '0 14px 40px rgba(15,23,42,.05)' }}>
@@ -171,7 +219,7 @@ export default function FacturesPage() {
               <tbody>{filtered.map((invoice) => (
                 <tr key={invoice.id} style={{ borderTop: '1px solid #f1f5f9' }}>
                   <td style={tableCell}><strong>{invoice.number}</strong></td>
-                  <td style={tableCell}>{invoice.customer ? `${invoice.customer.firstName} ${invoice.customer.lastName}` : 'Sans client lié'}</td>
+                  <td style={tableCell}>{invoice.customer ? invoice.customer.businessName || `${invoice.customer.firstName} ${invoice.customer.lastName}` : 'Sans client lié'}</td>
                   <td style={tableCell}>{new Date(invoice.createdAt).toLocaleDateString('fr-LU')}</td>
                   <td style={tableCell}>
                     <select value={invoice.status} onChange={(event) => changeStatus(invoice, event.target.value as InvoiceStatus)} aria-label={`Statut de ${invoice.number}`} style={{ ...statusColor[invoice.status], border: 0, borderRadius: 999, padding: '6px 10px', fontSize: 12, fontWeight: 750 }}>
@@ -191,16 +239,18 @@ export default function FacturesPage() {
         <div role="dialog" aria-modal="true" aria-label="Nouvelle facture" style={overlay} onMouseDown={() => setCreatorOpen(false)}>
           <form onSubmit={submit} style={modal} onMouseDown={(event) => event.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div><p style={eyebrow}>Enregistrement serveur</p><h2 style={{ margin: 0 }}>Nouvelle facture</h2></div>
+              <div><p style={eyebrow}>Brouillon</p><h2 style={{ margin: 0 }}>Nouvelle facture</h2></div>
               <button type="button" onClick={() => setCreatorOpen(false)} aria-label="Fermer" style={iconButton}><X size={18} /></button>
             </div>
             <label style={label}>Client
-              <select value={customerId} onChange={(event) => setCustomerId(event.target.value)} style={field}>
+              <select aria-label="Client" value={customerId} onChange={(event) => setCustomerId(event.target.value)} style={field}>
                 <option value="">Sans client lié</option>
-                {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.firstName} {customer.lastName}</option>)}
+                {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.businessName || `${customer.firstName} ${customer.lastName}`}</option>)}
               </select>
             </label>
             <label style={label}>Date d'échéance<input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} style={field} /></label>
+            <label style={label}>Date de prestation<input type="date" value={serviceDate} onChange={(event) => setServiceDate(event.target.value)} style={field} /></label>
+            <label style={label}><input type="checkbox" checked={completeDocument} onChange={event => setCompleteDocument(event.target.checked)} /> Facture complète, même sous 100 € (client société)</label>
 
             <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <strong>Lignes</strong>
@@ -214,6 +264,7 @@ export default function FacturesPage() {
                   <label style={{ ...label, marginTop: 0 }}>Prix HT<input type="number" min="0" step="0.01" value={line.unitPrice} onChange={(event) => changeLine(index, { unitPrice: Number(event.target.value) })} style={field} /></label>
                   <label style={{ ...label, marginTop: 0 }}>TVA %<input type="number" min="0" max="100" step="1" value={line.taxRate} onChange={(event) => changeLine(index, { taxRate: Number(event.target.value) })} style={field} /></label>
                   <button type="button" onClick={() => setLines((current) => current.filter((_, lineIndex) => lineIndex !== index))} disabled={lines.length === 1} aria-label={`Supprimer la ligne ${index + 1}`} style={{ ...iconButton, color: '#dc2626' }}><Trash2 size={16} /></button>
+                  {line.taxRate === 0 && <label style={{ ...label, gridColumn: '1 / -1' }}>Motif fiscal du taux zéro (requis à l’émission)<input value={line.taxReason || ''} onChange={event => changeLine(index, { taxReason: event.target.value })} style={field} /></label>}
                 </div>
               ))}
             </div>
@@ -237,14 +288,20 @@ export default function FacturesPage() {
               <div><p style={eyebrow}>Facture enregistrée</p><h2 style={{ margin: 0 }}>{detail.number}</h2></div>
               <button type="button" onClick={() => setDetail(null)} aria-label="Fermer" style={iconButton}><X size={18} /></button>
             </div>
-            <p style={{ color: '#64748b' }}>{detail.customer ? `${detail.customer.firstName} ${detail.customer.lastName}` : 'Sans client lié'} · {statusLabel[detail.status]}</p>
+            <p style={{ color: '#64748b' }}>{detail.customer ? detail.customer.businessName || `${detail.customer.firstName} ${detail.customer.lastName}` : 'Sans client lié'} · {statusLabel[detail.status]}</p>
             <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>{['Description', 'Qté', 'Prix HT', 'TVA'].map((heading) => <th key={heading} style={tableHead}>{heading}</th>)}</tr></thead>
               <tbody>{detail.items.map((line, index) => <tr key={line.id || index} style={{ borderTop: '1px solid #f1f5f9' }}><td style={tableCell}>{line.description}</td><td style={tableCell}>{line.quantity}</td><td style={tableCell}>{euro.format(line.unitPrice)}</td><td style={tableCell}>{line.taxRate}%</td></tr>)}</tbody>
             </table></div>
             <div style={{ marginTop: 16, textAlign: 'right' }}><div>HT : {euro.format(detail.subtotal)}</div><div>TVA : {euro.format(detail.taxAmount)}</div><strong style={{ display: 'block', marginTop: 5, fontSize: 20 }}>TTC : {euro.format(detail.total)}</strong></div>
             {detail.notes && <p style={{ padding: 12, borderRadius: 10, background: '#f8fafc', whiteSpace: 'pre-wrap' }}>{detail.notes}</p>}
-            <button type="button" onClick={() => window.print()} style={{ ...primaryButton, marginTop: 18 }}><Printer size={17} /> Imprimer</button>
+            <p style={{ fontSize: 13, color: '#64748b' }}>{detail.issuedAt ? 'Le PDF A4 original est figé. Les formats thermiques reprennent son contenu historique.' : detail.status === 'DRAFT' ? 'Aperçu de brouillon : émettre avant de communiquer la facture.' : 'Ancien document : copie reconstituée, original historique non prouvé.'}</p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 18 }}>{(['A4', '58', '80'] as const).map(format => <button key={format} type="button" onClick={() => void downloadDocument(detail, format)} style={primaryButton}><Download size={17} /> PDF {format === 'A4' ? 'A4' : `${format} mm`}</button>)}</div>
+            {detail.issuedAt && detail.status !== 'CANCELLED' && <section style={{ marginTop: 20 }}>
+              <label style={label}>Destinataire du PDF<input type="email" value={emailTo} onChange={event => setEmailTo(event.target.value)} placeholder={detail.customer?.email || 'Adresse de test .invalid en recette locale'} style={field} /></label>
+              <button type="button" disabled={emailSending} onClick={() => void sendDocument(detail)} style={{ ...primaryButton, marginTop: 10 }}>{emailSending ? 'Suivi de l’envoi…' : 'Envoyer le PDF par email'}</button>
+              <p role="status" style={{ fontSize: 13, color: '#64748b' }}>{deliveryState === 'ACCEPTED' ? 'Message accepté par le serveur SMTP ; lecture du destinataire non prouvée.' : deliveryState === 'UNCERTAIN' ? 'Résultat incertain. Vérifiez la boîte avant tout nouvel envoi.' : deliveryState === 'FAILED' ? 'Envoi échoué. Vérifiez la configuration.' : deliveryState ? 'Message en file ou en cours ; référence conservée.' : 'Envoi transactionnel uniquement, sans inscription marketing.'}</p>
+            </section>}
           </section>
         </div>
       )}

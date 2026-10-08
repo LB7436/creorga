@@ -30,6 +30,7 @@ const NOM_METHODE: Record<string, string> = {
   cash: 'Espèces',
   card: 'Carte',
   contactless: 'Sans contact',
+  GIFT_CARD: 'Carte cadeau prépayée',
 }
 
 export default function JournalPage({ onExit }: { onExit: () => void }) {
@@ -79,6 +80,7 @@ export default function JournalPage({ onExit }: { onExit: () => void }) {
           <Ligne libelle="Espèces" valeur={euro(ticket.parMethode.cash)} />
           <Ligne libelle="Carte" valeur={euro(ticket.parMethode.card)} />
           <Ligne libelle="Sans contact" valeur={euro(ticket.parMethode.contactless)} />
+          {(ticket.parMethode.GIFT_CARD || 0) > 0 && <Ligne libelle="Crédit cadeau consommé" valeur={euro(ticket.parMethode.GIFT_CARD)} />}
           <div style={separateur} />
           <Ligne libelle="Pourboires" valeur={euro(ticket.totalPourboires)} />
           {(ticket.totalArrondisCaritatifs ?? 0) > 0 && (

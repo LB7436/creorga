@@ -22,6 +22,8 @@ function userDisplayName(user: User | null): string | null {
 }
 
 interface AuthState {
+  /** Génération mémoire : une reconnexion du même compte reste une nouvelle session. */
+  sessionVersion: number
   accessToken: string | null
   user: User | null
   companies: UserCompany[]
@@ -51,6 +53,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
+      sessionVersion: 0,
       accessToken: null,
       user: null,
       companies: [],
@@ -73,7 +76,8 @@ export const useAuthStore = create<AuthState>()(
         // (owner, sites, rgpd, backup, api, maintenance). Et ce compte de repli est
         // désactivé en production : plus personne n'était patron.
         const userRole = membershipRole(companies[0]?.role)
-        set({
+        set((state) => ({
+          sessionVersion: state.sessionVersion + 1,
           accessToken,
           user,
           companies,
@@ -84,7 +88,7 @@ export const useAuthStore = create<AuthState>()(
           viewMode: userRole === 'employee' ? 'employee' : 'owner',
           viewAsEmployeeId: userRole === 'employee' ? (user as any)?.id : null,
           viewAsEmployeeName: userRole === 'employee' ? userDisplayName(user) : null,
-        })
+        }))
       },
       setRole: (role) => set((state) => ({
         role,
@@ -127,7 +131,8 @@ export const useAuthStore = create<AuthState>()(
       })),
 
       logout: () => {
-        set({
+        set((state) => ({
+          sessionVersion: state.sessionVersion + 1,
           accessToken: null,
           user: null,
           companies: [],
@@ -138,7 +143,7 @@ export const useAuthStore = create<AuthState>()(
           viewMode: 'owner',
           viewAsEmployeeId: null,
           viewAsEmployeeName: null,
-        })
+        }))
       },
     }),
     {

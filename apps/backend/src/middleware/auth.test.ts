@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest'
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import { authenticate, type AuthRequest } from './auth'
@@ -19,12 +19,19 @@ function mockReqRes(headers: Record<string, string> = {}) {
 
 describe('authenticate middleware', () => {
   const ORIGINAL_SECRET = process.env.JWT_SECRET
+  const ORIGINAL_ENV = process.env.NODE_ENV
+  const ORIGINAL_FALLBACK = process.env.FALLBACK_ADMIN_ENABLED
 
   beforeAll(() => {
     process.env.JWT_SECRET = REAL_SECRET
   })
   afterAll(() => {
     process.env.JWT_SECRET = ORIGINAL_SECRET
+  })
+  afterEach(() => {
+    process.env.NODE_ENV = ORIGINAL_ENV
+    if (ORIGINAL_FALLBACK === undefined) delete process.env.FALLBACK_ADMIN_ENABLED
+    else process.env.FALLBACK_ADMIN_ENABLED = ORIGINAL_FALLBACK
   })
 
   it('rejette une route protégée sans token → 401', () => {
@@ -48,6 +55,17 @@ describe('authenticate middleware', () => {
     authenticate(req, res as any, next)
     expect(next).toHaveBeenCalledOnce()
     expect(req.user?.userId).toBe('u1')
+  })
+
+  it.each(['production', 'development'])('refuse le JWT de démonstration révoqué en %s, même correctement signé', (environment) => {
+    process.env.NODE_ENV = environment
+    process.env.FALLBACK_ADMIN_ENABLED = 'false'
+    const token = jwt.sign({ userId: 'fallback-admin', email: 'demo@fixture.invalid' }, REAL_SECRET)
+    const { req, res, next } = mockReqRes({ authorization: `Bearer ${token}` })
+    authenticate(req, res as any, next)
+    expect(res.statusCode).toBe(401)
+    expect(req.user).toBeUndefined()
+    expect(next).not.toHaveBeenCalled()
   })
 })
 

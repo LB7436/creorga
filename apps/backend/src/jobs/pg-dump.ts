@@ -64,13 +64,13 @@ export function timestamp(d = new Date()): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
 }
 
-function ensureDir() {
-  if (!fs.existsSync(DB_BACKUP_DIR)) fs.mkdirSync(DB_BACKUP_DIR, { recursive: true })
+function ensureDir(directory = DB_BACKUP_DIR) {
+  if (!fs.existsSync(directory)) fs.mkdirSync(directory, { recursive: true })
 }
 
 async function canRun(bin: string, args: string[]): Promise<boolean> {
   try {
-    await execFileAsync(bin, args, { timeout: 15_000 })
+    await execFileAsync(bin, args, { timeout: 15_000, windowsHide: true })
     return true
   } catch {
     return false
@@ -95,11 +95,12 @@ export async function detectStrategy(): Promise<DumpStrategy | null> {
  * Leve une erreur explicite si aucune strategie n'est disponible : une
  * sauvegarde qui echoue en silence est pire que pas de sauvegarde.
  */
-export async function runPgDump(): Promise<PgDumpResult> {
-  ensureDir()
+export async function runPgDump(backupDirectory = DB_BACKUP_DIR): Promise<PgDumpResult> {
+  const targetDirectory = path.resolve(backupDirectory)
+  ensureDir(targetDirectory)
   const conn = parseDatabaseUrl()
   const filename = `creorga-db-${timestamp()}-${Date.now()}-${randomInt(100000)}.dump`
-  const outPath = path.join(DB_BACKUP_DIR, filename)
+  const outPath = path.join(targetDirectory, filename)
 
   const strategy = await detectStrategy()
   if (!strategy) {
@@ -114,7 +115,7 @@ export async function runPgDump(): Promise<PgDumpResult> {
     await execFileAsync(
       process.env.PG_DUMP_BIN || 'pg_dump',
       ['-h', conn.host, '-p', conn.port, '-U', conn.user, '-d', conn.database, '-Fc', '-f', outPath],
-      { env: { ...process.env, PGPASSWORD: conn.password }, timeout: 10 * 60_000 }
+      { env: { ...process.env, PGPASSWORD: conn.password }, timeout: 10 * 60_000, windowsHide: true }
     )
   } else {
     const container = process.env.PG_DUMP_DOCKER_CONTAINER || 'creorga-db'
@@ -122,12 +123,12 @@ export async function runPgDump(): Promise<PgDumpResult> {
     // Depuis l'interieur du conteneur, la base est joignable en local.
     await execFileAsync(
       'docker',
-      ['exec', '-e', `PGPASSWORD=${conn.password}`, container,
+      ['exec', '-e', 'PGPASSWORD', container,
        'pg_dump', '-U', conn.user, '-d', conn.database, '-Fc', '-f', tmp],
-      { timeout: 10 * 60_000 }
+      { env: { ...process.env, PGPASSWORD: conn.password }, timeout: 10 * 60_000, windowsHide: true }
     )
-    await execFileAsync('docker', ['cp', `${container}:${tmp}`, outPath], { timeout: 5 * 60_000 })
-    await execFileAsync('docker', ['exec', container, 'rm', '-f', tmp], { timeout: 60_000 }).catch(() => {})
+    await execFileAsync('docker', ['cp', `${container}:${tmp}`, outPath], { timeout: 5 * 60_000, windowsHide: true })
+    await execFileAsync('docker', ['exec', container, 'rm', '-f', tmp], { timeout: 60_000, windowsHide: true }).catch(() => {})
   }
 
   if (!fs.existsSync(outPath)) throw new Error(`pg_dump n'a produit aucun fichier (${outPath})`)
@@ -143,17 +144,17 @@ export async function runPgDump(): Promise<PgDumpResult> {
   }
 
   logger.info(`[pg-dump] ${filename} — ${size} octets (strategie: ${strategy})`)
-  prunePgDumps()
+  prunePgDumps(targetDirectory)
   return { filename, path: outPath, size, strategy }
 }
 
-export function listPgDumps(): { filename: string; size: number; createdAt: number }[] {
-  ensureDir()
+export function listPgDumps(directory = DB_BACKUP_DIR): { filename: string; size: number; createdAt: number }[] {
+  ensureDir(directory)
   return fs
-    .readdirSync(DB_BACKUP_DIR)
+    .readdirSync(directory)
     .filter((f) => DUMP_RE.test(f))
     .map((f) => {
-      const stat = fs.statSync(path.join(DB_BACKUP_DIR, f))
+      const stat = fs.statSync(path.join(directory, f))
       return { filename: f, size: stat.size, createdAt: stat.mtimeMs }
     })
     .sort((a, b) => b.createdAt - a.createdAt)
@@ -171,8 +172,8 @@ function weekKey(ms: number): string {
 }
 
 /** Conserve les 7 plus recents, puis 1 dump par semaine sur 4 semaines. */
-export function prunePgDumps(): string[] {
-  const all = listPgDumps()
+export function prunePgDumps(directory = DB_BACKUP_DIR): string[] {
+  const all = listPgDumps(directory)
   const keep = new Set(all.slice(0, DAILY_RETENTION).map((x) => x.filename))
 
   const weeklySeen = new Set<string>()
@@ -187,7 +188,7 @@ export function prunePgDumps(): string[] {
   for (const item of all) {
     if (keep.has(item.filename)) continue
     try {
-      fs.unlinkSync(path.join(DB_BACKUP_DIR, item.filename))
+      fs.unlinkSync(path.join(directory, item.filename))
       removed.push(item.filename)
     } catch {
       /* best effort */

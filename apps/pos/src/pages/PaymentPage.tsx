@@ -1,9 +1,11 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePOS, Cover, PayMethod, Remise, Vente, coverTotal, tableTotal } from '../store/posStore'
 import { useEcranEtroit } from '../lib/ecran'
 import { checkoutServer, flushFloor } from '../lib/floorBridge'
 import { api, sessionCompany } from '../lib/server'
+import { requestTablePayment } from '../lib/table-payment'
+import { moneyMinor } from '../../../backend/src/lib/money'
 
 interface Props {
   tableId: string
@@ -15,7 +17,6 @@ type SplitMode = 'full' | 'by-cover' | 'equal'
 type TipMode = 'percent' | 'euro'
 type ReceiptMode = 'paper' | 'email' | 'sms' | 'none' | 'qr'
 type Partial = { id: string; method: PayMethod; amount: number }
-type QrStatus = 'waiting' | 'scanned' | 'paid'
 
 const PAY_METHODS: { id: PayMethod; label: string; icon: string }[] = [
   { id: 'cash',        label: 'Espèces',      icon: '💵' },
@@ -31,29 +32,6 @@ const LS_RECEIPT_PREFS = 'creorga_pos_receipt_prefs'
 function fmt(n: number) { return n.toFixed(2) + ' €' }
 function uid() { return Math.random().toString(36).slice(2, 9) }
 function roundUp50(n: number) { return Math.ceil(n) }
-
-/* ── Seeded QR pattern (stable across renders) ───────────────────────────────── */
-function useQrPattern(seed: string) {
-  return useMemo(() => {
-    let s = 0
-    for (let i = 0; i < seed.length; i++) s = (s * 31 + seed.charCodeAt(i)) >>> 0
-    const cells: boolean[] = []
-    for (let i = 0; i < 169; i++) {
-      s = (s * 1103515245 + 12345) >>> 0
-      cells.push((s & 1) === 1)
-    }
-    // force finder patterns at 3 corners
-    const n = 13
-    const forceCorner = (r: number, c: number) => {
-      for (let dr = 0; dr < 3; dr++) for (let dc = 0; dc < 3; dc++) {
-        cells[(r + dr) * n + (c + dc)] = true
-      }
-      cells[(r + 1) * n + (c + 1)] = false
-    }
-    forceCorner(0, 0); forceCorner(0, n - 3); forceCorner(n - 3, 0)
-    return cells
-  }, [seed])
-}
 
 /* ── Cover checkbox ─────────────────────────────────────────────────────────── */
 function CoverCheck({ cover, selected, onToggle }: { cover: Cover; selected: boolean; onToggle: () => void }) {
@@ -201,25 +179,6 @@ function Receipt({
   )
 }
 
-/* ── QR code SVG (13x13 grid) ───────────────────────────────────────────────── */
-function QrSvg({ cells, size = 160, color = '#fff', bg = '#07070d' }: {
-  cells: boolean[]; size?: number; color?: string; bg?: string
-}) {
-  const n = 13
-  const cs = size / n
-  return (
-    <svg width={size} height={size} style={{ display: 'block', borderRadius: 10 }}>
-      <rect width={size} height={size} fill={bg} />
-      {cells.map((on, i) => {
-        if (!on) return null
-        const x = (i % n) * cs
-        const y = Math.floor(i / n) * cs
-        return <rect key={i} x={x} y={y} width={cs + 0.5} height={cs + 0.5} fill={color} />
-      })}
-    </svg>
-  )
-}
-
 /* ── Success overlay ────────────────────────────────────────────────────────── */
 function SuccessOverlay({
   amount, change, method, onFinish, defaultMode,
@@ -279,7 +238,7 @@ function SuccessOverlay({
         {fmt(amount)}
       </div>
 
-      {method === 'cash' && change !== null && change > 0 && (
+      {change !== null && change > 0 && (
         <div style={{
           fontSize: 14, color: '#94a3b8',
           padding: '6px 16px', borderRadius: 10,
@@ -400,9 +359,9 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
 
   const [usePoints, setUsePoints] = useState(false)
 
-  // QR payment state
-  const [showQr, setShowQr] = useState(false)
-  const [qrStatus, setQrStatus] = useState<QrStatus>('waiting')
+  const [onlineProviders, setOnlineProviders] = useState<string[]>([])
+  const [onlineProvider, setOnlineProvider] = useState('')
+  const [onlineBusy, setOnlineBusy] = useState(false)
 
   // Round-up for charity
   const [roundUp, setRoundUp] = useState(false)
@@ -435,12 +394,20 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
     } catch { /* noop */ }
   }, [])
 
+  useEffect(() => {
+    const controller = new AbortController()
+    api<{ paymentProviders?: string[] }>(`/guest/bill/${encodeURIComponent(tableId)}?companyId=${encodeURIComponent(sessionCompany())}`, { signal: controller.signal })
+      .then(bill => {
+        const available = (bill.paymentProviders || []).filter(provider => ['paypal', 'stripe'].includes(provider))
+        setOnlineProviders(available); setOnlineProvider(available[0] || '')
+      }).catch(() => { if (!controller.signal.aborted) { setOnlineProviders([]); setOnlineProvider('') } })
+    return () => controller.abort()
+  }, [tableId])
+
   // Demo loyalty state
   const hasClient = false
   const clientPoints = 0
   const pointsValue = Math.floor(clientPoints / 10)
-
-  const qrCells = useQrPattern(tableId + Date.now().toString().slice(-4))
 
   // Aucun paiement n'est simulé : seul le fournisseur peut confirmer un paiement en ligne.
 
@@ -462,15 +429,14 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   const subtotal = payingCovers.reduce((s, c) => s + coverTotal(c), 0)
 
   const promoDiscount = appliedPromo ? Math.min(subtotal, appliedPromo.fixed ?? subtotal * (appliedPromo.pct / 100)) : 0
-  const giftDiscount = appliedGift ? Math.min(appliedGift.balance, subtotal - promoDiscount) : 0
   const pointsDiscount = usePoints ? pointsValue : 0
   const memberReduction = memberDiscount > 0 ? subtotal * (memberDiscount / 100) : 0
   const gesture = table.orderDiscount
   const gestureDiscount = (gesture ? gesture.type === 'free' ? subtotal : gesture.type === 'percent' ? subtotal * Math.min(100, gesture.value) / 100 : Math.min(subtotal, gesture.value * subtotal / Math.max(0.01, grandTotal)) : 0)
     + payingCovers.flatMap(c => c.items).filter(i => table.offeredItemIds?.includes(i.id)).reduce((s, i) => s + i.price * i.qty, 0)
-  const appliedGesture = Math.max(0, Math.min(subtotal - promoDiscount - giftDiscount, gestureDiscount))
-  const totalDiscount = promoDiscount + giftDiscount + pointsDiscount + memberReduction + appliedGesture
-  const afterDiscount = Math.max(0, subtotal - totalDiscount)
+  const appliedGesture = Math.max(0, Math.min(subtotal - promoDiscount, gestureDiscount))
+  const totalDiscount = promoDiscount + pointsDiscount + memberReduction + appliedGesture
+  const afterDiscount = Math.max(0, moneyMinor(subtotal - totalDiscount) / 100)
 
   const tipAmount = (() => {
     if (tipIsCustom) {
@@ -487,7 +453,9 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   const baseTotal = afterDiscount + tipAmount
   const roundUpTarget = roundUp ? roundUp50(baseTotal) : baseTotal
   const charityAmount = roundUp ? roundUpTarget - baseTotal : 0
-  const totalToPay = roundUpTarget
+  const saleTotal = moneyMinor(roundUpTarget) / 100
+  const giftAmount = appliedGift ? Math.min(moneyMinor(appliedGift.balance), moneyMinor(afterDiscount)) / 100 : 0
+  const totalToPay = (moneyMinor(saleTotal) - moneyMinor(giftAmount)) / 100
 
   const tipPerStaff = splitTip && connectedStaff.length > 0 ? tipAmount / connectedStaff.length : 0
 
@@ -555,7 +523,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
    * inscrit sur la seule méthode principale.
    */
   async function handleConfirm() {
-    if (paying) return
+    if (paying || onlineBusy) return
     setPaying(true); setErreurEncaissement(null)
     if (keepOpen) {
       try { await flushFloor(); onDone() } catch (e: any) { setErreurEncaissement(e.message) } finally { setPaying(false) }
@@ -566,9 +534,6 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
     const remises: Remise[] = []
     if (appliedPromo && promoDiscount > 0) {
       remises.push({ type: 'promo', code: appliedPromo.code, libelle: `Code ${appliedPromo.code}`, montant: promoDiscount })
-    }
-    if (appliedGift && giftDiscount > 0) {
-      remises.push({ type: 'carte_cadeau', code: appliedGift.code, libelle: `Carte cadeau ${appliedGift.code}`, montant: giftDiscount })
     }
     if (appliedGesture > 0) remises.push({ type: 'geste', libelle: 'Geste commercial responsable', montant: Math.round(appliedGesture * 100) / 100 })
     if (usePoints && pointsDiscount > 0) {
@@ -588,12 +553,13 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
     try {
       const received = Number.parseFloat(cashInput)
       const sale = await checkoutServer(tableId, method, tipAmount, ids, {
+        giftCard: appliedGift && giftAmount > 0 ? { code: appliedGift.code, amount: giftAmount } : undefined,
         remises,
         arrondiCaritatif: charityAmount,
         reglements,
         receipt: { message: receiptMsg, includeBrand: receiptLogo, includePromo: receiptPromo },
-      }, totalToPay, Number.isFinite(received) ? received : undefined)
-      setConfirmed({ sale, change: method === 'cash' && Number.isFinite(received) ? Math.round((received - sale.total) * 100) / 100 : null })
+      }, saleTotal, Number.isFinite(received) ? received : undefined)
+      setConfirmed({ sale, change: sale.cashChange ?? null })
       setDone(true)
     } catch (e) {
       setErreurEncaissement(e instanceof Error ? e.message : 'Encaissement refusé.')
@@ -625,7 +591,19 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   }
 
   const canPay = splitMode !== 'by-cover' || selectedCoverIds.size > 0
-  const mixedFullyPaid = mixedMode && paidSoFar >= totalToPay - 0.01
+  const mixedFullyPaid = mixedMode && moneyMinor(paidSoFar) === moneyMinor(totalToPay)
+
+  async function startOnlinePayment() {
+    if (onlineBusy || paying || !onlineProvider) return
+    if (!covers.length || covers.some(c => !c.id.startsWith('guest:'))) { setErreurEncaissement('Le paiement en ligne est disponible pour les commandes du portail QR. Pour cette addition, utilisez les espèces ou votre terminal bancaire.'); return }
+    if (splitMode !== 'full' || totalDiscount > 0 || giftAmount > 0 || tipAmount > 0 || charityAmount > 0 || mixedMode) { setErreurEncaissement('Le paiement en ligne règle l’addition QR complète. Pour un partage, une remise ou un paiement mixte, utilisez la caisse.'); return }
+    setOnlineBusy(true); setErreurEncaissement(null)
+    try {
+      await flushFloor()
+      window.location.assign(await requestTablePayment(sessionCompany(), tableId, onlineProvider, covers.map(c => c.id.slice(6)), saleTotal))
+    } catch (error: any) { setErreurEncaissement(error.message) }
+    finally { setOnlineBusy(false) }
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: etroit ? 'column' : 'row', height: '100%', overflow: etroit ? 'auto' : 'hidden', background: '#07070d' }}>
@@ -639,110 +617,6 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
             onFinish={handleFinish}
             defaultMode={recentReceiptModes[0] ?? null}
           />
-        )}
-
-        {showQr && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => setShowQr(false)}
-            style={{
-              position: 'fixed', inset: 0, zIndex: 900,
-              background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.92, y: 16 }} animate={{ scale: 1, y: 0 }}
-              onClick={e => e.stopPropagation()}
-              style={{
-                width: 360, padding: 28, borderRadius: 22,
-                background: 'linear-gradient(180deg, #0a0a14, #131322)',
-                border: '1px solid rgba(99,102,241,0.3)',
-                boxShadow: '0 30px 80px rgba(99,102,241,0.3)',
-                textAlign: 'center' as const,
-              }}
-            >
-              <div style={{
-                fontSize: 11, color: '#818cf8', fontWeight: 700, letterSpacing: '0.1em',
-                textTransform: 'uppercase' as const, marginBottom: 6,
-              }}>Paiement QR Code</div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em', marginBottom: 18 }}>
-                {fmt(totalToPay)}
-              </div>
-
-              <div style={{
-                padding: 14, borderRadius: 16, background: '#07070d',
-                border: '1px solid rgba(255,255,255,0.08)',
-                display: 'inline-block', marginBottom: 16, position: 'relative' as const,
-              }}>
-                <QrSvg cells={qrCells} size={180} />
-                {qrStatus === 'paid' && (
-                  <motion.div
-                    initial={{ scale: 0 }} animate={{ scale: 1 }}
-                    style={{
-                      position: 'absolute' as const, inset: 0,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: 'rgba(16,185,129,0.88)', borderRadius: 16,
-                    }}
-                  >
-                    <span style={{ fontSize: 60, color: '#fff' }}>✓</span>
-                  </motion.div>
-                )}
-              </div>
-
-              <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 12 }}>
-                Scannez pour payer avec votre téléphone
-              </div>
-
-              <div style={{
-                padding: '10px 14px', borderRadius: 12, marginBottom: 16,
-                background: qrStatus === 'paid'
-                  ? 'rgba(16,185,129,0.12)'
-                  : qrStatus === 'scanned' ? 'rgba(245,158,11,0.12)' : 'rgba(99,102,241,0.12)',
-                border: `1px solid ${qrStatus === 'paid' ? 'rgba(16,185,129,0.3)' : qrStatus === 'scanned' ? 'rgba(245,158,11,0.3)' : 'rgba(99,102,241,0.3)'}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-              }}>
-                {qrStatus !== 'paid' && (
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
-                    style={{
-                      width: 14, height: 14, borderRadius: '50%',
-                      border: '2px solid rgba(255,255,255,0.15)',
-                      borderTopColor: qrStatus === 'scanned' ? '#f59e0b' : '#818cf8',
-                    }}
-                  />
-                )}
-                <span style={{
-                  fontSize: 13, fontWeight: 700,
-                  color: qrStatus === 'paid' ? '#10b981' : qrStatus === 'scanned' ? '#f59e0b' : '#a5b4fc',
-                }}>
-                  {qrStatus === 'paid' ? 'Paiement reçu ✓' : qrStatus === 'scanned' ? 'QR scanné — en attente…' : 'En attente…'}
-                </span>
-              </div>
-
-              {qrStatus === 'paid' ? (
-                <motion.button
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => { setShowQr(false); handleConfirm() }}
-                  style={{
-                    width: '100%', padding: '12px 0', borderRadius: 12, border: 'none',
-                    background: 'linear-gradient(135deg, #10b981, #059669)',
-                    color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                  }}
-                >Terminer</motion.button>
-              ) : (
-                <button
-                  onClick={() => setShowQr(false)}
-                  style={{
-                    width: '100%', padding: '10px 0', borderRadius: 12,
-                    background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
-                    color: '#94a3b8', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
-                  }}
-                >Annuler</button>
-              )}
-            </motion.div>
-          </motion.div>
         )}
 
         {showMemberForm && (
@@ -1126,7 +1000,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
               <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 8 }}>🎁 Carte cadeau</div>
               {appliedGift ? (
                 <div style={appliedChip('#10b981')}>
-                  <span>{appliedGift.code} · {fmt(appliedGift.balance)}</span>
+                  <span>{fmt(giftAmount)} de crédit utilisé · solde {fmt(appliedGift.balance)}</span>
                   <button onClick={() => setAppliedGift(null)} style={chipRemove}>×</button>
                 </div>
               ) : (
@@ -1141,6 +1015,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
                 </div>
               )}
               {giftError && <div style={{ fontSize: 10, color: '#f43f5e', marginTop: 4 }}>{giftError}</div>}
+              {giftAmount > 0 && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Vente {fmt(saleTotal)} · reste à régler {fmt(totalToPay)}. Le crédit prépayé conserve la TVA des consommations.</div>}
             </div>
           </div>
 
@@ -1224,21 +1099,19 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
                   })}
                 </div>
 
-                {/* Digital wallets row */}
+                {onlineProviders.length > 1 && <label style={{ display: 'block', color: '#94a3b8', marginBottom: 8 }}>Paiement en ligne <select aria-label="Fournisseur du paiement en ligne" value={onlineProvider} onChange={e => setOnlineProvider(e.target.value)} disabled={onlineBusy}>
+                  {onlineProviders.map(provider => <option key={provider} value={provider}>{provider === 'paypal' ? 'PayPal' : 'Stripe'}</option>)}
+                </select></label>}
+                {/* Moyens configurés pour les commandes du portail. */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                   <motion.button
                     whileTap={{ scale: 0.96 }}
-                    onClick={async () => {
-                      if (covers.some(c => !c.id.startsWith('guest:'))) { setErreurEncaissement('Le paiement en ligne concerne les commandes passées depuis le portail QR. Pour cette addition, utilisez les espèces ou votre terminal bancaire.'); return }
-                      try {
-                        const payment = await api('/guest/pay', { method: 'POST', body: JSON.stringify({ companyId: sessionCompany(), tableId }) })
-                        if (payment.url) window.location.assign(payment.url)
-                      } catch (e: any) { setErreurEncaissement(e.message) }
-                    }}
+                    onClick={startOnlinePayment}
+                    disabled={onlineBusy || paying || !onlineProvider}
                     style={walletBtn('linear-gradient(135deg, #6366f1, #4f46e5)')}
                   >
                     <span style={{ fontSize: 14 }}>🔳</span>
-                    <span style={{ fontSize: 11, fontWeight: 700 }}>QR Code</span>
+                    <span style={{ fontSize: 11, fontWeight: 700 }}>{onlineBusy ? 'Vérification…' : onlineProvider ? 'Payer en ligne' : 'En ligne non configuré'}</span>
                   </motion.button>
                   <motion.button
                     whileTap={{ scale: 0.96 }}
@@ -1504,7 +1377,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
               whileTap={{ scale: 0.97 }}
               whileHover={{ boxShadow: '0 6px 36px rgba(16,185,129,0.45)' }}
               onClick={handleConfirm}
-              disabled={paying}
+              disabled={paying || onlineBusy}
               style={{
                 display: 'block', width: '100%', padding: '16px 0',
                 borderRadius: 16, border: 'none',
@@ -1518,7 +1391,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
                 letterSpacing: '-0.01em', fontFamily: 'inherit',
               }}
             >
-              {keepOpen ? `🍷 Garder ouvert · ${fmt(totalToPay)}` : `✓ Encaisser ${fmt(totalToPay)}`}
+              {keepOpen ? `🍷 Garder ouvert · ${fmt(totalToPay)}` : giftAmount > 0 && !totalToPay ? '✓ Valider le règlement par carte cadeau' : `✓ Encaisser ${fmt(totalToPay)}`}
             </motion.button>
           )}
           <button

@@ -29,5 +29,11 @@ describe('Journal serveur de caisse', () => {
     expect(html).not.toContain('<script>')
     expect(html).toContain('A &amp; B')
     expect(html).toContain('10,00')
+    expect(html).toContain('Reconstitution')
+  })
+  it('la clôture distingue le crédit cadeau consommé des remises', () => {
+    const closure = buildClosure([{ horodatage: 1, total: 11.7, sousTotal: 10, tva: 1.7, pourboire: 0, arrondiCaritatif: 0, remises: [], reglements: [{ methode: 'cash', montant: 1.7 }, { methode: 'GIFT_CARD', montant: 10 }] }], 'gift-close')
+    expect(closure.totalTTC).toBe(11.7); expect(closure.totalRemises).toBe(0)
+    expect(closure.parMethode.GIFT_CARD).toBe(10)
   })
 })

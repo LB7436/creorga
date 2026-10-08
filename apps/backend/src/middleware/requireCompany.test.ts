@@ -17,6 +17,7 @@ vi.mock('../lib/logger', () => ({
 import { requireCompany } from './requireCompany'
 
 const ENV = process.env.NODE_ENV
+const FALLBACK_ENV = process.env.FALLBACK_ADMIN_ENABLED
 
 function makeCtx() {
   const req: any = { headers: {}, user: { userId: 'user-lambda' } }
@@ -43,6 +44,8 @@ describe('requireCompany — base de données injoignable', () => {
   })
   afterEach(() => {
     process.env.NODE_ENV = ENV
+    if (FALLBACK_ENV === undefined) delete process.env.FALLBACK_ADMIN_ENABLED
+    else process.env.FALLBACK_ADMIN_ENABLED = FALLBACK_ENV
   })
 
   it("en PRODUCTION : refuse en 503 et n'accorde AUCUN rôle", async () => {
@@ -59,28 +62,52 @@ describe('requireCompany — base de données injoignable', () => {
     expect(req.company).toBeUndefined()
   })
 
-  it('hors production : le mode dégradé volontaire reste disponible', async () => {
+  it('hors production : une panne ne promeut pas non plus un membre en propriétaire', async () => {
     process.env.NODE_ENV = 'development'
     const { req, res, next } = makeCtx()
 
     await requireCompany(req, res, next)
 
-    expect(next).toHaveBeenCalledTimes(1)
-    expect(res.statusCode).toBe(0)
-    expect(req.role).toBe('OWNER')
-    expect(req.companyId).toBe('fallback-company')
+    expect(next).not.toHaveBeenCalled()
+    expect(res.statusCode).toBe(503)
+    expect(req.role).toBeUndefined()
+    expect(req.companyId).toBeUndefined()
   })
 
-  it("en production, l'admin de repli court-circuite avant tout appel base", async () => {
+  it("en production : un ancien jeton de repli ne confère aucun accès, même encore signé", async () => {
     process.env.NODE_ENV = 'production'
     const { req, res, next } = makeCtx()
     req.user = { userId: 'fallback-admin' }
 
     await requireCompany(req, res, next)
 
-    // Ce chemin est volontaire et verrouillé en amont par fallbackAdminAllowed()
-    // dans routes/auth.ts : aucun jeton fallback-admin ne peut être émis en prod.
-    expect(next).toHaveBeenCalledTimes(1)
+    expect(next).not.toHaveBeenCalled()
+    expect(res.statusCode).toBe(401)
+    expect(req.role).toBeUndefined()
+    expect(req.companyId).toBeUndefined()
+    expect(findFirst).not.toHaveBeenCalled()
+  })
+
+  it('refuse aussi un ancien jeton de repli si la démonstration a été désactivée en développement', async () => {
+    process.env.NODE_ENV = 'development'
+    process.env.FALLBACK_ADMIN_ENABLED = 'false'
+    const { req, res, next } = makeCtx()
+    req.user = { userId: 'fallback-admin' }
+    await requireCompany(req, res, next)
+    expect(res.statusCode).toBe(401)
+    expect(next).not.toHaveBeenCalled()
+    expect(req.role).toBeUndefined()
+  })
+
+  it('garde la démonstration explicite disponible avec son jeton autorisé, sans consulter la base', async () => {
+    process.env.NODE_ENV = 'development'
+    process.env.FALLBACK_ADMIN_ENABLED = 'true'
+    const { req, res, next } = makeCtx()
+    req.user = { userId: 'fallback-admin' }
+    await requireCompany(req, res, next)
+    expect(next).toHaveBeenCalledOnce()
+    expect(req.role).toBe('OWNER')
+    expect(req.companyId).toBe('fallback-company')
     expect(findFirst).not.toHaveBeenCalled()
   })
 })
@@ -199,5 +226,29 @@ describe('requireCompany — requêtes sans utilisateur (deviceOrUserAuth)', () 
     expect(res.statusCode).toBe(401)
     expect(next).not.toHaveBeenCalled()
     expect(findFirst).not.toHaveBeenCalled()
+  })
+
+  it('sans utilisateur ni appareil, le mode développement ne confère pas le rôle propriétaire', async () => {
+    process.env.NODE_ENV = 'development'
+    const { req, res, next } = makeCtx()
+    req.user = undefined
+    req.headers['x-company-id'] = 'societe-a'
+    await requireCompany(req, res, next)
+    expect(res.statusCode).toBe(401)
+    expect(next).not.toHaveBeenCalled()
+    expect(req.role).toBeUndefined()
+    expect(findFirst).not.toHaveBeenCalled()
+  })
+
+  it('en production, un appareil non rattaché est refusé avant la recherche de société', async () => {
+    process.env.NODE_ENV = 'production'
+    const { req, res, next } = makeCtx()
+    req.user = undefined
+    req.device = { type: 'pos-terminal' }
+    req.headers['x-company-id'] = 'societe-a'
+    await requireCompany(req, res, next)
+    expect(res.statusCode).toBe(403)
+    expect(next).not.toHaveBeenCalled()
+    expect(companyFindUnique).not.toHaveBeenCalled()
   })
 })

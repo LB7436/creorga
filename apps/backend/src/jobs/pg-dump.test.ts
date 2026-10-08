@@ -22,7 +22,9 @@ async function loadModule() {
 afterEach(() => {
   process.chdir(CWD)
   if (tmpRoot) {
-    fs.rmSync(tmpRoot, { recursive: true, force: true })
+    const resolved = path.resolve(tmpRoot)
+    if (path.dirname(resolved) !== path.resolve(os.tmpdir()) || !path.basename(resolved).startsWith('creorga-pgdump-')) throw new Error('Répertoire temporaire inattendu')
+    fs.rmSync(resolved, { recursive: true, force: true })
     tmpRoot = ''
   }
 })

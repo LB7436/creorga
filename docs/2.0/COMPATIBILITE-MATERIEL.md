@@ -14,3 +14,7 @@ ne prouve pas l'absence de caméras réseau non raccordées.
 
 Une prévisualisation ne prouve ni papier sorti, coupe, tiroir ni retour d'état. Le deep-link
 SumUp demande une confirmation manuelle. Aucun protocole ou logo ne vaut certification.
+
+Les factures A4/58/80 ont été générées, ouvertes comme vrais PDF, rendues en PNG et inspectées.
+Leur pied de page et leurs groupes de TVA sont visibles. Il s'agit de rendus de factures :
+papier sorti, largeur imprimable, ESC/POS, massicot, tiroir et perte d'accusé restent non testés.

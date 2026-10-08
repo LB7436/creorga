@@ -22,9 +22,12 @@ type CustomerForm = {
   email: string
   phone: string
   notes: string
+  businessName: string
+  address: string
+  vatNumber: string
 }
 
-const emptyForm: CustomerForm = { firstName: '', lastName: '', email: '', phone: '', notes: '' }
+const emptyForm: CustomerForm = { firstName: '', lastName: '', email: '', phone: '', notes: '', businessName: '', address: '', vatNumber: '' }
 const money = new Intl.NumberFormat('fr-LU', { style: 'currency', currency: 'EUR' })
 
 export default function ClientsPage() {
@@ -60,8 +63,10 @@ export default function ClientsPage() {
   function restoreDraft(id: string | null) {
     try {
       const saved = JSON.parse(localStorage.getItem(`${draftScope}:${id || 'new'}`) || 'null')
-      if (saved?.version === 1 && saved.editingId === id && Object.keys(emptyForm).every((key) => typeof saved.form?.[key] === 'string')) {
-        setForm(saved.form)
+      if (saved?.version === 1 && saved.editingId === id
+        && ['firstName', 'lastName', 'email', 'phone', 'notes'].every(key => typeof saved.form?.[key] === 'string')
+        && ['businessName', 'address', 'vatNumber'].every(key => saved.form?.[key] === undefined || typeof saved.form[key] === 'string')) {
+        setForm({ ...emptyForm, ...saved.form })
         toastSuccess('Brouillon récupéré sur cet appareil ; il reste à l’enregistrer sur le serveur.')
         return true
       }
@@ -73,7 +78,7 @@ export default function ClientsPage() {
     const query = search.trim().toLocaleLowerCase('fr')
     if (!query) return customers
     return customers.filter((customer) =>
-      [customer.firstName, customer.lastName, customer.email, customer.phone]
+      [customer.firstName, customer.lastName, customer.businessName, customer.email, customer.phone]
         .some((value) => String(value || '').toLocaleLowerCase('fr').includes(query)),
     )
   }, [customers, search])
@@ -99,6 +104,7 @@ export default function ClientsPage() {
       email: customer.email || '',
       phone: customer.phone || '',
       notes: customer.notes || '',
+      businessName: customer.businessName || '', address: customer.address || '', vatNumber: customer.vatNumber || '',
     })
     setEditorOpen(true)
   }
@@ -117,8 +123,9 @@ export default function ClientsPage() {
       email: form.email.trim() || undefined,
       phone: form.phone.trim() || undefined,
       notes: form.notes.trim() || undefined,
+      businessName: form.businessName.trim() || null, address: form.address.trim() || null, vatNumber: form.vatNumber.trim() || null,
     }
-    if (!clean.firstName || !clean.lastName) {
+    if (!clean.businessName && (!clean.firstName || !clean.lastName)) {
       toastError('Le prénom et le nom sont obligatoires.')
       return
     }
@@ -243,7 +250,7 @@ export default function ClientsPage() {
                     <td style={tableCell}>
                       <button type="button" onClick={() => setSelectedId(customer.id)} style={customerButton}>
                         <span style={avatar}>{initials(customer)}</span>
-                        <span><strong>{customer.firstName} {customer.lastName}</strong><small style={{ display: 'block', marginTop: 3, color: '#94a3b8' }}>{customer.notes || 'Aucune note'}</small></span>
+                        <span><strong>{customer.businessName || `${customer.firstName} ${customer.lastName}`}</strong><small style={{ display: 'block', marginTop: 3, color: '#94a3b8' }}>{customer.notes || 'Aucune note'}</small></span>
                       </button>
                     </td>
                     <td style={tableCell}><div>{customer.email || '—'}</div><small style={{ color: '#64748b' }}>{customer.phone || '—'}</small></td>
@@ -316,10 +323,13 @@ export default function ClientsPage() {
               <button type="button" onClick={() => setEditorOpen(false)} aria-label="Fermer" style={iconButton}><X size={18} /></button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 22 }}>
-              <Field label="Prénom *" value={form.firstName} onChange={(value) => setForm((current) => ({ ...current, firstName: value }))} />
-              <Field label="Nom *" value={form.lastName} onChange={(value) => setForm((current) => ({ ...current, lastName: value }))} />
+              <Field label={form.businessName ? 'Prénom du contact (facultatif)' : 'Prénom *'} value={form.firstName} onChange={(value) => setForm((current) => ({ ...current, firstName: value }))} />
+              <Field label={form.businessName ? 'Nom du contact (facultatif)' : 'Nom *'} value={form.lastName} onChange={(value) => setForm((current) => ({ ...current, lastName: value }))} />
             </div>
             <Field label="Email" type="email" value={form.email} onChange={(value) => setForm((current) => ({ ...current, email: value }))} />
+            <Field label="Société cliente (si professionnel)" value={form.businessName} onChange={value => setForm(current => ({ ...current, businessName: value }))} />
+            <Field label="Adresse de facturation" value={form.address} onChange={value => setForm(current => ({ ...current, address: value }))} />
+            <Field label="TVA client (aucune exonération automatique)" value={form.vatNumber} onChange={value => setForm(current => ({ ...current, vatNumber: value }))} />
             <Field label="Téléphone" type="tel" value={form.phone} onChange={(value) => setForm((current) => ({ ...current, phone: value }))} />
             <label style={label}>Notes<textarea aria-label="Notes" value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={4} style={{ ...field, resize: 'vertical' }} /></label>
             <p role="status" style={helperText}>{draftSaved ? 'Brouillon conservé sur cet appareil. Seul le bouton ci-dessous enregistre dans la société.' : 'Conservation locale du brouillon non confirmée.'}</p>

@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { createHash } from 'node:crypto'
 import { Router, type NextFunction, type Request, type Response } from 'express'
-import { safeReadJson, safeWriteJson } from '../lib/safe-json'
+import { JsonStoreUnavailableError, readJsonStrict, safeWriteJson } from '../lib/safe-json'
 import { dataPath } from '../middleware/audit-log'
 import logger from '../lib/logger'
 import { floorSchema, protectedFloorFieldsChanged } from '../lib/floor-validation'
@@ -133,14 +133,15 @@ export function companyFloorFilename(companyId: string): string {
 }
 
 function chargerPlanDeSalle(companyId: string): FloorState {
-  const propre = safeReadJson<FloorState | null>(dataPath(companyFloorFilename(companyId)), null)
+  const validate = (value: unknown) => floorSchema.safeParse(value).success
+  const propre = readJsonStrict<FloorState | null>(dataPath(companyFloorFilename(companyId)), null, validate)
   if (propre) return propre
 
   // L'ancien fichier global n'est repris QUE pour la société explicitement
   // désignée au déploiement. Il ne doit jamais servir de repli à un nouveau
   // client, sans quoi le défaut de fuite inter-sociétés réapparaîtrait.
   if (process.env.LEGACY_FLOOR_COMPANY_ID?.trim() === companyId) {
-    return safeReadJson<FloorState>(dataPath(FICHIER_HISTORIQUE), cloneDefaultState())
+    return readJsonStrict<FloorState>(dataPath(FICHIER_HISTORIQUE), cloneDefaultState(), validate)
   }
   return cloneDefaultState()
 }
@@ -210,7 +211,15 @@ export function floorCompanyContext(req: Request, res: Response, next: NextFunct
   if (floorContext.getStore()?.companyId === companyId) { next(); return }
 
   // Une copie par requête : une erreur ne modifie jamais l'état partagé.
-  const original = getFloorState(companyId)
+  let original: FloorState
+  try {
+    original = getFloorState(companyId)
+  } catch (error) {
+    if (!(error instanceof JsonStoreUnavailableError)) { next(error); return }
+    logger.error('[floor-state] Plan indisponible, récupération nécessaire', { file: companyFloorFilename(companyId), recoveryAvailable: error.recoveryAvailable })
+    res.status(503).json({ error: 'Le plan enregistré ne peut pas être chargé. Une vérification et une récupération des données sont nécessaires avant de continuer.', code: 'FLOOR_STORAGE_UNAVAILABLE', recoveryAvailable: error.recoveryAvailable })
+    return
+  }
   const context: FloorContext = { companyId }
   if (MUTATING.has(req.method)) {
     context.draft = structuredClone(original)

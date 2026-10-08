@@ -13,14 +13,15 @@ export default function GuestPaidPage() {
   const [searchParams] = useSearchParams()
   const tableId = searchParams.get('table')
   const companyId = searchParams.get('companyId')
-  // Stripe ajoute `session_id` à l'URL de retour : c'est la seule preuve.
+  // Référence de tentative uniquement : ni ce lien ni le retour ne prouvent le paiement.
   const sessionId = searchParams.get('session_id')
+  const attemptId = searchParams.get('attempt')
   const [etat, setEtat] = useState<'verification' | 'confirme' | 'refuse'>('verification')
   const [motif, setMotif] = useState('')
 
   useEffect(() => {
     if (!tableId || !companyId) { setEtat('refuse'); setMotif('Établissement ou table inconnue.'); return }
-    if (!sessionId) {
+    if (!sessionId && !attemptId) {
       // Ouvrir /c/paid?table=5 à la main ne prouve rien. La page ne doit pas
       // annoncer « Paiement reçu » dans ce cas — c'est ce qu'elle faisait, et
       // le serveur notifiait le personnel dans la foulée.
@@ -31,11 +32,14 @@ export default function GuestPaidPage() {
     fetch(`${BACKEND}/api/guest/paid-confirm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyId, tableId, sessionId }),
+      body: JSON.stringify({ companyId, tableId, sessionId, attemptId }),
     })
       .then(async (r) => {
-        if (r.ok) { setEtat('confirme'); return }
         const data = await r.json().catch(() => ({}))
+        if (r.ok && data.status === 'succeeded' && data.confirmation === 'provider_verified') {
+          try { localStorage.removeItem(`creorga-payment:${companyId}:${tableId}:${data.provider}`) } catch { /* Aucun nouveau débit. */ }
+          setEtat('confirme'); return
+        }
         setEtat('refuse')
         setMotif(data?.error || 'Paiement non confirmé.')
       })
@@ -43,7 +47,7 @@ export default function GuestPaidPage() {
         setEtat('refuse')
         setMotif('Serveur injoignable — impossible de confirmer le paiement.')
       })
-  }, [tableId, companyId, sessionId])
+  }, [tableId, companyId, sessionId, attemptId])
 
   if (etat !== 'confirme') {
     return (
@@ -67,7 +71,7 @@ export default function GuestPaidPage() {
         </p>
         {etat === 'refuse' && (
           <p style={{ color: '#64748b', fontSize: 13, maxWidth: 340 }}>
-            Adressez-vous au personnel pour régler votre addition.
+            Demandez au personnel de vérifier la référence avant tout nouveau règlement.
           </p>
         )}
       </div>

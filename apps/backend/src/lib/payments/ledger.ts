@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import prisma from '../prisma'
 import { charge, getGateway, SUPPORTED_PROVIDERS, type PaymentProvider } from './gateway'
+import { moneyMinor } from '../money'
+import { debitOrderInventory } from '../order-inventory'
 
 export class PaymentError extends Error {
   constructor(public status: number, message: string) { super(message) }
@@ -10,7 +12,11 @@ export const ACTIVE_PAYMENT_STATES = ['CREATING', 'PENDING', 'AWAITING_TERMINAL'
 export const lockOrderPayment = (tx: any, companyId: string, orderId: string) => tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext(${`order-payment:${orderId}`}))::text`
 export const amountInCents = (value: number) => {
   if (!Number.isFinite(value) || value < 0 || value > 10_000_000) throw new PaymentError(400, 'Montant monétaire invalide.')
-  return Math.round((value + Number.EPSILON) * 100)
+  return moneyMinor(value)
+}
+export async function activePaymentExists(tx: any, companyId: string, orderIds: string[]) {
+  return !!(await tx.paymentAllocation.count({ where: { companyId, orderId: { in: orderIds }, active: true } })
+    || await tx.paymentAttempt.count({ where: { companyId, orderId: { in: orderIds }, status: { in: ACTIVE_PAYMENT_STATES } } }))
 }
 const inputSchema = z.object({
   requestId: z.string().uuid(), provider: z.string().refine(p => SUPPORTED_PROVIDERS.includes(p as PaymentProvider)), orderId: z.string().min(1).max(100),
@@ -32,7 +38,8 @@ export function merchantFor(provider: string, companyId: string): string {
   const id = process.env[`${provider.toUpperCase()}_MERCHANT_ID`]
   if (!id) throw new PaymentError(503, 'Identifiant marchand vérifiable requis.')
   if (provider === 'paypal' && (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET || (process.env.PAYPAL_ENV === 'live' && process.env.PAYPAL_LIVE_ENABLED !== 'true'))) throw new PaymentError(503, 'PayPal de cet établissement non configuré.')
-  if (provider === 'stripe' && !process.env.STRIPE_SECRET_KEY) throw new PaymentError(503, 'Stripe de cet établissement non configuré.')
+  if (provider === 'stripe' && (!process.env.STRIPE_PAYMENT_KEY || !process.env.STRIPE_PAYMENT_WEBHOOK_SECRET
+    || (/[sr]k_live_/.test(process.env.STRIPE_PAYMENT_KEY) && process.env.STRIPE_PAYMENTS_LIVE_ENABLED !== 'true'))) throw new PaymentError(503, 'Stripe de cet établissement non configuré ou webhook absent. Clés d’encaissement distinctes des abonnements requises.')
   return id
 }
 export function publicAttempt(attempt: any) {
@@ -62,17 +69,22 @@ export async function createPayment(companyId: string, userId: string | null, ra
     const amountCents = amountInCents(order.total)
     if (!amountCents) throw new PaymentError(409, 'Aucun solde à encaisser.')
     if (input.amount !== undefined && (amountInCents(input.amount) !== amountCents || Math.abs(input.amount - amountCents / 100) > 1e-9)) throw new PaymentError(409, 'Le montant a changé. Rechargez le solde serveur.')
-    if (await tx.paymentAttempt.count({ where: { companyId, orderId: order.id, status: { in: ACTIVE_PAYMENT_STATES } } })) throw new PaymentError(409, 'Une tentative existe déjà : vérifier son résultat avant un nouveau règlement.')
+    if (await activePaymentExists(tx, companyId, [order.id])) throw new PaymentError(409, 'Une tentative existe déjà : vérifier son résultat avant un nouveau règlement.')
     const attempt = await tx.paymentAttempt.create({ data: { companyId, userId, orderId: order.id, requestId: input.requestId, requestHash,
-      provider: input.provider, merchantId: merchantFor(input.provider, companyId), amountCents, currency } })
+      provider: input.provider, merchantId: merchantFor(input.provider, companyId), amountCents, currency,
+      allocations: { create: { orderId: order.id, amountCents } } } })
     return { attempt, created: true }
   })
+  return dispatchReservation(reservation, successUrl, cancelUrl)
+}
+
+async function dispatchReservation(reservation: { attempt: any; created: boolean }, successUrl: string, cancelUrl: string) {
   if (!reservation.created) return { httpStatus: reservation.attempt.status === 'CREATING' ? 202 : 200, body: publicAttempt(reservation.attempt) }
   const attempt = reservation.attempt
   try {
     const result = await charge({ provider: attempt.provider as PaymentProvider, orderId: attempt.orderId, amount: attempt.amountCents / 100,
       currency: attempt.currency as 'EUR' | 'USD', description: `Commande ${attempt.orderId}`, returnUrl: successUrl, cancelUrl: cancelUrl,
-      terminalId: process.env.PAYMENT_TERMINAL_ID, metadata: { companyId, attemptId: attempt.id, orderId: attempt.orderId }, requestId: attempt.createRequestId })
+      terminalId: process.env.PAYMENT_TERMINAL_ID, metadata: { companyId: attempt.companyId, attemptId: attempt.id, orderId: attempt.orderId }, requestId: attempt.createRequestId })
     // La création d'un checkout n'est jamais une capture. Seule la vérification dédiée confirmera.
     const status = result.status === 'awaiting_terminal' ? 'AWAITING_TERMINAL' : result.status === 'pending' ? 'PENDING' : 'UNKNOWN'
     const saved = await prisma.paymentAttempt.update({ where: { id: attempt.id }, data: { status, externalId: result.transactionId,
@@ -83,6 +95,35 @@ export async function createPayment(companyId: string, userId: string | null, ra
     const saved = await prisma.paymentAttempt.update({ where: { id: attempt.id }, data: { status: 'UNKNOWN' } })
     return { httpStatus: 202, body: publicAttempt(saved) }
   }
+}
+
+export async function createTablePayment(companyId: string, tableId: string, raw: unknown) {
+  const input = z.object({ requestId: z.string().uuid(), provider: z.enum(['paypal', 'stripe']).default('stripe') }).parse(raw)
+  const requestHash = createHash('sha256').update(JSON.stringify({ ...input, tableId, scope: 'TABLE' })).digest('hex')
+  const reservation = await prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext(${`table-payment:${tableId}`}))::text`
+    const existing = await tx.paymentAttempt.findUnique({ where: { companyId_requestId: { companyId, requestId: input.requestId } } })
+    if (existing) {
+      if (existing.scope !== 'TABLE' || existing.tableId !== tableId || existing.userId || existing.requestHash !== requestHash) throw new PaymentError(409, 'Référence réutilisée pour une autre addition.')
+      return { attempt: existing, created: false }
+    }
+    const orders = await tx.order.findMany({ where: { companyId, source: 'GUEST', externalTableId: tableId, paidAt: null, status: { notIn: ['PAID', 'CANCELLED'] }, total: { gt: 0 } }, orderBy: { id: 'asc' }, include: { company: true } })
+    if (!orders.length) throw new PaymentError(409, 'Aucune commande serveur à régler sur cette table.')
+    for (const order of orders) await lockOrderPayment(tx, companyId, order.id)
+    const refreshed = await tx.order.findMany({ where: { companyId, id: { in: orders.map(o => o.id) } } })
+    if (refreshed.some(o => o.paidAt || ['PAID', 'CANCELLED'].includes(o.status)) || await activePaymentExists(tx, companyId, orders.map(o => o.id))) throw new PaymentError(409, 'Une addition a changé ou un paiement est en cours : vérifiez avant de recommencer.')
+    const currency = orders[0].company.currency
+    if (!['EUR', 'USD'].includes(currency)) throw new PaymentError(400, 'Devise non prise en charge.')
+    const amounts = refreshed.map(o => ({ companyId, orderId: o.id, amountCents: amountInCents(o.total) }))
+    const amountCents = amounts.reduce((sum, a) => sum + a.amountCents, 0)
+    if (amountCents > 1_000_000_000) throw new PaymentError(400, 'Addition hors limites.')
+    const attempt = await tx.paymentAttempt.create({ data: { companyId, orderId: orders[0].id, tableId, scope: 'TABLE', userId: null,
+      requestId: input.requestId, requestHash, provider: input.provider, merchantId: merchantFor(input.provider, companyId), currency, amountCents,
+      allocations: { create: amounts.map(({ orderId, amountCents }) => ({ orderId, amountCents })) } } })
+    return { attempt, created: true }
+  }, { maxWait: 15000, timeout: 10000 })
+  const query = `companyId=${encodeURIComponent(companyId)}&table=${encodeURIComponent(tableId)}&attempt=${reservation.attempt.id}`
+  return dispatchReservation(reservation, returnUrl(undefined, `/c/paid?${query}`), returnUrl(undefined, `/c?${query}&payment=cancel`))
 }
 export async function findAttempt(companyId: string, provider: string, externalId: string) {
   const attempt = await prisma.paymentAttempt.findFirst({ where: { companyId, provider, externalId } })
@@ -111,7 +152,8 @@ export async function reconcilePayment(companyId: string, attemptId: string, cap
   }
   if (result.status !== 'succeeded') return publicAttempt(attempt)
   const checked = evidenceSchema.safeParse(result.evidence)
-  if (!checked.success || checked.data.amountCents !== attempt.amountCents || checked.data.currency !== attempt.currency
+  if (!result.ok || result.provider !== attempt.provider || result.transactionId !== attempt.externalId
+      || !checked.success || checked.data.amountCents !== attempt.amountCents || checked.data.currency !== attempt.currency
       || checked.data.merchantId !== attempt.merchantId || checked.data.orderId !== attempt.orderId || checked.data.attemptId !== attempt.id) {
     await prisma.paymentAttempt.updateMany({ where: { id: attempt.id, status: { not: 'SUCCEEDED' } }, data: { status: 'REVIEW' } })
     throw new PaymentError(409, 'Preuve de capture incohérente. Aucune vente n’est marquée payée ; rapprochement requis.')
@@ -119,18 +161,27 @@ export async function reconcilePayment(companyId: string, attemptId: string, cap
   const proof = checked.data
   if (proof.feesCents !== undefined && proof.netCents !== undefined && proof.netCents + proof.feesCents !== proof.amountCents) throw new PaymentError(409, 'Montants brut, frais et net incohérents.')
   const confirmed = await prisma.$transaction(async tx => {
-    await lockOrderPayment(tx, companyId, attempt.orderId)
+    const reserved = await tx.paymentAllocation.findMany({ where: { companyId, attemptId: attempt.id }, orderBy: { orderId: 'asc' } })
+    const allocations = reserved.length ? reserved : [{ orderId: attempt.orderId, amountCents: attempt.amountCents }]
+    for (const allocation of allocations) await lockOrderPayment(tx, companyId, allocation.orderId)
     const current = await tx.paymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } })
     const existing = await tx.paymentSettlement.findUnique({ where: { attemptId: attempt.id } })
     if (existing) {
       if (existing.captureId !== proof.captureId || existing.amountCents !== proof.amountCents) throw new PaymentError(409, 'Capture différente sur une référence déjà rapprochée.')
       return current
     }
-    const order = await tx.order.findFirstOrThrow({ where: { id: attempt.orderId, companyId } })
-    if (order.paidAt || order.status === 'CANCELLED' || amountInCents(order.total) !== attempt.amountCents) throw new PaymentError(409, 'La commande a été réglée ou modifiée ailleurs : vérifier ce paiement avant toute nouvelle opération.')
-    await tx.paymentSettlement.create({ data: { companyId, orderId: order.id, attemptId: attempt.id, provider: attempt.provider,
+    if (allocations.reduce((s, a) => s + a.amountCents, 0) !== attempt.amountCents) throw new PaymentError(409, 'Ventilation de paiement incohérente.')
+    for (const allocation of allocations) {
+      const order = await tx.order.findFirstOrThrow({ where: { id: allocation.orderId, companyId } })
+      if (order.paidAt || ['PAID', 'CANCELLED'].includes(order.status) || amountInCents(order.total) !== allocation.amountCents) throw new PaymentError(409, 'La commande a été réglée ou modifiée ailleurs : vérifier ce paiement avant toute nouvelle opération.')
+    }
+    const settlement = await tx.paymentSettlement.create({ data: { companyId, orderId: attempt.orderId, attemptId: attempt.id, provider: attempt.provider,
       merchantId: proof.merchantId, captureId: proof.captureId, amountCents: proof.amountCents, currency: proof.currency, feesCents: proof.feesCents, netCents: proof.netCents } })
-    await tx.order.update({ where: { id: order.id }, data: { status: 'PAID', paidAt: new Date(), paymentMethod: `${attempt.provider}:${proof.captureId}` } })
+    for (const allocation of allocations) {
+      await debitOrderInventory(tx, companyId, allocation.orderId)
+      await tx.order.update({ where: { id: allocation.orderId }, data: { status: 'PAID', paidAt: new Date(), paymentMethod: `${attempt.provider}:${proof.captureId}` } })
+    }
+    await tx.paymentAllocation.updateMany({ where: { companyId, attemptId: attempt.id }, data: { active: false, settlementId: settlement.id } })
     return tx.paymentAttempt.update({ where: { id: attempt.id }, data: { status: 'SUCCEEDED' } })
   }, { maxWait: 15000, timeout: 10000 })
   return publicAttempt(confirmed)

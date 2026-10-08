@@ -1,5 +1,14 @@
-import axios from 'axios'
+import axios, { type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
+import { authDataScope, authSessionKey } from './authScope'
+
+type ScopedRequest = InternalAxiosRequestConfig & { _creorgaScope?: string; _retry?: boolean }
+
+const scopeChanged = () => new axios.CanceledError('La session ou la société a changé. Recommencez dans votre espace actuel.')
+
+export function assertAuthScope(scope: string): void {
+  if (scope !== authDataScope(useAuthStore.getState())) throw scopeChanged()
+}
 
 const api = axios.create({
   baseURL: '/api',
@@ -41,6 +50,9 @@ export const traiterSessionExpiree = () => {
 
 // Ajouter le token aux requêtes
 api.interceptors.request.use((config) => {
+  const scoped = config as ScopedRequest
+  if (scoped._creorgaScope === undefined) scoped._creorgaScope = authDataScope(useAuthStore.getState())
+  else assertAuthScope(scoped._creorgaScope)
   const { accessToken, companyId } = useAuthStore.getState()
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`
@@ -58,87 +70,84 @@ api.interceptors.request.use((config) => {
     config.headers['x-company-id'] = companyId
   }
   return config
-})
-
-// Refresh automatique du token
-let isRefreshing = false
-let failedQueue: Array<{
-  resolve: (token: string) => void
-  reject: (error: unknown) => void
-}> = []
-
-const processQueue = (error: unknown, token: string | null) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error)
-    } else {
-      prom.resolve(token!)
-    }
-  })
-  failedQueue = []
-}
+}, (error) => { throw error }, { synchronous: true })
 
 export function excludesRefresh(url = ''): boolean {
   return /(?:^|\/)auth\/(?:login|register|refresh|logout)(?:[?#]|$)/.test(url)
 }
 
-let refreshPromise: Promise<{ data: { accessToken: string } }> | null = null
+let refreshOperation: { session: string; promise: Promise<{ data: { accessToken: string } }> } | null = null
 
 /** Même rotation pour axios et les téléchargements fetch, y compris entre onglets. */
 export function refreshSession(): Promise<{ data: { accessToken: string } }> {
-  if (refreshPromise) return refreshPromise
+  const state = useAuthStore.getState()
+  // Le cookie partagé ne sert pas de connexion implicite depuis une page
+  // publique : il ne peut que renouveler l'identité déjà établie dans cet onglet.
+  if (!state.isAuthenticated || !state.user?.id || !state.accessToken) return Promise.reject(scopeChanged())
+  const session = authSessionKey(state)
+  const userId = state.user.id
+  if (refreshOperation?.session === session) return refreshOperation.promise
+  const assertSession = () => {
+    if (session !== authSessionKey(useAuthStore.getState())) throw scopeChanged()
+  }
   const renew = async () => {
+    assertSession()
     try { return await axios.post('/api/auth/refresh', {}, { withCredentials: true }) }
     catch (error: any) {
       if (error.response?.status !== 409) throw error
       await new Promise((resolve) => setTimeout(resolve, 200))
+      assertSession()
       return axios.post('/api/auth/refresh', {}, { withCredentials: true })
     }
   }
   // Le cookie est partagé par les onglets : leur rotation doit être sérialisée.
-  refreshPromise = (async () => {
+  const operation = { session, promise: null! as Promise<{ data: { accessToken: string } }> }
+  operation.promise = (async () => {
     const response = await (typeof navigator !== 'undefined' && navigator.locks
       ? navigator.locks.request('creorga-refresh', renew)
       : renew())
+    assertSession()
     if (typeof response.data?.accessToken !== 'string' || !response.data.accessToken) throw new Error('Renouvellement de session incomplet.')
+    // Le cookie est partagé entre onglets. Une autre connexion ne doit pas
+    // remplacer les droits de l'utilisateur encore affiché dans cet onglet.
+    if (userId) {
+      let refreshedUserId: unknown
+      try {
+        const payload = response.data.accessToken.split('.')[1]
+        refreshedUserId = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))).userId
+      } catch { throw scopeChanged() }
+      if (refreshedUserId !== userId) throw scopeChanged()
+    }
     useAuthStore.getState().setAccessToken(response.data.accessToken)
     return response
-  })().finally(() => { refreshPromise = null })
-  return refreshPromise
+  })().finally(() => { if (refreshOperation === operation) refreshOperation = null })
+  refreshOperation = operation
+  return operation.promise
 }
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const scope = (response.config as ScopedRequest)._creorgaScope
+    if (scope !== undefined) assertAuthScope(scope)
+    return response
+  },
   async (error) => {
-    const originalRequest = error.config
+    const originalRequest = error.config as ScopedRequest | undefined
+    if (originalRequest?._creorgaScope !== undefined) assertAuthScope(originalRequest._creorgaScope)
 
     if (originalRequest && error.response?.status === 401 && !originalRequest._retry && !excludesRefresh(originalRequest.url)) {
       originalRequest._retry = true
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject })
-        }).then((token) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`
-          return api(originalRequest)
-        })
-      }
-
-      isRefreshing = true
-
       try {
         const { data } = await refreshSession()
         const { accessToken } = data
-        useAuthStore.getState().setAccessToken(accessToken)
-        processQueue(null, accessToken)
+        if (originalRequest._creorgaScope !== undefined) assertAuthScope(originalRequest._creorgaScope)
         originalRequest.headers.Authorization = `Bearer ${accessToken}`
         return api(originalRequest)
       } catch (refreshError: any) {
-        processQueue(refreshError, null)
+        if (originalRequest._creorgaScope !== undefined) assertAuthScope(originalRequest._creorgaScope)
         // Une panne réseau/serveur n'est pas une révocation de session.
         if (refreshError.response?.status === 401) traiterSessionExpiree()
         return Promise.reject(refreshError)
-      } finally {
-        isRefreshing = false
       }
     }
 

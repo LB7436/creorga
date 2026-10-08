@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import { safeWriteJson, safeReadJson } from './safe-json'
+import { JsonStoreUnavailableError, readJsonStrict, safeWriteJson, safeReadJson } from './safe-json'
 
 let dir: string
 
@@ -11,7 +11,10 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  fs.rmSync(dir, { recursive: true, force: true })
+  vi.restoreAllMocks()
+  const resolved = path.resolve(dir)
+  if (path.dirname(resolved) !== path.resolve(os.tmpdir()) || !path.basename(resolved).startsWith('creorga-safejson-')) throw new Error('Répertoire de test inattendu')
+  fs.rmSync(resolved, { recursive: true, force: true })
 })
 
 describe('safeWriteJson', () => {
@@ -36,6 +39,75 @@ describe('safeWriteJson', () => {
     const file = path.join(dir, 'nested', 'sub', 'data.json')
     safeWriteJson(file, { ok: true })
     expect(fs.existsSync(file)).toBe(true)
+  })
+
+  it('un flush disque refusé ne remplace pas le dernier état confirmé', () => {
+    const file = path.join(dir, 'data.json')
+    safeWriteJson(file, { balance: 24 })
+    vi.spyOn(fs, 'fsyncSync').mockImplementationOnce(() => { throw Object.assign(new Error('disk flush failed'), { code: 'EIO' }) })
+    expect(() => safeWriteJson(file, { balance: 0 })).toThrow('disk flush failed')
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ balance: 24 })
+    expect(fs.readdirSync(dir)).toEqual(['data.json'])
+  })
+
+  it('un échec de renommage laisse le fichier courant et sa sauvegarde lisibles', () => {
+    const file = path.join(dir, 'data.json')
+    safeWriteJson(file, { balance: 24 })
+    const rename = fs.renameSync.bind(fs)
+    vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+      if (to === file) throw Object.assign(new Error('rename refused'), { code: 'EACCES' })
+      return rename(from, to)
+    })
+    expect(() => safeWriteJson(file, { balance: 0 })).toThrow('rename refused')
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ balance: 24 })
+    expect(JSON.parse(fs.readFileSync(file + '.bak', 'utf8'))).toEqual({ balance: 24 })
+    expect(fs.readdirSync(dir).sort()).toEqual(['data.json', 'data.json.bak'])
+  })
+
+  it('préserve un ancien temporaire et une sauvegarde valide lorsque le courant est corrompu', () => {
+    const file = path.join(dir, 'data.json')
+    fs.writeFileSync(file, '{corrupt')
+    fs.writeFileSync(file + '.bak', '{"balance":24}')
+    fs.writeFileSync(file + '.tmp', 'diagnostic précédent')
+    safeWriteJson(file, { balance: 24 })
+    expect(JSON.parse(fs.readFileSync(file + '.bak', 'utf8'))).toEqual({ balance: 24 })
+    expect(fs.readFileSync(file + '.tmp', 'utf8')).toBe('diagnostic précédent')
+  })
+})
+
+describe('readJsonStrict — données métier', () => {
+  it('initialise uniquement en absence de fichier et de sauvegarde', () => {
+    const file = path.join(dir, 'new.json')
+    expect(readJsonStrict(file, { tables: [] })).toEqual({ tables: [] })
+    fs.writeFileSync(file + '.bak', '{"balance":24}')
+    expect(() => readJsonStrict(file, { tables: [] })).toThrow(JsonStoreUnavailableError)
+  })
+
+  it('ne transforme pas un fichier et une sauvegarde corrompus en salle vide', () => {
+    const file = path.join(dir, 'data.json')
+    fs.writeFileSync(file, '{corrupt')
+    fs.writeFileSync(file + '.bak', '{also corrupt')
+    expect(() => readJsonStrict(file, { tables: [] })).toThrow(JsonStoreUnavailableError)
+    expect(fs.readFileSync(file, 'utf8')).toBe('{corrupt')
+  })
+
+  it('signale la copie récupérable sans revenir silencieusement à son ancien solde', () => {
+    const file = path.join(dir, 'data.json')
+    fs.writeFileSync(file, '{corrupt')
+    fs.writeFileSync(file + '.bak', '{"balance":24}')
+    try {
+      readJsonStrict(file, { balance: 0 })
+      expect.unreachable('La récupération exige une décision explicite')
+    } catch (error) {
+      expect(error).toBeInstanceOf(JsonStoreUnavailableError)
+      expect((error as JsonStoreUnavailableError).recoveryAvailable).toBe(true)
+    }
+  })
+
+  it('refuse un JSON valide dont la structure métier est endommagée', () => {
+    const file = path.join(dir, 'data.json')
+    fs.writeFileSync(file, '{"tables":null}')
+    expect(() => readJsonStrict(file, { tables: [] }, value => Array.isArray((value as any)?.tables))).toThrow(JsonStoreUnavailableError)
   })
 })
 

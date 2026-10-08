@@ -8,6 +8,9 @@ import { sendEmail } from '../lib/email'
 import logger from '../lib/logger'
 import { syncKitchenTickets } from '../lib/kitchen-tickets'
 import { importedProductId } from '../lib/catalog-import'
+import { createHash } from 'node:crypto'
+import { moneyMinor, totalsFromTtc, allocateMinor } from '../lib/money'
+import { activePaymentExists, lockOrderPayment } from '../lib/payments/ledger'
 
 const router = Router()
 const stateStatus: Record<string, string> = { available: 'LIBRE', occupied: 'OCCUPEE', reserved: 'RESERVEE', dirty: 'NETTOYAGE' }
@@ -170,6 +173,7 @@ router.patch('/kitchen/:id', wrap(async (req, res) => {
 
 router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', 'CASHIER'), wrap(async (req, res) => {
   const input = checkoutSchema.parse(req.body)
+  const requestHash = createHash('sha256').update(JSON.stringify(input)).digest('hex')
   const release = lockFloorForPayment()
   if (!release) throw new PosError('Un encaissement est en cours. Réessayez avec la même référence.', 409)
   try {
@@ -179,6 +183,9 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
     const existing = await tx.posSale.findUnique({ where: { id: input.requestId } })
     if (existing) {
       if (existing.companyId !== companyId || existing.userId !== req.user.userId) throw new PosError('Référence de règlement indisponible.', 409)
+      const previous: any = existing.snapshot
+      if (previous.requestHash ? previous.requestHash !== requestHash : previous.tableId !== input.tableId || moneyMinor(previous.total) !== moneyMinor(input.expectedTotal)
+        || JSON.stringify([...previous.coverIds].sort()) !== JSON.stringify([...input.coverIds].sort())) throw new PosError('Cette référence désigne un autre règlement.', 409)
       return existing.snapshot as any
     }
     const table = (await tablesFor(companyId)).find(t => t.id === input.tableId)
@@ -188,6 +195,10 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
     const alreadyPaid = await tx.posCoverPayment.count({ where: { companyId, coverId: { in: input.coverIds } } })
     if (alreadyPaid) throw new PosError('Un de ces couverts est déjà réglé.', 409)
     const guestIds = covers.filter(c => c.id.startsWith('guest:')).map(c => c.id.slice(6))
+    // Le même verrou est partagé avec commandes, captures et rapprochements.
+    // Ordre stable indispensable lorsqu'une addition regroupe plusieurs commandes.
+    for (const id of [...guestIds].sort()) await lockOrderPayment(tx, companyId, id)
+    if (await activePaymentExists(tx, companyId, guestIds)) throw new PosError('Paiement en cours ou résultat incertain : vérifiez-le avant de régler cette addition en caisse.', 409)
     const guests = await tx.order.findMany({ where: { companyId, id: { in: guestIds }, paidAt: null, status: { not: 'CANCELLED' } }, include: { items: true } })
     if (guests.length !== guestIds.length) throw new PosError('Une commande QR a déjà été réglée.', 409)
     const products = await tx.product.findMany({ where: { companyId, id: { in: covers.flatMap(c => c.items.map(i => i.menuItemId)) } } })
@@ -213,24 +224,38 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
         amount = cents(Math.min(remaining, promo.type === 'PERCENT' ? brut * promo.value / 100 : promo.value))
         await tx.discountCode.update({ where: { id: promo.id }, data: { usedCount: { increment: 1 } } })
       } else if (r.type === 'carte_cadeau') {
-        const gift = await tx.giftCard.findFirst({ where: { companyId, code: r.code, isActive: true } })
-        if (!r.code || !gift || (gift.expiresAt && gift.expiresAt < new Date())) throw new PosError('Carte cadeau invalide ou expirée.')
-        amount = cents(Math.min(remaining, gift.currentBalance))
-        const updated = await tx.giftCard.updateMany({ where: { id: gift.id, currentBalance: { gte: amount } }, data: { currentBalance: { decrement: amount } } })
-        if (!updated.count) throw new PosError('Le solde de la carte cadeau a changé.', 409)
+        throw new PosError('Une carte cadeau prépayée est un règlement. Actualisez la caisse pour utiliser le paiement par carte cadeau.')
       } else if (r.type !== 'geste' || !['OWNER', 'MANAGER'].includes(req.role)) {
         throw new PosError('Cette remise nécessite un droit responsable ou un programme client vérifié.', 403)
       }
       amount = cents(Math.min(remaining, amount)); remaining = cents(remaining - amount)
-      if (Math.abs(amount - r.montant) > 0.01) throw new PosError('Le montant de la remise a changé. Actualisez avant de confirmer.', 409)
+      if (moneyMinor(amount) !== moneyMinor(r.montant)) throw new PosError('Le montant de la remise a changé. Actualisez avant de confirmer.', 409)
       remises.push({ type: r.type, libelle: r.libelle, montant: amount })
     }
     const tip = cents(input.tip), charity = cents(input.options?.arrondiCaritatif || 0)
     const amounts = calculateSale(lines, cents(brut - remaining), tip, charity)
-    if (Math.abs(input.expectedTotal - amounts.total) > 0.01) throw new PosError(`Le prix serveur est ${amounts.total.toFixed(2)} €. Actualisez l'addition avant de confirmer.`, 409)
-    const reglements = input.options?.reglements?.filter(p => p.montant > 0).map(p => ({ ...p, montant: cents(p.montant) })) || [{ methode: input.method, montant: amounts.total }]
-    if (!reglements.length || Math.abs(cents(reglements.reduce((s, p) => s + p.montant, 0)) - amounts.total) > 0.01) throw new PosError('Les règlements ne correspondent pas au total.')
-    if (input.method === 'cash' && !input.options?.reglements && input.cashReceived !== undefined && input.cashReceived < amounts.total) throw new PosError('Le montant reçu est insuffisant.')
+    if (moneyMinor(input.expectedTotal) !== moneyMinor(amounts.total)) throw new PosError(`Le prix serveur est ${amounts.total.toFixed(2)} €. Actualisez l'addition avant de confirmer.`, 409)
+    let giftAmount = 0, giftCardId: string | undefined
+    if (input.options?.giftCard) {
+      const selected = input.options.giftCard
+      const requested = moneyMinor(selected.amount)
+      if (requested <= 0 || requested > moneyMinor(amounts.total) - moneyMinor(tip) - moneyMinor(charity)) throw new PosError('La carte cadeau ne peut régler que les consommations de cette addition.')
+      const gift = await tx.giftCard.findFirst({ where: { companyId, code: selected.code, isActive: true } })
+      if (!gift || (gift.expiresAt && gift.expiresAt < new Date())) throw new PosError('Carte cadeau invalide ou expirée.')
+      const balance = moneyMinor(gift.currentBalance)
+      if (balance < requested) throw new PosError('Solde de carte cadeau insuffisant. Actualisez avant de confirmer.', 409)
+      giftAmount = requested / 100; giftCardId = gift.id
+      const updated = await tx.giftCard.updateMany({ where: { id: gift.id, companyId, currentBalance: gift.currentBalance }, data: { currentBalance: (balance - requested) / 100 } })
+      if (!updated.count) throw new PosError('Le solde de la carte cadeau a changé. Actualisez avant de confirmer.', 409)
+    }
+    const externalDue = (moneyMinor(amounts.total) - moneyMinor(giftAmount)) / 100
+    const reglements: Array<{ methode: string; montant: number; giftCardId?: string }> = input.options?.reglements?.filter(p => p.montant > 0).map(p => ({ ...p, montant: cents(p.montant) })) || (externalDue ? [{ methode: input.method, montant: externalDue }] : [])
+    if (giftAmount) reglements.push({ methode: 'GIFT_CARD', montant: giftAmount, giftCardId })
+    if (!amounts.total && !reglements.length) reglements.push({ methode: input.method, montant: 0 })
+    if (!reglements.length || reglements.reduce((s, p) => s + moneyMinor(p.montant), 0) !== moneyMinor(amounts.total)) throw new PosError('Les règlements ne correspondent pas au total.')
+    const cashDue = reglements.filter(p => p.methode === 'cash').reduce((sum, p) => sum + moneyMinor(p.montant), 0)
+    if (cashDue && input.cashReceived !== undefined && moneyMinor(input.cashReceived) < cashDue) throw new PosError('Le montant reçu est insuffisant.')
+    const cashChange = cashDue && input.cashReceived !== undefined ? (moneyMinor(input.cashReceived) - cashDue) / 100 : null
     const principale = reglements.reduce((a, b) => b.montant > a.montant ? b : a).methode
     for (const p of products) {
       const qty = lines.filter(l => l.productId === p.id).reduce((s, l) => s + l.qty, 0)
@@ -241,21 +266,33 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
       }
     }
     const native = lines.filter(l => !l.guest)
+    const orderIds = guests.map(g => g.id), orderWeights = guests.map(g => moneyMinor(g.total))
     if (native.length) {
       // La numérotation reste protégée par l'unicité ; les autres routes conservent leur reprise avec attente aléatoire.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext('order-number'))::text`
       const lastOrder = await tx.order.findFirst({ where: { companyId }, orderBy: { orderNumber: 'desc' } })
       const a = calculateSale(native, cents(brut - remaining), 0, 0)
-      await tx.order.create({ data: { companyId, userId: req.user.userId, source: 'POS', externalTableId: table.id,
+      const nativeOrder = await tx.order.create({ data: { companyId, userId: req.user.userId, source: 'POS', externalTableId: table.id,
         customerId: table.customerId || null, notes: table.orderNote || null,
-        orderNumber: (lastOrder?.orderNumber || 0) + 1, status: 'PAID', paidAt: new Date(), paymentMethod: principale,
+        orderNumber: (lastOrder?.orderNumber || 0) + 1, status: 'PAID', paidAt: new Date(), inventoryDebitedAt: new Date(), paymentMethod: principale,
         subtotal: a.sousTotal, taxAmount: a.tva, total: cents(a.brut - (brut - remaining)),
         items: { create: native.map(l => ({ productId: l.productId, productName: l.name, quantity: l.qty, unitPrice: l.price, taxRate: l.taxRate, notes: l.notes })) } } })
+      orderIds.push(nativeOrder.id); orderWeights.push(moneyMinor(nativeOrder.total))
     }
-    if (guestIds.length) await tx.order.updateMany({ where: { companyId, id: { in: guestIds }, paidAt: null }, data: { status: 'PAID', paidAt: new Date(), paymentMethod: principale } })
+    if (guestIds.length) await tx.order.updateMany({ where: { companyId, id: { in: guestIds }, paidAt: null }, data: { status: 'PAID', paidAt: new Date(), inventoryDebitedAt: new Date(), paymentMethod: principale } })
+    // Une ventilation mixte ne doit pas être réduite à son moyen principal
+    // dans les rapports anciens qui lisent encore les commandes.
+    const allocatedCash = allocateMinor(cashDue, orderWeights.some(Boolean) ? orderWeights : orderWeights.map(() => 1))
+    const legacyMethod = reglements.length > 1 ? 'MIXED' : principale === 'cash' ? 'CASH' : principale === 'GIFT_CARD' ? 'GIFT_CARD' : 'CARD'
+    for (let i = 0; i < orderIds.length; i++) await tx.order.update({ where: { id: orderIds[i] }, data: { paymentMethod: legacyMethod, cashReceived: allocatedCash[i] / 100, cashChange: 0 } })
     const previous = await tx.posSale.findFirst({ where: { companyId }, orderBy: { number: 'desc' } })
     const user = await tx.user.findUniqueOrThrow({ where: { id: req.user.userId }, select: { firstName: true, lastName: true } })
-    const snapshot = { id: input.requestId, numero: (previous?.number || 0) + 1, horodatage: Date.now(), tableId: table.id, tableName: table.name,
-      couverts: covers.map(c => c.label), coverIds: input.coverIds, lignes: lines.map(({ name, price, qty }) => ({ name, price, qty })),
+    const company = await tx.company.findUniqueOrThrow({ where: { id: companyId } })
+    const issuer = { name: company.name, legalName: company.legalName, address: company.address, vatNumber: company.vatNumber, legalProfile: company.legalProfile }
+    const taxGroups = totalsFromTtc(lines, moneyMinor(brut - remaining)).groups.map(({ taxRate, baseCents, taxCents, totalCents }) => ({ taxRate, baseCents, taxCents, totalCents }))
+    const snapshot = { version: 2, id: input.requestId, requestHash, confirmation: 'manual_declaration', numero: (previous?.number || 0) + 1, horodatage: Date.now(), tableId: table.id, tableName: table.name,
+      issuer, currency: company.currency, taxGroups, orderIds, cashChange,
+      couverts: covers.map(c => c.label), coverIds: input.coverIds, lignes: lines.map(({ name, price, qty, taxRate, productId }) => ({ name, price, qty, taxRate, productId })),
       receipt: input.options?.receipt || { message: '', includeBrand: false, includePromo: false },
       ...amounts, pourboire: tip, arrondiCaritatif: charity, remises, reglements, methode: principale, vendeur: `${user.firstName} ${user.lastName}` }
     await tx.posSale.create({ data: { id: snapshot.id, companyId, userId: req.user.userId, number: snapshot.numero, snapshot,
@@ -324,7 +361,7 @@ router.post('/sales/:id/email', wrap(async (req, res) => {
   }
   await prisma.posReceiptDelivery.create({ data: { id: input.requestId, companyId: req.companyId, saleId: sale.id, recipient: input.to } })
   try {
-    const sent = await sendEmail({ to: input.to, subject: `Votre ticket — ${req.company.name}`, html: receiptHtml(sale.snapshot, req.company) })
+    const sent = await sendEmail({ to: input.to, subject: `Votre ticket — ${(sale.snapshot as any).issuer?.name || req.company.name}`, html: receiptHtml(sale.snapshot, req.company) })
     await prisma.posReceiptDelivery.update({ where: { id: input.requestId }, data: { status: 'SENT', providerId: sent.id } })
     res.json({ ok: true, messageId: sent.id })
   } catch (e) {

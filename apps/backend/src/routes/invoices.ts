@@ -5,6 +5,11 @@ import { createAvecNumero, NumerotationIndisponibleError } from '../lib/numerota
 import { invoicePdf } from '../lib/invoice-pdf'
 import { invoiceTransitionAllowed } from '../lib/invoice-status'
 import { requireRole } from '../middleware/requireCompany'
+import { createHash } from 'node:crypto'
+import { totalsFromHt } from '../lib/money'
+import { invoiceDocument, DocumentValidationError } from '../lib/document-model'
+import { enqueueInvoice, processInvoiceDeliveries, deliveryDto, DeliveryError } from '../lib/invoice-delivery'
+import { z } from 'zod'
 
 const router = Router()
 router.use((req, res, next) => {
@@ -16,7 +21,12 @@ class QuoteConflict extends Error {}
 const QUOTE_STATUSES = new Set(['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED'])
 const INVOICE_STATUSES = new Set(['DRAFT', 'SENT', 'PAID', 'OVERDUE', 'CANCELLED'])
 
-type DocumentLine = { description: string; quantity: number; unitPrice: number; taxRate: number }
+type DocumentLine = { description: string; quantity: number; unitPrice: number; taxRate: number; taxReason?: string | null }
+const invoiceDto = (invoice: any) => {
+  const { issuedPdf, issuedSnapshot, ...dto } = invoice
+  if (issuedSnapshot?.customer && dto.customer) dto.customer = { ...dto.customer, ...issuedSnapshot.customer }
+  return dto
+}
 
 function prepareLines(raw: unknown): { lines?: DocumentLine[]; subtotal?: number; taxAmount?: number; total?: number; error?: string } {
   if (!Array.isArray(raw) || raw.length === 0) return { error: 'Ajoutez au moins une ligne au document' }
@@ -33,13 +43,12 @@ function prepareLines(raw: unknown): { lines?: DocumentLine[]; subtotal?: number
     if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 100_000) return { error: 'Quantité attendue : entre 0 et 100 000' }
     if (!Number.isFinite(unitPrice) || unitPrice < 0 || unitPrice > 1_000_000) return { error: 'Prix unitaire attendu : de 0 à 1 000 000 €' }
     if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) return { error: 'Le taux de TVA doit être compris entre 0 et 100' }
-    lines.push({ description, quantity, unitPrice, taxRate })
+    if (line.taxReason !== undefined && line.taxReason !== null && typeof line.taxReason !== 'string') return { error: 'Le motif fiscal doit être un texte.' }
+    lines.push({ description, quantity, unitPrice, taxRate, ...(line.taxReason !== undefined ? { taxReason: typeof line.taxReason === 'string' ? line.taxReason.trim().slice(0, 500) || null : null } : {}) })
   }
 
-  const cents = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100
-  const subtotal = cents(lines.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0))
-  const taxAmount = cents(lines.reduce((sum, line) => sum + line.quantity * line.unitPrice * (line.taxRate / 100), 0))
-  return { lines, subtotal, taxAmount, total: cents(subtotal + taxAmount) }
+  const amounts = totalsFromHt(lines.map(line => ({ price: line.unitPrice, qty: line.quantity, taxRate: line.taxRate })))
+  return { lines, subtotal: amounts.baseCents / 100, taxAmount: amounts.taxCents / 100, total: amounts.totalCents / 100 }
 }
 
 async function validateCustomer(companyId: string, customerId: unknown): Promise<boolean> {
@@ -59,6 +68,23 @@ function parseOptionalDate(value: unknown): { value?: Date | null; error?: strin
 // avec les avoirs et couverte par `lib/numerotation.test.ts`. Ré-exportée ici
 // afin de ne casser aucun import existant.
 export { createAvecNumero, NumerotationIndisponibleError }
+router.get('/deliveries/:id', async (req: any, res) => {
+  const job = await prisma.invoiceDelivery.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
+  if (!job) return res.status(404).json({ message: 'Envoi introuvable.' })
+  res.set('Cache-Control', 'private, no-store').json(deliveryDto(job))
+})
+router.post('/:id/email', async (req: any, res) => {
+  try {
+    const job = await enqueueInvoice(req.companyId, req.user.userId, req.params.id, req.body)
+    res.status(202).json(job)
+    void processInvoiceDeliveries().catch(() => logger.warn('[documents] file conservée pour reprise'))
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ message: 'Adresse ou référence d’envoi invalide.' })
+    if (error instanceof DeliveryError) return res.status(error.status).json({ message: error.message })
+    if ((error as any)?.code === 'P2002') return res.status(409).json({ message: 'Envoi déjà réservé : vérifiez sa référence.' })
+    return res.status(503).json({ message: 'Envoi non confirmé.' })
+  }
+})
 
 // ─── QUOTES ───────────────────────────────────────────
 
@@ -96,7 +122,7 @@ router.post('/quotes', async (req: any, res: Response) => {
         validUntil: validity.value ?? null,
         total: prepared.total!,
         notes: typeof notes === 'string' ? notes.trim().slice(0, 10_000) || null : null,
-        items: { create: prepared.lines! },
+        items: { create: prepared.lines!.map(({ taxReason, ...line }) => line) },
       },
       include: { customer: true, items: true },
     }))
@@ -134,7 +160,7 @@ router.put('/quotes/:id', async (req: any, res: Response) => {
         notes: notes === undefined ? existing.notes : (typeof notes === 'string' ? notes.trim().slice(0, 10_000) || null : null),
         status: status ?? existing.status,
         total: prepared?.total ?? existing.total,
-        ...(prepared && { items: { deleteMany: {}, create: prepared.lines! } }),
+        ...(prepared && { items: { deleteMany: {}, create: prepared.lines!.map(({ taxReason, ...line }) => line) } }),
       },
       include: { customer: true, items: true },
     })
@@ -176,9 +202,8 @@ router.post('/quotes/:id/convert', async (req: any, res: Response) => {
 
     // Les montants sont arrondis au centime : 47,617 € n'est pas une somme
     // d'argent, et l'écart se propagerait au récapitulatif TVA.
-    const centimes = (n: number) => Math.round(n * 100) / 100
-    const subtotal = centimes(quote.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0))
-    const taxAmount = centimes(quote.items.reduce((s, i) => s + i.quantity * i.unitPrice * (i.taxRate / 100), 0))
+    const amounts = totalsFromHt(quote.items.map(i => ({ price: i.unitPrice, qty: i.quantity, taxRate: i.taxRate })))
+    const subtotal = amounts.baseCents / 100, taxAmount = amounts.taxCents / 100
     const invoice = await createAvecNumero(req.companyId, 'INV', (number) => prisma.$transaction(async (tx) => {
       const locked = await tx.quote.updateMany({
         where: { id: quote.id, companyId: req.companyId, status: { in: ['DRAFT', 'SENT'] }, updatedAt: quote.updatedAt },
@@ -192,7 +217,7 @@ router.post('/quotes/:id/convert', async (req: any, res: Response) => {
         number,
         subtotal,
         taxAmount,
-        total: centimes(subtotal + taxAmount),
+        total: amounts.totalCents / 100,
         notes: quote.notes,
         items: {
           create: quote.items.map((i) => ({
@@ -236,7 +261,7 @@ router.get('/', async (req: any, res: Response) => {
       include: { customer: true, items: true },
       orderBy: { createdAt: 'desc' },
     })
-    res.json(invoices)
+    res.json(invoices.map(invoiceDto))
   } catch (error) {
     logger.error('Erreur GET /invoices:', error)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -245,7 +270,8 @@ router.get('/', async (req: any, res: Response) => {
 
 router.post('/', async (req: any, res: Response) => {
   try {
-    const { customerId, dueDate, notes, orderId, items } = req.body
+    const { customerId, dueDate, notes, orderId, items, serviceDate, documentMode = 'AUTO' } = req.body
+    if (!['AUTO', 'COMPLETE'].includes(documentMode)) return res.status(400).json({ message: 'Mode de document invalide.' })
     if (orderId && !await prisma.order.findFirst({ where: { id: String(orderId), companyId: req.companyId }, select: { id: true } })) {
       return res.status(400).json({ message: 'Commande introuvable dans cette société' })
     }
@@ -254,12 +280,15 @@ router.post('/', async (req: any, res: Response) => {
     if (!(await validateCustomer(req.companyId, customerId))) { res.status(400).json({ message: "Le client n'appartient pas à cette entreprise" }); return }
     const deadline = parseOptionalDate(dueDate)
     if (deadline.error) { res.status(400).json({ message: "Date d'échéance invalide" }); return }
+    const service = parseOptionalDate(serviceDate)
+    if (service.error) return res.status(400).json({ message: 'Date de prestation invalide.' })
     const invoice = await createAvecNumero(req.companyId, 'INV', (number) => prisma.invoice.create({
       data: {
         companyId: req.companyId,
         customerId: customerId || null,
         number,
         dueDate: deadline.value ?? null,
+        serviceDate: service.value ?? null, documentMode, currency: req.company.currency || 'EUR',
         subtotal: prepared.subtotal!,
         taxAmount: prepared.taxAmount!,
         total: prepared.total!,
@@ -297,7 +326,7 @@ router.get('/:id', async (req: any, res: Response) => {
       res.status(404).json({ message: 'Facture introuvable' })
       return
     }
-    res.json(facture)
+    res.json(invoiceDto(facture))
   } catch (error) {
     logger.error('Erreur GET /invoices/:id:', error)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -309,10 +338,13 @@ router.put('/:id', async (req: any, res: Response) => {
     const existing = await prisma.invoice.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Facture non trouvée' }); return }
     if (existing.status !== 'DRAFT') return res.status(409).json({ message: 'Seule une facture brouillon peut être modifiée. Une facture émise doit être conservée.' })
-    const { customerId, dueDate, notes, items } = req.body
+    const { customerId, dueDate, notes, items, serviceDate, documentMode } = req.body
+    if (documentMode !== undefined && !['AUTO', 'COMPLETE'].includes(documentMode)) return res.status(400).json({ message: 'Mode de document invalide.' })
     if (!(await validateCustomer(req.companyId, customerId))) { res.status(400).json({ message: "Le client n'appartient pas à cette entreprise" }); return }
     const deadline = parseOptionalDate(dueDate)
     if (deadline.error) { res.status(400).json({ message: "Date d'échéance invalide" }); return }
+    const service = parseOptionalDate(serviceDate)
+    if (service.error) return res.status(400).json({ message: 'Date de prestation invalide.' })
     const prepared = items === undefined ? null : prepareLines(items)
     if (prepared?.error) { res.status(400).json({ message: prepared.error }); return }
     const invoice = await prisma.invoice.update({
@@ -320,6 +352,8 @@ router.put('/:id', async (req: any, res: Response) => {
       data: {
         customerId: customerId === undefined ? existing.customerId : (customerId || null),
         dueDate: deadline.value === undefined ? existing.dueDate : deadline.value,
+        serviceDate: service.value === undefined ? existing.serviceDate : service.value,
+        documentMode: documentMode ?? existing.documentMode,
         notes: notes === undefined ? existing.notes : (typeof notes === 'string' ? notes.trim().slice(0, 10_000) || null : null),
         subtotal: prepared?.subtotal ?? existing.subtotal,
         taxAmount: prepared?.taxAmount ?? existing.taxAmount,
@@ -328,7 +362,7 @@ router.put('/:id', async (req: any, res: Response) => {
       },
       include: { customer: true, items: true },
     })
-    res.json(invoice)
+    res.json(invoiceDto(invoice))
   } catch (error) {
     logger.error('Erreur PUT /invoices/:id:', error)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -341,17 +375,32 @@ router.put('/:id/status', async (req: any, res: Response) => {
       res.status(400).json({ message: 'Statut de facture invalide' })
       return
     }
-    const existing = await prisma.invoice.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
+    const existing = await prisma.invoice.findFirst({ where: { id: req.params.id, companyId: req.companyId }, include: { company: true, customer: true, items: true } })
     if (!existing) { res.status(404).json({ message: 'Facture non trouvée' }); return }
     if (!invoiceTransitionAllowed(existing.status, req.body.status)) {
       return res.status(409).json({ message: 'Transition refusée : une facture payée ou annulée ne peut pas redevenir un brouillon.' })
     }
-    const invoice = await prisma.invoice.update({
-      where: { id: req.params.id, status: existing.status },
-      data: { status: req.body.status },
+    let issue: any = {}
+    if (existing.status === 'DRAFT' && req.body.status !== 'CANCELLED' && req.body.status !== 'DRAFT') {
+      const issuedAt = new Date(), snapshot = invoiceDocument(existing, issuedAt)
+      const bytes = await invoicePdf(snapshot)
+      issue = { issuedAt, issuedSnapshot: JSON.parse(JSON.stringify(snapshot)), issuedPdf: bytes, issuedPdfHash: createHash('sha256').update(bytes).digest('hex') }
+    }
+    const invoice = await prisma.$transaction(async tx => {
+      if (issue.issuedAt) {
+        const company = await tx.company.findUniqueOrThrow({ where: { id: req.companyId } })
+        if (company.updatedAt.getTime() !== existing.company.updatedAt.getTime()) throw new QuoteConflict('La fiche société a changé pendant l’émission.')
+        if (existing.customer) {
+          const customer = await tx.customer.findUniqueOrThrow({ where: { id: existing.customer.id } })
+          if (customer.updatedAt.getTime() !== existing.customer.updatedAt.getTime()) throw new QuoteConflict('La fiche client a changé pendant l’émission.')
+        }
+      }
+      return tx.invoice.update({ where: { id: req.params.id, status: existing.status, updatedAt: existing.updatedAt }, data: { status: req.body.status, ...issue }, include: { customer: true, items: true } })
     })
-    res.json(invoice)
+    res.json(invoiceDto(invoice))
   } catch (error) {
+    if (error instanceof DocumentValidationError) return res.status(422).json({ message: error.message, fields: error.fields })
+    if (error instanceof QuoteConflict || (error as any)?.code === 'P2025') return res.status(409).json({ message: 'Le document ou une fiche a changé : rechargez avant émission.' })
     logger.error('Erreur PUT /invoices/:id/status:', error)
     res.status(500).json({ message: 'Erreur serveur' })
   }
@@ -364,7 +413,20 @@ router.get('/:id/pdf', async (req: any, res: Response) => {
       include: { customer: true, items: true, company: true },
     })
     if (!invoice) { res.status(404).json({ message: 'Facture non trouvée' }); return }
-    const bytes = await invoicePdf(invoice)
+    const format = String(req.query.format || 'A4')
+    if (!['A4', '58', '80'].includes(format)) return res.status(400).json({ message: 'Format attendu : A4, 58 ou 80.' })
+    let bytes: Buffer
+    if (invoice.issuedPdf && format === 'A4') {
+      bytes = Buffer.from(invoice.issuedPdf)
+      if (createHash('sha256').update(bytes).digest('hex') !== invoice.issuedPdfHash) return res.status(503).json({ message: 'Intégrité du PDF non confirmée : restauration ou vérification nécessaire.' })
+      res.setHeader('X-Creorga-Document-State', 'original-frozen')
+      res.setHeader('X-Creorga-Document-Hash', invoice.issuedPdfHash!)
+    } else {
+      const document = invoice.issuedSnapshot ? invoice.issuedSnapshot as any : invoiceDocument(invoice)
+      if (invoice.status !== 'DRAFT' && !invoice.issuedSnapshot) document.reconstructed = true
+      bytes = await invoicePdf(document, format as 'A4' | '58' | '80')
+      res.setHeader('X-Creorga-Document-State', invoice.issuedSnapshot ? 'frozen-content-render' : invoice.status === 'DRAFT' ? 'draft' : 'reconstructed')
+    }
     const filename = `facture-${invoice.number.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)

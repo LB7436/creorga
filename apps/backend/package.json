@@ -20,10 +20,10 @@
     "@pdf-lib/fontkit": "^1.1.1",
     "@prisma/client": "^5.15.0",
     "@sentry/node": "^10.63.0",
-    "adm-zip": "^0.6.0",
+    "adm-zip": "^0.6.1",
     "archiver": "^8.0.0",
     "bcryptjs": "^2.4.3",
-    "compression": "^1.8.1",
+    "compression": "^1.8.2",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -31,15 +31,16 @@
     "express-rate-limit": "^7.5.1",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "nodemailer": "^9.0.5",
+    "nodemailer": "10.0.16",
     "otplib": "^13.4.1",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
     "resend": "^3.0.0",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "socket.io": "^4.7.5",
-    "stripe": "^14.25.0",
+    "stripe": "23.0.0",
     "winston": "^3.13.0",
+    "yauzl": "^3.4.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -54,12 +55,12 @@
     "@types/node": "^20.14.2",
     "@types/nodemailer": "^8.0.1",
     "@types/supertest": "^7.2.0",
-    "nodemon": "^3.1.3",
+    "@types/yauzl": "^3.4.0",
     "prisma": "^5.15.0",
     "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^5.4.5",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.11"
   }
 }

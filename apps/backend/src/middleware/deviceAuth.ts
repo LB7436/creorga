@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import { timingSafeEqual } from 'crypto'
-import { isProduction } from '../lib/security'
+import { fallbackAdminAllowed, isProduction } from '../lib/security'
 
 /**
  * Auth hybride pour les routes partagées POS/web (orders, payments,
@@ -51,6 +51,7 @@ export function jetonsAppareils(): { token: string; companyId?: string }[] {
 export function identifierAppareil(provided: unknown): DeviceIdentity | null {
   if (typeof provided !== 'string' || !provided) return null
   for (const entree of jetonsAppareils()) {
+    if (isProduction() && !entree.companyId) continue
     if (egal(entree.token, provided)) return { type: 'pos-terminal', companyId: entree.companyId }
   }
   return null
@@ -67,6 +68,10 @@ export function deviceOrUserAuth(req: Request, res: Response, next: NextFunction
   if (auth?.startsWith('Bearer ')) {
     try {
       const payload = jwt.verify(auth.slice(7), process.env.JWT_SECRET!) as { userId: string; email: string }
+      if (payload.userId === 'fallback-admin' && !fallbackAdminAllowed()) {
+        res.status(401).json({ message: 'Session de démonstration désactivée' })
+        return
+      }
       ;(req as any).user = payload
       return next()
     } catch {

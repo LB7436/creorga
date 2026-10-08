@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/stores/authStore'
-import { refreshSession } from './api'
+import { assertAuthScope, refreshSession } from './api'
+import { authDataScope } from './authScope'
 
 /**
  * `fetch` qui porte le jeton — pour les appels que `lib/api.ts` (axios) ne
@@ -19,10 +20,9 @@ import { refreshSession } from './api'
 export const BACKEND_URL =
   (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
-const avecJeton = (init: RequestInit, jeton: string | null): RequestInit => {
+const avecJeton = (init: RequestInit, jeton: string | null, companyId: string | null): RequestInit => {
   const headers = new Headers(init.headers)
   if (jeton) headers.set('Authorization', `Bearer ${jeton}`)
-  const companyId = useAuthStore.getState().companyId
   if (companyId && !headers.has('x-company-id')) headers.set('x-company-id', companyId)
   return { ...init, headers, credentials: init.credentials ?? 'include' }
 }
@@ -41,11 +41,15 @@ export async function fetchAuth(
   entree: RequestInfo | URL,
   init: RequestInit = {},
 ): Promise<Response> {
-  const jeton = useAuthStore.getState().accessToken
-  const reponse = await fetch(entree, avecJeton(init, jeton))
+  const state = useAuthStore.getState()
+  const scope = authDataScope(state)
+  const { accessToken: jeton, companyId } = state
+  const reponse = await fetch(entree, avecJeton(init, jeton, companyId))
+  assertAuthScope(scope)
   if (reponse.status !== 401) return reponse
 
   const nouveauJeton = await rafraichirJeton()
+  assertAuthScope(scope)
   if (!nouveauJeton) {
     // Ne jamais avaler : l'appelant enveloppe souvent l'appel dans un
     // `catch {}` muet, c'est précisément ce qui rendait ces fonctionnalités
@@ -55,5 +59,7 @@ export async function fetchAuth(
     )
     return reponse
   }
-  return fetch(entree, avecJeton(init, nouveauJeton))
+  const nouvelleReponse = await fetch(entree, avecJeton(init, nouveauJeton, companyId))
+  assertAuthScope(scope)
+  return nouvelleReponse
 }

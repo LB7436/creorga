@@ -67,7 +67,8 @@ import reputationRoutes from './routes/reputation'
 import eventsRoutes from './routes/events'
 import stripeRoutes, { stripeWebhook } from './routes/stripe'
 import emailRoutes from './routes/email'
-import paymentsRoutes, { paypalWebhook, processPendingPaymentWebhooks } from './routes/payments'
+import paymentsRoutes, { paypalWebhook, stripePaymentWebhook, processPendingPaymentWebhooks } from './routes/payments'
+import { processInvoiceDeliveries } from './lib/invoice-delivery'
 import portalConfigRoutes from './routes/portalConfig'
 import floorStateRoutes, { floorCompanyContext } from './routes/floorState'
 import moduleConfigRoutes from './routes/moduleConfig'
@@ -167,9 +168,12 @@ const LARGE_BODY_PATHS = ['/api/agent', '/api/floor-state', '/api/inventory-ocr'
 // express.json(), qui marquerait le corps comme déjà lu.
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '1mb' }), stripeWebhook)
 app.post('/api/payments/webhooks/paypal', express.json({ limit: '256kb' }), paypalWebhook)
+app.post('/api/payments/webhooks/stripe', express.raw({ type: 'application/json', limit: '256kb' }), stripePaymentWebhook)
 app.use(LARGE_BODY_PATHS, express.json({ limit: '20mb' }))
 app.use('/api/pos/draft', express.json({ limit: '5mb' }))
 app.use(express.json({ limit: '1mb' }))
+const mailQueueTimer = setInterval(() => { void processInvoiceDeliveries().catch(() => logger.warn('[documents] file email non traitée, reprise nécessaire')) }, 15000)
+mailQueueTimer.unref()
 app.use(cookieParser())
 app.use(auditLog)
 

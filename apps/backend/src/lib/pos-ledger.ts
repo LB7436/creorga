@@ -32,6 +32,7 @@ export const checkoutSchema = z.object({
   method: z.enum(['cash', 'card', 'contactless']), tip: finite.min(0).max(10000),
   expectedTotal: finite.min(0).max(1e7), cashReceived: finite.min(0).max(1e7).optional(),
   options: z.object({
+    giftCard: z.object({ code: z.string().trim().min(1).max(100), amount: finite.positive().max(1e7) }).optional(),
     receipt: z.object({ message: z.string().max(1000), includeBrand: z.boolean(), includePromo: z.boolean() }).optional(),
     arrondiCaritatif: finite.min(0).max(100).optional(),
     remises: z.array(z.object({ type: z.enum(['promo', 'carte_cadeau', 'points', 'membre', 'geste']),
@@ -49,8 +50,8 @@ export function calculateSale(lines: Array<{ price: number; qty: number; taxRate
 
 export function buildClosure(ventes: any[], id: string, now = Date.now()) {
   const sum = (fn: (v: any) => number) => cents(ventes.reduce((s, v) => s + fn(v), 0))
-  const parMethode = { cash: 0, card: 0, contactless: 0 }
-  for (const v of ventes) for (const p of v.reglements) parMethode[p.methode as keyof typeof parMethode] = cents(parMethode[p.methode as keyof typeof parMethode] + p.montant)
+  const parMethode: Record<string, number> = { cash: 0, card: 0, contactless: 0 }
+  for (const v of ventes) for (const p of v.reglements) parMethode[p.methode] = cents((parMethode[p.methode] || 0) + p.montant)
   return { id, horodatage: now, debut: Math.min(...ventes.map(v => v.horodatage)), nbVentes: ventes.length,
     totalTTC: sum(v => v.total - v.pourboire - v.arrondiCaritatif), totalHT: sum(v => v.sousTotal),
     totalTva: sum(v => v.tva), totalPourboires: sum(v => v.pourboire), totalArrondisCaritatifs: sum(v => v.arrondiCaritatif),
@@ -59,6 +60,10 @@ export function buildClosure(ventes: any[], id: string, now = Date.now()) {
 
 export const escapeHtml = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 export function receiptHtml(sale: any, company: any) {
-  const money = (n: number) => n.toLocaleString('fr-LU', { style: 'currency', currency: 'EUR' })
-  return `<!doctype html><html lang="fr"><meta charset="utf-8"><title>Ticket ${sale.numero}</title><body style="font-family:system-ui;max-width:600px;margin:24px auto;padding:16px">${sale.receipt?.includeBrand ? '<p>CREORGA</p>' : ''}<h1>${escapeHtml(company.name)}</h1><p>${escapeHtml(company.address)}<br>TVA : ${escapeHtml(company.vatNumber || 'non renseignée')}</p><h2>Ticket n° ${sale.numero}</h2><p>${new Date(sale.horodatage).toLocaleString('fr-LU')} · ${escapeHtml(sale.tableName)}</p><table width="100%">${sale.lignes.map((l: any) => `<tr><td>${l.qty} × ${escapeHtml(l.name)}</td><td>${money(l.price * l.qty)}</td></tr>`).join('')}</table><p>Remises : ${money(sale.remises.reduce((s: number, r: any) => s + r.montant, 0))}<br>HT : ${money(sale.sousTotal)} · TVA : ${money(sale.tva)}<br>Pourboire : ${money(sale.pourboire)} · Arrondi à reverser : ${money(sale.arrondiCaritatif)}</p><h2>Total encaissé : ${money(sale.total)}</h2><p>${sale.reglements.map((p: any) => `${escapeHtml(p.methode)} : ${money(p.montant)}`).join(' · ')}</p><p>${escapeHtml(sale.receipt?.message || company.receiptFooter || '')}</p>${sale.receipt?.includePromo ? sale.remises.filter((r: any) => r.type === 'promo').map((r: any) => `<p>Code utilisé : ${escapeHtml(r.libelle)}</p>`).join('') : ''}<p>Référence : ${escapeHtml(sale.id)}</p></body></html>`
+  const issuer = sale.issuer || company
+  const money = (n: number) => n.toLocaleString('fr-LU', { style: 'currency', currency: sale.currency || 'EUR' })
+  const methods: Record<string, string> = { cash: 'Espèces', card: 'Carte (déclaration manuelle)', contactless: 'Sans contact (déclaration manuelle)', GIFT_CARD: 'Carte cadeau prépayée' }
+  const legal = issuer.legalProfile || {}
+  const taxRows = Array.isArray(sale.taxGroups) ? `<table width="100%"><thead><tr><th>Taux</th><th>HT</th><th>TVA</th><th>TTC</th></tr></thead><tbody>${sale.taxGroups.map((g: any) => `<tr><td>${escapeHtml(g.taxRate)} %</td><td>${money(g.baseCents / 100)}</td><td>${money(g.taxCents / 100)}</td><td>${money(g.totalCents / 100)}</td></tr>`).join('')}</tbody></table>` : ''
+  return `<!doctype html><html lang="fr"><meta charset="utf-8"><title>Ticket ${sale.numero}</title><body style="font-family:system-ui;max-width:600px;margin:24px auto;padding:16px">${!sale.issuer ? '<p><strong>Reconstitution d’un ancien ticket : coordonnées actuelles, identité historique non conservée.</strong></p>' : ''}${sale.receipt?.includeBrand ? '<p>CREORGA</p>' : ''}<h1>${escapeHtml(issuer.name)}</h1><p>${escapeHtml(issuer.legalName || '')}<br>${escapeHtml(issuer.address)}<br>TVA : ${escapeHtml(issuer.vatNumber || 'non renseignée')}${legal.legalForm ? `<br>${escapeHtml(legal.legalForm)}` : ''}${legal.rcsNumber ? `<br>RCS : ${escapeHtml(legal.rcsNumber)}` : ''}${legal.authorizationNumber ? `<br>Autorisation : ${escapeHtml(legal.authorizationNumber)}` : ''}${legal.legalMention ? `<br>${escapeHtml(legal.legalMention)}` : ''}</p><h2>Ticket n° ${sale.numero}</h2><p>${new Date(sale.horodatage).toLocaleString('fr-LU', { timeZone: 'Europe/Luxembourg' })} · ${escapeHtml(sale.tableName)}</p><table width="100%">${sale.lignes.map((l: any) => `<tr><td>${l.qty} × ${escapeHtml(l.name)}</td><td>${money(l.price * l.qty)}</td></tr>`).join('')}</table><p>Remises : ${money(sale.remises.reduce((s: number, r: any) => s + r.montant, 0))}<br>HT : ${money(sale.sousTotal)} · TVA : ${money(sale.tva)}<br>Pourboire : ${money(sale.pourboire)} · Arrondi à reverser : ${money(sale.arrondiCaritatif)}</p>${taxRows}<h2>Total réglé : ${money(sale.total)}</h2><p>${sale.reglements.map((p: any) => `${escapeHtml(methods[p.methode] || p.methode)} : ${money(p.montant)}`).join(' · ')}</p><p>${escapeHtml(sale.receipt?.message || issuer.receiptFooter || '')}</p>${sale.receipt?.includePromo ? sale.remises.filter((r: any) => r.type === 'promo').map((r: any) => `<p>Code utilisé : ${escapeHtml(r.libelle)}</p>`).join('') : ''}<p>Référence : ${escapeHtml(sale.id)}</p></body></html>`
 }

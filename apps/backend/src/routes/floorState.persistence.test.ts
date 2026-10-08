@@ -2,7 +2,8 @@ import express from 'express'
 import request from 'supertest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 const disk = vi.hoisted(() => ({ write: vi.fn(), read: vi.fn((_file, fallback) => fallback) }))
-vi.mock('../lib/safe-json', () => ({ safeWriteJson: disk.write, safeReadJson: disk.read }))
+vi.mock('../lib/safe-json', async importOriginal => ({ ...(await importOriginal<typeof import('../lib/safe-json')>()), safeWriteJson: disk.write, readJsonStrict: disk.read }))
+import { JsonStoreUnavailableError } from '../lib/safe-json'
 import router, { floorCompanyContext, getFloorState } from './floorState'
 import { findStaleSessions } from '../jobs/closeStaleFloorSessions'
 
@@ -19,7 +20,7 @@ function appFor(companyId: string, gate?: { entered: () => void; resume: Promise
   app.use(router)
   return app
 }
-beforeEach(() => disk.write.mockReset())
+beforeEach(() => { disk.write.mockReset(); disk.read.mockReset(); disk.read.mockImplementation((_file, fallback) => fallback) })
 describe('Salle — sauvegarde transactionnelle', () => {
   it('écrit avant le succès et conserve les données sur un nouveau GET', async () => {
     const app = appFor('persist-ok')
@@ -35,6 +36,16 @@ describe('Salle — sauvegarde transactionnelle', () => {
     const result = await request(app).post('/zones').send({ name: 'Non enregistrée' })
     expect(result.status).toBe(503)
     expect((await request(app).get('/')).body).toEqual(before)
+  })
+  it('une salle corrompue refuse lecture et écriture sans créer un plan vide', async () => {
+    disk.read.mockImplementation(() => { throw new JsonStoreUnavailableError(true) })
+    const app = appFor('persist-corrupt')
+    const loaded = await request(app).get('/').expect(503)
+    expect(loaded.body.code).toBe('FLOOR_STORAGE_UNAVAILABLE')
+    expect(loaded.body.recoveryAvailable).toBe(true)
+    expect(loaded.body.tables).toBeUndefined()
+    await request(app).post('/zones').send({ name: 'Écrasement interdit' }).expect(503)
+    expect(disk.write).not.toHaveBeenCalled()
   })
   it('une validation échouée ne garde pas les modifications partielles', async () => {
     const app = appFor('persist-invalid')

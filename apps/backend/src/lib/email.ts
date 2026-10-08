@@ -1,5 +1,6 @@
 import { Resend } from 'resend'
 import nodemailer, { type Transporter } from 'nodemailer'
+import { createHash } from 'node:crypto'
 
 const BRAND_PRIMARY = '#0EA5E9'
 const BRAND_DARK = '#0F172A'
@@ -52,6 +53,8 @@ export function smtpTransportConfiguration() {
     port,
     secure,
     family: 4,
+    disableFileAccess: true,
+    disableUrlAccess: true,
     auth: { user, pass },
     connectionTimeout: 30_000,
     greetingTimeout: 20_000,
@@ -61,8 +64,8 @@ export function smtpTransportConfiguration() {
 
 function transportSmtp(): Transporter {
   const configuration = smtpTransportConfiguration()
-  const { host, port, secure, auth: { user } } = configuration
-  const fingerprint = `${host}:${port}:${secure}:${user}`
+  const { host, port, secure, auth: { user, pass } } = configuration
+  const fingerprint = `${host}:${port}:${secure}:${user}:${createHash('sha256').update(pass).digest('hex')}`
   if (!smtpTransporter || smtpFingerprint !== fingerprint) {
     smtpTransporter = nodemailer.createTransport(configuration)
     smtpFingerprint = fingerprint
@@ -74,7 +77,7 @@ export function retryableSmtpConnectionError(error: unknown): boolean {
   const code = String((error as { code?: unknown })?.code || '')
   const command = String((error as { command?: unknown })?.command || '')
   return command === 'CONN'
-    && ['EAI_AGAIN', 'ETIMEDOUT', 'ECONNREFUSED', 'ECONNECTION', 'ESOCKET'].includes(code)
+    && ['EAI_AGAIN', 'ENOTFOUND', 'ECONNREFUSED'].includes(code)
 }
 
 function resetSmtpTransporter() {
@@ -89,6 +92,8 @@ async function sendWithSmtpRetry(message: {
   subject: string
   html: string
   replyTo: string
+  messageId?: string
+  attachments?: Array<{ filename: string; content: Buffer; contentType: string }>
 }) {
   let lastError: unknown
 
@@ -122,12 +127,17 @@ export async function sendEmail({
   subject,
   html,
   from,
+  attachments,
+  messageId,
 }: {
   to: string
   subject: string
   html?: string
   from?: string
+  attachments?: Array<{ filename: string; content: Buffer; contentType: string }>
+  messageId?: string
 }) {
+  if (process.env.EMAIL_TEST_ONLY === 'true' && !/^[^@<>\s,]+@[^@<>\s,]+\.invalid$/.test(to)) throw new Error('Mode recette : destinataire .invalid obligatoire.')
   const expediteur = from?.trim() || process.env.EMAIL_FROM?.trim()
   const replyTo = process.env.EMAIL_REPLY_TO?.trim() || 'contact@n8nautomatisations.org'
   if (!expediteur) throw new EmailNotConfiguredError()
@@ -139,11 +149,13 @@ export async function sendEmail({
       subject,
       html: html || '<p></p>',
       replyTo,
+      messageId,
+      attachments,
     }))
     if (!info.messageId || (info.rejected?.length ?? 0) > 0) {
       throw new Error(`Zoho SMTP n’a pas confirmé l’envoi${info.rejected?.length ? ` à ${info.rejected.join(', ')}` : ''}`)
     }
-    return { id: info.messageId, provider: 'zoho-smtp' as const, disabled: false as const }
+    return { id: info.messageId, provider: 'smtp' as const, disabled: false as const }
   }
 
   const apiKey = process.env.RESEND_API_KEY?.trim()
@@ -156,12 +168,15 @@ export async function sendEmail({
     subject,
     html: html || '<p></p>',
     reply_to: replyTo,
+    ...(attachments ? { attachments: attachments.map(a => ({ filename: a.filename, content: a.content })) } : {}),
+    ...(messageId ? { headers: { 'Message-ID': messageId } } : {}),
   })
   if (error || !data?.id) {
     throw new Error(error?.message || 'Le fournisseur email n’a pas confirmé l’envoi')
   }
   return { id: data.id, provider: 'resend' as const, disabled: false as const }
 }
+export function closeEmailTransport() { resetSmtpTransporter() }
 
 // --- Layout commun pour tous les emails ---
 function layout(inner: string, preheader = ''): string {
