@@ -47,6 +47,10 @@ export interface Invoice {
   issuedAt?: string | null
   serviceDate?: string | null
   documentMode?: 'AUTO' | 'COMPLETE'
+  priceBasis?: 'HT' | 'TTC'
+  discountCents?: number
+  sourcePosSaleId?: string | null
+  sourceReceipt?: { number: number; confirmation: 'manual_declaration'; tipCents: number; charityCents: number } | null
   issuedPdfHash?: string | null
   subtotal: number
   taxAmount: number

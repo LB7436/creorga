@@ -14,6 +14,7 @@ import { toastError, toastSuccess } from '@/lib/toast'
 import { totalsFromHt } from '@/lib/money'
 import api from '@/lib/api'
 import { useAuthStore } from '@/stores/authStore'
+import ReceiptInvoiceCreator from '@/components/invoices/ReceiptInvoiceCreator'
 
 const euro = new Intl.NumberFormat('fr-LU', { style: 'currency', currency: 'EUR' })
 const statuses: InvoiceStatus[] = ['DRAFT', 'SENT', 'PAID', 'OVERDUE', 'CANCELLED']
@@ -37,6 +38,9 @@ export default function FacturesPage() {
   const updateStatus = useUpdateInvoiceStatus()
   const actorId = useAuthStore(state => state.user?.id)
   const companyId = useAuthStore(state => state.companyId)
+  const role = useAuthStore(state => state.companies?.find(c => c.companyId === state.companyId)?.role)
+  const receiptId = new URLSearchParams(window.location.search).get('receipt') || ''
+  const [receiptCreatorOpen, setReceiptCreatorOpen] = useState(Boolean(receiptId))
 
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<InvoiceStatus | 'ALL'>('ALL')
@@ -185,6 +189,7 @@ export default function FacturesPage() {
         </div>
         <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
           <button type="button" onClick={exportInvoices} disabled={filtered.length === 0} style={secondaryButton}><Download size={17} /> Exporter</button>
+          {['OWNER', 'MANAGER'].includes(role || '') && <button type="button" onClick={() => setReceiptCreatorOpen(true)} style={secondaryButton}>Depuis un ticket de caisse</button>}
           <button type="button" onClick={() => setCreatorOpen(true)} style={primaryButton}><Plus size={18} /> Nouvelle facture</button>
         </div>
       </header>
@@ -223,7 +228,7 @@ export default function FacturesPage() {
                   <td style={tableCell}>{new Date(invoice.createdAt).toLocaleDateString('fr-LU')}</td>
                   <td style={tableCell}>
                     <select value={invoice.status} onChange={(event) => changeStatus(invoice, event.target.value as InvoiceStatus)} aria-label={`Statut de ${invoice.number}`} style={{ ...statusColor[invoice.status], border: 0, borderRadius: 999, padding: '6px 10px', fontSize: 12, fontWeight: 750 }}>
-                      {statuses.map((status) => <option key={status} value={status}>{statusLabel[status]}</option>)}
+                      {statuses.filter(status => !invoice.sourcePosSaleId || ['DRAFT', 'PAID', 'CANCELLED'].includes(status)).map((status) => <option key={status} value={status}>{invoice.sourcePosSaleId && status === 'PAID' ? 'Émise — règlement déclaré en caisse' : statusLabel[status]}</option>)}
                     </select>
                   </td>
                   <td style={tableCell}><strong>{euro.format(invoice.total)}</strong></td>
@@ -234,6 +239,8 @@ export default function FacturesPage() {
           </div>
         )}
       </section>
+
+      {receiptCreatorOpen && ['OWNER', 'MANAGER'].includes(role || '') && <ReceiptInvoiceCreator initialTicket={receiptId} onClose={() => setReceiptCreatorOpen(false)} onCreated={invoice => { setReceiptCreatorOpen(false); setDetail(invoice); void refetch() }} />}
 
       {creatorOpen && (
         <div role="dialog" aria-modal="true" aria-label="Nouvelle facture" style={overlay} onMouseDown={() => setCreatorOpen(false)}>
@@ -290,11 +297,12 @@ export default function FacturesPage() {
             </div>
             <p style={{ color: '#64748b' }}>{detail.customer ? detail.customer.businessName || `${detail.customer.firstName} ${detail.customer.lastName}` : 'Sans client lié'} · {statusLabel[detail.status]}</p>
             <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr>{['Description', 'Qté', 'Prix HT', 'TVA'].map((heading) => <th key={heading} style={tableHead}>{heading}</th>)}</tr></thead>
+              <thead><tr>{['Description', 'Qté', detail.priceBasis === 'TTC' ? 'Prix TTC' : 'Prix HT', 'TVA'].map((heading) => <th key={heading} style={tableHead}>{heading}</th>)}</tr></thead>
               <tbody>{detail.items.map((line, index) => <tr key={line.id || index} style={{ borderTop: '1px solid #f1f5f9' }}><td style={tableCell}>{line.description}</td><td style={tableCell}>{line.quantity}</td><td style={tableCell}>{euro.format(line.unitPrice)}</td><td style={tableCell}>{line.taxRate}%</td></tr>)}</tbody>
             </table></div>
             <div style={{ marginTop: 16, textAlign: 'right' }}><div>HT : {euro.format(detail.subtotal)}</div><div>TVA : {euro.format(detail.taxAmount)}</div><strong style={{ display: 'block', marginTop: 5, fontSize: 20 }}>TTC : {euro.format(detail.total)}</strong></div>
             {detail.notes && <p style={{ padding: 12, borderRadius: 10, background: '#f8fafc', whiteSpace: 'pre-wrap' }}>{detail.notes}</p>}
+            {detail.sourcePosSaleId && <p>Ticket n° {detail.sourceReceipt?.number} : règlement déclaré en caisse, pas de confirmation bancaire automatique. Cette facture ne crée aucune nouvelle vente. Pourboires et dons exclus. {detail.discountCents ? `Remise historique : ${euro.format(detail.discountCents / 100)}.` : ''}</p>}
             <p style={{ fontSize: 13, color: '#64748b' }}>{detail.issuedAt ? 'Le PDF A4 original est figé. Les formats thermiques reprennent son contenu historique.' : detail.status === 'DRAFT' ? 'Aperçu de brouillon : émettre avant de communiquer la facture.' : 'Ancien document : copie reconstituée, original historique non prouvé.'}</p>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 18 }}>{(['A4', '58', '80'] as const).map(format => <button key={format} type="button" onClick={() => void downloadDocument(detail, format)} style={primaryButton}><Download size={17} /> PDF {format === 'A4' ? 'A4' : `${format} mm`}</button>)}</div>
             {detail.issuedAt && detail.status !== 'CANCELLED' && <section style={{ marginTop: 20 }}>

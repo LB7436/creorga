@@ -36,6 +36,17 @@ const NOM_METHODE: Record<string, string> = {
 export default function JournalPage({ onExit }: { onExit: () => void }) {
   const ventes = usePOS(s => s.ventes)
   const clotures = usePOS(s => s.clotures)
+  const role = usePOS(s => s.currentStaff?.role)
+  // Sans URL de gestion configurée, seul le laboratoire local connaît son port.
+  const backoffice = import.meta.env.VITE_BACKOFFICE_URL || (['localhost', '127.0.0.1'].includes(window.location.hostname) ? `${window.location.protocol}//${window.location.hostname}:5174` : '')
+  const invoiceUrl = (id: string) => {
+    try {
+      const url = new URL('/invoices/factures', backoffice)
+      if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname))) return null
+      url.searchParams.set('receipt', id)
+      return url.href
+    } catch { return null }
+  }
   const [closing, setClosing] = useState(false)
   const [confirmation, setConfirmation] = useState(false)
   const [ticket, setTicket] = useState<Cloture | null>(null)
@@ -149,6 +160,7 @@ export default function JournalPage({ onExit }: { onExit: () => void }) {
                   {heure(v.horodatage)} · {NOM_METHODE[v.methode] || v.methode} · {v.vendeur}
                   {v.pourboire > 0 && ` · pourboire ${euro(v.pourboire)}`}
                 </div>
+                {['OWNER', 'MANAGER'].includes(role || '') && invoiceUrl(v.id) && <a href={invoiceUrl(v.id)!} aria-label={`Facture société du ticket ${v.numero}`} style={{ color: '#a5b4fc', display: 'inline-block', padding: '10px 0', fontSize: 13 }}>Facture société →</a>}
               </div>
               <div style={{ fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap' }}>{euro(v.total)}</div>
             </motion.div>

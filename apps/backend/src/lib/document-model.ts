@@ -5,9 +5,10 @@ export class DocumentValidationError extends Error {
   constructor(public fields: string[]) { super(`Complétez ou corrigez avant émission : ${fields.join(', ')}.`) }
 }
 export function invoiceDocument(invoice: any, issuedAt?: Date): PrintableInvoice {
-  const profile = invoice.company.legalProfile || {}
-  const company: Party = { name: invoice.company.name, legalName: invoice.company.legalName, address: invoice.company.address,
-    vatNumber: invoice.company.vatNumber, email: invoice.company.email,
+  const issuer = invoice.sourcePosSaleId ? invoice.sourceReceipt.issuer : invoice.company
+  const profile = issuer.legalProfile || {}
+  const company: Party = { name: issuer.name, legalName: issuer.legalName, address: issuer.address,
+    vatNumber: issuer.vatNumber, email: issuer.email,
     ...Object.fromEntries(['legalForm', 'rcsNumber', 'authorizationNumber', 'profession', 'legalMention', 'rcsExemptionReason'].map(key => [key, profile[key] || undefined])) }
   const lines = invoice.items.map((i: any) => ({ price: i.unitPrice, qty: i.quantity, taxRate: i.taxRate }))
   const amounts = invoice.priceBasis === 'TTC' ? totalsFromTtc(lines, invoice.discountCents || 0) : totalsFromHt(lines)
@@ -25,11 +26,12 @@ export function invoiceDocument(invoice: any, issuedAt?: Date): PrintableInvoice
     if (amounts.baseCents !== moneyMinor(invoice.subtotal) || amounts.taxCents !== moneyMinor(invoice.taxAmount) || amounts.totalCents !== moneyMinor(invoice.total)) fields.push('recalcul du brouillon selon la ventilation par taux')
     if (fields.length) throw new DocumentValidationError(fields)
   }
-  return { version: 1, number: invoice.number, status: issuedAt ? 'SENT' : invoice.status, createdAt: (issuedAt || invoice.createdAt).toISOString(),
+  const sourceNote = invoice.sourcePosSaleId ? `Ticket de caisse n° ${invoice.sourceReceipt.number} — règlement déclaré en caisse, sans nouvelle demande de paiement ni vérification bancaire automatique. Pourboire ${invoice.sourceReceipt.tipCents / 100} ${invoice.currency} et don ${invoice.sourceReceipt.charityCents / 100} ${invoice.currency} exclus du montant facturé.` : ''
+  return { version: 1, number: invoice.number, status: issuedAt ? (invoice.sourcePosSaleId ? 'PAID' : 'SENT') : invoice.status, createdAt: (issuedAt || invoice.createdAt).toISOString(),
     dueDate: invoice.dueDate?.toISOString(), serviceDate: invoice.serviceDate?.toISOString(), company,
     customer: invoice.customer ? { firstName: invoice.customer.firstName, lastName: invoice.customer.lastName, businessName: invoice.customer.businessName,
       address: invoice.customer.address, vatNumber: invoice.customer.vatNumber, email: invoice.customer.email } : null,
     currency: invoice.currency || 'EUR', priceBasis: invoice.priceBasis || 'HT', discountCents: invoice.discountCents || 0,
-    subtotal: invoice.subtotal, taxAmount: invoice.taxAmount, total: invoice.total, taxGroups: amounts.groups, notes: invoice.notes,
+    subtotal: invoice.subtotal, taxAmount: invoice.taxAmount, total: invoice.total, taxGroups: amounts.groups, notes: [sourceNote, invoice.notes].filter(Boolean).join('\n') || null,
     items: invoice.items.map((i: any) => ({ description: i.description, quantity: i.quantity, unitPrice: i.unitPrice, taxRate: i.taxRate, taxReason: i.taxReason })) }
 }

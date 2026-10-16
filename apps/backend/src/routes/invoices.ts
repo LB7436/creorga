@@ -10,6 +10,7 @@ import { totalsFromHt } from '../lib/money'
 import { invoiceDocument, DocumentValidationError } from '../lib/document-model'
 import { enqueueInvoice, processInvoiceDeliveries, deliveryDto, DeliveryError } from '../lib/invoice-delivery'
 import { z } from 'zod'
+import { receiptInvoiceData, ReceiptInvoiceError } from '../lib/receipt-invoice'
 
 const router = Router()
 router.use((req, res, next) => {
@@ -245,6 +246,49 @@ router.post('/quotes/:id/convert', async (req: any, res: Response) => {
 
 // ─── INVOICES ─────────────────────────────────────────
 
+router.get('/pos-receipts', requireRole('OWNER', 'MANAGER'), async (req: any, res) => {
+  try {
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 100) : ''
+    if (search && !/^\d+$/.test(search)) return res.status(400).json({ message: 'Recherchez par numéro de ticket.' })
+    const number = search ? Number(search) : undefined
+    if (number !== undefined && (!Number.isSafeInteger(number) || number > 2147483647)) return res.status(400).json({ message: 'Numéro de ticket invalide.' })
+    const sales = await prisma.posSale.findMany({ where: { companyId: req.companyId, ...(number !== undefined ? { number } : {}) },
+      orderBy: { number: 'desc' }, take: 100, include: { invoice: { select: { id: true, number: true } } } })
+    res.set('Cache-Control', 'private, no-store').json(sales.map(s => ({ id: s.id, number: s.number, createdAt: s.createdAt,
+      tableName: (s.snapshot as any)?.tableName || '', invoice: s.invoice })))
+  } catch { res.status(503).json({ message: 'Tickets indisponibles.' }) }
+})
+
+router.post('/from-pos/:saleId', async (req: any, res) => {
+  try {
+    const input = z.object({ customerId: z.string().min(1).max(200) }).strict().parse(req.body)
+    const result = await createAvecNumero(req.companyId, 'INV', number => prisma.$transaction(async tx => {
+      // Même ticket = une seule pièce, y compris après perte de réponse ou clôture du journal.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${req.companyId}), hashtext(${`receipt-invoice:${req.params.saleId}`}))::text`
+      const sale = await tx.posSale.findFirst({ where: { id: req.params.saleId, companyId: req.companyId } })
+      if (!sale) throw new ReceiptInvoiceError(404, 'Ticket introuvable dans cette société.')
+      const customer = await tx.customer.findFirst({ where: { id: input.customerId, companyId: req.companyId } })
+      if (!customer) throw new ReceiptInvoiceError(400, 'Le client n’appartient pas à cette société.')
+      if (!customer.businessName?.trim() || !customer.address?.trim()) throw new ReceiptInvoiceError(422, 'Complétez le nom de société et l’adresse du client avant de créer la facture.')
+      const existing = await tx.invoice.findUnique({ where: { sourcePosSaleId: sale.id }, include: { customer: true, items: true } })
+      if (existing) {
+        if (existing.customerId !== customer.id) throw new ReceiptInvoiceError(409, 'Ce ticket possède déjà une facture pour un autre client. Consultez la pièce existante.')
+        return { invoice: existing, created: false }
+      }
+      const data = receiptInvoiceData(sale)
+      const invoice = await tx.invoice.create({ data: { ...data, companyId: req.companyId, number, customerId: customer.id }, include: { customer: true, items: true } })
+      return { invoice, created: true }
+    }, { maxWait: 15000, timeout: 15000 }))
+    res.status(result.created ? 201 : 200).json(invoiceDto(result.invoice))
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ message: 'Choisissez un client société. Les lignes et montants viennent uniquement du ticket.' })
+    if (error instanceof ReceiptInvoiceError) return res.status(error.status).json({ message: error.message })
+    if (error instanceof NumerotationIndisponibleError) return res.status(503).json({ message: error.message })
+    logger.warn('[documents] création depuis ticket non confirmée')
+    res.status(503).json({ message: 'Création non confirmée : réessayez avec le même ticket, sans créer une facture manuelle en doublon.' })
+  }
+})
+
 router.get('/', async (req: any, res: Response) => {
   try {
     const { status, customerId, startDate, endDate } = req.query
@@ -338,6 +382,7 @@ router.put('/:id', async (req: any, res: Response) => {
     const existing = await prisma.invoice.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Facture non trouvée' }); return }
     if (existing.status !== 'DRAFT') return res.status(409).json({ message: 'Seule une facture brouillon peut être modifiée. Une facture émise doit être conservée.' })
+    if (existing.sourcePosSaleId && Object.keys(req.body).some(key => !['customerId', 'dueDate', 'notes'].includes(key))) return res.status(409).json({ message: 'Les lignes, dates et montants issus du ticket sont figés. Seuls client, échéance et notes restent modifiables avant émission.' })
     const { customerId, dueDate, notes, items, serviceDate, documentMode } = req.body
     if (documentMode !== undefined && !['AUTO', 'COMPLETE'].includes(documentMode)) return res.status(400).json({ message: 'Mode de document invalide.' })
     if (!(await validateCustomer(req.companyId, customerId))) { res.status(400).json({ message: "Le client n'appartient pas à cette entreprise" }); return }
@@ -377,6 +422,7 @@ router.put('/:id/status', async (req: any, res: Response) => {
     }
     const existing = await prisma.invoice.findFirst({ where: { id: req.params.id, companyId: req.companyId }, include: { company: true, customer: true, items: true } })
     if (!existing) { res.status(404).json({ message: 'Facture non trouvée' }); return }
+    if (existing.sourcePosSaleId && !['DRAFT', 'PAID', 'CANCELLED'].includes(req.body.status)) return res.status(409).json({ message: 'Cette vente a déjà un règlement déclaré en caisse. Émettez la facture avec ce statut, sans nouvelle créance.' })
     if (!invoiceTransitionAllowed(existing.status, req.body.status)) {
       return res.status(409).json({ message: 'Transition refusée : une facture payée ou annulée ne peut pas redevenir un brouillon.' })
     }

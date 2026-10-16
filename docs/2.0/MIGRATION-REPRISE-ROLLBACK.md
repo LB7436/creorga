@@ -22,6 +22,9 @@ Migrations supplémentaires appliquées uniquement aux copies locale et fictive 
 - `20261016140000_hr_document_integrity` : empreinte nullable et suppression en attente des pièces RH.
   Les anciens fichiers ne reçoivent pas de preuve d'intégrité inventée. L'ancien code pourrait
   rouvrir une pièce retirée ; désactiver ses routes RH en cas de retour, garder les tombstones.
+- `20261016150000_receipt_invoice_link` : facture unique par ticket, clé étrangère société/ticket,
+  profil historique de provenance. Ne retirer aucun lien pour recréer un document. L'ancien code
+  n'impose pas l'immutabilité financière de ces brouillons : ne pas le remettre en écriture dessus.
 
 Ces évolutions sont additives. Le code précédent ne sait pas rapprocher toutes les nouvelles
 affectations : revenir au vieux code avec des tentatives actives constitue un retour dangereux.
@@ -47,3 +50,6 @@ Reprise native du 16 octobre : archive v2 chiffrée, déchiffrée, restaurée da
 59 tables, six fichiers et deux PDF égaux. Ancien outil Docker durci : extraction en flux contrôlée,
 UUID exclusifs, `pg_restore --exit-on-error --single-transaction`, erreurs expurgées, nettoyage des
 seules ressources créées. Ses 18 tests simulent Docker ; ils ne prouvent pas une exécution Docker.
+
+Dernière reprise native après lot ticket/facture : 59 tables, huit fichiers (dont RH) et trois
+originaux PDF égaux. Chiffrement vérifié ; 1 529 ms sur cette copie, sans engagement de RTO.

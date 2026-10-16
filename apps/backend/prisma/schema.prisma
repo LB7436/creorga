@@ -388,6 +388,8 @@ model PosSale {
   createdAt DateTime @default(now())
   company   Company  @relation(fields: [companyId], references: [id])
   covers    PosCoverPayment[]
+  invoice   Invoice?
+  @@unique([companyId, id])
   @@unique([companyId, number])
   @@index([companyId, closedId])
 }
@@ -521,6 +523,8 @@ model Invoice {
   pdfUrl     String?
   notes      String?
   orderId    String?
+  sourcePosSaleId String? @unique
+  sourceReceipt Json?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
@@ -528,10 +532,12 @@ model Invoice {
   customer Customer?     @relation(fields: [customerId], references: [id])
   items    InvoiceItem[]
   deliveries InvoiceDelivery[]
+  sourcePosSale PosSale? @relation(fields: [companyId, sourcePosSaleId], references: [companyId, id], onDelete: Restrict, map: "Invoice_sourcePosSale_fkey")
 
   // Numérotation séquentielle unique : obligation légale de facturation.
   @@unique([companyId, number])
   @@unique([companyId, id])
+  @@unique([companyId, sourcePosSaleId])
   @@index([companyId, status])
 }
 

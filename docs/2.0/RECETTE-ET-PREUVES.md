@@ -2,6 +2,16 @@
 
 ## Référence du 16 octobre 2026
 
+Dernier lot : **384 unités et 82 intégrations PostgreSQL**, tous réussis. Backend, web et POS
+compilés ; avertissement de taille de bundle POS conservé. Neuf intégrations ticket/facture,
+dont vingt demandes concurrentes et contraintes SQL. Chrome neuf : **douze observations**,
+journal → connexion → ticket conservé, facture unique, TTC correctement affiché, trois PDF,
+rechargement, journal/clôtures inchangés. Première émission puis relecture effectuées.
+Nouvelle restauration : **59 tables, huit fichiers et trois PDF** identiques, AES-GCM vérifié,
+1 529 ms sur cette petite copie (pas un RTO). Voir `FACTURE-DEPUIS-TICKET.md`.
+
+Les références suivantes décrivent les étapes précédentes, pas des résultats supplémentaires à additionner.
+
 Complément RH : **384 unités** (258 backend, 80 web, 46 POS) et **73 intégrations**, tous réussis.
 Backend et web recompilés après ce complément ; les trois autres fronts sont inchangés depuis
 leur compilation réussie ci-dessous. Huit intégrations RH : fuite d'annuaire reproduite puis

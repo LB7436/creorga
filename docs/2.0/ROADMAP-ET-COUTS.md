@@ -6,7 +6,7 @@ Pas de date certaine : le calendrier exige matériel, prestataires, volumétrie 
 |---|---|---|
 | P0 reprise | Données récupérables | Reprise v2 et restaurateur durcis ; export navigateur testé, profils réels et rapprochement métier complet restants |
 | P0 intégrité | Moins de doubles écritures | Prix POS figés, visites révocables et sessions web/POS isolées ; unification salle/commandes et qualification globale des stores restantes |
-| P1 caisse | Commande jusqu'à justificatif et clôture | Paiements partiels, facture depuis ticket, avoirs, impression et établissement pilote |
+| P1 caisse | Commande jusqu'à justificatif et clôture | Facture depuis reçu POS v2 testée localement ; restent paiements partiels, anciens reçus, avoirs, impression et établissement pilote |
 | P1 PayPal | Capture rapprochée | Contrat simulé testé ; sandbox réel et compte marchand à qualifier |
 | P2 exploitation | Stock, RH, QR, HACCP et gestion | Migrations multi-locataires et parcours des boutons |
 | P3 vidéo | Consultation autorisée | Zones/finalités validées, matériel, ressources et protections |

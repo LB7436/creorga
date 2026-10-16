@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -95,6 +95,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [engagementIdx, setEngagementIdx] = useState(0)
   const navigate = useNavigate()
+  const location = useLocation()
   const setAuth = useAuthStore((s) => s.setAuth)
 
   useEffect(() => {
@@ -153,7 +154,11 @@ export default function Login() {
       const { accessToken, user, companies } = res.data
       setAuth({ accessToken, user, companies })
       toast.success(mode === 'register' ? 'Votre espace Creorga est prêt !' : `Bienvenue ${user.firstName} !`, { icon: '🎉' })
-      navigate(mode === 'register' ? '/setup' : '/welcome')
+      // Retour volontairement limité à ce parcours interne, jamais une URL externe.
+      const from = location.state?.from
+      const receipt = from?.pathname === '/invoices/factures' && typeof from.search === 'string' ? new URLSearchParams(from.search).get('receipt') : null
+      const target = receipt && receipt.length <= 200 ? `/invoices/factures?receipt=${encodeURIComponent(receipt)}` : '/welcome'
+      navigate(mode === 'register' ? '/setup' : target, { replace: true })
     } catch (err: any) {
       toast.error(err?.response?.data?.message || err?.response?.data?.error || (mode === 'register' ? 'Inscription impossible' : 'Identifiants incorrects'))
     }

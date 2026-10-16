@@ -73,6 +73,12 @@ restent non validés. Voir les preuves datées et limites dans `RECETTE-ET-PREUV
 
 ## Documents à actualiser
 
+Complément du 16 octobre : le parcours ticket POS → facture société est désormais implémenté
+pour les reçus v2 cohérents. Neuf tests d'intégration PostgreSQL et douze observations Chrome
+vérifient son unicité et la conservation des montants sans nouvelle vente. Les anciennes pièces
+incomplètes, avoirs et qualifications comptables restent hors validation. Voir
+`FACTURE-DEPUIS-TICKET.md` et la référence actuelle dans `CHECKPOINT.md`.
+
 `STRUCTURE.md` et `RAPPORT-AUDIT.md` décrivent une époque antérieure au PDF et au dump.
 `CLAUDE.md` annonce que superadmin n'est pas un workspace et que les fronts n'ont pas de tests,
 alors que le manifeste actuel inclut superadmin et des tests web/POS.

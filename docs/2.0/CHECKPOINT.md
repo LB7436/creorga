@@ -7,6 +7,7 @@ Mission en cours. **Pas de qualification de production ni de recette complète T
 - Copie source `creorga-2.0`, branche `codex/creorga-2-0-2026-10-08`.
 - Départ `350b35120f44d2508d863a3a73f644eb0aa6b141` ; premiers commits `8682053`, `0775b0f`.
 - Lot documents/intégrité/reprise `86a6a7a` ; lot du 16 octobre `d2da7b6`, publiés sur la branche dédiée.
+- Complément RH `5605ec6` publié ; le lot suivant relie ticket et facture (voir historique de cette branche).
 - `origin/master` contrôlé le 16 octobre : SHA de départ, préservée ; branche 2.0 poussée sur GitHub.
 - Windows, Node 22.19.0, PostgreSQL portable 16.15 sur loopback 5450 ; Prisma 5.22.
 - Laboratoire privé `local-2.0` adjacent au dépôt : secrets et données exclus de Git.
@@ -22,15 +23,16 @@ Les modifications se font dans `creorga_local` et les fixtures dans `creorga_tes
 
 Restauration courante exécutée applications arrêtées : archive v2, copie chiffrée AES-GCM,
 déchiffrement identique, nouvelle base, comparaison des **59 tables**, huit fichiers métier et
-deux originaux PDF émis. Empreintes PDF vérifiées. Médias absents de cette copie, état explicitement
+trois originaux PDF émis, dont la facture liée au ticket. Empreintes PDF vérifiées. Médias absents de cette copie, état explicitement
 consigné ; leur inclusion est couverte par tests dédiés. Preuve privée `RESTORATION-2.0.json`.
-Durée de cette copie avec deux pièces RH le 16 octobre : 1 503 ms, pas un RTO. Clé séparée du chiffré.
+Durée de cette copie le 16 octobre : 1 529 ms, pas un RTO. Clé séparée du chiffré.
 La rétention normale a supprimé un ancien dump de la copie de travail ; originaux préservés.
 
 Migrations additives appliquées uniquement aux copies : journal POS `20260905220000`,
 tentatives `20261008130000`, règlements `20261008143000`, affectations `20261008153000`,
 documents émis `20261008163000`, envois de facture `20261008173000`, visites `20261008190000`.
 Pièces RH `20261016140000_hr_document_integrity`, sans réécriture historique.
+Lien ticket/facture `20261016150000_receipt_invoice_link`, unicité et appartenance à la société.
 
 ## Implémenté et vérifié dans la copie
 
@@ -54,11 +56,13 @@ Pièces RH `20261016140000_hr_document_integrity`, sans réécriture historique.
   d'utilisateur/société ; références anciennes conservées dans leur ancien périmètre.
 - RH : fuite du profil complet par `/hr/team` corrigée. Création exclusive des fichiers, fsync,
   empreinte, téléchargement contrôlé, suppression incomplète conservée et reprise visible.
+- Ticket → facture société unique : prix TTC, remise, taux et émetteur historiques, hors pourboire/don ;
+  aucune nouvelle vente ni encaissement. Journal → connexion → ticket vérifié. Voir `FACTURE-DEPUIS-TICKET.md`.
 
 Référence du 16 octobre : **384 unités** (258 backend, 80 web, 46 POS) et
-**73 intégrations PostgreSQL** réussies. Prestataires bancaires simulés ; SMTP local.
+**82 intégrations PostgreSQL** réussies, dont neuf ticket/facture. Prestataires bancaires simulés ; SMTP local.
 Les cinq applications compilent. Chrome neuf : dix observations QR, six caisse/prix et quinze
-export navigateur et neuf RH réussies. Les treize contrôles facture sont datés du 8 octobre. Aucun résultat
+export navigateur, neuf RH et douze ticket/facture réussies. Les treize contrôles facture HT sont datés du 8 octobre. Aucun résultat
 ne vaut impression physique ou paiement bancaire. Voir `RECETTE-ET-PREUVES.md`.
 
 Audit dépendances : zéro alerte de production connue ; onze alertes restantes de développement.
@@ -69,7 +73,7 @@ Voir `DEPENDANCES-ET-LIMITES.md`. Pas de certification de sécurité.
 - Unification transactionnelle des sessions/lignes POS natives avec commandes et visites QR.
 - Export T04 des anciennes ventes navigateur et qualification des stores persistants.
 - Clôture et rapprochement comptable complets ; restauration Docker réelle non exécutée.
-- Ticket vers facture sans recréer une vente, avoirs, paiements partiels/remboursements complets.
+- Qualification des justificatifs historiques incomplets, avoirs, paiements partiels/remboursements complets.
 - Qualification des connecteurs, résolution des paiements manuels incertains, journal financier.
 - Impression physique, tiroir, panne électrique, réseau durant service, terminal et PayPal sandbox réel.
 - Ensemble des parcours métier/UI, accessibilité ; cent scénarios non tous exécutés.
@@ -83,6 +87,6 @@ de test sur une base d'exploitation. Depuis le dossier parent : `node local-2.0/
 Les scripts privés lisent leur configuration sans afficher les secrets. Vérificateur partageable :
 `scripts/verify-restored-copy.mjs` avec son guide.
 
-Prochaine action : enregistrer le complément RH testé, puis lien ticket/facture unique,
-avoirs, paiements partiels et recette des clôtures. L'export réel T04 exige les origines/profils
+Prochaine action : avoirs traçables, paiements partiels et recette des clôtures, sans réécriture des ventes.
+L'export réel T04 exige les origines/profils
 historiques ; aucun de ces profils n'a été ouvert ou modifié par les tests.

@@ -46,7 +46,13 @@ conserve la référence, destinataire et empreinte du document ; acceptation SMT
 Les essais d'email sont limités au dialogue loopback et aux adresses fictives autorisées.
 
 Restent : paiements partiels persistants, paiement en ligne de couverts POS natifs, remboursements,
-commissions, conversion ticket vers facture unique, avoirs et onboarding multicommerçant.
+commissions, avoirs et onboarding multicommerçant.
 Les prix et taux POS ouverts sont désormais figés côté serveur, y compris après modification de
 catalogue et reconnexion. Les lignes anciennes incomplètes exigent une revue tracée. L'émission
 du crédit cadeau ne possède pas encore un livre comptable complet. Aucun historique n'est réécrit.
+
+Lot du 16 octobre : facture unique depuis un reçu POS v2, sans nouvelle vente/commande/règlement.
+TTC, remise et ventilation contrôlés ; pourboire/don exclus ; émetteur historique conservé.
+Le statut et le PDF précisent le règlement déclaré en caisse, pas une capture bancaire vérifiée.
+Neuf intégrations et douze observations navigateur réussies. Limites : anciens reçus incomplets,
+avoirs/corrections et validation comptable. Voir `FACTURE-DEPUIS-TICKET.md`.

@@ -5,7 +5,7 @@
 | ID | Priorité | Exigence | État actuel |
 |---|---|---|---|
 | T01 | P0 | installation neuve complète | Partiel : installation locale ; recette UI en cours |
-| T02 | P0 | restauration sur copie avec pièces jointes | Vérifié : 59 tables, 8 fichiers dont RH, 2 PDF intègres ; médias absents déclarés |
+| T02 | P0 | restauration sur copie avec pièces jointes | Vérifié : 59 tables, 8 fichiers dont RH, 3 PDF intègres ; médias absents déclarés |
 | T03 | P0 | migration de la copie ancienne | Migrations additives appliquées à une copie |
 | T04 | P0 | export d’anciennes ventes navigateur sans perte | Outil chiffré testé sur fixtures localStorage/IndexedDB/caches ; export des profils réels restant |
 | T05 | P0 | refus d’accès intersociétés | Paiements, commandes, visites et documents testés ; réponses tardives web/POS isolées ; périmètre global partiel |
@@ -36,7 +36,7 @@
 | T30 | P1 | remise répartie | Calcul exact testé, dont ventilation fiscale du rapport ; parcours complet à recetter |
 | T31 | P1 | avoir partiel | À implémenter ou à recetter |
 | T32 | P1 | acompte puis solde | À implémenter ou à recetter |
-| T33 | P1 | facture complète depuis ticket sans double vente | À implémenter ou à recetter |
+| T33 | P1 | facture complète depuis ticket sans double vente | Implémenté pour reçus POS v2 cohérents ; 9 intégrations et 12 observations navigateur ; validation comptable/anciens reçus restante |
 | T34 | P1 | changement ultérieur de fiche société sans modification du document historique | Testé : original A4 identique ; snapshot nouveau reçu POS testé |
 | T35 | P0 | numérotation concurrente sur au moins vingt demandes | Vingt créations concurrentes de factures testées sur PostgreSQL |
 | T36 | P1 | montant 99,99 €, 100 € et 100,01 € selon régime applicable | À implémenter ou à recetter |
