@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { usePOS, Cover, OrderItem, coverTotal, tableTotal, elapsed, MENU_CATEGORIES } from '../store/posStore'
 import { useEcranEtroit } from '../lib/ecran'
 import { api } from '../lib/server'
-import { flushFloor, moveTableServer } from '../lib/floorBridge'
+import { flushFloor, moveTableServer, separateServiceServer } from '../lib/floorBridge'
 
 interface Props {
   tableId: string
@@ -90,7 +90,6 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
   const setItemQty = usePOS(s => s.setItemQty)
   const setItemNote = usePOS(s => s.setItemNote)
   const removeItem = usePOS(s => s.removeItem)
-  const moveItemToCover = usePOS(s => s.moveItemToCover)
   const addCover = usePOS(s => s.addCover)
 
   const [activeCover, setActiveCover] = useState<string | null>(null)
@@ -106,6 +105,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
   const [showCuisine, setShowCuisine] = useState(false)
   const [showModifiers, setShowModifiers] = useState<string | null>(null)
   const [showTransfer, setShowTransfer] = useState(false)
+  const [showSeparateGroup, setShowSeparateGroup] = useState(false)
   const [showSplitItem, setShowSplitItem] = useState(false)
   const [showWeight, setShowWeight] = useState<string | null>(null)
 
@@ -363,7 +363,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
                         }}>{it.qty}</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, color: isOffered ? '#10b981' : '#e2e8f0', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            {it.name}
+                            <button aria-label={'Sélectionner la ligne ' + it.name} aria-pressed={isSelected} onClick={e => { e.stopPropagation(); setSelectedItemId(it.id) }} style={{ background: 'transparent', border: 0, color: 'inherit', font: 'inherit', textAlign: 'left', padding: '4px 0', minHeight: 28, cursor: 'pointer' }}>{it.name}</button>
                             {weight && <span style={{ fontSize: 10, color: '#38bdf8', fontWeight: 700 }}>· {weight}kg</span>}
                             {isOffered && <span style={{ fontSize: 9, background: 'rgba(16,185,129,0.15)', color: '#10b981', padding: '1px 6px', borderRadius: 6, fontWeight: 800, textTransform: 'uppercase' }}>Offert</span>}
                           </div>
@@ -454,6 +454,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
             <ActionBtn label="Cuisine" sub="F3" onClick={() => setShowCuisine(true)} />
             <ActionBtn label={onHold ? 'Reprise' : 'En attente'} onClick={() => setOnHold(!onHold)} color={onHold ? '#fbbf24' : undefined} />
             <ActionBtn label="Transfert" onClick={() => setShowTransfer(true)} />
+            <ActionBtn label="Séparer le groupe" onClick={() => { setOperationError(''); setShowSeparateGroup(true) }} />
             <ActionBtn label="Offrir" onClick={() => {
               if (!selectedItemId) { alert('Sélectionnez un article'); return }
               if (!['OWNER', 'MANAGER'].includes(usePOS.getState().currentStaff?.role || '')) { setOperationError('Connectez-vous comme responsable pour un geste commercial.'); return }
@@ -463,7 +464,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
                 return s
               })
             }} />
-            <ActionBtn label="Split item" onClick={() => setShowSplitItem(true)} />
+            <ActionBtn label="Séparer une ligne" onClick={() => { if (!selectedItemId) { setOperationError('Sélectionnez d’abord une ligne de commande.'); return }; setOperationError(''); setShowSplitItem(true) }} />
             <ActionBtn label="Historique" onClick={() => {
               const sales = [...usePOS.getState().ventes, ...usePOS.getState().clotures.flatMap(c => c.ventes)].filter(v => v.tableId === tableId)
               alert(sales.length ? sales.map(v => `Ticket n° ${v.numero} · ${new Date(v.horodatage).toLocaleString('fr-LU')} · ${fmt(v.total)} €`).join('\n') : 'Aucun règlement enregistré pour cette table.')
@@ -672,6 +673,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
         )}
         {showTransfer && (
           <TransferModal
+            error={operationError}
             tables={availableTables}
             onClose={() => setShowTransfer(false)}
             onConfirm={(toId) => {
@@ -681,14 +683,17 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
             }}
           />
         )}
+        {showSeparateGroup && currentCover && <TransferModal error={operationError} title="Séparer le groupe sélectionné" tables={availableTables} onClose={() => setShowSeparateGroup(false)}
+          onConfirm={toId => { void separateServiceServer({ kind: 'GROUP', fromTableId: tableId, intoTableId: toId, coverId: currentCover.id }).then(() => { setShowSeparateGroup(false); onBack() }).catch(e => setOperationError(e.message)) }} />}
         {showSplitItem && selectedItem && (
           <SplitItemModal
+            error={operationError}
             item={selectedItem}
-            covers={table.covers}
+            tables={tables.filter(t => !t.isMergedInto)} currentTableId={tableId}
             onClose={() => setShowSplitItem(false)}
-            onConfirm={(toCoverId) => {
-              moveItemToCover(tableId, selectedItem.id, toCoverId)
-              setShowSplitItem(false)
+            onConfirm={(intoTableId, intoCoverId, qty) => {
+              void separateServiceServer({ kind: 'LINES', fromTableId: tableId, intoTableId, coverId: selectedItem.coverId, ...(intoCoverId ? { intoCoverId } : {}), lines: [{ id: selectedItem.id, qty }] })
+                .then(() => { setShowSplitItem(false); setSelectedItemId(null) }).catch(e => setOperationError(e.message))
             }}
           />
         )}
@@ -761,6 +766,21 @@ function ModalShell({ onClose, title, icon, color, children, width = 460 }: {
   onClose: () => void; title: string; icon?: string; color?: string;
   children: React.ReactNode; width?: number
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const opener = useRef(typeof document === 'undefined' ? null : document.activeElement as HTMLElement | null)
+  useEffect(() => {
+    const node = dialogRef.current
+    if (!node) return
+    const siblings: Array<{ element: HTMLElement; inert: boolean }> = []
+    let branch: HTMLElement = node.parentElement!
+    while (branch?.parentElement) {
+      for (const other of Array.from(branch.parentElement.children)) if (other !== branch && other instanceof HTMLElement && !['SCRIPT', 'STYLE'].includes(other.tagName)) { siblings.push({ element: other, inert: other.inert }); other.inert = true }
+      if (branch.parentElement === document.body) break
+      branch = branch.parentElement
+    }
+    ;(node.querySelector<HTMLElement>('[autofocus],input,select,textarea,button') || node).focus()
+    return () => { for (const s of siblings) s.element.inert = s.inert; if (opener.current?.isConnected) opener.current.focus() }
+  }, [])
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -772,11 +792,21 @@ function ModalShell({ onClose, title, icon, color, children, width = 460 }: {
       }}
     >
       <motion.div
+        ref={dialogRef} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1}
+        onKeyDown={e => {
+          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose() }
+          if (e.key !== 'Tab') return
+          const nodes = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],[tabindex="0"]') || []).filter(el => el.offsetParent !== null)
+          const first = nodes[0], last = nodes[nodes.length - 1]
+          if (!first) { e.preventDefault(); dialogRef.current?.focus() }
+          else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus() }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+        }}
         initial={{ scale: 0.95, y: 10, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 10, opacity: 0 }}
         onClick={e => e.stopPropagation()}
         style={{
           background: '#0f0f17', border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: 16, padding: 20, width: `min(${width}px, 100%)`,
+          borderRadius: 16, padding: 20, width: `min(${width}px, 100%)`, boxSizing: 'border-box',
           maxHeight: '85vh', overflow: 'auto', color: '#e2e8f0',
         }}
       >
@@ -790,9 +820,9 @@ function ModalShell({ onClose, title, icon, color, children, width = 460 }: {
             }}>{icon}</div>
           )}
           <div style={{ fontSize: 15, fontWeight: 800, flex: 1, color: '#fff' }}>{title}</div>
-          <button onClick={onClose} style={{
-            background: 'transparent', border: 'none', color: '#64748b',
-            fontSize: 20, cursor: 'pointer', width: 28, height: 28, borderRadius: 6,
+          <button aria-label="Fermer la fenêtre" onClick={onClose} style={{
+            background: 'transparent', border: 'none', color: '#cbd5e1',
+            fontSize: 20, cursor: 'pointer', width: 36, height: 36, borderRadius: 6,
           }}>×</button>
         </div>
         {children}
@@ -974,9 +1004,10 @@ function ModifiersModal({ current, onClose, onConfirm }: { current: Modifier[]; 
   )
 }
 
-function TransferModal({ tables, onClose, onConfirm }: { tables: Array<{ id: string; name: string; section: string; covers?: Cover[] }>; onClose: () => void; onConfirm: (toId: string) => void }) {
+function TransferModal({ tables, onClose, onConfirm, title, error }: { tables: Array<{ id: string; name: string; section: string; covers?: Cover[] }>; onClose: () => void; onConfirm: (toId: string) => void; title?: string; error?: string }) {
   return (
-    <ModalShell onClose={onClose} title="Transférer ou fusionner" icon="⇄" color="#38bdf8">
+    <ModalShell onClose={onClose} title={title || 'Transférer ou fusionner'} icon="⇄" color="#38bdf8">
+      {error && <p role="alert" style={{ color: '#fecdd3' }}>{error}</p>}
       <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 12 }}>
         Sélectionnez la table de destination :
       </div>
@@ -994,7 +1025,7 @@ function TransferModal({ tables, onClose, onConfirm }: { tables: Array<{ id: str
             }}>
               <div>{t.name}</div>
               <div>{t.covers?.some(c => c.items.length) ? 'Fusionner — groupes QR séparés' : 'Transférer'}</div>
-              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{t.section}</div>
+              <div style={{ fontSize: 11, color: '#a9b8ce', marginTop: 2 }}>{t.section}</div>
             </button>
           ))}
         </div>
@@ -1003,29 +1034,20 @@ function TransferModal({ tables, onClose, onConfirm }: { tables: Array<{ id: str
   )
 }
 
-function SplitItemModal({ item, covers, onClose, onConfirm }: { item: OrderItem; covers: Cover[]; onClose: () => void; onConfirm: (toCoverId: string) => void }) {
-  const others = covers.filter(c => c.id !== item.coverId)
+function SplitItemModal({ item, tables, currentTableId, onClose, onConfirm, error }: { item: OrderItem; tables: Array<{ id: string; name: string; covers: Cover[] }>; currentTableId: string; onClose: () => void; onConfirm: (tableId: string, coverId: string | undefined, qty: number) => void; error?: string }) {
+  const [qty, setQty] = useState(item.qty)
+  const [destination, setDestination] = useState(currentTableId)
+  const [target, setTarget] = useState('')
+  const others = tables.find(t => t.id === destination)?.covers.filter(c => c.id !== item.coverId && !c.id.startsWith('guest:') && !c.id.startsWith('seat:')) || []
   return (
-    <ModalShell onClose={onClose} title="Envoyer l'article à un couvert" icon="✂" color="#818cf8">
+    <ModalShell onClose={onClose} title="Séparer une ligne" icon="✂" color="#818cf8">
+      {error && <p role="alert" style={{ color: '#fecdd3' }}>{error}</p>}
       <div style={{ fontSize: 13, color: '#e2e8f0', marginBottom: 4 }}>{item.name}</div>
-      <div style={{ fontSize: 11, color: '#64748b', marginBottom: 12 }}>Qté : {item.qty}</div>
-      {others.length === 0 ? (
-        <div style={{ padding: 20, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
-          Aucun autre couvert.
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {others.map(c => (
-            <button key={c.id} onClick={() => onConfirm(c.id)} style={{
-              padding: 10, borderRadius: 8, fontSize: 13, fontWeight: 700,
-              background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.25)',
-              color: '#cbd5e1', cursor: 'pointer', textAlign: 'left',
-            }}>
-              → {c.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <p>Prix et TVA conservés. QR, acomptes ou remises ambigus : refus explicite, aucune répartition automatique.</p>
+      <label>Quantité à déplacer <input type="number" min={1} max={item.qty} step={1} value={qty} onChange={e => setQty(Number(e.target.value))} /></label>
+      <label style={{ display: 'block', margin: '16px 0' }}>Table de destination <select value={destination} onChange={e => { setDestination(e.target.value); setTarget('') }}>{tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
+      <label>Groupe de destination <select value={target} onChange={e => setTarget(e.target.value)}><option value="">Nouveau groupe séparé</option>{others.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select></label>
+      <button style={{ padding: 14, marginTop: 20 }} disabled={!Number.isInteger(qty) || qty < 1 || qty > item.qty} onClick={() => onConfirm(destination, target || undefined, qty)}>Confirmer la séparation</button>
     </ModalShell>
   )
 }

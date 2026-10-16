@@ -5,7 +5,7 @@ export const cents = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 export class PosError extends Error {
   constructor(message: string, public status = 400) { super(message) }
 }
-const id = z.string().min(1).max(100)
+const id = z.string().min(1).max(100).refine(value => !['__proto__', 'constructor', 'prototype'].includes(value), 'Identifiant réservé')
 const finite = z.number().finite()
 export const coverSchema = z.object({
   id, label: z.string().max(100), paidAt: finite.optional(), paidMethod: z.enum(['cash', 'card', 'contactless']).optional(),

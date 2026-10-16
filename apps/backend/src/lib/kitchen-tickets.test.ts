@@ -29,4 +29,15 @@ describe('Tickets cuisine réels', () => {
     expect(floor.kitchenTickets.c1.createdAt).toBe(10)
     expect(Object.values(floor.kitchenTickets).some((t: any) => t.status === 'waiting' && t.items[0].qty === 1)).toBe(true)
   })
+  it('une portion supprimée après séparation produit une correction, mais un règlement ne retire pas la préparation', () => {
+    const floor: any = { kitchenBaselines: { fragment: [{ id: 'split-line', name: 'Café', qty: 1, note: 'Bar sans sucre' }] }, kitchenTickets: { original: { id: 'original', coverId: 'source', tableName: 'T3', status: 'ready', items: [{ id: 'line', name: 'Café', qty: 3, note: '' }], preserveAfterMove: true, routing: [{ coverId: 'fragment', tableName: 'T4' }] } } }
+    const settled = structuredClone(floor)
+    syncKitchenTickets(floor, [], 'owner', 20)
+    expect(Object.values(floor.kitchenTickets).filter((t: any) => t.status === 'waiting')).toEqual([expect.objectContaining({ items: [expect.objectContaining({ id: 'split-line', qty: -1, correction: true })] })])
+    syncKitchenTickets(floor, [], 'owner', 21)
+    expect(Object.keys(floor.kitchenTickets)).toHaveLength(2)
+    syncKitchenTickets(settled, [], 'owner', 20, new Set(['fragment']))
+    expect(Object.keys(settled.kitchenTickets)).toHaveLength(1)
+    expect(settled.kitchenTickets.original.status).toBe('ready')
+  })
 })

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/server'
 
-type Ticket = { id: string; tableName: string; coverLabel: string; status: string; createdAt: number; updatedAt: number; items: Array<{ id: string; name: string; qty: number; note: string }> }
+type Ticket = { id: string; tableName: string; coverLabel: string; status: string; createdAt: number; updatedAt: number; items: Array<{ id: string; name: string; qty: number; note: string }>; routing?: Array<{ tableName: string; coverLabel: string; name: string; qty: number }> }
 const columns = [{ id: 'waiting', label: 'À préparer', next: 'preparing', action: 'Commencer', color: '#fbbf24' }, { id: 'preparing', label: 'En préparation', next: 'ready', action: 'Marquer prêt', color: '#93c5fd' }, { id: 'ready', label: 'Prêt à servir', next: 'served', action: 'Marquer servi', color: '#86efac' }]
 
 /** Aucun ticket de démonstration : toutes les actions sont confirmées par le serveur. */
@@ -39,6 +39,7 @@ export default function KitchenDisplay({ onExit }: { onExit: () => void }) {
       {columns.map(column => <section key={column.id}><h2 style={{ color: column.color }}>{column.label}</h2>
         {tickets.filter(t => t.status === column.id && JSON.stringify([t.tableName, t.items]).toLocaleLowerCase().includes(query.toLocaleLowerCase())).map(ticket => <article key={ticket.id} style={{ border: '2px solid ' + column.color, borderRadius: 16, padding: 18, marginBottom: 18, background: '#152139' }}>
           <h3 style={{ marginTop: 0 }}>{ticket.tableName} · {ticket.coverLabel}</h3>
+          {ticket.routing && <div role="note"><strong>Routage après séparation — ne pas préparer une seconde fois</strong><ul>{ticket.routing.map((r, i) => <li key={i}>{r.qty} × {r.name} → {r.tableName} · {r.coverLabel}</li>)}</ul></div>}
           <p>{Math.max(0, Math.floor((Date.now() - ticket.createdAt) / 60000))} min · {new Date(ticket.createdAt).toLocaleTimeString('fr-LU')}</p>
           <ul>{ticket.items.map(item => <li key={item.id} style={{ margin: '12px 0' }}><strong>{item.qty} × {item.name}</strong>{item.note && <p style={{ color: '#fde68a' }}>{item.note}</p>}</li>)}</ul>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

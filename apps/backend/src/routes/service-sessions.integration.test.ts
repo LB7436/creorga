@@ -66,6 +66,12 @@ describe('Autorité PostgreSQL des sessions et des lignes ouvertes', () => {
     try { await auth(request(app).post('/api/floor-state/zones')).send({ name: 'Interdit' }).expect(403) }
     finally { await prisma.userCompany.update({ where: { userId_companyId: { userId, companyId } }, data: { role: 'OWNER' } }) }
   })
+  it('applique la même limite de tables à la création unitaire et au brouillon POS', async () => {
+    const before = (await auth(request(app).get('/api/pos/bootstrap')).expect(200)).body
+    const added = Array.from({ length: 201 }, (_, i) => ({ id: 'limite-fictive-' + i, name: 'Limite fictive ' + i, section: before.editor.rooms[0].id, shape: 'round', seats: 2, x: 0, y: 0, status: 'available', covers: [], mergedWith: [] }))
+    await auth(request(app).put('/api/pos/draft')).set('If-Match', String(before.revision)).send({ tables: [...before.tables, ...added], seats: before.seats }).expect(200)
+    await auth(request(app).post('/api/floor-state/tables')).send({ name: 'Création unitaire fictive', section: 'ORIGINAL FICTIF', shape: 'round', seats: 2, x: 0, y: 0 }).expect(201)
+  })
   it('un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock', async () => {
     const coverId = randomUUID(), lineId = randomUUID()
     const boot = (await auth(request(app).get('/api/pos/bootstrap')).expect(200)).body

@@ -17,6 +17,8 @@ import { recordPosTenders, orderPaymentBalance } from '../lib/order-tenders'
 import { partialPaymentSchema, payPosPart } from '../lib/pos-partial-payments'
 import { WorkspaceError, postgresFloorEnabled, floorHash } from '../lib/floor-workspace'
 import { tableMovementSchema, previousMovement, moveTable } from '../lib/table-movements'
+import { separationSchema, previousSeparation, separateService } from '../lib/service-separations'
+import { MAX_FLOOR_TABLES } from '../lib/floor-validation'
 
 const router = Router()
 const stateStatus: Record<string, string> = { available: 'LIBRE', occupied: 'OCCUPEE', reserved: 'RESERVEE', dirty: 'NETTOYAGE' }
@@ -127,8 +129,25 @@ router.get('/table-movements/:id', wrap(async (req, res) => {
   res.set('Cache-Control', 'private, no-store').json(row.snapshot)
 }))
 
+router.post('/service-separations', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', 'CASHIER'), wrap(async (req, res) => {
+  if (!postgresFloorEnabled()) throw new PosError('Autorité PostgreSQL nécessaire pour séparer des groupes.', 409)
+  const input = separationSchema.parse(req.body), companyId = req.companyId, actorId = req.user.userId
+  const previous = await previousSeparation(prisma, companyId, actorId, input)
+  if (previous) return void res.json(previous)
+  const release = lockFloorForPayment()
+  if (!release) throw new PosError('Une opération est en cours. Réessayez avec la même référence.', 409)
+  try {
+    await prepareFloorPricing()
+    const result = await prisma.$transaction(async tx => {
+      await lock(tx, companyId)
+      return await previousSeparation(tx, companyId, actorId, input) || separateService(tx, companyId, actorId, input, await tablesFor(companyId, tx))
+    }, { maxWait: 15000, timeout: 20000 })
+    res.json(result)
+  } finally { release() }
+}))
+
 router.put('/draft', wrap(async (req, res) => {
-  const tables = z.array(posTableSchema).max(300).parse(req.body.tables)
+  const tables = z.array(posTableSchema).max(MAX_FLOOR_TABLES).parse(req.body.tables)
   if (tables.some(t => t.covers.some(c => c.paidAt !== undefined || c.paidMethod !== undefined))) throw new PosError('Un brouillon ne peut pas déclarer un règlement. Utilisez l’encaissement serveur.')
   const alreadyPaid = await prisma.posCoverPayment.count({ where: { companyId: req.companyId, coverId: { in: tables.flatMap(t => t.covers.map(c => c.id)) } } })
   if (alreadyPaid) throw new PosError('Ce brouillon contient un couvert déjà réglé. Rechargez le plan serveur.', 409)
@@ -145,6 +164,12 @@ router.put('/draft', wrap(async (req, res) => {
   const candidateLines = [...tables.flatMap(t => t.covers.filter(c => !c.id.startsWith('guest:')).flatMap(c => c.items.map(i => i.id))), ...(seats || []).flatMap(s => s.items.map(i => i.id))]
   if (await prisma.saleOrigin.count({ where: { companyId: req.companyId, kind: 'LINE', sourceId: { in: candidateLines } } })) throw new PosError('Ce brouillon contient une ligne déjà réglée. Rechargez depuis le serveur ; ne recréez pas la vente.', 409)
   if (await prisma.orderItem.count({ where: { id: { in: candidateLines }, order: { companyId: req.companyId } } })) throw new PosError('Une ligne de commande ou QR ne peut pas être recopiée en nouvelle vente native. Utilisez sa commande d’origine.', 409)
+  if (postgresFloorEnabled()) {
+    const locations = new Map<string, string>()
+    for (const t of await tablesFor(req.companyId)) for (const c of t.covers) for (const i of c.items) locations.set(i.id, c.id)
+    const incoming = [...tables.flatMap(t => t.covers.filter(c => !c.id.startsWith('guest:')).flatMap(c => c.items.map(i => ({ id: i.id, coverId: c.id })))), ...(seats || []).flatMap(s => s.items.map(i => ({ id: i.id, coverId: `seat:${s.id}:${s.createdAt}` })))]
+    if (incoming.some(i => locations.has(i.id) && locations.get(i.id) !== i.coverId)) throw new PosError('Utilisez la séparation serveur pour déplacer une ligne entre groupes ; un brouillon ne peut pas relancer la préparation ni contourner son audit.', 409)
+  }
   if (seats && (new Set(seats.map(s => s.id)).size !== seats.length || seats.some(s => s.tableId && !tables.some(t => t.id === s.tableId)))) throw new PosError('Chaises dupliquées ou table inconnue.')
   if (seats && floor.chairs.some(c => c.items.length && !seats.some(s => s.id === c.id))) throw new PosError('Une chaise non vide ne peut pas être supprimée.', 409)
   if (req.body.editor !== undefined) {
@@ -184,9 +209,9 @@ router.put('/draft', wrap(async (req, res) => {
   if (seats) floor.chairs = seats.map(s => ({ ...s, label: `Place ${(s.position ?? 0) + 1}`, status: s.status === 'reserved' ? 'RESERVEE' : s.items.length ? 'OCCUPEE' : 'LIBRE',
     items: s.items.map(i => ({ ...i, productId: i.menuItemId, addedAt: Date.now() })) }))
   await prepareFloorPricing()
-  const activeTickets = syncKitchenTickets(floor, await tablesFor(req.companyId), req.user.userId)
   const paidTickets = new Set((await prisma.posCoverPayment.findMany({ where: { companyId: req.companyId }, select: { coverId: true } })).map(p => p.coverId))
-  for (const ticket of Object.values(floor.kitchenTickets || {}) as any[]) if (!activeTickets.has(ticket.id) && !paidTickets.has(ticket.coverId || ticket.id) && !['served', 'cancelled'].includes(ticket.status)) {
+  const activeTickets = syncKitchenTickets(floor, await tablesFor(req.companyId), req.user.userId, Date.now(), paidTickets)
+  for (const ticket of Object.values(floor.kitchenTickets || {}) as any[]) if (!activeTickets.has(ticket.id) && !ticket.preserveAfterMove && !paidTickets.has(ticket.coverId || ticket.id) && !['served', 'cancelled'].includes(ticket.status)) {
     ticket.status = 'cancelled'; ticket.updatedAt = Date.now(); ticket.actorId = req.user.userId
   }
   res.json(floor)

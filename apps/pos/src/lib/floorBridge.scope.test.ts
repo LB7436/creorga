@@ -7,7 +7,7 @@ vi.mock('../store/posStore', () => ({ usePOS: {
   subscribe: () => () => {},
 } }))
 vi.mock('../store/seatStore', () => ({ useSeats: { getState: () => ({ seats: state.seats }), setState: (value: { seats: unknown[] }) => { state.seats = value.seats }, subscribe: () => () => {} } }))
-import { checkoutServer, payPartServer, moveTableServer, closeServerDay, startFloorBridge, stopFloorBridge, loadServerState } from './floorBridge'
+import { checkoutServer, payPartServer, moveTableServer, separateServiceServer, closeServerDay, startFloorBridge, stopFloorBridge, loadServerState } from './floorBridge'
 const fixture = (companyId: string) => ({ companyId, revision: 1, currentStaff: { id: 'owner-' + companyId }, tables: [{ id: 'table-a', covers: [{ id: 'cover-a', items: [{ id: 'line-a', price: 2, qty: 1 }] }] }], editor: {}, ventes: [], clotures: [], seats: [] })
 const values = new Map<string, string>()
 const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value) }, removeItem: (key: string) => { values.delete(key) } }
@@ -21,6 +21,28 @@ beforeEach(async () => {
 })
 afterEach(() => { stopFloorBridge(); vi.unstubAllGlobals() })
 describe('POS asynchronous operation scope', () => {
+  it('retrouve une séparation après réponse perdue sans changer de référence ni déplacer localement la ligne', async () => {
+    let payload: any
+    state.api.mockImplementation((path: string, options: any) => {
+      if (path === '/pos/service-separations') { payload = JSON.parse(options.body); return Promise.reject(new Error('réponse perdue')) }
+      if (path.startsWith('/pos/table-movements/')) return Promise.resolve({ requestId: payload.requestId, targetCoverId: 'nouveau-groupe' })
+      return Promise.resolve(fixture(state.company))
+    })
+    expect((await separateServiceServer({ kind: 'LINES', fromTableId: 'table-a', intoTableId: 'table-b', coverId: 'cover-a', lines: [{ id: 'line-a', qty: 1 }] })).targetCoverId).toBe('nouveau-groupe')
+    expect(state.pos.tables[0].covers[0].items[0].id).toBe('line-a')
+    expect([...values.keys()].some(k => k.startsWith('creorga-pos-separation:'))).toBe(false)
+  })
+  it('une séparation incertaine reste liée à son compte et refuse une réponse tardive après changement de société', async () => {
+    const response = deferred<any>()
+    state.api.mockImplementation((path: string) => path === '/pos/service-separations' ? response.promise : Promise.resolve(fixture(state.company)))
+    const operation = separateServiceServer({ kind: 'GROUP', fromTableId: 'table-a', intoTableId: 'table-b', coverId: 'cover-a' })
+    await vi.waitFor(() => expect(state.api.mock.calls.some(([p]) => p === '/pos/service-separations')).toBe(true))
+    stopFloorBridge(); state.company = 'company-b'; state.pos = fixture(state.company)
+    response.resolve({ revision: 2 })
+    await expect(operation).rejects.toThrow('session de caisse a changé')
+    expect(state.pos.companyId).toBe('company-b')
+    expect([...values.keys()]).toContain('creorga-pos-separation:company-a:owner-company-a:cover-a')
+  })
   it('retrouve une fusion après réponse perdue et ne déplace pas le brouillon sans confirmation', async () => {
     let payload: any
     state.api.mockImplementation((path: string, options: any) => {

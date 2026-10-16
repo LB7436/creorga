@@ -5,6 +5,7 @@ import { PosError } from './pos-ledger'
 import { lockGuestTable } from './guest-visits'
 import { lockOrderPayment } from './payments/ledger'
 import { getFloorState, commitCurrentFloor } from '../routes/floorState'
+import { nativeKitchenTables, rebaseKitchenAfterSeparation } from './kitchen-tickets'
 
 export const tableMovementSchema = z.object({ requestId: z.string().uuid(), kind: z.enum(['TRANSFER', 'MERGE']),
   fromTableId: z.string().min(1).max(100), intoTableId: z.string().min(1).max(100), expectedRevision: z.number().int().nonnegative() }).strict()
@@ -61,6 +62,7 @@ export async function moveTable(tx: Prisma.TransactionClient, companyId: string,
   // Déplacer l'étiquette du ticket, pas renvoyer la commande ou sa correction.
   const coverIds = (source?.covers || []).map((c: any) => c.id)
   for (const ticket of Object.values(floor.kitchenTickets || {}) as any[]) if (coverIds.includes(ticket.coverId || ticket.id)) ticket.tableName = into.name
+  if (floor.kitchenBaselines) rebaseKitchenAfterSeparation(floor, tables, nativeKitchenTables(floor), new Set(coverIds))
   await commitCurrentFloor(tx, actorId, 'TABLE_' + input.kind)
   const snapshot = { requestId: input.requestId, kind: input.kind, fromTableId: from.id, intoTableId: into.id, revision: floor.updatedAt,
     coverIds, orderIds, visitIds, paymentIds: [...new Set(paymentIds)], previousSessions: beforeSessions, targetSessionId: targetSession.id,

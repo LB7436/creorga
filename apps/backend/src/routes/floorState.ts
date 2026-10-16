@@ -4,7 +4,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { JsonStoreUnavailableError, readJsonStrict, safeWriteJson } from '../lib/safe-json'
 import { dataPath } from '../middleware/audit-log'
 import logger from '../lib/logger'
-import { floorSchema, protectedFloorFieldsChanged } from '../lib/floor-validation'
+import { floorSchema, protectedFloorFieldsChanged, MAX_FLOOR_TABLES } from '../lib/floor-validation'
 import prisma from '../lib/prisma'
 import { canonicalizeFloorPricing, PosPricingError, type LineQuote, type PricingProduct } from '../lib/pos-pricing'
 import type { Prisma } from '@prisma/client'
@@ -83,6 +83,8 @@ export interface FloorState {
   posPricing?: Record<string, LineQuote>
   posEditor?: any
   kitchenTickets?: Record<string, any>
+  kitchenBaselines?: Record<string, any[]>
+  lineOrigins?: Record<string, string>
   tables: FloorTable[]
   chairs: FloorChair[]
   photos: FloorPhoto[]
@@ -123,6 +125,13 @@ export function setReviewedFloorQuote(lineId: string, quote: LineQuote) {
   const context = floorContext.getStore()
   if (!context?.serverQuotes || quote.source !== 'legacy-reviewed' || !quote.review) throw new Error('Revue responsable absente')
   Object.defineProperty(context.serverQuotes, lineId, { value: quote, enumerable: true, configurable: true, writable: true })
+}
+
+/** Une séparation change la quantité/localisation, jamais le tarif historique. */
+export function copySplitLineQuote(sourceId: string, targetId: string) {
+  const context = floorContext.getStore(), quote = context?.serverQuotes?.[sourceId]
+  if (!context?.serverQuotes || !quote || quote.status !== 'confirmed' || context.original?.posPricing?.[targetId]) throw new PosPricingError('Tarif historique non vérifié : faites contrôler la ligne avant de la séparer.')
+  Object.defineProperty(context.serverQuotes, targetId, { value: structuredClone(quote), enumerable: true, configurable: true, writable: true })
 }
 
 /** Empêche de modifier une addition pendant son commit comptable PostgreSQL. */
@@ -424,7 +433,7 @@ router.patch('/', (req, res) => {
 
 // ─── Table actions ──────────────────────────────────────────────────────────
 router.post('/tables', (req, res) => {
-  if (state.tables.length >= 200) return res.status(400).json({ error: '200 tables maximum' })
+  if (state.tables.length >= MAX_FLOOR_TABLES) return res.status(400).json({ error: `${MAX_FLOOR_TABLES} tables maximum` })
   const name = texteCourt(req.body?.name, 60)
   const section = texteCourt(req.body?.section, 80)
   const shape = req.body?.shape as FloorTable['shape']

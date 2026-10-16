@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { calculateSale, checkoutSchema, posTableSchema, buildClosure, receiptHtml } from './pos-ledger'
+import { calculateSale, checkoutSchema, posTableSchema, coverSchema, buildClosure, receiptHtml } from './pos-ledger'
 
 describe('Journal serveur de caisse', () => {
+  it('refuse les clés de prototype comme identifiants de groupe de préparation', () => {
+    for (const id of ['__proto__', 'constructor', 'prototype']) expect(coverSchema.safeParse({ id, label: 'Groupe fictif', items: [] }).success).toBe(false)
+    expect(coverSchema.safeParse({ id: 'guest:commande-fictive', label: 'QR', items: [] }).success).toBe(true)
+  })
   it('arrondit la base taxable par taux sans inventer une TVA entre deux groupes', () => {
     expect(calculateSale([{ price: 0.03, qty: 1, taxRate: 17 }, { price: 0.03, qty: 1, taxRate: 3 }], 0, 0, 0))
       .toEqual({ brut: 0.06, sousTotal: 0.06, tva: 0, total: 0.06 })

@@ -43,6 +43,14 @@ export async function startFloorBridge() {
   await loadServerState()
   assertBridge(epoch)
   scope = `${sessionCompany()}:${usePOS.getState().currentStaff?.id}`
+  for (const key of Object.keys(localStorage).filter(k => k.startsWith(`creorga-pos-separation:${scope}:`))) {
+    try {
+      const pending = JSON.parse(localStorage.getItem(key)!)
+      await api(`/pos/table-movements/${encodeURIComponent(pending.requestId)}`)
+      assertBridge(epoch); localStorage.removeItem(key)
+      status('Séparation retrouvée. Les groupes et leurs soldes sont ceux du serveur.')
+    } catch { assertBridge(epoch); status('Une séparation reste à vérifier. Sa référence est conservée ; réessayez la même sélection.', true) }
+  }
   for (const key of Object.keys(localStorage).filter(k => k.startsWith(`creorga-pos-move:${scope}:`))) {
     try {
       const pending = JSON.parse(localStorage.getItem(key)!)
@@ -145,6 +153,30 @@ export async function moveTableServer(fromTableId: string, intoTableId: string, 
     await loadServerState()
     assertBridge(epoch)
     status('Déplacement confirmé. Les anciens QR sont révoqués : renouvelez un QR distinct pour chaque visite.')
+    return result
+  } finally { if (epoch === bridgeEpoch) checkingPayment = false }
+}
+export type ServiceSelection = { kind: 'GROUP' | 'LINES'; fromTableId: string; intoTableId: string; coverId: string; intoCoverId?: string; lines?: Array<{ id: string; qty: number }> }
+export async function separateServiceServer(input: ServiceSelection) {
+  if (checkingPayment) throw new Error('Une opération de caisse est déjà en cours.')
+  const epoch = bridgeEpoch, key = `creorga-pos-separation:${scope}:${input.coverId}`
+  checkingPayment = true
+  try {
+    await flushFloor(); assertBridge(epoch)
+    const stored = localStorage.getItem(key)
+    const payload = stored ? JSON.parse(stored) : { ...input, requestId: crypto.randomUUID(), expectedRevision: revision }
+    if (JSON.stringify({ ...payload, requestId: undefined, expectedRevision: undefined }) !== JSON.stringify(input)) throw new Error('Une séparation incertaine existe pour une autre sélection. Vérifiez sa référence avant de changer de destination.')
+    localStorage.setItem(key, JSON.stringify(payload))
+    let result: any
+    try { result = await api('/pos/service-separations', { method: 'POST', body: JSON.stringify(payload) }) }
+    catch (error: any) {
+      assertBridge(epoch)
+      try { result = await api(`/pos/table-movements/${encodeURIComponent(payload.requestId)}`) }
+      catch (check: any) { if (error.status >= 400 && error.status < 500 && check.status === 404) localStorage.removeItem(key); throw error }
+    }
+    assertBridge(epoch); localStorage.removeItem(key)
+    checkingPayment = false; await loadServerState(); assertBridge(epoch)
+    status('Séparation confirmée, sans nouveau règlement ni préparation. Renouvelez les QR des visites concernées.')
     return result
   } finally { if (epoch === bridgeEpoch) checkingPayment = false }
 }
