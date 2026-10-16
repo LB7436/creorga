@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { usePOS, Table, TableStatus, STATUS_COLORS, STATUS_LABELS, elapsed, tableTotal } from '../store/posStore'
 import { useSeats, seatTotal, type Seat } from '../store/seatStore'
 import SeatPanel from '../components/SeatPanel'
+import { moveTableServer } from '../lib/floorBridge'
 
 interface Props {
   onOpenOrder: (tableId: string) => void
@@ -992,6 +993,9 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
   const [transferFrom, setTransferFrom] = useState<string | null>(null)
   const [transferTo, setTransferTo] = useState<string | null>(null)
   const [transferNotice, setTransferNotice] = useState<string | null>(null)
+  const transferBusy = useRef(false)
+  const transferGesture = useRef<{ mode: 'context' | 'drag'; from: string; into: string | null } | null>(null)
+  const consumedTransferClick = useRef<string | null>(null)
 
   // Overlays
   const [heatmap, setHeatmap] = useState(false)
@@ -1018,6 +1022,18 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
 
   const handleTableClick = useCallback((table: Table, e: React.MouseEvent) => {
     if (table.isMergedInto) return
+    // Un relâchement Alt-drag ne doit pas provoquer une seconde opération
+    // quand Chrome émet ensuite son clic, y compris après une annulation.
+    if (consumedTransferClick.current === table.id) { consumedTransferClick.current = null; return }
+    consumedTransferClick.current = null
+    const gesture = transferGesture.current
+    if (gesture?.mode === 'context') {
+      transferGesture.current = null
+      setTransferFrom(null); setTransferTo(null)
+      void performTransfer(gesture.from, table.id)
+      return
+    }
+    if (gesture?.mode === 'drag') return
     if (e.shiftKey) {
       setSelectedIds(prev => {
         const n = new Set(prev)
@@ -1084,27 +1100,43 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
   }
 
   // Transfer via drag
+  async function performTransfer(fromId: string, intoId: string) {
+    if (transferBusy.current || fromId === intoId) return
+    const current = usePOS.getState().tables, src = current.find(t => t.id === fromId), dst = current.find(t => t.id === intoId)
+    if (!src || !dst) { setTransferNotice('Table indisponible. Rechargez le plan.'); return }
+    const merge = dst.covers.some(c => !c.paidAt && c.items.length > 0)
+    if (!window.confirm(`${merge ? 'Fusionner les additions' : 'Transférer la table'} : ${src.name} → ${dst.name} ? Les groupes et leurs soldes seront conservés. Les anciens QR seront révoqués ; renouvelez un QR distinct par groupe.`)) return
+    transferBusy.current = true
+    setTransferNotice('Transfert en cours — en attente de confirmation serveur…')
+    try {
+      await moveTableServer(fromId, intoId, merge ? 'MERGE' : 'TRANSFER')
+      setTransferNotice(`Transfert confirmé : ${src.name} → ${dst.name}. Renouvelez les QR distincts des groupes concernés.`)
+    } catch (e: any) { setTransferNotice('Transfert non confirmé : ' + e.message) }
+    finally { transferBusy.current = false }
+  }
   function onTableMouseDown(id: string, e: React.MouseEvent) {
-    if (e.button === 0 && e.altKey) {
+    if (!transferBusy.current && e.button === 0 && e.altKey) {
+      consumedTransferClick.current = null
+      transferGesture.current = { mode: 'drag', from: id, into: null }
       setTransferFrom(id)
     }
   }
 
   function onTableMouseEnterTransfer(id: string) {
-    if (transferFrom && transferFrom !== id) setTransferTo(id)
+    const gesture = transferGesture.current
+    if (gesture && gesture.from !== id) { gesture.into = id; setTransferTo(id) }
   }
 
   function onGlobalMouseUpTransfer() {
-    if (transferFrom && transferTo) {
-      const src = tables.find(t => t.id === transferFrom)
-      const dst = tables.find(t => t.id === transferTo)
-      if (src && dst) {
-        setTransferNotice(`Commande transférée : ${src.name} → ${dst.name}`)
-        setTimeout(() => setTransferNotice(null), 2500)
-      }
-    }
+    const gesture = transferGesture.current
+    // Le choix d'une destination depuis le menu est un CLIC, pas un drag.
+    // Effacer ici sa source rendait le bouton Transférer inopérant.
+    if (!gesture || gesture.mode !== 'drag') return
+    transferGesture.current = null
+    consumedTransferClick.current = gesture.into
     setTransferFrom(null)
     setTransferTo(null)
+    if (gesture.into) void performTransfer(gesture.from, gesture.into)
   }
 
   useEffect(() => {
@@ -1113,7 +1145,7 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
     window.addEventListener('mouseup', handler)
     return () => window.removeEventListener('mouseup', handler)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transferFrom, transferTo])
+  }, [transferFrom])
 
   // Context menu actions
   function ctxViewOrder(t: Table) { onOpenOrder(t.id) }
@@ -1123,6 +1155,9 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
     setTimeout(() => setVipNotice(null), 2000)
   }
   function ctxTransfer(t: Table) {
+    if (transferBusy.current) return
+    consumedTransferClick.current = null
+    transferGesture.current = { mode: 'context', from: t.id, into: null }
     setTransferFrom(t.id)
     setTransferNotice(`Cliquez sur une table destination pour transférer depuis ${t.name}`)
   }
@@ -1185,6 +1220,9 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
             key={table.id}
             onMouseDown={e => onTableMouseDown(table.id, e)}
             onMouseEnter={() => onTableMouseEnterTransfer(table.id)}
+            onMouseLeave={() => {
+              if (transferGesture.current?.into === table.id) { transferGesture.current.into = null; setTransferTo(null) }
+            }}
           >
             <TableCard
               table={table}
@@ -1251,6 +1289,7 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
         )}
         {transferNotice && (
           <motion.div
+            role="status" aria-live="polite"
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
             style={{
               position: 'absolute', bottom: 110, left: '50%', transform: 'translateX(-50%)',

@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePOS, Table, TableShape, makeTable, DEFAULT_TABLES } from '../store/posStore'
+import { appendLayoutHistory, layoutSnapshot, parseLayout, restoreLayout, type LayoutSnapshot, type TableGeometry } from '../lib/layout-snapshot'
 
 /* ══════════════════════════════════════════════════════════════════════════════
    FLOOR PLAN EDITOR — Creorga POS
@@ -51,16 +52,10 @@ interface Room {
 interface Scene {
   id: string
   label: string
-  tables: Table[]
+  tables: TableGeometry[]
   fixtures: Fixture[]
   rooms: Room[]
   createdAt: number
-}
-
-interface HistoryEntry {
-  tables: Table[]
-  fixtures: Fixture[]
-  rooms: Room[]
 }
 
 type ViewMode = '2d' | '3d' | 'walk'
@@ -70,7 +65,6 @@ type GridSize = 10 | 20 | 50
 
 const VW = 1100
 const VH = 680
-const MAX_HISTORY = 20
 // 20 SVG units = ~20cm at typical restaurant scale (5 units per 5cm)
 
 const DEFAULT_ROOMS: Room[] = [
@@ -692,9 +686,10 @@ export default function FloorPlanEditor({ onBack }: Props) {
   const [measureEnd, setMeasureEnd] = useState<{ x: number; y: number } | null>(null)
 
   /* ── Undo/Redo */
-  const [history, setHistory] = useState<HistoryEntry[]>([])
-  const [historyIndex, setHistoryIndex] = useState<number>(-1)
-  const suppressHistory = useRef(false)
+  const captureLayout = () => { const s = usePOS.getState(); return layoutSnapshot({ tables: s.tables, fixtures: s.editor.fixtures, rooms: s.editor.rooms }) }
+  const [history, setHistory] = useState<LayoutSnapshot[]>(() => [captureLayout()])
+  const [historyIndex, setHistoryIndex] = useState(0)
+  const historyRef = useRef({ entries: history, index: historyIndex })
 
   /* ── Clipboard */
   const [clipboard, setClipboard] = useState<Table[] | null>(null)
@@ -745,70 +740,27 @@ export default function FloorPlanEditor({ onBack }: Props) {
 
   /* ── History push ─ */
   const pushHistory = useCallback(() => {
-    if (suppressHistory.current) return
-    setHistory(h => {
-      const newEntry: HistoryEntry = {
-        tables: JSON.parse(JSON.stringify(tables)),
-        fixtures: JSON.parse(JSON.stringify(fixtures)),
-        rooms: JSON.parse(JSON.stringify(rooms)),
-      }
-      const trimmed = h.slice(0, historyIndex + 1)
-      trimmed.push(newEntry)
-      const limited = trimmed.slice(-MAX_HISTORY)
-      return limited
-    })
-    setHistoryIndex(i => Math.min(i + 1, MAX_HISTORY - 1))
-  }, [tables, fixtures, rooms, historyIndex])
-
-  // Initial history snapshot on mount
-  useEffect(() => {
-    if (history.length === 0) {
-      setHistory([{ tables: [...tables], fixtures: [...fixtures], rooms: [...rooms] }])
-      setHistoryIndex(0)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Les mutations Zustand sont synchrones. Lire après l'action évite de
+    // capturer la fermeture React encore positionnée AVANT cette action.
+    const next = appendLayoutHistory(historyRef.current, captureLayout())
+    historyRef.current = next; setHistory(next.entries); setHistoryIndex(next.index)
   }, [])
 
-  const undo = useCallback(() => {
-    if (historyIndex <= 0) return
-    const newIndex = historyIndex - 1
-    const entry = history[newIndex]
+  const applyLayout = useCallback((layout: LayoutSnapshot) => {
+    const current = usePOS.getState(), next = restoreLayout(current.tables, layout)
+    // Une seule publication : aucune fenêtre de plan partiellement effacé.
+    usePOS.setState({ tables: next.tables, editor: { ...current.editor, fixtures: structuredClone(layout.fixtures), rooms: structuredClone(layout.rooms) } })
+  }, [])
+  const restoreHistory = useCallback((direction: -1 | 1) => {
+    const state = historyRef.current, index = state.index + direction, entry = state.entries[index]
     if (!entry) return
-    suppressHistory.current = true
-    // Apply
-    const currentIds = new Set(tables.map(t => t.id))
-    entry.tables.forEach(t => {
-      if (currentIds.has(t.id)) updateTable(t.id, t)
-      else addTable(t)
-    })
-    tables.forEach(t => {
-      if (!entry.tables.find(et => et.id === t.id)) removeTable(t.id)
-    })
-    setFixtures(entry.fixtures)
-    setRooms(entry.rooms)
-    setHistoryIndex(newIndex)
-    setTimeout(() => { suppressHistory.current = false }, 50)
-  }, [historyIndex, history, tables, updateTable, addTable, removeTable])
-
-  const redo = useCallback(() => {
-    if (historyIndex >= history.length - 1) return
-    const newIndex = historyIndex + 1
-    const entry = history[newIndex]
-    if (!entry) return
-    suppressHistory.current = true
-    const currentIds = new Set(tables.map(t => t.id))
-    entry.tables.forEach(t => {
-      if (currentIds.has(t.id)) updateTable(t.id, t)
-      else addTable(t)
-    })
-    tables.forEach(t => {
-      if (!entry.tables.find(et => et.id === t.id)) removeTable(t.id)
-    })
-    setFixtures(entry.fixtures)
-    setRooms(entry.rooms)
-    setHistoryIndex(newIndex)
-    setTimeout(() => { suppressHistory.current = false }, 50)
-  }, [historyIndex, history, tables, updateTable, addTable, removeTable])
+    try {
+      applyLayout(entry)
+      historyRef.current = { ...state, index }; setHistoryIndex(index)
+    } catch (e: any) { window.alert(e.message) }
+  }, [applyLayout])
+  const undo = useCallback(() => restoreHistory(-1), [restoreHistory])
+  const redo = useCallback(() => restoreHistory(1), [restoreHistory])
 
   /* ── Keyboard ─ */
   useEffect(() => {
@@ -1106,28 +1058,20 @@ export default function FloorPlanEditor({ onBack }: Props) {
 
   /* ── Templates */
   const applyTemplate = (template: Template) => {
-    // Clear tables in active room
-    tables.filter(t => t.section === activeRoom).forEach(t => removeTable(t.id))
     const room = rooms.find(r => r.id === activeRoom)
     if (!room) return
-    template.tables.forEach(t => {
-      const id = uid()
-      const newTable = makeTable(
-        id, t.name, t.shape, t.seats,
-        room.x + t.x, room.y + t.y,
-        activeRoom,
-      )
-      addTable(newTable)
-    })
-    setShowTemplates(false)
-    pushHistory()
+    try {
+      const plan = captureLayout()
+      plan.tables = [...plan.tables.filter(t => t.section !== activeRoom), ...template.tables.map(t => makeTable(uid(), t.name, t.shape, t.seats, room.x + t.x, room.y + t.y, activeRoom))]
+      applyLayout(plan); setShowTemplates(false); pushHistory()
+    } catch (e: any) { window.alert(e.message) }
   }
 
   /* ── Scenes (presets) */
   const saveScene = (label: string) => {
     const newScene: Scene = {
       id: sid(), label,
-      tables: JSON.parse(JSON.stringify(tables)),
+      tables: layoutSnapshot({ tables, fixtures, rooms }).tables,
       fixtures: JSON.parse(JSON.stringify(fixtures)),
       rooms: JSON.parse(JSON.stringify(rooms)),
       createdAt: Date.now(),
@@ -1135,12 +1079,10 @@ export default function FloorPlanEditor({ onBack }: Props) {
     setScenes(prev => [...prev, newScene])
   }
   const loadScene = (scene: Scene) => {
-    // Clear current
-    tables.forEach(t => removeTable(t.id))
-    scene.tables.forEach(t => addTable(t))
-    setFixtures(scene.fixtures)
-    setRooms(scene.rooms)
-    pushHistory()
+    try {
+      applyLayout(parseLayout(scene, rooms, FIXTURE_DEFS.map(f => f.type)))
+      setShowScenesPanel(false); pushHistory()
+    } catch (e: any) { window.alert(e.message) }
   }
   const deleteScene = (id: string) => {
     setScenes(prev => prev.filter(s => s.id !== id))
@@ -1151,7 +1093,7 @@ export default function FloorPlanEditor({ onBack }: Props) {
     const data = {
       version: 1,
       exportedAt: new Date().toISOString(),
-      tables, fixtures, rooms,
+      ...layoutSnapshot({ tables, fixtures, rooms }),
     }
     const json = JSON.stringify(data, null, 2)
     setExportText(json)
@@ -1169,16 +1111,13 @@ export default function FloorPlanEditor({ onBack }: Props) {
   const importLayout = () => {
     try {
       const data = JSON.parse(importText)
-      if (!data.tables || !data.fixtures) throw new Error('Format invalide')
-      tables.forEach(t => removeTable(t.id))
-      data.tables.forEach((t: Table) => addTable(t))
-      setFixtures(data.fixtures)
-      if (data.rooms) setRooms(data.rooms)
+      const layout = parseLayout(data, rooms, FIXTURE_DEFS.map(f => f.type))
+      applyLayout(layout)
       setShowImportExport(false)
       setImportText('')
       pushHistory()
-    } catch (err) {
-      alert('Erreur: format JSON invalide')
+    } catch (err: any) {
+      window.alert('Import refusé : ' + err.message + ' Le plan actuel est conservé.')
     }
   }
   const triggerFileImport = () => fileInputRef.current?.click()

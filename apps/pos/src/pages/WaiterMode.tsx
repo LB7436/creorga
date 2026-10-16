@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { checkoutServer, flushFloor } from '../lib/floorBridge'
+import { checkoutServer, flushFloor, separateServiceServer } from '../lib/floorBridge'
 import {
   usePOS,
   MENU_CATEGORIES,
@@ -9,6 +9,7 @@ import {
   tableTotal,
   elapsed,
   ventilationTva,
+  isFrozenCover,
   type MenuItem,
   type OrderItem,
 } from '../store/posStore'
@@ -74,6 +75,13 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
 
   // Drag/swap
   const [draggingItem, setDraggingItem] = useState<{ item: OrderItem; fromTable: string } | null>(null)
+  const [lineTransfer, setLineTransfer] = useState<{ item: OrderItem; fromTable: string } | null>(null)
+  const [destinationId, setDestinationId] = useState('')
+  const [transferQty, setTransferQty] = useState(1)
+  const [transferError, setTransferError] = useState('')
+  const [transferring, setTransferring] = useState(false)
+  const transferBusy = useRef(false)
+  const transferDialog = useRef<HTMLDivElement>(null)
 
   // Shortcuts drawer
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
@@ -90,7 +98,15 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
   const [showCustomerNotes, setShowCustomerNotes] = useState(false)
 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const consumedProductClick = useRef<string | null>(null)
   const recordInterval = useRef<ReturnType<typeof setInterval> | null>(null)
+  useEffect(() => () => { if (longPressTimer.current) clearTimeout(longPressTimer.current) }, [])
+  useEffect(() => {
+    if (!lineTransfer) return
+    const previous = document.activeElement as HTMLElement | null
+    transferDialog.current?.querySelector<HTMLElement>('select,button')?.focus()
+    return () => { if (previous?.isConnected) previous.focus() }
+  }, [lineTransfer?.item.id])
 
   // Live clock
   useEffect(() => {
@@ -149,7 +165,9 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
   }, [allItems])
 
   function handleAddItem(menuItem: MenuItem) {
+    if (consumedProductClick.current === menuItem.id) { consumedProductClick.current = null; return }
     if (!selectedTable || selectedTable.covers.length === 0) return
+    if (isFrozenCover(selectedTable.covers[0])) { setToast({ text: 'Ce groupe QR ou déjà encaissé est figé. Utilisez la caisse pour créer un groupe distinct ou traiter sa correction.', color: '#fb7185' }); return }
     const coverId = selectedTable.covers[0].id
     addItem(selectedTableId, coverId, menuItem)
     setFlashItemId(menuItem.id)
@@ -157,7 +175,10 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
   }
 
   function handlePointerDown(menuItem: MenuItem) {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current)
+    consumedProductClick.current = null
     longPressTimer.current = setTimeout(() => {
+      consumedProductClick.current = menuItem.id
       setNotePopup({ menuItem })
       setNoteText('')
     }, 500)
@@ -170,8 +191,8 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
   }
 
   async function sendToStation(station: Station | 'auto') {
-    const label = station === 'auto' ? 'stations auto' : STATION_LABELS[station]
-    try { await flushFloor(); setToast({ text: `Commande enregistrée — visible en cuisine (${label})`, color: '#10b981' }) }
+    if (station !== 'auto') { setToast({ text: 'Routage par station indisponible dans ce mode. Aucun envoi ciblé effectué.', color: '#fb7185' }); return }
+    try { await flushFloor(); setToast({ text: 'Commande enregistrée sur le serveur et synchronisée avec l’écran cuisine. Aucun routage personnalisé ni impression confirmé.', color: '#10b981' }) }
     catch (e: any) { setToast({ text: e.message, color: '#fb7185' }) }
   }
 
@@ -197,14 +218,24 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
     setNoteText('')
   }
 
-  function swapItemToTable(item: OrderItem, toTableId: string) {
-    const toTable = tables.find(t => t.id === toTableId)
-    if (!toTable || toTable.covers.length === 0) return
-    const menuItem = menu.find(m => m.id === item.menuItemId)
-    if (!menuItem) return
-    removeItem(selectedTableId, item.id)
-    addItem(toTableId, toTable.covers[0].id, menuItem, item.note)
-    setToast({ text: `Transféré vers ${toTable.name} ✓` })
+  async function swapItemToTable(item: OrderItem, toTableId: string, fromTableId = selectedTableId, qty = item.qty) {
+    if (transferBusy.current) return
+    transferBusy.current = true; setTransferring(true); setTransferError('')
+    try {
+      const current = usePOS.getState().tables, source = current.find(t => t.id === fromTableId), target = current.find(t => t.id === toTableId)
+      const cover = source?.covers.find(c => c.items.some(i => i.id === item.id)), line = cover?.items.find(i => i.id === item.id)
+      if (!target || target.isMergedInto || !cover || !line || fromTableId === toTableId) throw new Error('La ligne ou sa destination a changé. Rechargez avant de transférer.')
+      if (!Number.isInteger(qty) || qty < 1 || qty > line.qty || qty > 50) throw new Error('Quantité invalide ou supérieure à celle enregistrée.')
+      // Aucun prix repris du catalogue et aucune suppression locale anticipée.
+      // Un nouveau groupe distinct évite d’associer silencieusement l’addition
+      // à une visite QR ou à un acompte déjà présent à destination.
+      await separateServiceServer({ kind: 'LINES', fromTableId, intoTableId: toTableId, coverId: cover.id, lines: [{ id: line.id, qty }] })
+      setLineTransfer(null)
+      setToast({ text: `Transfert confirmé vers ${target.name}. Prix et préparation conservés ; renouvelez les QR concernés.` })
+    } catch (e: any) {
+      setTransferError(e.message)
+      setToast({ text: 'Transfert non confirmé : ' + e.message, color: '#fb7185' })
+    } finally { transferBusy.current = false; setTransferring(false) }
   }
 
   function callHelp() {
@@ -543,6 +574,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                   onPointerDown={() => handlePointerDown(item)}
                   onPointerUp={handlePointerUp}
                   onPointerLeave={handlePointerUp}
+                  onPointerCancel={handlePointerUp}
                   animate={isFlashing ? {
                     scale: [1, 1.06, 1],
                     boxShadow: [
@@ -608,7 +640,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                 {(['bar', 'chaud', 'froid', 'desserts'] as Station[]).map(s => (
                   <button
                     key={s}
-                    onClick={() => setSelectedStation(s)}
+                    disabled title="Routage personnalisé par station non disponible dans ce mode"
                     style={{
                       flex: 1, padding: '6px 0', borderRadius: 8,
                       background: selectedStation === s ? `${STATION_COLORS[s]}30` : 'rgba(255,255,255,0.04)',
@@ -721,6 +753,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                   {allItems.map(item => {
                     const menuItem = menu.find(m => m.id === item.menuItemId)
                     const station = menuItem ? STATION_MAP[menuItem.category] : 'chaud'
+                    const frozen = selectedTable?.covers.some(c => c.items.some(i => i.id === item.id) && isFrozenCover(c))
                     return (
                       <motion.div
                         key={item.id}
@@ -741,6 +774,8 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
                           <button
+                            disabled={frozen || transferring}
+                            title={frozen ? 'Ligne financière figée : correction depuis la caisse' : 'Diminuer la quantité'}
                             onClick={() => setItemQty(selectedTableId, item.id, item.qty - 1)}
                             style={{
                               width: 28, height: 28, borderRadius: 7,
@@ -759,6 +794,8 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                             {item.qty}
                           </span>
                           <button
+                            disabled={frozen || transferring}
+                            title={frozen ? 'Ligne financière figée : correction depuis la caisse' : 'Augmenter la quantité'}
                             onClick={() => setItemQty(selectedTableId, item.id, item.qty + 1)}
                             style={{
                               width: 28, height: 28, borderRadius: 7,
@@ -795,6 +832,14 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                           {formatPrice(item.price * item.qty)}
                         </span>
                         <button
+                          disabled={transferring}
+                          aria-label={'Transférer la ligne ' + item.name}
+                          onClick={() => { setTransferError(''); setDestinationId(''); setTransferQty(item.qty); setLineTransfer({ item, fromTable: selectedTableId }) }}
+                          style={{ padding: 7, borderRadius: 7, background: '#26264a', border: '1px solid #818cf8', color: '#c7d2fe', cursor: 'pointer' }}
+                        >↔</button>
+                        <button
+                          disabled={frozen || transferring}
+                          title={frozen ? 'Ligne financière figée : correction depuis la caisse' : 'Retirer la ligne'}
                           onClick={() => removeItem(selectedTableId, item.id)}
                           style={{
                             width: 26, height: 26, borderRadius: 7,
@@ -819,7 +864,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                         key={tbl.id}
                         onDragOver={e => e.preventDefault()}
                         onDrop={() => {
-                          swapItemToTable(draggingItem.item, tbl.id)
+                          void swapItemToTable(draggingItem.item, tbl.id, draggingItem.fromTable)
                           setDraggingItem(null)
                         }}
                         style={{
@@ -878,6 +923,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                   Encaisser
                 </motion.button>
                 <motion.button
+                  disabled title="Le partage est disponible depuis la caisse principale, pas dans ce mode serveur"
                   whileTap={{ scale: 0.96 }}
                   style={{
                     flex: 2, height: 46, borderRadius: 10,
@@ -890,6 +936,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                   Diviser
                 </motion.button>
                 <motion.button
+                  disabled title="Impression non connectée dans ce mode serveur"
                   whileTap={{ scale: 0.96 }}
                   style={{
                     flex: 2, height: 46, borderRadius: 10,
@@ -981,6 +1028,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
               }}
             >
               <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 16 }}>⚡ Raccourcis</div>
+              <p>Raccourcis non connectés : utilisez les outils de service habituels. Aucun message ni paiement ne sera envoyé ici.</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {[
                   { icon: '🍽️', label: 'Réclamer une table' },
@@ -993,7 +1041,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                 ].map(s => (
                   <button
                     key={s.label}
-                    onClick={() => { setToast({ text: `${s.icon} ${s.label}` }); setShortcutsOpen(false) }}
+                    disabled title="Non disponible : aucun connecteur configuré"
                     style={{
                       display: 'flex', alignItems: 'center', gap: 12,
                       padding: '12px 14px', borderRadius: 10,
@@ -1012,6 +1060,37 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
           </>
         )}
       </AnimatePresence>
+
+      {lineTransfer && <div style={{ position: 'fixed', inset: 0, zIndex: 10003, background: '#000b', display: 'grid', placeItems: 'center', padding: 16 }}>
+        <div ref={transferDialog} role="dialog" aria-modal="true" aria-label="Transférer une ligne"
+          onKeyDown={e => {
+            if (e.key === 'Escape' && !transferBusy.current) { e.preventDefault(); setLineTransfer(null) }
+            if (e.key !== 'Tab') return
+            const controls = [...(transferDialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled),select:not(:disabled),input:not(:disabled)') || [])]
+            const first = controls[0], last = controls[controls.length - 1]
+            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus() }
+            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() }
+          }}
+          style={{ background: '#12121f', border: '1px solid #818cf8', borderRadius: 12, padding: 22, width: 'min(440px,100%)', maxHeight: '90vh', overflow: 'auto' }}>
+          <h2 style={{ fontSize: 18 }}>Transférer une ligne</h2>
+          <p>{lineTransfer.item.qty} × {lineTransfer.item.name} — prix historique {formatPrice(lineTransfer.item.price)}.</p>
+          <p>Le serveur conserve les montants et la préparation. La ligne rejoint un nouveau groupe distinct. Une répartition financière ambiguë sera refusée.</p>
+          <label style={{ display: 'block', margin: '12px 0' }}>Table de destination
+            <select disabled={transferring} value={destinationId} onChange={e => setDestinationId(e.target.value)} style={{ display: 'block', width: '100%', padding: 10 }}>
+              <option value="">Choisir une table</option>
+              {tables.filter(t => t.id !== lineTransfer.fromTable && !t.isMergedInto && !t.id.startsWith('standalone-seat:')).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'block', margin: '12px 0' }}>Quantité à transférer
+            <input disabled={transferring} type="number" min={1} max={Math.min(lineTransfer.item.qty, 50)} step={1} value={transferQty} onChange={e => setTransferQty(Number(e.target.value))} style={{ display: 'block', width: '100%', padding: 10, boxSizing: 'border-box' }} />
+          </label>
+          {transferError && <p role="alert" style={{ color: '#fda4af' }}>{transferError}</p>}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button disabled={transferring} onClick={() => setLineTransfer(null)} style={{ padding: 10 }}>Annuler</button>
+            <button disabled={transferring || !destinationId} onClick={() => void swapItemToTable(lineTransfer.item, destinationId, lineTransfer.fromTable, transferQty)} style={{ padding: 10 }}>{transferring ? 'Confirmation en cours…' : 'Confirmer le transfert'}</button>
+          </div>
+        </div>
+      </div>}
 
       {/* ══════════ VOICE MODAL ══════════ */}
       <AnimatePresence>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 // framer-motion animations handled within individual pages
 import FloorPlanPage from './pages/FloorPlanPage'
 import OrderPage from './pages/OrderPage'
@@ -23,7 +23,8 @@ export default function App() {
   const tables = usePOS(s => s.tables)
   const settings = usePOS(s => s.settings)
   const currentStaff = usePOS(s => s.currentStaff)
-  const logoutStaff = () => { logoutServer(); setReady(false); setView('pin_login') }
+  const logoutStaff = useCallback(() => { logoutServer(); setReady(false); setView('pin_login') }, [])
+  const currentStaffId = currentStaff?.id
   const kioskMode = usePOS(s => s.kioskMode)
   const setKioskMode = usePOS(s => s.setKioskMode)
 
@@ -46,7 +47,7 @@ export default function App() {
    * reverrouille pas — c'est un mode public, sans session à protéger.
    */
   useEffect(() => {
-    if (!currentStaff || kioskMode) return
+    if (!currentStaffId || kioskMode) return
     let minuteur: number
     const reprogrammer = () => {
       window.clearTimeout(minuteur)
@@ -62,7 +63,7 @@ export default function App() {
       window.clearTimeout(minuteur)
       evenements.forEach(e => window.removeEventListener(e, reprogrammer))
     }
-  }, [currentStaff, kioskMode, logoutStaff])
+  }, [currentStaffId, kioskMode, logoutStaff])
 
   const activeTable = activeTableId ? tables.find(t => t.id === activeTableId) : null
   const occupiedCount = tables.filter(t => t.status === 'occupied').length
