@@ -6,8 +6,8 @@ Mission en cours. **Pas de qualification de production ni de recette complète T
 
 - Copie source `creorga-2.0`, branche `codex/creorga-2-0-2026-10-08`.
 - Départ `350b35120f44d2508d863a3a73f644eb0aa6b141` ; premiers commits `8682053`, `0775b0f`.
-- Lot documents/intégrité/reprise enregistré dans `86a6a7a` ; lot du 16 octobre validé avant commit.
-- `origin/master` contrôlé le 16 octobre : SHA de départ ; publication de la branche 2.0 préparée.
+- Lot documents/intégrité/reprise `86a6a7a` ; lot du 16 octobre `d2da7b6`, publiés sur la branche dédiée.
+- `origin/master` contrôlé le 16 octobre : SHA de départ, préservée ; branche 2.0 poussée sur GitHub.
 - Windows, Node 22.19.0, PostgreSQL portable 16.15 sur loopback 5450 ; Prisma 5.22.
 - Laboratoire privé `local-2.0` adjacent au dépôt : secrets et données exclus de Git.
 - API 3002 ; web 5174, caisse 5175, administration 5177, portail 5178, tous sur loopback.
@@ -80,6 +80,6 @@ de test sur une base d'exploitation. Depuis le dossier parent : `node local-2.0/
 Les scripts privés lisent leur configuration sans afficher les secrets. Vérificateur partageable :
 `scripts/verify-restored-copy.mjs` avec son guide.
 
-Prochaine action : enregistrer et publier le lot validé, puis lien ticket/facture unique,
+Prochaine action : compléter les vérifications P0 des accès RH, puis lien ticket/facture unique,
 avoirs, paiements partiels et recette des clôtures. L'export réel T04 exige les origines/profils
 historiques ; aucun de ces profils n'a été ouvert ou modifié par les tests.
