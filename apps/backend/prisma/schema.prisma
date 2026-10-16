@@ -971,6 +971,8 @@ model EmployeeDocument {
   fichier   String
   mime      String
   taille    Int
+  sha256    String?
+  deletedAt DateTime?
   /// Pour une fiche de paie : période au format AAAA-MM.
   periode   String?
   createdAt DateTime @default(now())

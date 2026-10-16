@@ -387,9 +387,9 @@ router.put('/leave-requests/:id/status', async (req: any, res: Response) => {
 router.get('/team', async (req: any, res: Response) => {
   try {
     const team = await prisma.userCompany.findMany({
-      where: { companyId: req.companyId, isActive: true },
+      where: { companyId: req.companyId, isActive: true, ...(!canManageTeam(req) ? { userId: req.user.userId } : {}) },
       include: {
-        profile: true,
+        profile: canManageTeam(req),
         user: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true } },
       },
       orderBy: { createdAt: 'asc' },

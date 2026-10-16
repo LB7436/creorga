@@ -2,6 +2,17 @@
 
 ## Référence du 16 octobre 2026
 
+Complément RH : **384 unités** (258 backend, 80 web, 46 POS) et **73 intégrations**, tous réussis.
+Backend et web recompilés après ce complément ; les trois autres fronts sont inchangés depuis
+leur compilation réussie ci-dessous. Huit intégrations RH : fuite d'annuaire reproduite puis
+corrigée, cloisonnement, octets originaux, corruption et suppression reprenable. Cinq nouveaux
+tests unitaires : écrasement, fsync échoué, chemins et bornes de charge.
+
+`BROWSER-HR-DOCUMENTS.json` : neuf observations réussies via les contrôles de création de salarié,
+upload, ouverture, rechargement, connexion salariée, suppression et refus ultérieur. Fixtures seulement.
+Dernière restauration : **59 tables, huit fichiers dont deux pièces RH, deux PDF**, égaux après
+AES-GCM. Durée de cette petite copie : 1 503 ms, sans promesse RTO. Voir `DOCUMENTS-RH.md`.
+
 **379 tests unitaires** (253 backend, 80 web, 46 POS), **65 intégrations PostgreSQL** et
 compilation des cinq applications réussis. Les échanges bancaires restent simulés ; aucun
 paiement PayPal sandbox réel ni essai physique d'imprimante n'est inclus.

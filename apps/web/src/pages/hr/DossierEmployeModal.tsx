@@ -50,6 +50,7 @@ interface Document {
   taille: number
   periode: string | null
   createdAt: string
+  deletedAt?: string | null
 }
 
 interface Conge {
@@ -250,7 +251,11 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
     if (!window.confirm(`Supprimer « ${doc.nom} » ? Cette pièce sera définitivement retirée du dossier.`)) return
     try {
       const r = await fetchAuth(`${BACKEND}/api/hr-dossier/documents/${doc.id}`, { method: 'DELETE' })
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      const result = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        if (result.status === 'deletion_pending') setDocuments(d => d.map(item => item.id === doc.id ? { ...item, deletedAt: new Date().toISOString() } : item))
+        throw new Error(result.message || `HTTP ${r.status}`)
+      }
       setDocuments((d) => d.filter((x) => x.id !== doc.id))
       toastSuccess('Document supprimé')
     } catch (e: any) {
@@ -520,15 +525,16 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {d.nom}
+                                {d.deletedAt && <span style={{ display: 'block', color: '#b45309', fontSize: 12 }}>Suppression physique en attente</span>}
                               </div>
                               <div style={{ fontSize: 11, color: '#94a3b8' }}>
                                 {d.periode ? `Période ${d.periode} · ` : ''}{poids(d.taille)} · ajouté le {enClair(d.createdAt)}
                               </div>
                             </div>
-                            <button type="button" onClick={() => ouvrirDocument(d)} style={btnSecondaire}>
+                            <button type="button" disabled={!!d.deletedAt} onClick={() => ouvrirDocument(d)} style={btnSecondaire}>
                               <Download size={14} /> Ouvrir
                             </button>
-                            {canManage && <button type="button" onClick={() => supprimerDocument(d)} style={btnDanger} aria-label="Supprimer le document">
+                            {canManage && <button type="button" onClick={() => supprimerDocument(d)} style={btnDanger} aria-label={d.deletedAt ? 'Réessayer la suppression du document' : 'Supprimer le document'}>
                               <Trash2 size={14} />
                             </button>}
                           </div>

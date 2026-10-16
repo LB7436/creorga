@@ -12,6 +12,11 @@ Référence actuelle : 379 unités, 65 intégrations, cinq compilations et parco
 Reprise courante : 59 tables, six fichiers, deux PDF intègres. Aucun paiement bancaire ni matériel
 physique qualifié ; les anciens profils navigateur réels n'ont pas été exportés.
 
+Complément RH : l'ancien contrôle du dossier était déjà correct, mais `/hr/team` renvoyait encore
+les profils de collègues aux salariés. Fuite reproduite/corrigée. Octets et droits de téléchargement,
+altération et suppression interrompue testés avec PostgreSQL et fichiers. Référence portée à
+384 unités, 73 intégrations, neuf observations navigateur RH ; voir `DOCUMENTS-RH.md`.
+
 Les constats de départ du tableau ci-dessous sont historiques. Dans la copie 2.0 :
 
 - Commandes, captures et caisse utilisent des verrous communs ; montant et devise sont contrôlés

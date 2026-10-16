@@ -7,6 +7,8 @@ import prisma from '../lib/prisma'
 import logger from '../lib/logger'
 import { canManageHr, hrMembershipScope } from '../lib/hr-access'
 import { MAX_DOCUMENT_BYTES, validateDocument } from '../lib/document-validation'
+import { privateDocumentPath, storePrivateDocument } from '../lib/private-document-files'
+import { concurrentOperationGate } from '../lib/concurrent-operation-gate'
 
 /**
  * Dossier employé — fiche RH complète, notes internes et documents.
@@ -49,6 +51,8 @@ const TYPES_DOCUMENT = ['CONTRAT', 'FICHE_PAIE', 'DIPLOME', 'AUTRE']
 const STATUTS = ['ACTIF', 'INACTIF', 'CONGE', 'SORTI']
 
 const router = Router()
+const uploadCapacity = concurrentOperationGate(1)
+const downloadCapacity = concurrentOperationGate(2)
 // Une permission d'interface ne suffit pas : protéger aussi chaque écriture API.
 router.use((req: any, res, next) => {
   if (!req.user?.userId || !req.companyId || !req.role) return void res.status(403).json({ message: 'Accès RH refusé' })
@@ -143,10 +147,10 @@ router.get('/employes/:id', async (req: any, res: Response) => {
         : [],
       adhesion.profile
         ? prisma.employeeDocument.findMany({
-            where: { profileId: adhesion.profile.id },
+            where: { profileId: adhesion.profile.id, ...(!canManageHr(req) ? { deletedAt: null } : {}) },
             orderBy: { createdAt: 'desc' },
             // `fichier` est le nom sur disque : il ne sort jamais de l'API.
-            select: { id: true, type: true, nom: true, mime: true, taille: true, periode: true, createdAt: true },
+            select: { id: true, type: true, nom: true, mime: true, taille: true, periode: true, createdAt: true, deletedAt: true },
           })
         : [],
       canManageHr(req) ? prisma.shift.count({ where: { userId: adhesion.userId, companyId: req.companyId } }) : 0,
@@ -278,6 +282,7 @@ router.delete('/notes/:noteId', async (req: any, res: Response) => {
 
 router.post(
   '/employes/:id/documents',
+  uploadCapacity,
   express.raw({ type: '*/*', limit: TAILLE_MAX }),
   async (req: any, res: Response) => {
     try {
@@ -324,12 +329,11 @@ router.post(
       const profil = await profilOuCreation(adhesion.id)
       const fichier = `${crypto.randomBytes(16).toString('hex')}.${extension}`
 
-      fs.mkdirSync(DOSSIER_FICHIERS, { recursive: true })
-      fs.writeFileSync(path.join(DOSSIER_FICHIERS, fichier), contenu)
+      storePrivateDocument(DOSSIER_FICHIERS, fichier, contenu)
 
       let document
       try { document = await prisma.employeeDocument.create({
-        data: { profileId: profil.id, type, nom, fichier, mime, taille: contenu.length, periode },
+        data: { profileId: profil.id, type, nom, fichier, mime, taille: contenu.length, periode, sha256: crypto.createHash('sha256').update(contenu).digest('hex') },
         select: { id: true, type: true, nom: true, mime: true, taille: true, periode: true, createdAt: true },
       }) } catch (error) {
         // Pas de métadonnée en base : retirer uniquement le fichier que cette requête vient de créer.
@@ -347,7 +351,7 @@ router.post(
   },
 )
 
-router.get('/documents/:docId/fichier', async (req: any, res: Response) => {
+router.get('/documents/:docId/fichier', downloadCapacity, async (req: any, res: Response) => {
   try {
     const document = await prisma.employeeDocument.findFirst({
       where: { id: req.params.docId, profile: { userCompany: hrMembershipScope(req) } },
@@ -359,30 +363,34 @@ router.get('/documents/:docId/fichier', async (req: any, res: Response) => {
 
     // `fichier` est construit par le serveur, mais on vérifie tout de même que
     // le chemin résolu ne sort pas du dossier prévu.
-    const chemin = path.resolve(DOSSIER_FICHIERS, document.fichier)
-    if (!chemin.startsWith(DOSSIER_FICHIERS + path.sep)) {
+    let chemin: string
+    try { chemin = privateDocumentPath(DOSSIER_FICHIERS, document.fichier) } catch {
       res.status(400).json({ message: 'Chemin de document invalide' })
       return
     }
+    if (document.deletedAt) return void res.status(410).json({ message: 'Document retiré du dossier ; suppression physique en attente de vérification.' })
     if (!fs.existsSync(chemin)) {
       logger.error(`Document ${document.id} référencé mais absent du disque : ${chemin}`)
       res.status(410).json({ message: 'Fichier absent du disque' })
       return
     }
 
+    const metadata = await fs.promises.lstat(chemin)
+    if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > TAILLE_MAX || metadata.size !== document.taille) {
+      return void res.status(409).json({ message: 'Intégrité du document non confirmée. Demandez une vérification au responsable.' })
+    }
+    const bytes = await fs.promises.readFile(chemin)
+    if (document.sha256 && crypto.createHash('sha256').update(bytes).digest('hex') !== document.sha256) {
+      return void res.status(409).json({ message: 'Le document enregistré a été altéré. Téléchargement refusé.' })
+    }
     res.set({
       'Content-Type': document.mime,
       'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(document.nom)}`,
       // Donnée personnelle : jamais mise en cache par un intermédiaire.
       'Cache-Control': 'private, no-store',
+      'X-Creorga-Integrity': document.sha256 ? 'verified-sha256' : 'legacy-unverified',
     })
-    const stream = fs.createReadStream(chemin)
-    stream.on('error', (error) => {
-      logger.error('Lecture du document impossible', error)
-      if (!res.headersSent) res.status(500).json({ message: 'Lecture du document impossible' })
-      else res.destroy()
-    })
-    stream.pipe(res)
+    res.send(bytes)
   } catch (error) {
     logger.error('Erreur GET /hr-dossier/documents/:id/fichier:', error)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -399,15 +407,21 @@ router.delete('/documents/:docId', async (req: any, res: Response) => {
       return
     }
 
-    await prisma.employeeDocument.delete({ where: { id: document.id } })
-
+    let target: string
+    try { target = privateDocumentPath(DOSSIER_FICHIERS, document.fichier) }
+    catch { return void res.status(400).json({ message: 'Chemin de document invalide ; aucune suppression effectuée.' }) }
+    if (!document.deletedAt) await prisma.employeeDocument.update({ where: { id: document.id }, data: { deletedAt: new Date() } })
     try {
-      fs.unlinkSync(path.join(DOSSIER_FICHIERS, document.fichier))
+      const metadata = fs.lstatSync(target)
+      if (!metadata.isFile() || metadata.isSymbolicLink()) throw new Error('Storage entry refused')
+      fs.unlinkSync(target)
     } catch (e: any) {
-      // Un fichier orphelin n'empêche rien, mais il doit être signalé.
-      if (e?.code !== 'ENOENT') logger.error(`Document non supprimé du disque (${document.fichier}):`, e)
+      if (e?.code !== 'ENOENT') {
+        logger.error('Suppression physique de document RH non confirmée', { code: 'HR_DOCUMENT_DELETE_PENDING' })
+        return void res.status(503).json({ status: 'deletion_pending', message: 'Document retiré des accès salariés, suppression physique non confirmée. Réessayez depuis ce dossier après vérification du stockage.' })
+      }
     }
-
+    await prisma.employeeDocument.delete({ where: { id: document.id } })
     res.json({ ok: true })
   } catch (error) {
     logger.error('Erreur DELETE /hr-dossier/documents/:id:', error)

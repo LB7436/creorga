@@ -21,15 +21,16 @@ ni ouverts ni nettoyés. Snapshot initial : 48 tables réconciliées avec le dum
 Les modifications se font dans `creorga_local` et les fixtures dans `creorga_tests` seulement.
 
 Restauration courante exécutée applications arrêtées : archive v2, copie chiffrée AES-GCM,
-déchiffrement identique, nouvelle base, comparaison des **59 tables**, six fichiers métier et
+déchiffrement identique, nouvelle base, comparaison des **59 tables**, huit fichiers métier et
 deux originaux PDF émis. Empreintes PDF vérifiées. Médias absents de cette copie, état explicitement
 consigné ; leur inclusion est couverte par tests dédiés. Preuve privée `RESTORATION-2.0.json`.
-Durée de cette petite copie le 16 octobre : 1 671 ms, pas une promesse RTO. Clé séparée du chiffré.
+Durée de cette copie avec deux pièces RH le 16 octobre : 1 503 ms, pas un RTO. Clé séparée du chiffré.
 La rétention normale a supprimé un ancien dump de la copie de travail ; originaux préservés.
 
 Migrations additives appliquées uniquement aux copies : journal POS `20260905220000`,
 tentatives `20261008130000`, règlements `20261008143000`, affectations `20261008153000`,
 documents émis `20261008163000`, envois de facture `20261008173000`, visites `20261008190000`.
+Pièces RH `20261016140000_hr_document_integrity`, sans réécriture historique.
 
 ## Implémenté et vérifié dans la copie
 
@@ -51,11 +52,13 @@ documents émis `20261008163000`, envois de facture `20261008173000`, visites `2
   vérificateur Docker durci et testé par doubles. Reprise native réelle comparée ci-dessus.
 - Caisse : réponses, renouvellements, encaissements et clôtures tardifs refusés après changement
   d'utilisateur/société ; références anciennes conservées dans leur ancien périmètre.
+- RH : fuite du profil complet par `/hr/team` corrigée. Création exclusive des fichiers, fsync,
+  empreinte, téléchargement contrôlé, suppression incomplète conservée et reprise visible.
 
-Dernier passage global du 16 octobre : **379 unités** (253 backend, 80 web, 46 POS) et
-**65 intégrations PostgreSQL** réussies. Prestataires bancaires simulés ; SMTP local.
+Référence du 16 octobre : **384 unités** (258 backend, 80 web, 46 POS) et
+**73 intégrations PostgreSQL** réussies. Prestataires bancaires simulés ; SMTP local.
 Les cinq applications compilent. Chrome neuf : dix observations QR, six caisse/prix et quinze
-export navigateur réussies. Les treize contrôles facture sont datés du 8 octobre. Aucun résultat
+export navigateur et neuf RH réussies. Les treize contrôles facture sont datés du 8 octobre. Aucun résultat
 ne vaut impression physique ou paiement bancaire. Voir `RECETTE-ET-PREUVES.md`.
 
 Audit dépendances : zéro alerte de production connue ; onze alertes restantes de développement.
@@ -80,6 +83,6 @@ de test sur une base d'exploitation. Depuis le dossier parent : `node local-2.0/
 Les scripts privés lisent leur configuration sans afficher les secrets. Vérificateur partageable :
 `scripts/verify-restored-copy.mjs` avec son guide.
 
-Prochaine action : compléter les vérifications P0 des accès RH, puis lien ticket/facture unique,
+Prochaine action : enregistrer le complément RH testé, puis lien ticket/facture unique,
 avoirs, paiements partiels et recette des clôtures. L'export réel T04 exige les origines/profils
 historiques ; aucun de ces profils n'a été ouvert ou modifié par les tests.

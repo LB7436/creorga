@@ -5,7 +5,7 @@
 | ID | Priorité | Exigence | État actuel |
 |---|---|---|---|
 | T01 | P0 | installation neuve complète | Partiel : installation locale ; recette UI en cours |
-| T02 | P0 | restauration sur copie avec pièces jointes | Vérifié localement : 57 tables, 6 fichiers, PDF émis intègre ; médias absents déclarés |
+| T02 | P0 | restauration sur copie avec pièces jointes | Vérifié : 59 tables, 8 fichiers dont RH, 2 PDF intègres ; médias absents déclarés |
 | T03 | P0 | migration de la copie ancienne | Migrations additives appliquées à une copie |
 | T04 | P0 | export d’anciennes ventes navigateur sans perte | Outil chiffré testé sur fixtures localStorage/IndexedDB/caches ; export des profils réels restant |
 | T05 | P0 | refus d’accès intersociétés | Paiements, commandes, visites et documents testés ; réponses tardives web/POS isolées ; périmètre global partiel |
@@ -73,7 +73,7 @@
 | T67 | P1 | facture reçue dans boîte de test avec vrai PDF | Dialogue SMTP loopback et PDF joint identique testés ; aucun envoi Zoho réel |
 | T68 | P1 | échec d’envoi et reprise sans doublon | Référence stable et perte accusé après DATA testées ; incertain sans renvoi automatique |
 | T69 | P1 | lien expiré | À implémenter ou à recetter |
-| T70 | P0 | pièce d’une autre société inaccessible. | Facture/PDF intersociétés refusés ; toutes pièces RH à requalifier |
+| T70 | P0 | pièce d’une autre société inaccessible. | Factures/PDF et RH testés ; salarié limité à son dossier, téléchargement direct et droits vérifiés |
 | T71 | P1 | table 3 addition ouverte après départ déclaré | À implémenter ou à recetter |
 | T72 | P1 | client revenu | À implémenter ou à recetter |
 | T73 | P1 | personne encore à table | À implémenter ou à recetter |

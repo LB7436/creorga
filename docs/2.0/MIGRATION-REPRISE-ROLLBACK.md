@@ -19,6 +19,9 @@ Migrations supplémentaires appliquées uniquement aux copies locale et fictive 
 - `20261008173000_invoice_delivery` : file transactionnelle et références d'envoi.
 - `20261008190000_guest_visits` : visites, capacités hachées, rattachement nullable des nouvelles
   commandes et tentatives. Aucun ancien impayé n'est automatiquement rattaché.
+- `20261016140000_hr_document_integrity` : empreinte nullable et suppression en attente des pièces RH.
+  Les anciens fichiers ne reçoivent pas de preuve d'intégrité inventée. L'ancien code pourrait
+  rouvrir une pièce retirée ; désactiver ses routes RH en cas de retour, garder les tombstones.
 
 Ces évolutions sont additives. Le code précédent ne sait pas rapprocher toutes les nouvelles
 affectations : revenir au vieux code avec des tentatives actives constitue un retour dangereux.
