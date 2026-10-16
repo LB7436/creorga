@@ -33,7 +33,19 @@ Les prix POS ouverts sont gelés dans un registre réservé au serveur. Le catal
 aux nouvelles lignes ; l'historique incomplet exige une revue OWNER/MANAGER motivée. Ce registre
 JSON reste à unifier avec une autorité transactionnelle de sessions natives.
 
-Prochaines décisions : allocation des paiements partiels, conversion ticket/facture unique,
-unification POS/visites et file d'impression durable. Ne pas multiplier les services :
+Lot financier `dfb708a` : `SaleOrigin` empêche qu'une provenance consommée alimente un nouveau
+reçu. Les `OrderItem` ne deviennent pas des lignes natives indépendantes. `OrderTender` conserve
+les affectations partielles et sépare consommations/pourboires/dons. `CreditNote` est une pièce
+distincte ; `RefundAttempt`/`RefundAllocation` réservent le remboursement par avoir/capture/commande.
+`CashMovement` et les champs v2 nullable de `CashDrawer` produisent un comptage figé. Le verrou
+de société précède table/commande. L'appel réseau reste hors transaction ; absence de preuve ≠ succès.
+
+Les historiques ne sont pas réécrits. La session transactionnelle complète, préparation et
+transferts restent à unifier ; une source manquante n'est pas reconstruite arbitrairement.
+Journal documentaire ≠ nouvelle vente ; CSV opérationnel ≠ grand livre qualifié.
+Voir `COEUR-FINANCIER-P0.md`.
+
+Prochaines décisions : unification POS/visites, remboursements manuels, rapprochement comptable
+et file d'impression durable. Ne pas multiplier les services :
 impression et vidéo seront isolées uniquement lorsque leurs connexions réelles seront qualifiées.
 La vidéo ne possède aucun droit d'écriture sur paiements, ventes ou comptabilité.

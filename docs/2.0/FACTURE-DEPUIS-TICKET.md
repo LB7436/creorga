@@ -54,6 +54,12 @@ Annuler un brouillon n’efface pas son lien unique et n’autorise pas une seco
 Le traitement comptable des justificatifs déjà émis doit être validé avant exploitation réelle.
 Ce lot ne qualifie ni conformité fiscale intégrale, ni transmission électronique, ni impression physique.
 
+Complément financier `dfb708a` : avoirs commerciaux partiels/complets désormais disponibles
+comme pièces distinctes, TVA/PDF historiques, sans changer ce parcours ni créer de vente.
+Paiements partiels/mixtes et réservations de remboursement PayPal ajoutés. Banque simulée
+seulement ; remboursement espèces/Stripe et grand livre non livrés. Voir `COEUR-FINANCIER-P0.md`
+pour limites, tests et sauvegarde courante (65 tables, 13 PDF).
+
 ## Reproduction et retour
 
 Depuis `creorga-2.0` avec le laboratoire privé configuré :

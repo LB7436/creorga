@@ -5,6 +5,18 @@ Le VPS Creorga a été retiré le 24 septembre ; le travail porte sur une copie 
 
 ## Mise à jour après les lots locaux
 
+Référence courante : lot financier `dfb708a` du 16 octobre, **395 unités et 112 intégrations**,
+17 observations Chrome et cinq compilations. Reprise : 65 tables, huit fichiers,
+sept PDF facture et six PDF avoir intègres. Voir `COEUR-FINANCIER-P0.md` et `CHECKPOINT.md`.
+Les décomptes suivants sont historiques, pas la référence actuelle.
+
+Défauts supplémentaires reproduits/corrigés : revente d'une provenance déplacée, copie QR/native,
+ouvertures concurrentes, remboursement utilisant la part d'une autre commande et reprise après
+réponse perdue. Avoirs commerciaux séparés et affectations partielles persistantes implémentés.
+Faux net fiscal ignorant les avoirs refusé ; CSV documentaire séparé sans double vente.
+Unification complète de session, remboursements manuels/frais et qualification bancaire réelle
+restent inachevés. Aucun profil historique ouvert : T04 bloqué.
+
 Complément du 16 octobre : gel des prix POS et revue tracée des lignes historiques incomplètes,
 visites QR révocables, suppression des canaux publics de table, isolation des requêtes tardives
 dans la caisse. Export navigateur chiffré testé sur fixtures, ancien restaurateur durci.

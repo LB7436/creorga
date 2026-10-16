@@ -8,6 +8,9 @@ Mission en cours. **Pas de qualification de production ni de recette complète T
 - Départ `350b35120f44d2508d863a3a73f644eb0aa6b141` ; premiers commits `8682053`, `0775b0f`.
 - Lot documents/intégrité/reprise `86a6a7a` ; lot du 16 octobre `d2da7b6`, publiés sur la branche dédiée.
 - Complément RH `5605ec6` publié ; le lot suivant relie ticket et facture (voir historique de cette branche).
+- Base du présent lot : `a59916a415e4c3e5ac06d7d0ccb150d651306d43`.
+  Code financier : `dfb708a4748d485e25cb40287281de4a6613069e`. Le commit documentaire suivant
+  précise les preuves et limites ; aucun déploiement public. Voir `COEUR-FINANCIER-P0.md`.
 - `origin/master` contrôlé le 16 octobre : SHA de départ, préservée ; branche 2.0 poussée sur GitHub.
 - Windows, Node 22.19.0, PostgreSQL portable 16.15 sur loopback 5450 ; Prisma 5.22.
 - Laboratoire privé `local-2.0` adjacent au dépôt : secrets et données exclus de Git.
@@ -22,10 +25,10 @@ ni ouverts ni nettoyés. Snapshot initial : 48 tables réconciliées avec le dum
 Les modifications se font dans `creorga_local` et les fixtures dans `creorga_tests` seulement.
 
 Restauration courante exécutée applications arrêtées : archive v2, copie chiffrée AES-GCM,
-déchiffrement identique, nouvelle base, comparaison des **59 tables**, huit fichiers métier et
-trois originaux PDF émis, dont la facture liée au ticket. Empreintes PDF vérifiées. Médias absents de cette copie, état explicitement
+déchiffrement identique, nouvelle base, comparaison des **65 tables**, huit fichiers métier,
+sept originaux PDF de facture et six d'avoirs. Empreintes PDF vérifiées. Médias absents de cette copie, état explicitement
 consigné ; leur inclusion est couverte par tests dédiés. Preuve privée `RESTORATION-2.0.json`.
-Durée de cette copie le 16 octobre : 1 529 ms, pas un RTO. Clé séparée du chiffré.
+Durée de cette copie le 16 octobre : 1 646 ms, pas un RTO. Clé séparée du chiffré.
 La rétention normale a supprimé un ancien dump de la copie de travail ; originaux préservés.
 
 Migrations additives appliquées uniquement aux copies : journal POS `20260905220000`,
@@ -33,6 +36,12 @@ tentatives `20261008130000`, règlements `20261008143000`, affectations `2026100
 documents émis `20261008163000`, envois de facture `20261008173000`, visites `20261008190000`.
 Pièces RH `20261016140000_hr_document_integrity`, sans réécriture historique.
 Lien ticket/facture `20261016150000_receipt_invoice_link`, unicité et appartenance à la société.
+Lot financier : `20261016160000_sale_origins`, `20261016170000_credit_notes`,
+`20261016180000_order_tenders`, `20261016190000_cash_ledger`,
+`20261016200000_refund_attempts`, `20261016210000_refund_allocations`.
+Aucun backfill de ventes, numéros, prix, règlements ou clôtures historiques. La copie restaurée
+contient huit affectations, quatre caisses et trois mouvements ; provenances POS et réservations
+de remboursements y sont vides (testées avec données en intégration, pas par cette archive).
 
 ## Implémenté et vérifié dans la copie
 
@@ -58,11 +67,25 @@ Lien ticket/facture `20261016150000_receipt_invoice_link`, unicité et appartena
   empreinte, téléchargement contrôlé, suppression incomplète conservée et reprise visible.
 - Ticket → facture société unique : prix TTC, remise, taux et émetteur historiques, hors pourboire/don ;
   aucune nouvelle vente ni encaissement. Journal → connexion → ticket vérifié. Voir `FACTURE-DEPUIS-TICKET.md`.
+- Provenances POS uniques : ancienne projection déplacée dans un nouveau couvert et copie de ligne QR
+  ne deviennent plus de nouvelles ventes. Unification complète des sessions JSON/SQL encore partielle.
+- Avoirs partiels/intégraux séparés et numérotés, TVA et PDF historiques ; original inchangé.
+  Correction commerciale répartie par taux, sans remboursement ni stock implicites.
+- Affectations durables de paiements partiels/mixtes, solde serveur, QR limité au reliquat,
+  pourboires/dons distincts ; réponse perdue et rejeu après rechargement testés.
+- Remboursement PayPal réservé par avoir/capture/commande puis confirmé uniquement par preuve exacte.
+  Création, timeout, concurrence et incohérences testés avec banques simulées, pas dans le vrai sandbox.
+- Caisses v2 : ouverture unique, mouvements motivés, acomptes inclus, comptage, écart justifié,
+  rapport immuable et retrouvé après rechargement. CSV opérationnel et journal factures/avoirs séparés.
+  Ancien rapport TVA bloqué lorsqu'il ignorerait des avoirs ; pas de faux net fiscal.
+- Références UI incertaines conservées sans écrasement ; export de reprise chiffré les inclut désormais.
 
-Référence du 16 octobre : **384 unités** (258 backend, 80 web, 46 POS) et
-**82 intégrations PostgreSQL** réussies, dont neuf ticket/facture. Prestataires bancaires simulés ; SMTP local.
+Référence du 16 octobre : **395 unités** (260 backend, 89 web, 46 POS) et
+**112 intégrations PostgreSQL** réussies, dont neuf ticket/facture. Vérificateur de restauration :
+23 auto-contrôles. Prestataires bancaires simulés ; SMTP local.
 Les cinq applications compilent. Chrome neuf : dix observations QR, six caisse/prix et quinze
-export navigateur, neuf RH et douze ticket/facture réussies. Les treize contrôles facture HT sont datés du 8 octobre. Aucun résultat
+export navigateur, neuf RH, douze ticket/facture et dix-sept du nouveau lot financier réussies.
+Ces exécutions ne sont pas un audit de tous les écrans. Les treize contrôles facture HT sont datés du 8 octobre. Aucun résultat
 ne vaut impression physique ou paiement bancaire. Voir `RECETTE-ET-PREUVES.md`.
 
 Audit dépendances : zéro alerte de production connue ; onze alertes restantes de développement.
@@ -70,11 +93,17 @@ Voir `DEPENDANCES-ET-LIMITES.md`. Pas de certification de sécurité.
 
 ## Non terminé / non qualifié
 
-- Unification transactionnelle des sessions/lignes POS natives avec commandes et visites QR.
-- Export T04 des anciennes ventes navigateur et qualification des stores persistants.
-- Clôture et rapprochement comptable complets ; restauration Docker réelle non exécutée.
-- Qualification des justificatifs historiques incomplets, avoirs, paiements partiels/remboursements complets.
-- Qualification des connecteurs, résolution des paiements manuels incertains, journal financier.
+- Unification transactionnelle complète des sessions/lignes POS natives avec commandes/visites,
+  transferts, fusion et KDS. Les nouveaux garde-fous ne reconstruisent pas les provenances manquantes.
+- Export T04 réel : profils non ouverts, export complet/provenance autorisés manquants.
+  Étude et procédure prêtes dans `T04-REPRISE-HISTORIQUE.md`.
+- Grand livre/export comptable qualifié, rapprochement frais/net/versements, anciennes sessions,
+  règlements sans caisse ouverte ; restauration Docker réelle non exécutée.
+- Avoirs article par article, remboursement espèces/carte déclaré et Stripe, libération des
+  remboursements refusés/incertains, rapprochement automatique des webhooks de remboursement.
+- Paiement partiel dans tous les parcours POS natifs ; un acompte QR se termine dans la gestion
+  des commandes ou par paiement QR du reliquat. Anciens justificatifs incomplets à examiner.
+- Qualification des connecteurs et résolution des opérations manuelles incertaines.
 - Impression physique, tiroir, panne électrique, réseau durant service, terminal et PayPal sandbox réel.
 - Ensemble des parcours métier/UI, accessibilité ; cent scénarios non tous exécutés.
 - Caméras absentes et vidéo désactivée ; surveillance permanente des tables exclue par défaut.
@@ -87,6 +116,8 @@ de test sur une base d'exploitation. Depuis le dossier parent : `node local-2.0/
 Les scripts privés lisent leur configuration sans afficher les secrets. Vérificateur partageable :
 `scripts/verify-restored-copy.mjs` avec son guide.
 
-Prochaine action : avoirs traçables, paiements partiels et recette des clôtures, sans réécriture des ventes.
-L'export réel T04 exige les origines/profils
-historiques ; aucun de ces profils n'a été ouvert ou modifié par les tests.
+Prochaine action : achever l'autorité transactionnelle de session et les parcours POS de solde,
+puis remboursements manuels traçables/rapprochement comptable et qualification PayPal sandbox.
+T04 attend un export privé de provenance fiable ou une autorisation distincte de reprise sur copie ;
+aucun profil historique n'a été ouvert ou modifié. Vidéo désactivée, aucun achat ni prestataire réel.
+QA visuelle INCONCLUSIVE sans baseline ; axe, clavier complet et performances non qualifiés.

@@ -25,6 +25,16 @@ Migrations supplémentaires appliquées uniquement aux copies locale et fictive 
 - `20261016150000_receipt_invoice_link` : facture unique par ticket, clé étrangère société/ticket,
   profil historique de provenance. Ne retirer aucun lien pour recréer un document. L'ancien code
   n'impose pas l'immutabilité financière de ces brouillons : ne pas le remettre en écriture dessus.
+- `20261016160000_sale_origins` : provenances uniques des nouvelles ventes ; aucune réécriture
+  ni attribution automatique aux anciens reçus sans identifiants fiables.
+- `20261016170000_credit_notes` : avoirs distincts, numéros uniques, original/PDF/TVA conservés.
+- `20261016180000_order_tenders` : affectations par commande, sources composées par société,
+  consommations/pourboires/dons séparés. Aucun backfill des anciens états payés.
+- `20261016190000_cash_ledger` : champs v2 nullable, mouvements, unicité des nouvelles sessions
+  ouvertes, rapport de clôture figé. Les anciennes sessions ne sont pas converties implicitement.
+- `20261016200000_refund_attempts` : réservations durables de remboursement, avoir/capture liés.
+- `20261016210000_refund_allocations` : part de capture réservée par commande d'origine.
+  Une réservation ancienne sans ventilation n'est pas reconstruite : rapprochement requis.
 
 Ces évolutions sont additives. Le code précédent ne sait pas rapprocher toutes les nouvelles
 affectations : revenir au vieux code avec des tentatives actives constitue un retour dangereux.
@@ -53,3 +63,16 @@ seules ressources créées. Ses 18 tests simulent Docker ; ils ne prouvent pas u
 
 Dernière reprise native après lot ticket/facture : 59 tables, huit fichiers (dont RH) et trois
 originaux PDF égaux. Chiffrement vérifié ; 1 529 ms sur cette copie, sans engagement de RTO.
+
+Dernière reprise après lot financier `dfb708a` : **65 tables**, huit fichiers, sept PDF facture
+et six PDF avoir intègres/identiques, AES-GCM vérifié, 1 646 ms (pas un RTO). Les tables
+de provenances POS et de remboursements sont vides dans cette copie ; leurs lignes ont été
+testées en intégration. Le vérificateur contrôle désormais aussi `CreditNote.pdf/pdfHash`.
+
+Rollback de ce lot : arrêter les écrivains, conserver une nouvelle archive de l'état courant
+et des réservations, puis restaurer dans une autre base. Ne pas retirer `SaleOrigin` pour revendre
+une ligne, ni `OrderTender` pour réouvrir un solde, ni les avoirs/réserves pour libérer un plafond.
+L'ancien code ignore les acomptes et les mouvements v2 : **ne pas le réactiver en écriture**
+sur cette base migrée. Un correctif en avant est préférable. Aucun down/reset proposé.
+La sauvegarde doit inclure les nouvelles références navigateur incertaines avant tout changement
+d'origine ; T04 réel reste distinct et non exécuté (`T04-REPRISE-HISTORIQUE.md`).

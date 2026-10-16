@@ -13,7 +13,7 @@ n'enregistre pas de service worker et n'appelle aucune API métier.
    chaque navigateur, profil, appareil et origine. Un export vide ne valide pas les autres.
 
 Sources : clés historiques de caisse, ventes imbriquées dans les clôtures, chaises, brouillons et
-références de paiements ; IndexedDB `creorga-offline/queue` ; caches CréOrga à `/__queue__`,
+références de paiements, dont `creorga-financial-v1:` ; IndexedDB `creorga-offline/queue` ; caches CréOrga à `/__queue__`,
 `/legacy-queue-*` et `/api/*`. LocalStorage garde ses chaînes brutes même si leur JSON est corrompu.
 Les types IndexedDB non préservables en JSON sont refusés. Les caches conservent corps et empreintes.
 
@@ -29,3 +29,7 @@ prouvent pas la récupération des profils réels.
 Test depuis `apps/web` : `node ../../node_modules/vitest/vitest.mjs run src/lib/browser-recovery.test.ts`.
 Sources : [WebCrypto](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/encrypt),
 [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IDBFactory/databases).
+
+Mission P0 du 16 octobre : aucun profil historique ouvert, même pour cet outil. Étude, blocage
+T04 et procédure sur copie : `T04-REPRISE-HISTORIQUE.md`. Dix-sept tests de l'exporteur,
+dont nouvelles références financières ; aucun résultat d'export d'un ancien poste de service.

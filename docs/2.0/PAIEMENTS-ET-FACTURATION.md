@@ -45,8 +45,10 @@ Le format A4 original ne change pas après modification de société. La file `I
 conserve la référence, destinataire et empreinte du document ; acceptation SMTP ≠ distribution.
 Les essais d'email sont limités au dialogue loopback et aux adresses fictives autorisées.
 
-Restent : paiements partiels persistants, paiement en ligne de couverts POS natifs, remboursements,
-commissions, avoirs et onboarding multicommerçant.
+Lot `dfb708a` : paiements partiels/mixtes persistants, avoirs commerciaux séparés et remboursement
+PayPal réservé puis vérifié implémentés/testés localement. Banque simulée seulement.
+Restent : tous parcours POS natifs de solde/en ligne, remboursements espèces/carte déclarés
+et Stripe, refus/libération des réserves, frais/versements et onboarding multicommerçant.
 Les prix et taux POS ouverts sont désormais figés côté serveur, y compris après modification de
 catalogue et reconnexion. Les lignes anciennes incomplètes exigent une revue tracée. L'émission
 du crédit cadeau ne possède pas encore un livre comptable complet. Aucun historique n'est réécrit.
@@ -55,4 +57,14 @@ Lot du 16 octobre : facture unique depuis un reçu POS v2, sans nouvelle vente/c
 TTC, remise et ventilation contrôlés ; pourboire/don exclus ; émetteur historique conservé.
 Le statut et le PDF précisent le règlement déclaré en caisse, pas une capture bancaire vérifiée.
 Neuf intégrations et douze observations navigateur réussies. Limites : anciens reçus incomplets,
-avoirs/corrections et validation comptable. Voir `FACTURE-DEPUIS-TICKET.md`.
+corrections d'articles et validation comptable. Voir `FACTURE-DEPUIS-TICKET.md`.
+
+`COEUR-FINANCIER-P0.md` décrit montants, états, réservations, droits et limites. Avoir ≠
+remboursement ni entrée de stock ; le remboursement ne réécrit pas la vente. Le QR ne demande
+que le reliquat. Terminal autonome = déclaration manuelle. Les références UI incertaines sont
+conservées après réponse perdue et incluses dans l'export chiffré de reprise.
+
+Clôture v2 et CSV opérationnel disponibles. Journal factures/avoirs séparé, avec liens et TVA
+signés. Le rapport historique de ventes payées est refusé sur une période avec avoirs plutôt
+que présenté comme net fiscal réconcilié. Grand livre, commissions, écritures de remboursement
+et format d'import comptable restent à qualifier.

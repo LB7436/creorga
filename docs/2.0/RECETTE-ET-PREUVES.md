@@ -2,7 +2,41 @@
 
 ## Référence du 16 octobre 2026
 
-Dernier lot : **384 unités et 82 intégrations PostgreSQL**, tous réussis. Backend, web et POS
+Référence actuelle du lot financier `dfb708a` : **395 unités** (260 backend, 89 web, 46 POS),
+**112 intégrations PostgreSQL** dans douze fichiers, cinq compilations et 23 auto-contrôles du
+vérificateur de restauration réussis. Les résultats ci-dessous sont les étapes historiques,
+pas des tests supplémentaires à additionner. Aucun prestataire bancaire réel utilisé.
+
+Suites concernées : POS 15, commandes 9, paiements 26, avoirs 8, remboursements 9, caisses 5.
+Échecs reproduits avant correctifs : revente d'une ligne déplacée, copie QR/native,
+plusieurs ouvertures concurrentes, remboursement sur la part d'une autre commande et
+rapport fiscal ignorant les avoirs. Vingt appels concurrents et droits/sociétés testés.
+Les huit tests de références UI préservent une demande incertaine ou corrompue ; l'export
+navigateur possède désormais dix-sept tests, dont ces nouvelles références chiffrées.
+
+`BROWSER-FINANCIAL-P0.json` : **17 observations** dans Chrome neuf, localhost, données fictives.
+Acompte espèces puis solde carte déclaré, perte volontaire des deux réponses après commit,
+rechargement et rejeu sans doublon, mouvement motivé, clôture 101 €, relecture figée,
+CSV de caisse, avoir 3 € puis solde 8,70 €, vrai PDF, CSV documentaire et refus du faux net fiscal.
+Captures 375/768/1440 ; PDF d'avoir rendu/inspecté. Zéro exception JS sur ce parcours.
+Comparaison visuelle **INCONCLUSIVE** sans baseline ; axe, clavier complet, lecteur d'écran et
+Core Web Vitals non qualifiés. Aucun test d'impression physique ou paiement bancaire.
+
+Restauration du lot financier, applications arrêtées : **65 tables**, huit fichiers, sept PDF
+de factures et six d'avoirs identiques/intègres après AES-GCM et restauration native dans une
+base neuve ; 1 646 ms sur cette petite copie, pas un RTO. Huit affectations, quatre caisses,
+trois mouvements. Les tables de provenances POS/remboursements sont vides dans cette archive,
+leur persistance non vide étant éprouvée en intégration. Médias absents explicitement.
+La rétention a retiré un ancien dump du laboratoire seulement ; originaux conservés.
+
+Reproduction : `node ../local-2.0/run.mjs unit`, `node ../local-2.0/run.mjs integration`,
+`node scripts/verify-restored-copy.mjs --self-test`, puis script privé
+`node ../local-2.0/browser-financial-p0.mjs` avec fixtures `.invalid`.
+Voir `COEUR-FINANCIER-P0.md`, `T04-REPRISE-HISTORIQUE.md` et le checkpoint pour les limites.
+
+### Étape ticket/facture précédente
+
+Lot précédent : **384 unités et 82 intégrations PostgreSQL**, tous réussis. Backend, web et POS
 compilés ; avertissement de taille de bundle POS conservé. Neuf intégrations ticket/facture,
 dont vingt demandes concurrentes et contraintes SQL. Chrome neuf : **douze observations**,
 journal → connexion → ticket conservé, facture unique, TTC correctement affiché, trois PDF,
