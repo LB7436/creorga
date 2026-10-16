@@ -193,6 +193,11 @@ router.post('/quotes/:id/convert', async (req: any, res: Response) => {
       include: { items: true },
     })
     if (!quote) { res.status(404).json({ message: 'Devis non trouvé' }); return }
+    if (quote.status === 'ACCEPTED' && quote.convertedInvoiceId) {
+      const invoice = await prisma.invoice.findFirst({ where: { companyId: req.companyId, id: quote.convertedInvoiceId }, include: { customer: true, items: true } })
+      if (!invoice) return res.status(409).json({ message: 'Lien de conversion incohérent : rapprochement responsable requis.' })
+      return res.json(invoice)
+    }
 
     if (!['DRAFT', 'SENT'].includes(quote.status)) {
       res.status(409).json({ message: 'Ce devis a déjà été converti en facture' })
@@ -212,7 +217,7 @@ router.post('/quotes/:id/convert', async (req: any, res: Response) => {
         data: { status: 'ACCEPTED' },
       })
       if (locked.count !== 1) throw new QuoteConflict()
-      return tx.invoice.create({
+      const created = await tx.invoice.create({
       data: {
         companyId: req.companyId,
         customerId: quote.customerId,
@@ -232,6 +237,8 @@ router.post('/quotes/:id/convert', async (req: any, res: Response) => {
       },
       include: { customer: true, items: true },
       })
+      await tx.quote.update({ where: { id: quote.id }, data: { convertedInvoiceId: created.id, convertedAt: new Date() } })
+      return created
     }))
     res.status(201).json(invoice)
   } catch (error) {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { usePOS, ventilationTva, totalCouvert, migrerEtatPersistant, type Cover } from './posStore'
+import { usePOS, ventilationTva, totalCouvert, coverTotal, tableTotal, migrerEtatPersistant, type Cover } from './posStore'
 
 /**
  * Ces tests couvrent l'endroit exact où la caisse perdait de l'argent.
@@ -51,6 +51,24 @@ beforeEach(() => {
     currentStaff: { id: 's1', name: 'Lara', pin: '0000', role: 'WAITER', color: '#fff' },
     settings: { restaurantName: 'Test', currency: '€', taxRate: 17, defaultTip: 0, tipPresets: [] },
   })
+})
+
+it('affiche le total historique réparti au lieu de recalculer le brut des articles', () => {
+  const cover = { ...tableDeTest().covers[0], payment: { orderId: 'origin', totalCents: 334, paidCents: 200, outstandingCents: 134 } }
+  expect(coverTotal(cover)).toBe(3.34)
+  expect(tableTotal({ ...tableDeTest(), covers: [cover] })).toBe(3.34)
+})
+it('ne modifie pas localement les lignes QR ou avec acompte avant même le refus serveur', () => {
+  for (const id of ['guest:share:part', 'native-with-deposit']) {
+    const cover = { ...tableDeTest().covers[0], id, payment: { orderId: 'origin', totalCents: 560, paidCents: 200, outstandingCents: 360 } }
+    usePOS.setState({ tables: [{ ...tableDeTest(), covers: [cover] }] })
+    const line = cover.items[0]
+    usePOS.getState().setItemQty('t-test', line.id, 50)
+    usePOS.getState().setItemNote('t-test', line.id, 'Ne doit pas remplacer la note historique')
+    usePOS.getState().removeItem('t-test', line.id)
+    usePOS.getState().addItem('t-test', id, { id: 'new-product', name: 'Autre fictif', price: 10, category: 'Fictif', emoji: '', active: true })
+    expect(usePOS.getState().tables[0].covers[0]).toEqual(cover)
+  }
 })
 
 const table = () => usePOS.getState().tables.find(t => t.id === 't-test')!

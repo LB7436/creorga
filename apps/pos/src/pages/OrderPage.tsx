@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { usePOS, Cover, OrderItem, coverTotal, tableTotal, elapsed, MENU_CATEGORIES } from '../store/posStore'
+import { usePOS, Cover, OrderItem, coverTotal, tableTotal, elapsed, MENU_CATEGORIES, isFrozenCover } from '../store/posStore'
 import { useEcranEtroit } from '../lib/ecran'
 import { api } from '../lib/server'
 import { flushFloor, moveTableServer, separateServiceServer } from '../lib/floorBridge'
+import AllocationEditor from './AllocationEditor'
 
 interface Props {
   tableId: string
@@ -107,6 +108,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
   const [showTransfer, setShowTransfer] = useState(false)
   const [showSeparateGroup, setShowSeparateGroup] = useState(false)
   const [showSplitItem, setShowSplitItem] = useState(false)
+  const [showAllocation, setShowAllocation] = useState(false)
   const [showWeight, setShowWeight] = useState<string | null>(null)
 
   // Data state
@@ -183,6 +185,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
   // ── Add item
   const handleAddItem = (menuItem: typeof menu[number]) => {
     if (onHold) return
+    if (isFrozenCover(currentCover)) { setOperationError('Ce groupe QR ou avec acompte est figé. Cliquez sur Ajouter un groupe de commande pour une nouvelle tournée, sans modifier la créance historique.'); return }
     addItem(tableId, currentCover.id, menuItem)
     setRecentIds(prev => [menuItem.id, ...prev.filter(id => id !== menuItem.id)].slice(0, 6))
     // Weighted prompt
@@ -308,7 +311,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
               {idx + 1} · {cov.label} · {fmt(coverTotal(cov))}€
             </button>
           ))}
-          <button onClick={() => addCover(tableId)} style={{
+          <button aria-label="Ajouter un groupe de commande" onClick={() => { addCover(tableId); const covers = usePOS.getState().tables.find(t => t.id === tableId)?.covers || []; setActiveCover(covers[covers.length - 1]?.id || null) }} style={{
             padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
             background: 'transparent', border: '1px dashed rgba(255,255,255,0.15)',
             color: '#64748b', cursor: 'pointer',
@@ -384,7 +387,8 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
                       </div>
 
                       {/* Action bar when selected */}
-                      {isSelected && (
+                      {isSelected && isFrozenCover(cov) && <p style={{ color: '#cbd5e1', fontSize: 12 }}>Ligne historique figée. Règlement par Acompte / solde ; ajoutez un groupe pour une nouvelle tournée.</p>}
+                      {isSelected && !isFrozenCover(cov) && (
                         <motion.div
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: 'auto' }}
@@ -455,6 +459,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
             <ActionBtn label={onHold ? 'Reprise' : 'En attente'} onClick={() => setOnHold(!onHold)} color={onHold ? '#fbbf24' : undefined} />
             <ActionBtn label="Transfert" onClick={() => setShowTransfer(true)} />
             <ActionBtn label="Séparer le groupe" onClick={() => { setOperationError(''); setShowSeparateGroup(true) }} />
+            {currentCover?.id.startsWith('guest:') && !currentCover.id.startsWith('guest:share:') && ['OWNER', 'MANAGER'].includes(usePOS.getState().currentStaff?.role || '') && <ActionBtn label="Répartir la commande QR" onClick={() => setShowAllocation(true)} />}
             <ActionBtn label="Offrir" onClick={() => {
               if (!selectedItemId) { alert('Sélectionnez un article'); return }
               if (!['OWNER', 'MANAGER'].includes(usePOS.getState().currentStaff?.role || '')) { setOperationError('Connectez-vous comme responsable pour un geste commercial.'); return }
@@ -683,6 +688,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
             }}
           />
         )}
+        {showAllocation && currentCover && <ModalShell title="Répartir la commande QR" width={700} onClose={() => setShowAllocation(false)}><AllocationEditor orderId={currentCover.id.slice(6)} tables={tables} onDone={() => { setShowAllocation(false); onBack() }} /></ModalShell>}
         {showSeparateGroup && currentCover && <TransferModal error={operationError} title="Séparer le groupe sélectionné" tables={availableTables} onClose={() => setShowSeparateGroup(false)}
           onConfirm={toId => { void separateServiceServer({ kind: 'GROUP', fromTableId: tableId, intoTableId: toId, coverId: currentCover.id }).then(() => { setShowSeparateGroup(false); onBack() }).catch(e => setOperationError(e.message)) }} />}
         {showSplitItem && selectedItem && (

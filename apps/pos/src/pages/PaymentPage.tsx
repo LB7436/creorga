@@ -379,6 +379,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
 
   // Open tab
   const [keepOpen, setKeepOpen] = useState(false)
+  const [commercialReason, setCommercialReason] = useState('')
 
   // Receipt customization
   const [receiptLogo, setReceiptLogo] = useState(true)
@@ -528,6 +529,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
    */
   async function handleConfirm() {
     if (paying || onlineBusy) return
+    if (appliedGesture > 0 && commercialReason.trim().length < 10) { setErreurEncaissement('Précisez le motif du geste commercial (10 caractères minimum).'); return }
     if (payingCovers.some(c => c.payment)) { setErreurEncaissement('Un acompte existe : utilisez le panneau Acompte / solde.'); return }
     setPaying(true); setErreurEncaissement(null)
     if (keepOpen) {
@@ -540,7 +542,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
     if (appliedPromo && promoDiscount > 0) {
       remises.push({ type: 'promo', code: appliedPromo.code, libelle: `Code ${appliedPromo.code}`, montant: promoDiscount })
     }
-    if (appliedGesture > 0) remises.push({ type: 'geste', libelle: 'Geste commercial responsable', montant: Math.round(appliedGesture * 100) / 100 })
+    if (appliedGesture > 0) remises.push({ type: 'geste', libelle: commercialReason.trim(), montant: Math.round(appliedGesture * 100) / 100 })
     if (usePoints && pointsDiscount > 0) {
       remises.push({ type: 'points', libelle: `${clientPoints} points fidélité`, montant: pointsDiscount })
     }
@@ -785,6 +787,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
         )}
 
         <div style={{ flex: 1, overflowY: 'auto' as const, padding: '14px 18px' }}>
+          {appliedGesture > 0 && <label style={{ display: 'block', color: '#e2e8f0', marginBottom: 16 }}>Motif du geste commercial (responsable)<input value={commercialReason} maxLength={200} onChange={e => setCommercialReason(e.target.value)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 12, background: '#111827', color: '#f8fafc', border: '1px solid #94a3b8', borderRadius: 8 }} /></label>}
           <button onClick={() => setPartialMode(true)} disabled={paying || onlineBusy || usePOS.getState().settings.floorAuthority !== 'postgres'} style={{ ...counterBtnStyle, width: '100%', marginBottom: 16 }}>Acompte / paiement partiel / solde{usePOS.getState().settings.floorAuthority !== 'postgres' ? ' — autorité PostgreSQL requise' : ''}</button>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div style={labelStyle}>Aperçu reçu temps réel</div>

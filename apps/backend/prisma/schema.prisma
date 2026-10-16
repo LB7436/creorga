@@ -296,6 +296,8 @@ model Order {
   tenders OrderTender[]
   refundAllocations RefundAllocation[]
   serviceCovers ServiceCover[]
+  serviceAllocation ServiceAllocation?
+  serviceShares ServiceShare[]
   guestVisit GuestVisit? @relation(fields: [companyId, guestVisitId], references: [companyId, id])
 
   // Deux commandes ne peuvent pas porter le même numéro dans une société :
@@ -325,6 +327,7 @@ model GuestVisit {
   accesses GuestVisitAccess[]
   orders Order[]
   paymentAttempts PaymentAttempt[]
+  serviceShares ServiceShare[]
   @@unique([companyId, id])
   @@index([companyId, tableId])
 }
@@ -352,6 +355,55 @@ model TableMovement {
   createdAt DateTime @default(now())
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   @@index([companyId, createdAt])
+}
+
+// Une commande historique, plusieurs créances de service. Aucun clone de vente.
+model ServiceAllocation {
+  id String @id
+  companyId String
+  orderId String
+  actorId String
+  requestHash String
+  planHash String
+  snapshot Json
+  createdAt DateTime @default(now())
+  order Order @relation(fields: [companyId, orderId], references: [companyId, id], onDelete: Restrict)
+  shares ServiceShare[]
+  @@unique([companyId, orderId])
+  @@unique([companyId, orderId, id])
+}
+
+model ServiceShare {
+  id String @id
+  companyId String
+  orderId String
+  allocationId String
+  visitId String
+  tableId String
+  label String
+  totalCents Int
+  snapshot Json
+  createdAt DateTime @default(now())
+  allocation ServiceAllocation @relation(fields: [companyId, orderId, allocationId], references: [companyId, orderId, id], onDelete: Cascade)
+  order Order @relation(fields: [companyId, orderId], references: [companyId, id], onDelete: Restrict)
+  visit GuestVisit @relation(fields: [companyId, visitId], references: [companyId, id], onDelete: Restrict)
+  tenders ServiceShareTender[]
+  @@unique([companyId, orderId, id])
+  @@unique([companyId, visitId])
+  @@index([companyId, tableId])
+}
+
+model ServiceShareTender {
+  id String @id @default(uuid())
+  companyId String
+  orderId String
+  shareId String
+  tenderId String
+  amountCents Int
+  createdAt DateTime @default(now())
+  share ServiceShare @relation(fields: [companyId, orderId, shareId], references: [companyId, orderId, id], onDelete: Cascade)
+  tender OrderTender @relation(fields: [companyId, orderId, tenderId], references: [companyId, orderId, id], onDelete: Restrict)
+  @@unique([companyId, tenderId, shareId])
 }
 
 model OrderItem {
@@ -505,7 +557,9 @@ model OrderTender {
   settlement PaymentSettlement? @relation(fields: [companyId, settlementId], references: [companyId, id], onDelete: Cascade)
   cashDrawer CashDrawer? @relation(fields: [companyId, cashDrawerId], references: [companyId, id], onDelete: Restrict)
   manualRefunds ManualRefund[]
+  serviceShares ServiceShareTender[]
   @@unique([companyId, id])
+  @@unique([companyId, orderId, id])
   @@unique([companyId, attemptId, orderId, method])
   @@unique([companyId, saleId, orderId, method])
   @@index([companyId, orderId])
@@ -666,6 +720,7 @@ model Invoice {
   deliveries InvoiceDelivery[]
   creditNotes CreditNote[]
   sourcePosSale PosSale? @relation(fields: [companyId, sourcePosSaleId], references: [companyId, id], onDelete: Restrict, map: "Invoice_sourcePosSale_fkey")
+  sourceQuote Quote?
 
   // Numérotation séquentielle unique : obligation légale de facturation.
   @@unique([companyId, number])
@@ -896,6 +951,8 @@ model Quote {
   number     String
   status     String    @default("DRAFT") // DRAFT|SENT|ACCEPTED|REJECTED|EXPIRED
   validUntil DateTime?
+  convertedInvoiceId String?
+  convertedAt DateTime?
   total      Float     @default(0)
   notes      String?
   createdAt  DateTime  @default(now())
@@ -904,8 +961,10 @@ model Quote {
   company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer Customer?   @relation(fields: [customerId], references: [id])
   items    QuoteItem[]
+  convertedInvoice Invoice? @relation(fields: [companyId, convertedInvoiceId], references: [companyId, id], onDelete: Restrict, map: "Quote_convertedInvoice_fkey")
 
   @@unique([companyId, number])
+  @@unique([companyId, convertedInvoiceId])
   @@index([companyId, status])
 }
 
@@ -1081,6 +1140,7 @@ model HaccpLog {
   companyId   String
   type        String   // FRIDGE_TEMP|CLEANING|RECEIVING|PEST_CONTROL
   value       Float?
+  source      String?
   notes       String?
   loggedAt    DateTime @default(now())
   loggedBy    String

@@ -7,6 +7,7 @@ import { guestTables, resolveGuestTable } from '../lib/guest-tables'
 import { GuestAccessError, GUEST_VISIT_HOURS, issueGuestAccess, lockGuestTable } from '../lib/guest-visits'
 import { lockOrderPayment, activePaymentExists } from '../lib/payments/ledger'
 import { lockFinancialCompany } from '../lib/financial-lock'
+import { shareBalance } from '../lib/financial-allocations'
 
 const router = Router()
 router.use(deviceOrUserAuth, requireCompany)
@@ -22,7 +23,7 @@ const run = (fn: (req: Request, res: Response) => Promise<unknown>) => async (re
 }
 router.get('/', run(async (req, res) => {
   const companyId = company(req)
-  const [tables, visits] = await Promise.all([guestTables(companyId), prisma.guestVisit.findMany({ where: { companyId, closedAt: null }, select: { id: true, tableId: true, openedAt: true, expiresAt: true, orders: { select: { orderNumber: true }, take: 100, orderBy: { orderNumber: 'asc' } } } })])
+  const [tables, visits] = await Promise.all([guestTables(companyId), prisma.guestVisit.findMany({ where: { companyId, closedAt: null }, select: { id: true, tableId: true, openedAt: true, expiresAt: true, serviceShares: { select: { label: true } }, orders: { select: { orderNumber: true }, take: 100, orderBy: { orderNumber: 'asc' } } } })])
   res.json({ tables, visits })
 }))
 router.post('/', run(async (req, res) => {
@@ -63,9 +64,11 @@ router.post('/:id/close', run(async (req, res) => {
     if (!visit) throw new GuestAccessError(404, 'Visite introuvable.')
     await lockGuestTable(tx, companyId, visit.tableId)
     const orders = await tx.order.findMany({ where: { companyId, guestVisitId: visit.id }, orderBy: { id: 'asc' } })
-    for (const order of orders) await lockOrderPayment(tx, companyId, order.id)
-    const unsettled = await tx.order.count({ where: { companyId, guestVisitId: visit.id, paidAt: null, status: { notIn: ['PAID', 'CANCELLED'] }, total: { gt: 0 } } })
-    const pending = await activePaymentExists(tx, companyId, orders.map(o => o.id))
+    const shares = await tx.serviceShare.findMany({ where: { companyId, visitId: visit.id }, include: { tenders: true } })
+    const orderIds = [...new Set([...orders.map(o => o.id), ...shares.map(s => s.orderId)])].sort()
+    for (const orderId of orderIds) await lockOrderPayment(tx, companyId, orderId)
+    const unsettled = await tx.order.count({ where: { companyId, guestVisitId: visit.id, serviceAllocation: null, paidAt: null, status: { notIn: ['PAID', 'CANCELLED'] }, total: { gt: 0 } } }) + shares.filter(s => shareBalance(s).outstandingCents > 0).length
+    const pending = await activePaymentExists(tx, companyId, orderIds)
     if ((unsettled || pending) && !input.acknowledgeOutstanding) throw new GuestAccessError(409, 'Addition impayée ou paiement en cours. Confirmez explicitement la conservation de cette créance avant de fermer les accès.')
     await tx.guestVisit.updateMany({ where: { id: visit.id, companyId, closedAt: null }, data: { closedAt: new Date(), closedBy: actor(req), closeReason: input.reason } })
     return { closed: true, outstandingOrders: unsettled, pendingPayment: pending }

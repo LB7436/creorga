@@ -23,6 +23,7 @@ function ambiguous(reason: string): never { throw new PosError(reason + ' Aucun 
 /** Verrou société déjà acquis ; même ordre de verrous que paiements/transferts. */
 export async function separateService(tx: Prisma.TransactionClient, companyId: string, actorId: string, input: Separation, tables: any[]) {
   const floor = getFloorState(), from: any = floor.tables.find(t => t.id === input.fromTableId), into: any = floor.tables.find(t => t.id === input.intoTableId)
+  if (input.coverId.startsWith('guest:share:')) throw new PosError('Ce groupe possède une répartition financière figée. Consultez sa décision ; ne copiez ni ne transférez ses lignes par le chemin ancien.', 409)
   if (!from || !into) throw new PosError('Table absente de cet établissement.', 404)
   if (floor.updatedAt !== input.expectedRevision) throw new PosError('La salle a changé : rechargez avant de séparer les groupes.', 409)
   if (input.kind === 'GROUP' && (from.id === into.id || input.lines || input.intoCoverId) || input.kind === 'LINES' && !input.lines) throw new PosError('Sélection de séparation incohérente.')

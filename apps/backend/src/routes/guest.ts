@@ -14,6 +14,7 @@ import { orderPaymentBalance } from '../lib/order-tenders'
 import { lockFinancialCompany } from '../lib/financial-lock'
 import { PosError } from '../lib/pos-ledger'
 import { createTablePayment, reconcilePayment, merchantFor, PaymentError } from '../lib/payments/ledger'
+import { shareBalance } from '../lib/financial-allocations'
 
 /**
  * Endpoints du portail client (le convive scanne le QR, sans compte) :
@@ -64,6 +65,8 @@ export interface GuestOrder {
   stripeSessionId?: string
   createdAt: number
   updatedAt: number
+  allocation?: boolean
+  outstandingCents?: number
 }
 
 const router = Router()
@@ -153,14 +156,22 @@ export function commandesARegler(orders: GuestOrder[], tableId: string, _now = D
 const resolveTable = resolveGuestTable
 
 async function readOrders(companyId: string, guestVisitId?: string): Promise<GuestOrder[]> {
-  const stored = await prisma.order.findMany({ where: { companyId, source: 'GUEST', ...(guestVisitId ? { guestVisitId } : {}) }, include: { items: { include: { product: true } } } })
+  const stored = await prisma.order.findMany({ where: { companyId, source: 'GUEST', serviceAllocation: null, ...(guestVisitId ? { guestVisitId } : {}) }, include: { items: { include: { product: true } } } })
   const central = stored.map(o => ({ id: o.publicToken!, companyId, guestVisitId: o.guestVisitId, tableId: o.externalTableId!,
     items: o.items.map(i => ({ productId: i.productId, name: i.productName || i.product.name, qty: i.quantity, price: i.unitPrice })),
     total: o.total, status: (o.guestStatus || 'received') as OrderStatus, paid: !!o.paidAt || o.status === 'CANCELLED',
     paidAt: o.paidAt?.getTime(), createdAt: o.createdAt.getTime(), updatedAt: o.updatedAt.getTime(),
     stripeSessionId: o.paymentMethod?.startsWith('stripe:') ? o.paymentMethod.slice(7) : undefined }))
+  const shares = await prisma.serviceShare.findMany({ where: { companyId, ...(guestVisitId ? { visitId: guestVisitId } : {}) }, include: { tenders: true, order: { select: { publicToken: true, guestStatus: true, status: true, updatedAt: true } } } })
+  const allocatedTokens = new Set(shares.map(s => s.order.publicToken))
+  const portions: GuestOrder[] = shares.map(s => {
+    const snapshot: any = s.snapshot, balance = shareBalance(s)
+    return { id: s.id, companyId, guestVisitId: s.visitId, tableId: s.tableId, items: snapshot.lines.map((l: any) => ({ productId: l.productId, name: l.name, qty: l.qty, price: l.price })),
+      total: s.totalCents / 100, status: (s.order.guestStatus || 'received') as OrderStatus, paid: balance.outstandingCents === 0 || s.order.status === 'CANCELLED', allocation: true,
+      outstandingCents: balance.outstandingCents, createdAt: s.createdAt.getTime(), updatedAt: Math.max(s.order.updatedAt.getTime(), ...s.tenders.map(t => t.createdAt.getTime())) }
+  })
   // Les impayés historiques restent visibles : aucune purge ni conversion destructive automatique.
-  return [...central, ...(guestVisitId ? [] : safeReadJson<GuestOrder[]>(ORDERS_FILE, []).filter(o => o.companyId === companyId && !central.some(c => c.id === o.id)))]
+  return [...central, ...portions, ...(guestVisitId ? [] : safeReadJson<GuestOrder[]>(ORDERS_FILE, []).filter(o => o.companyId === companyId && !allocatedTokens.has(o.id) && !central.some(c => c.id === o.id)))]
 }
 
 // ─── Suivi de commande ──────────────────────────────────
@@ -298,9 +309,9 @@ router.get('/bill/:tableId', asyncRoute(async (req, res) => {
   const orders = commandesARegler(await readOrders(companyId, visit?.id), realTable)
   const central = await prisma.order.findMany({ where: { companyId, publicToken: { in: orders.map(o => o.id) } } })
   const balances = await Promise.all(central.map(order => orderPaymentBalance(prisma, companyId, order)))
-  const total = balances.reduce((s, b) => s + b.outstandingCents, 0) / 100
-  const paymentProviders = ['paypal', 'stripe'].filter(provider => { try { merchantFor(provider, companyId); return true } catch { return false } })
-  res.json({ tableId, total, orderIds: orders.map((o) => o.id), count: orders.length, paymentProviders })
+  const total = (balances.reduce((s, b) => s + b.outstandingCents, 0) + orders.filter(o => o.allocation).reduce((s, o) => s + o.outstandingCents!, 0)) / 100
+  const paymentProviders = orders.some(o => o.allocation) ? [] : ['paypal', 'stripe'].filter(provider => { try { merchantFor(provider, companyId); return true } catch { return false } })
+  res.json({ tableId, total, orderIds: orders.map((o) => o.id), count: orders.length, paymentProviders, ...(orders.some(o => o.allocation) ? { paymentNotice: 'Addition répartie : règlement auprès du personnel pour ce groupe.' } : {}) })
 }))
 
 router.post('/pay', asyncRoute(async (req, res) => {

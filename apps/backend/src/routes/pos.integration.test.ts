@@ -182,4 +182,21 @@ describe('Caisse native : verrou commun et centimes', () => {
     await auth(request(app).post('/api/pos/checkout')).send(input).expect(409)
     expect((await prisma.order.findUniqueOrThrow({ where: { id: orderId } })).paidAt).toBeNull()
   })
+  it('un offert exige un motif responsable, conserve son auteur, son ticket et un seul débit de stock', async () => {
+    const input = { ...nativeBody(), expectedTotal: 0, cashReceived: 0, options: { remises: [{ type: 'geste', libelle: 'Offert', montant: 11.7 }] } }
+    const beforeStock = (await prisma.product.findUniqueOrThrow({ where: { id: productId } })).stock!
+    await auth(request(app).post('/api/pos/checkout')).send(input).expect(400)
+    await prisma.userCompany.update({ where: { userId_companyId: { companyId, userId } }, data: { role: 'WAITER' } })
+    const reason = 'Attente prolongée : café offert par le responsable'
+    try { await auth(request(app).post('/api/pos/checkout')).send({ ...input, options: { remises: [{ type: 'geste', libelle: reason, montant: 11.7 }] } }).expect(403) }
+    finally { await prisma.userCompany.update({ where: { userId_companyId: { companyId, userId } }, data: { role: 'OWNER' } }) }
+    const body = { ...input, options: { remises: [{ type: 'geste', libelle: reason, montant: 11.7 }] } }
+    const first = (await auth(request(app).post('/api/pos/checkout')).send(body).expect(200)).body
+    expect((await auth(request(app).post('/api/pos/checkout')).send(body).expect(200)).body.id).toBe(first.id)
+    expect(first).toMatchObject({ total: 0, remises: [{ libelle: reason, montant: 11.7 }] })
+    expect((await prisma.posSale.findUniqueOrThrow({ where: { id: first.id } })).userId).toBe(userId)
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: productId } })).stock).toBe(beforeStock - 1)
+    const receipt = await auth(request(app).get(`/api/pos/sales/${first.id}/receipt`)).expect(200)
+    expect(receipt.text).toContain(reason)
+  })
 })

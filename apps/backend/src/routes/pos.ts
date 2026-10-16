@@ -19,6 +19,7 @@ import { WorkspaceError, postgresFloorEnabled, floorHash } from '../lib/floor-wo
 import { tableMovementSchema, previousMovement, moveTable } from '../lib/table-movements'
 import { separationSchema, previousSeparation, separateService } from '../lib/service-separations'
 import { MAX_FLOOR_TABLES } from '../lib/floor-validation'
+import { SHARE_PREFIX, allocationSchema, allocationConfirmation, previousFinancialAllocation, previewFinancialAllocation, confirmFinancialAllocation, serviceSharesFor, shareBalance } from '../lib/financial-allocations'
 
 const router = Router()
 const stateStatus: Record<string, string> = { available: 'LIBRE', occupied: 'OCCUPEE', reserved: 'RESERVEE', dirty: 'NETTOYAGE' }
@@ -53,6 +54,8 @@ async function tablesFor(companyId: string, db: Prisma.TransactionClient = prism
     db.saleOrigin.findMany({ where: { companyId, kind: 'LINE' }, select: { sourceId: true } }),
   ])
   const paidIds = new Set(paid.map(p => p.coverId))
+  const shares = await serviceSharesFor(db, companyId)
+  const allocatedOrders = new Set(shares.map(s => s.orderId))
   const consumedIds = new Set(consumed.map(p => p.sourceId))
   // Les lignes déjà rattachées à une commande ne deviennent pas des lignes POS natives.
   const existingOrderLines = await db.orderItem.findMany({ where: { id: { in: floorLines(getFloorState(companyId)).map(i => i.id) }, order: { companyId } }, select: { id: true } })
@@ -77,12 +80,18 @@ async function tablesFor(companyId: string, db: Prisma.TransactionClient = prism
     ]
     const unpaid = covers.filter((c: any) => !paidIds.has(c.id) && !c.id.startsWith('guest:')).map((c: any) => ({ ...c, paidAt: undefined, paidMethod: undefined,
       items: c.items.filter((i: any) => !consumedIds.has(i.id)).map((i: any) => pricedItem(getFloorState(companyId), i)) })).filter((c: any) => c.items.length)
-    const fromGuest = guests.filter(g => g.externalTableId === t.id).map(g => ({
+    const fromGuest = guests.filter(g => g.externalTableId === t.id && !allocatedOrders.has(g.id)).map(g => ({
       id: `guest:${g.id}`, label: `QR #${g.orderNumber}`, items: g.items.map(i => ({ id: i.id, menuItemId: i.productId,
         name: i.productName || i.product.name, price: i.unitPrice, taxRate: i.taxRate, pricingStatus: 'confirmed' as const, pricingSource: 'guest-order', qty: i.quantity, note: i.notes || '', coverId: `guest:${g.id}` })),
     }))
-    return { ...t, status: unpaid.some((c: any) => c.items.length) || fromGuest.length ? 'occupied' : (posStatus[t.status] || 'available'),
-      covers: [...unpaid, ...fromGuest].map(c => ({ ...c, ...(balances.has(c.id) ? { payment: balances.get(c.id) } : {}) })), mergedWith: t.mergedWith || [] }
+    const fromShares = shares.filter(s => s.tableId === t.id && shareBalance(s).outstandingCents > 0 && s.order.status !== 'CANCELLED').map(s => {
+      const snapshot: any = s.snapshot, coverId = SHARE_PREFIX + s.id
+      return { id: coverId, label: s.label, allocationId: s.allocationId, kitchenNote: snapshot.kitchenNote, barNote: snapshot.barNote,
+        items: snapshot.lines.map((l: any) => ({ id: 'portion:' + floorHash([s.id, l.itemId]), menuItemId: l.productId, name: l.name, price: l.price, taxRate: l.taxRate,
+          pricingStatus: 'confirmed', pricingSource: 'historical-allocation', qty: l.qty, note: l.note, coverId })), payment: { orderId: s.orderId, ...shareBalance(s) } }
+    })
+    return { ...t, status: unpaid.some((c: any) => c.items.length) || fromGuest.length || fromShares.length ? 'occupied' : (posStatus[t.status] || 'available'),
+      covers: [...unpaid, ...fromGuest].map(c => ({ ...c, ...(balances.has(c.id) ? { payment: balances.get(c.id) } : {}) })).concat(fromShares), mergedWith: t.mergedWith || [] }
   })
 }
 
@@ -146,6 +155,32 @@ router.post('/service-separations', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 
   } finally { release() }
 }))
 
+router.post('/financial-allocations/preview', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+  if (!postgresFloorEnabled()) throw new PosError('Autorité PostgreSQL obligatoire pour répartir une créance.', 409)
+  const input = allocationSchema.parse(req.body)
+  const result = await prisma.$transaction(async tx => {
+    await lock(tx, req.companyId)
+    const result = await previewFinancialAllocation(tx, req.companyId, req.user.userId, input)
+    return { plan: result.plan, confirmHash: result.confirmHash }
+  }, { maxWait: 15000, timeout: 20000 })
+  res.set('Cache-Control', 'private, no-store').json(result)
+}))
+router.post('/financial-allocations', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+  if (!postgresFloorEnabled()) throw new PosError('Autorité PostgreSQL obligatoire pour répartir une créance.', 409)
+  const { confirmHash, managerAcknowledged, ...input } = allocationConfirmation.parse(req.body)
+  const previous = await previousFinancialAllocation(prisma, req.companyId, req.user.userId, input, confirmHash)
+  if (previous) return void res.json(previous)
+  const release = lockFloorForPayment()
+  if (!release) throw new PosError('Une opération est en cours. Conservez la même référence.', 409)
+  try {
+    const result = await prisma.$transaction(async tx => {
+      await lock(tx, req.companyId)
+      return await previousFinancialAllocation(tx, req.companyId, req.user.userId, input, confirmHash) || confirmFinancialAllocation(tx, req.companyId, req.user.userId, input, confirmHash)
+    }, { maxWait: 15000, timeout: 20000 })
+    res.json(result)
+  } finally { release() }
+}))
+
 router.put('/draft', wrap(async (req, res) => {
   const tables = z.array(posTableSchema).max(MAX_FLOOR_TABLES).parse(req.body.tables)
   if (tables.some(t => t.covers.some(c => c.paidAt !== undefined || c.paidMethod !== undefined))) throw new PosError('Un brouillon ne peut pas déclarer un règlement. Utilisez l’encaissement serveur.')
@@ -154,6 +189,7 @@ router.put('/draft', wrap(async (req, res) => {
   const floor = getFloorState()
   const seats = req.body.seats === undefined ? undefined : z.array(seatSchema).max(9000).parse(req.body.seats)
   const guestCovers = tables.flatMap(t => t.covers.filter(c => c.id.startsWith('guest:')).map(c => ({ tableId: t.id, cover: c })))
+  if (tables.some(t => t.covers.some(c => c.id.startsWith(SHARE_PREFIX)) && (t.orderDiscount || t.offeredItemIds?.length))) throw new PosError('Les gestes globaux ne peuvent modifier une créance répartie. Utilisez une correction documentaire explicite.', 409)
   if (guestCovers.length) {
     const original = await tablesFor(req.companyId)
     for (const entry of guestCovers) {
@@ -238,10 +274,13 @@ router.post('/pricing/:lineId/review', requireRole('OWNER', 'MANAGER'), wrap(asy
 router.get('/kitchen', wrap(async (req, res) => {
   const floor = getFloorState()
   const guests = await prisma.order.findMany({ where: { companyId: req.companyId, source: 'GUEST', status: { not: 'CANCELLED' }, guestStatus: { not: 'served' } }, include: { items: true }, orderBy: { createdAt: 'asc' } })
+  const shares = await serviceSharesFor(prisma, req.companyId)
   const tickets = [...Object.values(floor.kitchenTickets || {}).filter((t: any) => !['served', 'cancelled'].includes(t.status)),
     ...guests.map(g => ({ id: `guest:${g.id}`, tableName: floor.tables.find(t => t.id === g.externalTableId)?.name || g.externalTableId,
       coverLabel: `QR #${g.orderNumber}`, status: g.guestStatus === 'on_the_way' ? 'ready' : g.guestStatus === 'preparing' ? 'preparing' : 'waiting',
-      createdAt: g.createdAt.getTime(), updatedAt: g.updatedAt.getTime(), items: g.items.map(i => ({ id: i.id, name: i.productName || 'Produit', qty: i.quantity, note: i.notes || '' })) }))]
+      createdAt: g.createdAt.getTime(), updatedAt: g.updatedAt.getTime(), items: g.items.map(i => ({ id: i.id, name: i.productName || 'Produit', qty: i.quantity, note: i.notes || '' })),
+      routing: shares.filter(s => s.orderId === g.id).flatMap(s => (s.snapshot as any).lines.map((l: any) => ({ tableId: s.tableId, tableName: floor.tables.find(t => t.id === s.tableId)?.name || s.tableId,
+        coverId: SHARE_PREFIX + s.id, coverLabel: s.label, lineId: l.itemId, name: l.name, qty: l.qty, kitchenNote: (s.snapshot as any).kitchenNote, barNote: (s.snapshot as any).barNote }))) }))]
   res.json({ revision: floor.updatedAt, tickets })
 }))
 router.patch('/kitchen/:id', wrap(async (req, res) => {
@@ -302,6 +341,7 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
     }
     const table = (await tablesFor(companyId, tx)).find(t => t.id === input.tableId)
     const covers = table?.covers.filter(c => input.coverIds.includes(c.id)) || []
+    if (input.coverIds.some(c => c.startsWith(SHARE_PREFIX))) throw new PosError('Créance répartie : utilisez Acompte / solde pour le groupe choisi. Aucun encaissement global implicite.', 409)
     if (!table || !covers.length || covers.length !== new Set(input.coverIds).size || covers.some(c => c.paidAt || !c.items.length)) throw new PosError('Ces couverts sont absents, vides ou déjà réglés.', 409)
     if (table.customerId && !await tx.customer.findFirst({ where: { id: table.customerId, companyId }, select: { id: true } })) throw new PosError('Le client rattaché à cette table est absent de cet établissement.', 409)
     const alreadyPaid = await tx.posCoverPayment.count({ where: { companyId, coverId: { in: input.coverIds } } })
@@ -344,6 +384,7 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
       } else if (r.type !== 'geste' || !['OWNER', 'MANAGER'].includes(req.role)) {
         throw new PosError('Cette remise nécessite un droit responsable ou un programme client vérifié.', 403)
       }
+      if (r.type === 'geste' && (r.libelle.trim().length < 10 || r.libelle.trim() === 'Geste commercial responsable')) throw new PosError('Un offert ou une remise nécessite un motif explicite du responsable (10 caractères minimum).')
       amount = cents(Math.min(remaining, amount)); remaining = cents(remaining - amount)
       if (moneyMinor(amount) !== moneyMinor(r.montant)) throw new PosError('Le montant de la remise a changé. Actualisez avant de confirmer.', 409)
       remises.push({ type: r.type, libelle: r.libelle, montant: amount })

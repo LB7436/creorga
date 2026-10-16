@@ -9,6 +9,8 @@ import { activePaymentExists, lockOrderPayment } from './payments/ledger'
 import { debitOrderInventory } from './order-inventory'
 import { coverFingerprint, floorHash, sessionFor } from './floor-workspace'
 import { getFloorState, commitCurrentFloor } from '../routes/floorState'
+import { SHARE_PREFIX } from './financial-allocations'
+import { payServiceShare } from './share-payments'
 
 export const partialPaymentSchema = z.object({
   requestId: z.string().uuid(), tableId: z.string().min(1).max(100), coverIds: z.array(z.string().min(1).max(100)).min(1).max(100),
@@ -17,6 +19,7 @@ export const partialPaymentSchema = z.object({
   allocations: z.array(z.object({ method: z.enum(['CASH', 'CARD']), amountCents: z.number().int().positive().max(1_000_000_000) }).strict()).min(2).max(10).optional(),
 }).strict()
 type Input = z.infer<typeof partialPaymentSchema>
+export type PartialInput = Input
 
 /** Appelé sous verrou financier société. Aucun appel prestataire : déclaration manuelle explicite. */
 export async function payPosPart(tx: Prisma.TransactionClient, companyId: string, actorId: string, input: Input, table: PosTable | undefined) {
@@ -26,6 +29,7 @@ export async function payPosPart(tx: Prisma.TransactionClient, companyId: string
     if (previous.scope !== 'POS_PARTIAL' || previous.userId !== actorId || previous.requestHash !== hash) throw new PosError('Cette référence appartient à un autre règlement ou utilisateur.', 409)
     return previous.response
   }
+  if (input.coverIds.some(c => c.startsWith(SHARE_PREFIX))) return payServiceShare(tx, companyId, actorId, input, table)
   const covers = table?.covers.filter(c => input.coverIds.includes(c.id)) || []
   if (!table || covers.length !== new Set(input.coverIds).size || covers.length !== input.coverIds.length || covers.some(c => !c.items.length)) throw new PosError('Couverts absents ou déjà réglés. Actualisez.', 409)
   if (table.orderDiscount || table.offeredItemIds?.length) throw new PosError('Les acomptes ne recalculent pas les gestes commerciaux. Validez d’abord les lignes sans remise, ou utilisez le règlement complet habituel.', 409)

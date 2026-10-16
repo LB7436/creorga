@@ -24,6 +24,7 @@ describe('Documents : calcul exact et émission historique', () => {
     token = jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: '10m' })
   })
   afterAll(async () => {
+    await prisma.quote.deleteMany({ where: { companyId } })
     await prisma.invoice.deleteMany({ where: { companyId: { in: [companyId, otherId] } } })
     await prisma.customer.deleteMany({ where: { companyId } })
     await prisma.userCompany.deleteMany({ where: { userId } }); await prisma.user.deleteMany({ where: { id: userId } })
@@ -79,5 +80,31 @@ describe('Documents : calcul exact et émission historique', () => {
     expect(issued.body.issuedAt).toBeTruthy()
     const snapshot = (await prisma.invoice.findUniqueOrThrow({ where: { id: created.body.id } })).issuedSnapshot as any
     expect(snapshot.company.rcsNumber).toBe('FICTIF')
+  })
+  it('émet les seuils 99,99, 100 et 100,01 avec document complet et PDF historique exact', async () => {
+    await prisma.company.update({ where: { id: companyId }, data: { legalProfile: { legalForm: 'Fictif', rcsNumber: 'FICTIF', authorizationNumber: 'FICTIF' } } })
+    const customer = await prisma.customer.create({ data: { companyId, firstName: '', lastName: '', businessName: 'Seuil fictif société', address: 'Adresse fictive' } })
+    for (const total of [99.99, 100, 100.01]) {
+      const created = await auth(request(app).post('/api/invoices')).send({ customerId: customer.id, documentMode: 'COMPLETE', items: [{ ...line, taxRate: 0, taxReason: 'Recette fictive uniquement', unitPrice: total }] }).expect(201)
+      expect(created.body.total).toBe(total)
+      await auth(request(app).put(`/api/invoices/${created.body.id}/status`)).send({ status: 'SENT' }).expect(200)
+      const row = await prisma.invoice.findUniqueOrThrow({ where: { id: created.body.id } })
+      expect((row.issuedSnapshot as any).customer.businessName).toBe('Seuil fictif société')
+      expect(row.documentMode).toBe('COMPLETE')
+      expect((row.issuedSnapshot as any).company.rcsNumber).toBe('FICTIF')
+      expect((await PDFDocument.load(row.issuedPdf!)).getPageCount()).toBeGreaterThan(0)
+    }
+  })
+  it('convertit un devis concurremment une seule fois, conserve son lien et retrouve la facture après réponse perdue', async () => {
+    const quote = (await auth(request(app).post('/api/invoices/quotes')).send({ items: [line], notes: 'Devis fictif de recette' }).expect(201)).body
+    const before = await prisma.invoice.count({ where: { companyId } })
+    const concurrent = await Promise.all(Array.from({ length: 20 }, () => auth(request(app).post(`/api/invoices/quotes/${quote.id}/convert`))))
+    expect(concurrent.every(r => [200, 201, 409].includes(r.status))).toBe(true)
+    expect(await prisma.invoice.count({ where: { companyId } })).toBe(before + 1)
+    const origin: any = await prisma.quote.findUniqueOrThrow({ where: { id: quote.id } })
+    expect(origin.status).toBe('ACCEPTED')
+    expect(origin.convertedInvoiceId).toBe(concurrent.find(r => r.status === 201)!.body.id)
+    expect((await auth(request(app).post(`/api/invoices/quotes/${quote.id}/convert`)).expect(200)).body.id).toBe(origin.convertedInvoiceId)
+    expect((await prisma.invoice.findUniqueOrThrow({ where: { id: origin.convertedInvoiceId } })).status).toBe('DRAFT')
   })
 })

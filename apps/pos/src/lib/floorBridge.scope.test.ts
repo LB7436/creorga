@@ -7,7 +7,7 @@ vi.mock('../store/posStore', () => ({ usePOS: {
   subscribe: () => () => {},
 } }))
 vi.mock('../store/seatStore', () => ({ useSeats: { getState: () => ({ seats: state.seats }), setState: (value: { seats: unknown[] }) => { state.seats = value.seats }, subscribe: () => () => {} } }))
-import { checkoutServer, payPartServer, moveTableServer, separateServiceServer, closeServerDay, startFloorBridge, stopFloorBridge, loadServerState } from './floorBridge'
+import { checkoutServer, payPartServer, moveTableServer, separateServiceServer, previewAllocationServer, confirmAllocationServer, closeServerDay, startFloorBridge, stopFloorBridge, loadServerState } from './floorBridge'
 const fixture = (companyId: string) => ({ companyId, revision: 1, currentStaff: { id: 'owner-' + companyId }, tables: [{ id: 'table-a', covers: [{ id: 'cover-a', items: [{ id: 'line-a', price: 2, qty: 1 }] }] }], editor: {}, ventes: [], clotures: [], seats: [] })
 const values = new Map<string, string>()
 const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value) }, removeItem: (key: string) => { values.delete(key) } }
@@ -21,6 +21,29 @@ beforeEach(async () => {
 })
 afterEach(() => { stopFloorBridge(); vi.unstubAllGlobals() })
 describe('POS asynchronous operation scope', () => {
+  it('retrouve une allocation financière après réponse perdue en conservant la décision du responsable', async () => {
+    let body: any
+    state.api.mockImplementation((path: string, options: any) => {
+      if (path === '/pos/financial-allocations') { body = JSON.parse(options.body); return Promise.reject(new Error('réponse perdue')) }
+      if (path.startsWith('/pos/table-movements/')) return Promise.resolve({ requestId: body.requestId, groups: [{ id: 'part-a' }] })
+      return Promise.resolve(fixture(state.company))
+    })
+    const decision = { input: { requestId: 'stable-id', orderId: 'origin', groups: [], tenderDecisions: [], reason: 'Choix fictif', expectedRevision: 1 }, confirmHash: 'hash' }
+    expect((await confirmAllocationServer(decision)).groups[0].id).toBe('part-a')
+    expect(body.managerAcknowledged).toBe(true)
+    expect(body.confirmHash).toBe('hash')
+    expect([...values.keys()].some(k => k.startsWith('creorga-pos-allocation:'))).toBe(false)
+  })
+  it('refuse un aperçu d’allocation tardif après changement de compte', async () => {
+    const response = deferred<any>()
+    state.api.mockImplementation((path: string) => path === '/pos/financial-allocations/preview' ? response.promise : Promise.resolve(fixture(state.company)))
+    const operation = previewAllocationServer({ orderId: 'origin', groups: [], tenderDecisions: [], reason: 'Choix fictif' })
+    await vi.waitFor(() => expect(state.api.mock.calls.some(([p]) => p === '/pos/financial-allocations/preview')).toBe(true))
+    stopFloorBridge(); state.company = 'company-b'; state.pos = fixture(state.company)
+    response.resolve({ plan: { groups: [{ label: 'Privé A' }] }, confirmHash: 'hash' })
+    await expect(operation).rejects.toThrow('session de caisse a changé')
+    expect(state.pos.companyId).toBe('company-b')
+  })
   it('retrouve une séparation après réponse perdue sans changer de référence ni déplacer localement la ligne', async () => {
     let payload: any
     state.api.mockImplementation((path: string, options: any) => {

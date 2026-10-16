@@ -27,6 +27,7 @@ async function openOrder(tx: any, companyId: string, orderId: string, payment = 
   await lockOrderPayment(tx, companyId, orderId)
   const order = await tx.order.findFirst({ where: { id: orderId, companyId } })
   if (!order) throw new PaymentError(404, 'Commande non trouvée.')
+  if (await tx.serviceAllocation.count({ where: { companyId, orderId } })) throw new PaymentError(409, 'Commande répartie : utilisez ses groupes dans Acompte / solde. L’original financier reste immuable.')
   if (order.paidAt || ['PAID', 'CANCELLED'].includes(order.status)) throw new PaymentError(409, 'Commande réglée ou annulée : utilisez une correction traçable.')
   if (await activePaymentExists(tx, companyId, [orderId])) throw new PaymentError(409, 'Un règlement est en cours ou incertain. Vérifiez-le avant de modifier la commande.')
   if (!payment && await tx.orderTender.count({ where: { companyId, orderId } })) throw new PaymentError(409, 'Un règlement partiel existe : conservez les lignes et utilisez une correction traçable.')
@@ -36,6 +37,11 @@ async function recalculate(tx: any, orderId: string) {
   const items = await tx.orderItem.findMany({ where: { orderId } })
   const totals = totalsFromTtc(items.map((i: any) => ({ price: i.unitPrice, qty: i.quantity, taxRate: i.taxRate })))
   await tx.order.update({ where: { id: orderId }, data: { subtotal: totals.baseCents / 100, taxAmount: totals.taxCents / 100, total: totals.totalCents / 100 } })
+}
+async function requirePreparationCorrection(tx: any, order: any) {
+  if (['IN_PROGRESS', 'READY'].includes(order.status) || order.guestStatus && order.guestStatus !== 'received' || await tx.orderItem.count({ where: { orderId: order.id, status: { not: 'PENDING' } } })) {
+    throw new PaymentError(409, 'Commande déjà envoyée ou préparée : correction de préparation avec motif requise. Ce parcours n’est pas encore implémenté ; aucune ligne ni addition effacée. Consultez le responsable et conservez l’original.')
+  }
 }
 router.get('/', wrap(async (req, res) => {
   const filters = z.object({ status: z.string().max(40).optional(), tableId: id.optional() }).parse(req.query)
@@ -79,7 +85,8 @@ router.put('/:id/status', wrap(async (req, res) => {
   if (status === 'PAID') throw new PaymentError(409, 'Le paiement doit être enregistré par l’encaissement.')
   if (status === 'CANCELLED' && !['OWNER', 'MANAGER'].includes(req.role)) throw new PaymentError(403, 'Annulation réservée au responsable.')
   const order = await prisma.$transaction(async tx => {
-    await openOrder(tx, req.companyId, req.params.id)
+    const original = await openOrder(tx, req.companyId, req.params.id)
+    if (status === 'CANCELLED') await requirePreparationCorrection(tx, original)
     return tx.order.update({ where: { id: req.params.id }, data: { status }, include: { items: { include: { product: true } }, table: true } })
   })
   res.json(order)
@@ -141,7 +148,8 @@ router.post('/:id/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER
 router.post('/:id/items', wrap(async (req, res) => {
   const input = itemSchema.parse(req.body)
   const item = await prisma.$transaction(async tx => {
-    await openOrder(tx, req.companyId, req.params.id)
+    const original = await openOrder(tx, req.companyId, req.params.id)
+    await requirePreparationCorrection(tx, original)
     const product = await tx.product.findFirst({ where: { id: input.productId, companyId: req.companyId, isActive: true } })
     if (!product) throw new PaymentError(404, 'Produit indisponible.')
     const item = await tx.orderItem.create({ data: { orderId: req.params.id, productId: product.id, productName: product.name, unitPrice: product.price, taxRate: product.taxRate, quantity: input.quantity, notes: input.notes }, include: { product: true } })
@@ -154,7 +162,8 @@ router.put('/:id/items/:itemId', wrap(async (req, res) => {
   const input = z.object({ quantity: z.number().int().positive().max(100000).optional(), notes: note,
     status: z.enum(['PENDING', 'PREPARING', 'READY', 'SERVED']).optional() }).strict().parse(req.body)
   const item = await prisma.$transaction(async tx => {
-    await openOrder(tx, req.companyId, req.params.id)
+    const original = await openOrder(tx, req.companyId, req.params.id)
+    if (input.quantity !== undefined || input.notes !== undefined) await requirePreparationCorrection(tx, original)
     const previous = await tx.orderItem.findFirst({ where: { id: req.params.itemId, orderId: req.params.id } })
     if (!previous) throw new PaymentError(404, 'Article non trouvé.')
     const item = await tx.orderItem.update({ where: { id: previous.id }, data: input, include: { product: true } })
@@ -165,7 +174,8 @@ router.put('/:id/items/:itemId', wrap(async (req, res) => {
 }))
 router.delete('/:id/items/:itemId', wrap(async (req, res) => {
   await prisma.$transaction(async tx => {
-    await openOrder(tx, req.companyId, req.params.id)
+    const original = await openOrder(tx, req.companyId, req.params.id)
+    await requirePreparationCorrection(tx, original)
     const item = await tx.orderItem.findFirst({ where: { id: req.params.itemId, orderId: req.params.id } })
     if (!item) throw new PaymentError(404, 'Article non trouvé.')
     if (item.status !== 'PENDING') throw new PaymentError(409, 'Article envoyé en préparation : correction avec motif requise.')

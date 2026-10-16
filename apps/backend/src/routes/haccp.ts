@@ -34,8 +34,11 @@ router.post('/logs', async (req: any, res: Response) => {
   try {
     const { type, value, notes, isCompliant } = req.body
     if (!LOG_TYPES.has(String(type))) return res.status(400).json({ message: 'Type de contrôle invalide' })
-    const numericValue = value === null || value === undefined || value === '' ? null : Number(value)
+    const enteredValue = typeof value === 'string' ? value.trim() : value
+    if (enteredValue !== null && enteredValue !== undefined && typeof enteredValue !== 'number' && typeof enteredValue !== 'string') return res.status(400).json({ message: 'Valeur numérique requise, sans conversion de booléen, liste ou objet en mesure.' })
+    const numericValue = enteredValue === null || enteredValue === undefined || enteredValue === '' ? null : Number(enteredValue)
     if (numericValue !== null && !Number.isFinite(numericValue)) return res.status(400).json({ message: 'Valeur invalide' })
+    if (type === 'FRIDGE_TEMP' && numericValue === null) return res.status(400).json({ message: 'Température manquante : saisissez une mesure réelle. Aucune valeur ni conformité ne peut être inventée.' })
     if (!req.user?.userId) return res.status(401).json({ message: 'Utilisateur non identifié' })
     const author = req.user.userId // Identité issue du jeton vérifié, jamais de la saisie.
     if (isCompliant !== undefined && typeof isCompliant !== 'boolean') return res.status(400).json({ message: 'Conformité invalide' })
@@ -44,6 +47,7 @@ router.post('/logs', async (req: any, res: Response) => {
         companyId: req.companyId,
         type,
         value: numericValue,
+        source: 'MANUAL',
         notes: notes ? String(notes).trim().slice(0, 1000) : null,
         loggedBy: author.slice(0, 160),
         isCompliant: isCompliant !== undefined ? isCompliant : true,
@@ -166,7 +170,7 @@ router.get('/daily-report', async (req: any, res: Response) => {
       totalLogs: logs.length,
       compliantCount,
       nonCompliantCount,
-      complianceRate: logs.length > 0 ? (compliantCount / logs.length) * 100 : 100,
+      complianceRate: logs.length > 0 ? (compliantCount / logs.length) * 100 : null,
       byType,
       activeTasks: tasks.length,
       logs,

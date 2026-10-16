@@ -52,7 +52,8 @@ export function publicAttempt(attempt: any) {
   return { ok: ['PENDING', 'AWAITING_TERMINAL', 'SUCCEEDED'].includes(attempt.status), attemptId: attempt.id, provider: attempt.provider,
     transactionId: attempt.externalId || undefined, status: attempt.status.toLowerCase(), amount: attempt.amountCents / 100, currency: attempt.currency,
     redirectUrl: cached.redirectUrl, qrPayload: cached.qrPayload,
-    confirmation: attempt.status === 'SUCCEEDED' ? 'provider_verified' : attempt.provider === 'sumup' ? 'manual_terminal_required' : 'provider_not_confirmed' }
+    confirmation: attempt.status === 'SUCCEEDED' ? 'provider_verified' : attempt.provider === 'sumup' ? 'manual_terminal_required' : 'provider_not_confirmed',
+    ...(attempt.status === 'REVIEW' && cached.errorCode === 'PROVIDER_REFUSAL_RECONCILIATION' ? { message: 'Refus signalé par le prestataire : rapprochement requis. La réservation reste conservée ; ne pas payer une seconde fois sans preuve.' } : {}) }
 }
 export async function createPayment(companyId: string, userId: string | null, raw: unknown) {
   const input = inputSchema.parse(raw)
@@ -69,6 +70,7 @@ export async function createPayment(companyId: string, userId: string | null, ra
     }
     const order = await tx.order.findFirst({ where: { id: input.orderId, companyId }, include: { company: true } })
     if (!order) throw new PaymentError(404, 'Commande introuvable.')
+    if (await tx.serviceAllocation.count({ where: { companyId, orderId: order.id } })) throw new PaymentError(409, 'Créance répartie : le paiement en ligne des portions n’est pas qualifié. Utilisez la caisse par groupe, sans double capture.')
     if (await tx.serviceCover.count({ where: { companyId, orderId: order.id, NOT: { coverId: { startsWith: 'guest:' } } } })) throw new PaymentError(409, 'Le paiement en ligne de cette session native n’est pas qualifié. Utilisez Acompte / solde dans la caisse, sans contourner sa transaction.')
     if (order.paidAt || ['PAID', 'CANCELLED'].includes(order.status)) throw new PaymentError(409, 'Commande déjà réglée ou annulée.')
     const currency = order.company.currency
@@ -113,6 +115,7 @@ export async function createTablePayment(companyId: string, tableId: string, raw
     await lockGuestTable(tx, companyId, tableId)
     const staff = !!access.staffUserId || access.staffDevice === true
     const visit = staff ? null : await requireGuestAccess(companyId, access.guestToken, tableId, tx)
+    if (await tx.serviceShare.count({ where: { companyId, order: { paidAt: null }, ...(visit ? { visitId: visit.id } : { tableId }) } })) throw new PaymentError(409, 'Cette addition contient une créance répartie. Règlement par groupe dans la caisse ; aucun paiement global en ligne implicite.')
     const requestHash = createHash('sha256').update(JSON.stringify({ ...input, tableId, scope: 'TABLE', guestVisitId: visit?.id || null })).digest('hex')
     const existing = await tx.paymentAttempt.findUnique({ where: { companyId_requestId: { companyId, requestId: input.requestId } } })
     if (existing) {
@@ -162,7 +165,13 @@ export async function reconcilePayment(companyId: string, attemptId: string, cap
     await prisma.paymentAttempt.updateMany({ where: { id: attempt.id, status: { not: 'SUCCEEDED' } }, data: { status: 'UNKNOWN' } })
     throw new PaymentError(503, 'Prestataire non joignable. Référence conservée ; aucun nouveau débit lancé.')
   }
-  if (result.status !== 'succeeded') return publicAttempt(attempt)
+  if (result.status === 'failed') {
+    // Un échec d'adaptateur ne prouve pas l'absence de débit. Rendre le refus visible,
+    // mais ne libérer ni réservation ni plafond sur cette seule réponse.
+    await prisma.paymentAttempt.updateMany({ where: { id: attempt.id, status: { not: 'SUCCEEDED' } }, data: { status: 'REVIEW', response: { ...(attempt.response as any || {}), errorCode: 'PROVIDER_REFUSAL_RECONCILIATION' } } })
+    return publicAttempt(await prisma.paymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } }))
+  }
+  if (result.status !== 'succeeded') return publicAttempt(await prisma.paymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } }))
   const checked = evidenceSchema.safeParse(result.evidence)
   if (!result.ok || result.provider !== attempt.provider || result.transactionId !== attempt.externalId
       || !checked.success || checked.data.amountCents !== attempt.amountCents || checked.data.currency !== attempt.currency

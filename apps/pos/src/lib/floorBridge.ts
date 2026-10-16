@@ -43,6 +43,14 @@ export async function startFloorBridge() {
   await loadServerState()
   assertBridge(epoch)
   scope = `${sessionCompany()}:${usePOS.getState().currentStaff?.id}`
+  for (const key of Object.keys(localStorage).filter(k => k.startsWith(`creorga-pos-allocation:${scope}:`))) {
+    try {
+      const pending = JSON.parse(localStorage.getItem(key)!)
+      await api(`/pos/table-movements/${encodeURIComponent(pending.requestId)}`)
+      assertBridge(epoch); localStorage.removeItem(key)
+      status('Répartition financière retrouvée. Les groupes et les soldes du serveur sont conservés.')
+    } catch { assertBridge(epoch); status('Une allocation financière reste à vérifier. Sa décision est conservée, sans nouvelle référence.', true) }
+  }
   for (const key of Object.keys(localStorage).filter(k => k.startsWith(`creorga-pos-separation:${scope}:`))) {
     try {
       const pending = JSON.parse(localStorage.getItem(key)!)
@@ -157,6 +165,45 @@ export async function moveTableServer(fromTableId: string, intoTableId: string, 
   } finally { if (epoch === bridgeEpoch) checkingPayment = false }
 }
 export type ServiceSelection = { kind: 'GROUP' | 'LINES'; fromTableId: string; intoTableId: string; coverId: string; intoCoverId?: string; lines?: Array<{ id: string; qty: number }> }
+export type AllocationDraft = { orderId: string; reason: string; groups: Array<{ key: string; tableId: string; label: string; kitchenNote: string; barNote: string; lines: Array<{ itemId: string; qty: number }> }>;
+  tenderDecisions: Array<{ tenderId: string; parts: Array<{ groupKey: string; amountCents: number }> }> }
+export type AllocationDecision = { input: AllocationDraft & { requestId: string; expectedRevision: number }; confirmHash: string; plan?: any }
+export async function previewAllocationServer(draft: AllocationDraft): Promise<AllocationDecision> {
+  const epoch = bridgeEpoch
+  await flushFloor(); assertBridge(epoch)
+  const input = { ...draft, requestId: crypto.randomUUID(), expectedRevision: revision }
+  const result = await api('/pos/financial-allocations/preview', { method: 'POST', body: JSON.stringify(input) })
+  assertBridge(epoch)
+  return { input, ...result }
+}
+export async function confirmAllocationServer(decision: AllocationDecision) {
+  if (checkingPayment) throw new Error('Une opération de caisse est déjà en cours.')
+  const epoch = bridgeEpoch, key = `creorga-pos-allocation:${scope}:${decision.input.orderId}`
+  checkingPayment = true
+  try {
+    const payload = { ...decision.input, confirmHash: decision.confirmHash, managerAcknowledged: true }
+    const stored = localStorage.getItem(key)
+    if (stored && stored !== JSON.stringify(payload)) throw new Error('Une allocation incertaine est conservée. Vérifiez sa référence avant de prendre une autre décision.')
+    localStorage.setItem(key, JSON.stringify(payload))
+    let result: any
+    try { result = await api('/pos/financial-allocations', { method: 'POST', body: JSON.stringify(payload) }) }
+    catch (error: any) {
+      assertBridge(epoch)
+      try { result = await api(`/pos/table-movements/${encodeURIComponent(payload.requestId)}`) }
+      catch (check: any) { if (error.status >= 400 && error.status < 500 && check.status === 404) localStorage.removeItem(key); throw error }
+    }
+    assertBridge(epoch); localStorage.removeItem(key); checkingPayment = false
+    await loadServerState(); assertBridge(epoch)
+    status('Allocation confirmée. Chaque groupe conserve sa créance ; renouvelez son QR distinct.')
+    return result
+  } finally { if (epoch === bridgeEpoch) checkingPayment = false }
+}
+export async function retryAllocationServer(orderId: string) {
+  const stored = localStorage.getItem(`creorga-pos-allocation:${scope}:${orderId}`)
+  if (!stored) throw new Error('Aucune décision incertaine conservée pour ce groupe et ce compte.')
+  const { confirmHash, managerAcknowledged, ...input } = JSON.parse(stored)
+  return confirmAllocationServer({ input, confirmHash })
+}
 export async function separateServiceServer(input: ServiceSelection) {
   if (checkingPayment) throw new Error('Une opération de caisse est déjà en cours.')
   const epoch = bridgeEpoch, key = `creorga-pos-separation:${scope}:${input.coverId}`

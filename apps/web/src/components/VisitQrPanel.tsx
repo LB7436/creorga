@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { visitForGroup } from '@/lib/visit-groups'
 
 interface Table { id: string; name: string }
-interface Visit { id: string; tableId: string; expiresAt: string; orders?: Array<{ orderNumber: number }> }
+interface Visit { id: string; tableId: string; expiresAt: string; orders?: Array<{ orderNumber: number }>; serviceShares?: Array<{ label: string }> }
 export default function VisitQrPanel() {
   const companyId = useAuthStore(s => s.companyId)
   const [tables, setTables] = useState<Table[]>([]), [visits, setVisits] = useState<Visit[]>([])
@@ -35,7 +35,7 @@ export default function VisitQrPanel() {
     </select></label>
     {!tables.length && <p>Créez d’abord vos tables dans le plan de salle.</p>}
     {groups.length > 1 && <label>Groupe QR à cette table <select aria-label="Groupe QR à cette table" value={group} disabled={busy} onChange={e => { setGroup(e.target.value); setLink(''); setReason(''); setAcknowledge(false) }}>
-      <option value="">Choisir explicitement le groupe</option>{groups.map(v => <option key={v.id} value={v.id}>Groupe {v.id.slice(-8)}{v.orders?.length ? ` — commandes ${v.orders.map(o => '#' + o.orderNumber).join(', ')}` : ''}</option>)}
+      <option value="">Choisir explicitement le groupe</option>{groups.map(v => <option key={v.id} value={v.id}>{v.serviceShares?.[0]?.label || 'Groupe ' + v.id.slice(-8)}{v.orders?.length ? ` — commandes ${v.orders.map(o => '#' + o.orderNumber).join(', ')}` : ''}</option>)}
     </select><p>Après fusion, chaque groupe garde une addition privée et doit recevoir son propre nouveau QR. Ne partagez pas un lien entre les groupes.</p></label>}
     <p>{visit ? `Visite ouverte jusqu’au ${new Date(visit.expiresAt).toLocaleString('fr-LU')}.` : 'Aucune visite ouverte pour cette table.'}</p>
     <button disabled={busy || !selected || groups.length > 1 && !visit} onClick={() => run(async () => {

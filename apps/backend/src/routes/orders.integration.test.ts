@@ -92,4 +92,12 @@ describe('Commande : conservation et encaissement atomique', () => {
     const balance = await auth(request(app).get(`/api/orders/${orderId}/payment-balance`)).expect(200)
     expect(balance.body.paidCents).toBe(1000); expect(balance.body.outstandingCents).toBe(170)
   }, 60000)
+  it('refuse l’effacement ou l’annulation destructive d’un QR déjà en préparation et garde le prix et la quantité', async () => {
+    await prisma.order.update({ where: { id: orderId }, data: { source: 'GUEST', guestStatus: 'preparing', status: 'IN_PROGRESS' } })
+    const original = await prisma.order.findUniqueOrThrow({ where: { id: orderId }, include: { items: true } })
+    await auth(request(app).put(`/api/orders/${orderId}/status`)).send({ status: 'CANCELLED' }).expect(409)
+    await auth(request(app).delete(`/api/orders/${orderId}/items/${itemId}`)).expect(409)
+    await auth(request(app).put(`/api/orders/${orderId}/items/${itemId}`)).send({ quantity: 2 }).expect(409)
+    expect(await prisma.order.findUniqueOrThrow({ where: { id: orderId }, include: { items: true } })).toEqual(original)
+  })
 })

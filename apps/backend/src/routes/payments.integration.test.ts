@@ -8,11 +8,11 @@ import prisma from '../lib/prisma'
 import { deviceOrUserAuth } from '../middleware/deviceAuth'
 
 // Seul le prestataire bancaire est remplacé : autorisations, HTTP et base sont réels.
-const remote = vi.hoisted(() => ({ requests: [] as any[], evidence: undefined as any, failCreation: false, ok: true, provider: 'paypal', externalId: undefined as string | undefined }))
+const remote = vi.hoisted(() => ({ requests: [] as any[], evidence: undefined as any, failCreation: false, ok: true, provider: 'paypal', externalId: undefined as string | undefined, status: 'succeeded' }))
 vi.mock('../lib/payments/gateway', () => ({
   SUPPORTED_PROVIDERS: ['paypal', 'stripe', 'sumup', 'mypos', 'viva', 'worldline', 'servipay'],
-  getGateway: () => ({ verify: async (id: string) => ({ ok: remote.ok, provider: remote.provider, transactionId: remote.externalId || id, status: 'succeeded', evidence: remote.evidence, raw: { secret: 'do-not-expose' } }),
-    capture: async (id: string) => ({ ok: true, provider: 'paypal', transactionId: id, status: 'succeeded', evidence: remote.evidence }) }),
+  getGateway: () => ({ verify: async (id: string) => ({ ok: remote.ok, provider: remote.provider, transactionId: remote.externalId || id, status: remote.status, evidence: remote.evidence, raw: { secret: 'do-not-expose' } }),
+    capture: async (id: string) => ({ ok: remote.ok, provider: 'paypal', transactionId: id, status: remote.status, evidence: remote.evidence }) }),
   charge: async (body: any) => {
     remote.requests.push(body)
     if (remote.failCreation) throw new Error('timeout-after-provider-acceptance')
@@ -62,7 +62,7 @@ describe('Paiement : cloisonnement et montant serveur', () => {
     vi.stubEnv('PAYPAL_CLIENT_ID', 'fixture-only'); vi.stubEnv('PAYPAL_CLIENT_SECRET', 'fixture-only')
     vi.stubEnv('STRIPE_PAYMENT_KEY', 'fixture-only'); vi.stubEnv('STRIPE_PAYMENT_WEBHOOK_SECRET', 'fixture-signing-secret'); vi.stubEnv('STRIPE_MERCHANT_ID', 'stripe-merchant-test')
     remote.evidence = undefined; remote.failCreation = false
-    remote.ok = true; remote.provider = 'paypal'; remote.externalId = undefined
+    remote.ok = true; remote.provider = 'paypal'; remote.externalId = undefined; remote.status = 'succeeded'
     remote.requests.length = 0
     for (const [companyId, setter] of [[a, (id: string) => { orderA = id }], [b, (id: string) => { orderB = id }]] as const) {
       const last = await prisma.order.aggregate({ where: { companyId }, _max: { orderNumber: true } })
@@ -232,5 +232,40 @@ describe('Paiement : cloisonnement et montant serveur', () => {
     const done = await auth(request(app).get(`/api/orders/${orderA}/payment-balance`)).expect(200)
     expect(done.body.outstandingCents).toBe(0); expect(done.body.paidCents).toBe(2400)
     expect(await prisma.order.count({ where: { id: orderA, companyId: a, status: 'PAID' } })).toBe(1)
+  })
+  it('un refus bancaire simulé est visible à rapprocher sans fausse capture ni libération de réserve', async () => {
+    const created = (await auth(request(app).post('/api/payments/charge')).send({ ...input(), provider: 'paypal' }).expect(200)).body
+    remote.ok = false; remote.status = 'failed'
+    const result = (await auth(request(app).post(`/api/payments/attempts/${created.attemptId}/reconcile`)).expect(200)).body
+    expect(result).toMatchObject({ status: 'review', confirmation: 'provider_not_confirmed' })
+    expect(result.message).toMatch(/refus.*rapproch/i)
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: orderA } })).paidAt).toBeNull()
+    expect(await prisma.paymentSettlement.count({ where: { attemptId: created.attemptId } })).toBe(0)
+    expect(await prisma.paymentAllocation.count({ where: { attemptId: created.attemptId, active: true } })).toBe(1)
+    await auth(request(app).post('/api/payments/charge')).send({ ...input(), provider: 'paypal' }).expect(409)
+  })
+  it('un abandon acheteur puis son retour tardif ne vaut jamais annulation bancaire ou paiement', async () => {
+    const table = await prisma.table.create({ data: { companyId: a, name: 'Abandon fictif', capacity: 2 } })
+    await prisma.order.update({ where: { id: orderA }, data: { source: 'GUEST', externalTableId: table.id, publicToken: randomUUID() } })
+    const created = (await auth(request(app).post('/api/guest/pay')).send({ companyId: a, tableId: table.id, provider: 'paypal', requestId: randomUUID() }).expect(200)).body
+    remote.ok = false; remote.status = 'pending' // Acheteur ferme la fenêtre ; aucune preuve de remboursement/capture.
+    for (let i = 0; i < 2; i++) await auth(request(app).post('/api/guest/paid-confirm')).send({ companyId: a, tableId: table.id, attemptId: created.attemptId }).expect(202)
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: orderA } })).paidAt).toBeNull()
+    expect(await prisma.paymentAllocation.count({ where: { attemptId: created.attemptId, active: true } })).toBe(1)
+    expect(await prisma.paymentSettlement.count({ where: { attemptId: created.attemptId } })).toBe(0)
+    expect(remote.requests).toHaveLength(1)
+  })
+  it('un webhook vérifié avant le retour puis deux retours navigateur ne créent qu’un seul règlement', async () => {
+    const table = await prisma.table.create({ data: { companyId: a, name: 'Retour tardif fictif', capacity: 2 } })
+    await prisma.order.update({ where: { id: orderA }, data: { source: 'GUEST', externalTableId: table.id, publicToken: randomUUID() } })
+    const created = (await auth(request(app).post('/api/guest/pay')).send({ companyId: a, tableId: table.id, provider: 'paypal', requestId: randomUUID() }).expect(200)).body
+    remote.evidence = { amountCents: 2400, currency: 'EUR', merchantId: 'merchant-test', orderId: orderA, attemptId: created.attemptId, captureId: randomUUID() }
+    const event = { id: randomUUID(), event_type: 'PAYMENT.CAPTURE.COMPLETED', resource: { supplementary_data: { related_ids: { order_id: created.transactionId } } } }
+    await request(app).post('/api/payments/webhooks/paypal').set('paypal-transmission-sig', 'fixture-verified').send(event).expect(200)
+    for (let i = 0; i < 2; i++) expect((await auth(request(app).post('/api/guest/paid-confirm')).send({ companyId: a, tableId: table.id, attemptId: created.attemptId }).expect(200)).body.ok).toBe(true)
+    expect(await prisma.paymentSettlement.count({ where: { attemptId: created.attemptId } })).toBe(1)
+    expect(await prisma.orderTender.count({ where: { attemptId: created.attemptId } })).toBe(1)
+    expect(await prisma.paymentAllocation.count({ where: { attemptId: created.attemptId, active: true } })).toBe(0)
+    expect(remote.requests).toHaveLength(1)
   })
 })

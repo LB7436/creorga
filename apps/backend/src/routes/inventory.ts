@@ -225,6 +225,7 @@ router.post('/purchase-orders', async (req: any, res: Response) => {
 
 router.put('/purchase-orders/:id/receive', async (req: any, res: Response) => {
   try {
+    if (req.body && Object.keys(req.body).length) return res.status(409).json({ message: 'Réception partielle non implémentée : aucune quantité créditée. Ce bouton ne valide qu’une réception complète, avec un corps vide.' })
     const order = await prisma.purchaseOrder.findFirst({
       where: { id: req.params.id, companyId: req.companyId },
       include: { items: true },

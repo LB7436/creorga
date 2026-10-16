@@ -18,6 +18,7 @@ export async function previousMovement(tx: Prisma.TransactionClient, companyId: 
 }
 /** Appel sous verrou société, puis tables triées et commandes triées. Aucun appel externe. */
 export async function moveTable(tx: Prisma.TransactionClient, companyId: string, actorId: string, input: TableMove, tables: any[]) {
+  if (await tx.serviceShare.count({ where: { companyId, tableId: { in: [input.fromTableId, input.intoTableId] }, order: { paidAt: null, status: { not: 'CANCELLED' } } } })) throw new PosError('Une créance répartie est présente : déplacement global non qualifié. Conservez ses groupes et leurs visites distinctes.', 409)
   const floor = getFloorState(), from: any = floor.tables.find(t => t.id === input.fromTableId), into: any = floor.tables.find(t => t.id === input.intoTableId)
   if (!from || !into) throw new PosError('Table absente de cet établissement.', 404)
   if (from.id === into.id) throw new PosError('La destination doit être une autre table.', 409)

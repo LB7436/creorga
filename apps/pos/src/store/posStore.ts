@@ -49,7 +49,9 @@ export interface Cover {
   /** Moyen de paiement retenu pour ce couvert. */
   paidMethod?: PayMethod
   payment?: { orderId: string; totalCents: number; paidCents: number; outstandingCents: number }
+  allocationId?: string
 }
+export const isFrozenCover = (cover: Cover) => cover.id.startsWith('guest:') || !!cover.payment?.orderId
 
 /** Ligne figée d'une vente : le prix est copié, pas référencé. */
 export interface LigneVente {
@@ -744,7 +746,7 @@ export const usePOS = create<POSStore>()(
           return {
             ...t,
             covers: t.covers.map(c => {
-              if (c.id !== coverId) return c
+              if (c.id !== coverId || isFrozenCover(c)) return c
               // Check if same item+note already exists → increment qty
               const existing = c.items.find(i => i.menuItemId === menuItem.id && i.note === note && i.price === menuItem.price && i.taxRate === menuItem.taxRate && i.pricingStatus !== 'review')
               if (existing) {
@@ -774,7 +776,7 @@ export const usePOS = create<POSStore>()(
       removeItem: (tableId, itemId) => set(s => ({
         tables: s.tables.map(t => t.id !== tableId ? t : {
           ...t,
-          covers: t.covers.map(c => ({
+          covers: t.covers.map(c => isFrozenCover(c) ? c : ({
             ...c,
             items: c.items.filter(i => i.id !== itemId)
           }))
@@ -784,7 +786,7 @@ export const usePOS = create<POSStore>()(
       setItemQty: (tableId, itemId, qty) => set(s => ({
         tables: s.tables.map(t => t.id !== tableId ? t : {
           ...t,
-          covers: t.covers.map(c => ({
+          covers: t.covers.map(c => isFrozenCover(c) ? c : ({
             ...c,
             items: qty <= 0
               ? c.items.filter(i => i.id !== itemId)
@@ -796,7 +798,7 @@ export const usePOS = create<POSStore>()(
       setItemNote: (tableId, itemId, note) => set(s => ({
         tables: s.tables.map(t => t.id !== tableId ? t : {
           ...t,
-          covers: t.covers.map(c => ({
+          covers: t.covers.map(c => isFrozenCover(c) ? c : ({
             ...c,
             items: c.items.map(i => i.id !== itemId ? i : { ...i, note })
           }))
@@ -1131,10 +1133,10 @@ export const usePOS = create<POSStore>()(
 // ─── Selectors ───────────────────────────────────────────────────────────────
 
 export const tableTotal = (table: Table) =>
-  table.covers.flatMap(c => c.items).reduce((s, i) => s + i.price * i.qty, 0)
+  table.covers.reduce((s, c) => s + coverTotal(c), 0)
 
 export const coverTotal = (cover: Cover) =>
-  cover.items.reduce((s, i) => s + i.price * i.qty, 0)
+  cover.payment ? cover.payment.totalCents / 100 : cover.items.reduce((s, i) => s + i.price * i.qty, 0)
 
 export const elapsed = (openedAt?: number) => {
   if (!openedAt) return ''
