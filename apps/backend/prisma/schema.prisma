@@ -216,6 +216,7 @@ model Table {
   company      Company       @relation(fields: [companyId], references: [id])
   orders       Order[]
   reservations Reservation[]
+  @@unique([companyId, id])
 }
 
 // ─── CATALOGUE PRODUITS ────────────────────────────────
@@ -598,6 +599,7 @@ model Customer {
   orders              Order[]              @relation("CustomerOrders")
 
   @@index([companyId])
+  @@unique([companyId, id])
 }
 
 model LoyaltyTransaction {

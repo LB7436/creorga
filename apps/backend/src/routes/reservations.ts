@@ -1,136 +1,79 @@
-import { Router, type Response } from 'express'
+import { Router } from 'express'
+import { z } from 'zod'
+import type { Prisma } from '@prisma/client'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
-
+import { requireRole } from '../middleware/requireCompany'
+import { lockFinancialCompany } from '../lib/financial-lock'
+import { PosError } from '../lib/pos-ledger'
 const router = Router()
-
-// ─── GET /api/reservations ────────────────────────────
-
-router.get('/', async (req: any, res: Response) => {
-  try {
-    const { date, status, tableId } = req.query
-    const where: any = { companyId: req.companyId }
-    if (status) where.status = status
-    if (tableId) where.tableId = tableId
-    if (date) {
-      const start = new Date(date as string)
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(date as string)
-      end.setHours(23, 59, 59, 999)
-      where.date = { gte: start, lte: end }
-    }
-    const reservations = await prisma.reservation.findMany({
-      where,
-      include: { table: true },
-      orderBy: { date: 'asc' },
-    })
-    res.json(reservations)
-  } catch (error) {
-    logger.error('Erreur GET /reservations:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
+const active = ['PENDING', 'CONFIRMED', 'SEATED']
+const fields = z.object({ tableId: z.string().min(1).max(100).nullish(), customerId: z.string().min(1).max(100).nullish(), guestName: z.string().trim().min(1).max(160),
+  guestPhone: z.string().max(100).nullish(), guestEmail: z.string().email().max(250).or(z.literal('')).nullish(),
+  date: z.string().datetime({ offset: true }).transform(s => new Date(s)), partySize: z.number().int().min(1).max(1000).optional(), notes: z.string().max(2000).nullish() }).strict()
+const wrap = (fn: (req: any, res: any) => Promise<any>) => async (req: any, res: any) => {
+  try { await fn(req, res) } catch (e) {
+    if (e instanceof z.ZodError) return res.status(400).json({ message: 'Réservation invalide : vérifiez date, coordonnées et nombre de personnes.' })
+    if (e instanceof PosError) return res.status(e.status).json({ message: e.message })
+    logger.error('Réservation non confirmée', e)
+    res.status(503).json({ message: 'Confirmation indisponible. Relisez les réservations avant de réessayer.' })
   }
-})
-
-// ─── POST /api/reservations ───────────────────────────
-
-router.post('/', async (req: any, res: Response) => {
-  try {
-    const { tableId, customerId, guestName, guestPhone, guestEmail, date, partySize, notes } = req.body
-    // Check table conflict
-    if (tableId) {
-      const conflict = await prisma.reservation.findFirst({
-        where: {
-          tableId,
-          companyId: req.companyId,
-          status: { in: ['PENDING', 'CONFIRMED', 'SEATED'] },
-          date: {
-            gte: new Date(new Date(date).getTime() - 90 * 60 * 1000),
-            lte: new Date(new Date(date).getTime() + 90 * 60 * 1000),
-          },
-        },
-      })
-      if (conflict) {
-        res.status(409).json({ message: 'Cette table est déjà réservée à cet horaire' })
-        return
-      }
-    }
-    const reservation = await prisma.reservation.create({
-      data: {
-        companyId: req.companyId,
-        tableId: tableId || null,
-        customerId: customerId || null,
-        guestName,
-        guestPhone: guestPhone || null,
-        guestEmail: guestEmail || null,
-        date: new Date(date),
-        partySize: partySize || 2,
-        notes: notes || null,
-      },
-      include: { table: true },
-    })
-    res.status(201).json(reservation)
-  } catch (error) {
-    logger.error('Erreur POST /reservations:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
+}
+async function check(tx: Prisma.TransactionClient, companyId: string, row: any) {
+  if (row.tableId && !await tx.table.findFirst({ where: { id: row.tableId, companyId, isActive: true } })) throw new PosError('Table introuvable dans cet établissement.', 404)
+  if (row.customerId && !await tx.customer.findFirst({ where: { id: row.customerId, companyId } })) throw new PosError('Client introuvable dans cet établissement.', 404)
+  if (row.tableId && active.includes(row.status || 'PENDING')) {
+    const conflict = await tx.reservation.findFirst({ where: { companyId, tableId: row.tableId, ...(row.id ? { id: { not: row.id } } : {}), status: { in: active },
+      date: { gte: new Date(row.date.getTime() - 90 * 60000), lte: new Date(row.date.getTime() + 90 * 60000) } } })
+    if (conflict) throw new PosError('Cette table est déjà réservée à cet horaire (marge de 90 minutes). Choisissez une autre table ou un autre créneau.', 409)
   }
-})
-
-// ─── PUT /api/reservations/:id ────────────────────────
-
-router.put('/:id', async (req: any, res: Response) => {
-  try {
-    const existing = await prisma.reservation.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
-    if (!existing) { res.status(404).json({ message: 'Réservation non trouvée' }); return }
-    const { tableId, guestName, guestPhone, guestEmail, date, partySize, notes } = req.body
-    const reservation = await prisma.reservation.update({
-      where: { id: req.params.id },
-      data: {
-        tableId: tableId ?? existing.tableId,
-        guestName: guestName ?? existing.guestName,
-        guestPhone: guestPhone ?? existing.guestPhone,
-        guestEmail: guestEmail ?? existing.guestEmail,
-        date: date ? new Date(date) : existing.date,
-        partySize: partySize ?? existing.partySize,
-        notes: notes ?? existing.notes,
-      },
-      include: { table: true },
-    })
-    res.json(reservation)
-  } catch (error) {
-    logger.error('Erreur PUT /reservations/:id:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
-  }
-})
-
-// ─── PUT /api/reservations/:id/status ────────────────
-
-router.put('/:id/status', async (req: any, res: Response) => {
-  try {
-    const existing = await prisma.reservation.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
-    if (!existing) { res.status(404).json({ message: 'Réservation non trouvée' }); return }
-    const reservation = await prisma.reservation.update({
-      where: { id: req.params.id },
-      data: { status: req.body.status },
-    })
-    res.json(reservation)
-  } catch (error) {
-    logger.error('Erreur PUT /reservations/:id/status:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
-  }
-})
-
-// ─── DELETE /api/reservations/:id ────────────────────
-
-router.delete('/:id', async (req: any, res: Response) => {
-  try {
-    const existing = await prisma.reservation.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
-    if (!existing) { res.status(404).json({ message: 'Réservation non trouvée' }); return }
-    await prisma.reservation.delete({ where: { id: req.params.id } })
-    res.json({ message: 'Réservation supprimée' })
-  } catch (error) {
-    logger.error('Erreur DELETE /reservations/:id:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
-  }
-})
-
+}
+router.get('/', wrap(async (req, res) => {
+  const filter = z.object({ date: z.string().date().optional(), status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'SEATED', 'NO_SHOW']).optional(), tableId: z.string().optional() }).parse(req.query)
+  const day = filter.date ? (await prisma.$queryRaw<Array<{ start: Date; end: Date }>>`SELECT ${filter.date}::date::timestamp AT TIME ZONE 'Europe/Luxembourg' AS "start", (${filter.date}::date + 1)::timestamp AT TIME ZONE 'Europe/Luxembourg' AS "end"`)[0] : null
+  const rows = await prisma.reservation.findMany({ where: { companyId: req.companyId, ...(filter.status ? { status: filter.status } : {}), ...(filter.tableId ? { tableId: filter.tableId } : {}),
+    ...(day ? { date: { gte: day.start, lt: day.end } } : {}) }, include: { table: true }, orderBy: { date: 'asc' } })
+  // Les relations anciennes ne sont pas réécrites. Une relation incohérente ne divulgue pas sa société.
+  res.json(rows.map(r => r.table && r.table.companyId !== req.companyId ? { ...r, table: null, linkWarning: 'Relation de table historique à vérifier par un responsable.' } : r))
+}))
+router.use(requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', 'CASHIER'))
+router.post('/', wrap(async (req, res) => {
+  const input = fields.parse(req.body)
+  const result = await prisma.$transaction(async tx => {
+    await lockFinancialCompany(tx, req.companyId)
+    await check(tx, req.companyId, input)
+    return tx.reservation.create({ data: { ...input, companyId: req.companyId, guestPhone: input.guestPhone || null, guestEmail: input.guestEmail || null, partySize: input.partySize || 2 }, include: { table: true } })
+  }, { maxWait: 15000, timeout: 20000 })
+  res.status(201).json(result)
+}))
+router.put('/:id', wrap(async (req, res) => {
+  const input = fields.partial().parse(req.body)
+  const result = await prisma.$transaction(async tx => {
+    await lockFinancialCompany(tx, req.companyId)
+    const row = await tx.reservation.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
+    if (!row) throw new PosError('Réservation non trouvée.', 404)
+    await check(tx, req.companyId, { ...row, ...input })
+    return tx.reservation.update({ where: { id: row.id }, data: input, include: { table: true } })
+  }, { maxWait: 15000, timeout: 20000 })
+  res.json(result)
+}))
+router.put('/:id/status', wrap(async (req, res) => {
+  const input = z.object({ status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'SEATED', 'NO_SHOW']) }).strict().parse(req.body)
+  const result = await prisma.$transaction(async tx => {
+    await lockFinancialCompany(tx, req.companyId)
+    const row = await tx.reservation.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
+    if (!row) throw new PosError('Réservation non trouvée.', 404)
+    await check(tx, req.companyId, { ...row, ...input })
+    return tx.reservation.update({ where: { id: row.id }, data: input })
+  }, { maxWait: 15000, timeout: 20000 })
+  res.json(result)
+}))
+router.delete('/:id', wrap(async (req, res) => {
+  await prisma.$transaction(async tx => {
+    await lockFinancialCompany(tx, req.companyId)
+    if (!await tx.reservation.findFirst({ where: { id: req.params.id, companyId: req.companyId } })) throw new PosError('Réservation non trouvée.', 404)
+    await tx.reservation.delete({ where: { id: req.params.id } })
+  })
+  res.json({ message: 'Réservation supprimée' })
+}))
 export default router
