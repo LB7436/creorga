@@ -64,4 +64,32 @@ describe('Commande : conservation et encaissement atomique', () => {
     expect((await auth(request(app).delete(`/api/orders/${orderId}/items/${itemId}`))).status).toBe(409)
     expect(await prisma.orderItem.count({ where: { id: itemId } })).toBe(1)
   })
+  it('un acompte espèces puis un solde carte ne déclarent payé que le total réellement enregistré', async () => {
+    const part = { requestId: randomUUID(), paymentMethod: 'CASH', partialAmountCents: 500, cashReceived: 10 }
+    const first = await auth(request(app).post(`/api/orders/${orderId}/checkout`)).send(part).expect(200)
+    expect(first.body.paidAt).toBeNull(); expect(first.body.outstandingCents).toBe(670)
+    await auth(request(app).post(`/api/orders/${orderId}/checkout`)).send(part).expect(200)
+    const balance = await auth(request(app).get(`/api/orders/${orderId}/payment-balance`)).expect(200)
+    expect(balance.body.paidCents).toBe(500); expect(balance.body.payments).toHaveLength(1)
+    await auth(request(app).put(`/api/orders/${orderId}/items/${itemId}`)).send({ quantity: 2 }).expect(409)
+    const last = await auth(request(app).post(`/api/orders/${orderId}/checkout`)).send({ requestId: randomUUID(), paymentMethod: 'CARD' }).expect(200)
+    expect(last.body.status).toBe('PAID'); expect(last.body.outstandingCents).toBe(0)
+    const done = await auth(request(app).get(`/api/orders/${orderId}/payment-balance`)).expect(200)
+    expect(done.body.payments.map((p: any) => p.amountCents).sort()).toEqual([500, 670])
+    expect(done.body.payments.every((p: any) => p.confirmation === 'manual_declaration')).toBe(true)
+  })
+  it('un paiement mixte partiel conserve espèces et carte sans payer le reste', async () => {
+    const first = await auth(request(app).post(`/api/orders/${orderId}/checkout`)).send({ requestId: randomUUID(), paymentMethod: 'MIXED', partialAmountCents: 500,
+      allocations: [{ method: 'CASH', amount: 2 }, { method: 'CARD', amount: 3 }], cashReceived: 5 }).expect(200)
+    expect(first.body.outstandingCents).toBe(670)
+    await auth(request(app).post(`/api/orders/${orderId}/checkout`)).send({ requestId: randomUUID(), paymentMethod: 'CASH', partialAmountCents: 671 }).expect(409)
+    const balance = await auth(request(app).get(`/api/orders/${orderId}/payment-balance`)).expect(200)
+    expect(balance.body.paidCents).toBe(500); expect(balance.body.payments).toHaveLength(2)
+  })
+  it('vingt acomptes concurrents ne dépassent pas le solde de la même commande', async () => {
+    const results = await Promise.all(Array.from({ length: 20 }, () => auth(request(app).post(`/api/orders/${orderId}/checkout`)).send({ requestId: randomUUID(), paymentMethod: 'CASH', partialAmountCents: 500, cashReceived: 5 })))
+    expect(results.filter(r => r.status === 200)).toHaveLength(2); expect(results.filter(r => r.status === 409)).toHaveLength(18)
+    const balance = await auth(request(app).get(`/api/orders/${orderId}/payment-balance`)).expect(200)
+    expect(balance.body.paidCents).toBe(1000); expect(balance.body.outstandingCents).toBe(170)
+  }, 60000)
 })

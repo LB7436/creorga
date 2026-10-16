@@ -15,6 +15,7 @@ import { totalsFromHt } from '@/lib/money'
 import api from '@/lib/api'
 import { useAuthStore } from '@/stores/authStore'
 import ReceiptInvoiceCreator from '@/components/invoices/ReceiptInvoiceCreator'
+import CreditNotesPanel from '@/components/invoices/CreditNotesPanel'
 
 const euro = new Intl.NumberFormat('fr-LU', { style: 'currency', currency: 'EUR' })
 const statuses: InvoiceStatus[] = ['DRAFT', 'SENT', 'PAID', 'OVERDUE', 'CANCELLED']
@@ -310,6 +311,7 @@ export default function FacturesPage() {
               <button type="button" disabled={emailSending} onClick={() => void sendDocument(detail)} style={{ ...primaryButton, marginTop: 10 }}>{emailSending ? 'Suivi de l’envoi…' : 'Envoyer le PDF par email'}</button>
               <p role="status" style={{ fontSize: 13, color: '#64748b' }}>{deliveryState === 'ACCEPTED' ? 'Message accepté par le serveur SMTP ; lecture du destinataire non prouvée.' : deliveryState === 'UNCERTAIN' ? 'Résultat incertain. Vérifiez la boîte avant tout nouvel envoi.' : deliveryState === 'FAILED' ? 'Envoi échoué. Vérifiez la configuration.' : deliveryState ? 'Message en file ou en cours ; référence conservée.' : 'Envoi transactionnel uniquement, sans inscription marketing.'}</p>
             </section>}
+            {['OWNER', 'MANAGER'].includes(role || '') && <CreditNotesPanel key={detail.id} invoiceId={detail.id} issued={!!detail.issuedAt && detail.status !== 'CANCELLED'} />}
           </section>
         </div>
       )}

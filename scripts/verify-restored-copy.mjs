@@ -63,6 +63,11 @@ function readMaxRows(value) {
   return Number(value)
 }
 
+export function frozenPdfColumns(tableName, columns) {
+  const pair = tableName === 'Invoice' ? ['issuedPdf', 'issuedPdfHash'] : tableName === 'CreditNote' ? ['pdf', 'pdfHash'] : null
+  return pair && pair.every(name => columns.has(name)) ? pair : null
+}
+
 async function scanDatabase(client, maxRows) {
   return client.$transaction(async tx => {
     // SET TRANSACTION précède toute lecture. Les snapshots sont cohérents dans
@@ -108,7 +113,8 @@ async function scanDatabase(client, maxRows) {
         FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position`, table.schema, table.name)
       for (const column of columns) quoteIdentifier(column.name)
       const columnNames = new Set(columns.map(column => column.name))
-      const verifyPdf = table.name === 'Invoice' && columnNames.has('issuedPdf') && columnNames.has('issuedPdfHash')
+      const pdfColumns = frozenPdfColumns(table.name, columnNames)
+      const verifyPdf = !!pdfColumns
       const rows = []
       const pdfHashes = []
       const pdf = verifyPdf ? { status: 'checked', count: 0, totalBytes: 0, storedHashMismatches: 0, nonPdfHeaders: 0, missingBinaryWithHash: 0 } : null
@@ -117,7 +123,7 @@ async function scanDatabase(client, maxRows) {
         // tableoid/ctid servent seulement au parcours du snapshot, jamais à son
         // empreinte : ils peuvent changer normalement après une restauration.
         const page = await tx.$queryRawUnsafe(`SELECT tableoid::text AS cursor_oid, ctid::text AS cursor_tid,
-          to_jsonb(t)::text AS canonical_row${verifyPdf ? ', "issuedPdf" AS pdf_bytes, "issuedPdfHash" AS pdf_hash' : ''}
+          to_jsonb(t)::text AS canonical_row${pdfColumns ? `, ${quoteIdentifier(pdfColumns[0])} AS pdf_bytes, ${quoteIdentifier(pdfColumns[1])} AS pdf_hash` : ''}
           FROM ${qualified} AS t
           ${cursor ? 'WHERE (tableoid, ctid) > ($1::oid, $2::tid)' : ''}
           ORDER BY tableoid, ctid LIMIT ${PAGE_SIZE}`, ...(cursor || []))
@@ -192,6 +198,9 @@ async function selfTest() {
   assert.equal(compareSnapshots(snapshot, snapshot).filter(diff => diff.kind === 'ISSUED_PDF_INTEGRITY_FAILED').length, 2); checks++
   assert.equal(multisetHash(['a', 'b', 'a']), multisetHash(['b', 'a', 'a'])); checks++
   assert.notEqual(multisetHash(['a', 'b', 'a']), multisetHash(['b', 'a'])); checks++
+  assert.deepEqual(frozenPdfColumns('Invoice', new Set(['issuedPdf', 'issuedPdfHash'])), ['issuedPdf', 'issuedPdfHash']); checks++
+  assert.deepEqual(frozenPdfColumns('CreditNote', new Set(['pdf', 'pdfHash'])), ['pdf', 'pdfHash']); checks++
+  assert.equal(frozenPdfColumns('CreditNote', new Set(['pdf'])), null); checks++
   process.stdout.write(JSON.stringify({ selfTest: 'passed', checks }) + '\n')
 }
 

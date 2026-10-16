@@ -8,6 +8,7 @@ import prisma from '../lib/prisma'
 import { PayPalClient } from '../lib/payments/paypal'
 import logger from '../lib/logger'
 import Stripe from 'stripe'
+import { requestRefund, reconcileRefund, refundDto, refundableOrderParts } from '../lib/payments/refunds'
 
 const router = Router()
 // Pas de repli anonyme ou administrateur sans base pour des opérations financières.
@@ -50,6 +51,31 @@ router.get('/attempts/:id', wrap(async (req, res) => {
 }))
 router.post('/attempts/:id/reconcile', wrap(async (req, res) => res.json(await reconcilePayment(req.companyId, req.params.id))))
 router.post('/attempts/:id/capture', wrap(async (req, res) => res.json(await reconcilePayment(req.companyId, req.params.id, true))))
+router.post('/refunds', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+  const result = await requestRefund(req.companyId, req.user.userId, req.body)
+  res.status(result.httpStatus).json(result.body)
+}))
+router.post('/refunds/:id/reconcile', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => res.json(await reconcileRefund(req.companyId, req.params.id))))
+router.get('/refunds', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+  const where = { companyId: req.companyId, ...(typeof req.query.creditNoteId === 'string' ? { creditNoteId: req.query.creditNoteId } : {}) }
+  res.set('Cache-Control', 'private, no-store').json((await prisma.refundAttempt.findMany({ where, orderBy: { createdAt: 'desc' }, take: 200 })).map(refundDto))
+}))
+router.get('/settlements', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+  const { invoiceId } = z.object({ invoiceId: z.string().min(1).max(200) }).parse(req.query)
+  const invoice = await prisma.invoice.findFirst({ where: { companyId: req.companyId, id: invoiceId }, include: { sourcePosSale: true } })
+  if (!invoice) throw new PaymentError(404, 'Facture introuvable.')
+  const sourceOrders: string[] = invoice.sourcePosSale ? (invoice.sourcePosSale.snapshot as any).orderIds || [] : [invoice.orderId].filter((id): id is string => !!id)
+  const settlements = await prisma.paymentSettlement.findMany({ where: { companyId: req.companyId, OR: [{ orderId: { in: sourceOrders } }, { allocations: { some: { orderId: { in: sourceOrders } } } }] }, include: { refunds: true, allocations: true } })
+  const result = await Promise.all(settlements.map(async s => {
+    let available = false
+    try { available = s.provider === 'paypal' && merchantFor(s.provider, req.companyId) === s.merchantId } catch {}
+    let availableCents = 0
+    try { availableCents = (await refundableOrderParts(prisma, req.companyId, s, sourceOrders)).reduce((sum: number, p: any) => sum + Math.max(0, p.amountCents), 0) } catch { available = false }
+    return { id: s.id, provider: s.provider, currency: s.currency, amountCents: s.amountCents,
+      availableCents, refundEnabled: available }
+  }))
+  res.set('Cache-Control', 'private, no-store').json(result)
+}))
 
 function canonical(value: any): any {
   if (Array.isArray(value)) return value.map(canonical)

@@ -5,7 +5,7 @@ const encoder = new TextEncoder()
 const decoder = new TextDecoder('utf-8', { fatal: true })
 const exactKeys = new Set(['creorga-pos-v2', 'creorga-pos-seats', 'creorga-chairs', 'creorga-room-designer'])
 export const isRecoveryKey = (key: string) => exactKeys.has(key) ||
-  /^(creorga-pos-(draft|pending|close):|creorga-floor-)/.test(key)
+  /^(creorga-pos-(draft|pending|close):|creorga-floor-|creorga-financial-v1:)/.test(key)
 
 export interface StorageReader { readonly length: number; key(index: number): string | null; getItem(key: string): string | null }
 export interface StoredValue { key: string; raw: string; sha256: string }

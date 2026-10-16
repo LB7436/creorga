@@ -8,6 +8,7 @@ import { moneyMinor, totalsFromHt, totalsFromTtc, type TaxGroup } from './money'
 export type Party = { name?: string; legalName?: string | null; businessName?: string | null; firstName?: string; lastName?: string; address?: string | null; city?: string | null; postalCode?: string | null; email?: string | null; vatNumber?: string | null;
   legalForm?: string; rcsNumber?: string; authorizationNumber?: string; profession?: string; legalMention?: string; rcsExemptionReason?: string }
 export interface PrintableInvoice {
+  documentKind?: 'INVOICE' | 'CREDIT_NOTE'; sourceDocumentNumber?: string
   version?: number; number: string; status: string; createdAt: Date | string; dueDate?: Date | string | null; serviceDate?: Date | string | null
   company: Party; customer?: Party | null; notes?: string | null
   currency?: string; priceBasis?: string; discountCents?: number; taxGroups?: TaxGroup[]; reconstructed?: boolean
@@ -31,7 +32,7 @@ export async function invoicePdf(invoice: PrintableInvoice, format: PaperFormat 
   const pdf = await PDFDocument.create()
   pdf.registerFontkit(fontkit)
   const font = await pdf.embedFont(fontBytes, { subset: true })
-  pdf.setTitle(`Facture ${invoice.number}`)
+  pdf.setTitle(`${invoice.documentKind === 'CREDIT_NOTE' ? 'Avoir' : 'Facture'} ${invoice.number}`)
   pdf.setAuthor(invoice.company.name || 'Creorga')
   pdf.setLanguage('fr-LU')
   const thermal = format !== 'A4', width = thermal ? Number(format) * 72 / 25.4 : 595.28
@@ -104,9 +105,10 @@ export async function invoicePdf(invoice: PrintableInvoice, format: PaperFormat 
     if (value.profession) line(`Profession : ${value.profession}`)
     if (value.legalMention) line(value.legalMention)
   }
-  line('FACTURE', thermal ? 13 : 21, purple)
+  line(invoice.documentKind === 'CREDIT_NOTE' ? 'AVOIR' : 'FACTURE', thermal ? 13 : 21, purple)
+  if (invoice.sourceDocumentNumber) line(`Facture d'origine : ${invoice.sourceDocumentNumber}`)
   line(invoice.number, thermal ? 10 : 16)
-  const statuses: Record<string, string> = { DRAFT: 'Brouillon', SENT: 'Émise', PAID: 'Payée', OVERDUE: 'En retard', CANCELLED: 'Annulée' }
+  const statuses: Record<string, string> = { DRAFT: 'Brouillon', SENT: 'Émise', ISSUED: 'Émis — remboursement distinct', PAID: 'Payée', OVERDUE: 'En retard', CANCELLED: 'Annulée' }
   line(`${statuses[invoice.status] || invoice.status} · Date : ${date(invoice.createdAt)}${invoice.dueDate ? ` · Échéance : ${date(invoice.dueDate)}` : ''}`)
   if (invoice.serviceDate) line(`Date de prestation : ${date(invoice.serviceDate)}`)
   if (invoice.reconstructed) line('COPIE RECONSTITUÉE - informations historiques non prouvées.', thermal ? 8 : 10, purple)
@@ -135,7 +137,7 @@ export async function invoicePdf(invoice: PrintableInvoice, format: PaperFormat 
   if (invoice.discountCents) amountRow('Remise TTC', invoice.discountCents / 100)
   amountRow('Total HT', invoice.subtotal, thermal ? 10 : 12)
   amountRow('TVA', invoice.taxAmount, thermal ? 10 : 12)
-  amountRow('TOTAL TTC', invoice.total, thermal ? 12 : 17, purple)
+  amountRow(invoice.documentKind === 'CREDIT_NOTE' ? 'TOTAL À CRÉDITER TTC' : 'TOTAL TTC', invoice.total, thermal ? 12 : 17, purple)
   if (invoice.notes) { y -= 15; line('NOTES', 10, purple); line(invoice.notes) }
   let finalPageShift = 0
   if (thermal) {

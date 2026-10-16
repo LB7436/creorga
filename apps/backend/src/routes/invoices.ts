@@ -11,6 +11,7 @@ import { invoiceDocument, DocumentValidationError } from '../lib/document-model'
 import { enqueueInvoice, processInvoiceDeliveries, deliveryDto, DeliveryError } from '../lib/invoice-delivery'
 import { z } from 'zod'
 import { receiptInvoiceData, ReceiptInvoiceError } from '../lib/receipt-invoice'
+import { createCreditNote, creditDto, CreditError } from '../lib/credit-notes'
 
 const router = Router()
 router.use((req, res, next) => {
@@ -245,6 +246,35 @@ router.post('/quotes/:id/convert', async (req: any, res: Response) => {
 })
 
 // ─── INVOICES ─────────────────────────────────────────
+
+router.post('/:id/credit-notes', async (req: any, res) => {
+  try {
+    const result = await createCreditNote(req.companyId, req.user.userId, req.params.id, req.body)
+    res.status(result.created ? 201 : 200).json(creditDto(result.credit))
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ message: 'Référence, montant en centimes et motif de cinq caractères minimum requis.' })
+    if (error instanceof CreditError) return res.status(error.status).json({ message: error.message })
+    if (error instanceof NumerotationIndisponibleError) return res.status(503).json({ message: error.message })
+    logger.warn('[documents] avoir non confirmé')
+    res.status(503).json({ message: 'Émission non confirmée. Réessayez la même référence avant toute nouvelle demande.' })
+  }
+})
+router.get('/:id/credit-notes', requireRole('OWNER', 'MANAGER'), async (req: any, res) => {
+  try {
+    if (!await prisma.invoice.findFirst({ where: { id: req.params.id, companyId: req.companyId } })) return res.status(404).json({ message: 'Facture introuvable.' })
+    res.set('Cache-Control', 'private, no-store').json((await prisma.creditNote.findMany({ where: { invoiceId: req.params.id, companyId: req.companyId }, orderBy: { createdAt: 'asc' } })).map(creditDto))
+  } catch { res.status(503).json({ message: 'Avoirs indisponibles.' }) }
+})
+router.get('/credit-notes/:id/pdf', requireRole('OWNER', 'MANAGER'), async (req: any, res) => {
+  try {
+    const credit = await prisma.creditNote.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
+    if (!credit) return res.status(404).json({ message: 'Avoir introuvable.' })
+    const format = z.enum(['A4', '58', '80']).default('A4').parse(req.query.format)
+    if (createHash('sha256').update(credit.pdf).digest('hex') !== credit.pdfHash) return res.status(503).json({ message: 'Intégrité de l’avoir non confirmée.' })
+    const bytes = format === 'A4' ? credit.pdf : await invoicePdf(credit.snapshot as any, format)
+    res.set('Cache-Control', 'private, no-store').set('Content-Disposition', `attachment; filename="avoir-${credit.number.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf"`).type('pdf').send(bytes)
+  } catch { res.status(503).json({ message: 'PDF de l’avoir indisponible.' }) }
+})
 
 router.get('/pos-receipts', requireRole('OWNER', 'MANAGER'), async (req: any, res) => {
   try {

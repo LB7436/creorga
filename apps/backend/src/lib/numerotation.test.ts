@@ -29,6 +29,7 @@ vi.mock('./prisma', () => ({
   default: {
     invoice: { findFirst: (a: any) => findFirst(a) },
     quote: { findFirst: (a: any) => findFirst(a) },
+    creditNote: { findFirst: (a: any) => findFirst(a) },
   },
 }))
 

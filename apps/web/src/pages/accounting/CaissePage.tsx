@@ -3,6 +3,8 @@ import { Banknote, CheckCircle2, Clock3, DoorOpen, FileBarChart, Lock } from 'lu
 import { useNavigate } from 'react-router-dom'
 import { useCashDrawers, useOpenCashDrawer } from '@/hooks/api/useAccounting'
 import { toastError } from '@/lib/toast'
+import OrderPaymentsPanel from '@/components/accounting/OrderPaymentsPanel'
+import CashMovementsPanel from '@/components/accounting/CashMovementsPanel'
 
 const euro = (value: number) => value.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
 
@@ -13,6 +15,7 @@ export default function CaissePage() {
   const [showOpen, setShowOpen] = useState(false)
   const [amount, setAmount] = useState('200')
   const [notes, setNotes] = useState('')
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID())
   const current = drawers.data?.find((drawer) => !drawer.closedAt)
   const history = (drawers.data ?? []).filter((drawer) => drawer.closedAt)
 
@@ -23,7 +26,8 @@ export default function CaissePage() {
       return
     }
     try {
-      await openDrawer.mutateAsync({ openAmount, notes: notes.trim() || undefined })
+      await openDrawer.mutateAsync({ requestId, openAmount, notes: notes.trim() || undefined })
+      setRequestId(crypto.randomUUID())
       setShowOpen(false)
       setNotes('')
     } catch {
@@ -32,16 +36,18 @@ export default function CaissePage() {
   }
 
   return (
-    <div style={{ padding: 28, color: '#172033', maxWidth: 1050, margin: '0 auto' }}>
+    <div style={{ padding: 28, color: 'var(--crg-text, #172033)', maxWidth: 1050, margin: '0 auto' }}>
       <header style={{ marginBottom: 22 }}>
         <h1 style={{ margin: 0, fontSize: 27, letterSpacing: '-0.03em' }}>Caisse</h1>
         <p style={{ color: '#64748b', margin: '6px 0 0' }}>Sessions réelles enregistrées pour cet établissement.</p>
       </header>
 
       {drawers.isError && <div role="alert" style={errorStyle}>Impossible de charger l'état de la caisse.</div>}
+      <OrderPaymentsPanel />
+      {current?.ledgerVersion === 2 && <CashMovementsPanel key={current.id} drawerId={current.id} />}
       {drawers.isLoading ? <Empty text="Chargement de la caisse…" /> : (
         <>
-          <section style={{ ...cardStyle, background: current ? 'linear-gradient(135deg,#ecfdf5,#f0fdfa)' : '#fff', borderColor: current ? '#a7f3d0' : '#e2e8f0' }}>
+          <section style={{ ...cardStyle, background: current ? 'var(--crg-bg-accent-soft, #ecfdf5)' : 'var(--crg-bg-surface, #fff)', borderColor: current ? '#a7f3d0' : '#e2e8f0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
               <span style={{ ...iconBox, background: current ? '#d1fae5' : '#f1f5f9', color: current ? '#047857' : '#64748b' }}>{current ? <DoorOpen size={24} /> : <Lock size={23} />}</span>
               <div style={{ flex: 1, minWidth: 230 }}>
@@ -62,15 +68,16 @@ export default function CaissePage() {
               <button type="button" onClick={() => navigate('/accounting/rapports')} style={secondaryButton}><FileBarChart size={15} /> Voir les ventes</button>
             </div>
             {history.length === 0 ? <Empty text="Aucune clôture enregistrée." /> : (
-              <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ display: 'grid', gap: 8, overflowX: 'auto' }}>
                 {history.slice(0, 20).map((drawer) => (
                   <article key={drawer.id} style={historyRow}>
                     <span style={{ ...iconBox, width: 36, height: 36, borderRadius: 10, background: '#eff6ff', color: '#1d4ed8' }}><CheckCircle2 size={18} /></span>
                     <div><strong>{new Date(drawer.openedAt).toLocaleDateString('fr-FR')}</strong><div style={{ color: '#64748b', fontSize: 12 }}><Clock3 size={11} style={{ verticalAlign: -1 }} /> {new Date(drawer.openedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} → {drawer.closedAt ? new Date(drawer.closedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</div></div>
                     <div><span style={smallLabel}>Fond initial</span><strong style={{ display: 'block' }}>{euro(drawer.openAmount)}</strong></div>
-                    <div><span style={smallLabel}>Espèces vendues</span><strong style={{ display: 'block' }}>{euro(drawer.totalSales)}</strong></div>
+                    <div><span style={smallLabel}>Encaissements espèces</span><strong style={{ display: 'block' }}>{euro(drawer.totalSales)}</strong></div>
                     <div><span style={smallLabel}>Compté</span><strong style={{ display: 'block' }}>{euro(drawer.closeAmount ?? 0)}</strong></div>
                     <div><span style={smallLabel}>Écart</span><strong style={{ display: 'block', color: drawer.discrepancy ? '#b91c1c' : '#047857' }}>{euro(drawer.discrepancy ?? 0)}</strong></div>
+                    {drawer.closeSnapshot && <button type="button" style={secondaryButton} onClick={() => navigate(`/accounting/cloture?session=${encodeURIComponent(drawer.id)}`)}>Consulter la clôture</button>}
                   </article>
                 ))}
               </div>

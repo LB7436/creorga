@@ -44,7 +44,10 @@ export async function nextNumber(companyId: string, prefix: PrefixeDocument): Pr
         select: { number: true },
       })
 
-  const dernierRang = dernier ? parseInt(dernier.number.slice(motif.length), 10) : 0
+  // Préserve aussi une éventuelle ancienne série AVO stockée dans Invoice.
+  const credit = prefix === 'AVO' ? await prisma.creditNote.findFirst({ where: { companyId, number: { startsWith: motif } }, orderBy: { number: 'desc' }, select: { number: true } }) : null
+  const latest = credit && (!dernier || credit.number > dernier.number) ? credit : dernier
+  const dernierRang = latest ? parseInt(latest.number.slice(motif.length), 10) : 0
   const rang = Number.isFinite(dernierRang) ? dernierRang + 1 : 1
   return `${motif}${String(rang).padStart(4, '0')}`
 }

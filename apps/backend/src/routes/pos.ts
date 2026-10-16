@@ -12,6 +12,8 @@ import { createHash } from 'node:crypto'
 import { moneyMinor, totalsFromTtc, allocateMinor } from '../lib/money'
 import { activePaymentExists, lockOrderPayment } from '../lib/payments/ledger'
 import { floorLines, pricedItem, quoteFor, PosPricingError } from '../lib/pos-pricing'
+import type { Prisma } from '@prisma/client'
+import { recordPosTenders } from '../lib/order-tenders'
 
 const router = Router()
 const stateStatus: Record<string, string> = { available: 'LIBRE', occupied: 'OCCUPEE', reserved: 'RESERVEE', dirty: 'NETTOYAGE' }
@@ -37,14 +39,19 @@ const wrap = (fn: (req: any, res: any) => Promise<any>) => async (req: any, res:
   }
 }
 
-async function tablesFor(companyId: string): Promise<PosTable[]> {
-  const [products, paid, guests, dbTables] = await Promise.all([
-    prisma.product.findMany({ where: { companyId }, select: { id: true, name: true, price: true } }),
-    prisma.posCoverPayment.findMany({ where: { companyId }, select: { coverId: true } }),
-    prisma.order.findMany({ where: { companyId, source: 'GUEST', paidAt: null, status: { not: 'CANCELLED' } }, include: { items: { include: { product: true } } } }),
-    prisma.table.findMany({ where: { companyId, isActive: true } }),
+async function tablesFor(companyId: string, db: Prisma.TransactionClient = prisma): Promise<PosTable[]> {
+  const [products, paid, guests, dbTables, consumed] = await Promise.all([
+    db.product.findMany({ where: { companyId }, select: { id: true, name: true, price: true } }),
+    db.posCoverPayment.findMany({ where: { companyId }, select: { coverId: true } }),
+    db.order.findMany({ where: { companyId, source: 'GUEST', paidAt: null, status: { notIn: ['CANCELLED', 'PAID'] } }, include: { items: { include: { product: true } } } }),
+    db.table.findMany({ where: { companyId, isActive: true } }),
+    db.saleOrigin.findMany({ where: { companyId, kind: 'LINE' }, select: { sourceId: true } }),
   ])
   const paidIds = new Set(paid.map(p => p.coverId))
+  const consumedIds = new Set(consumed.map(p => p.sourceId))
+  // Les lignes déjà rattachées à une commande ne deviennent pas des lignes POS natives.
+  const existingOrderLines = await db.orderItem.findMany({ where: { id: { in: floorLines(getFloorState(companyId)).map(i => i.id) }, order: { companyId } }, select: { id: true } })
+  for (const line of existingOrderLines) consumedIds.add(line.id)
   const toItems = (items: any[], coverId: string) => items.map(i => ({
     id: i.id, menuItemId: i.productId || i.menuItemId || (products.filter(p => p.name === i.name).length === 1 ? products.find(p => p.name === i.name)!.id : 'produit-a-verifier'),
     ...pricedItem(getFloorState(companyId), i), note: i.note || '', coverId,
@@ -62,7 +69,7 @@ async function tablesFor(companyId: string): Promise<PosTable[]> {
       }),
     ]
     const unpaid = covers.filter((c: any) => !paidIds.has(c.id) && !c.id.startsWith('guest:')).map((c: any) => ({ ...c, paidAt: undefined, paidMethod: undefined,
-      items: c.items.map((i: any) => pricedItem(getFloorState(companyId), i)) }))
+      items: c.items.filter((i: any) => !consumedIds.has(i.id)).map((i: any) => pricedItem(getFloorState(companyId), i)) })).filter((c: any) => c.items.length)
     const fromGuest = guests.filter(g => g.externalTableId === t.id).map(g => ({
       id: `guest:${g.id}`, label: `QR #${g.orderNumber}`, items: g.items.map(i => ({ id: i.id, menuItemId: i.productId,
         name: i.productName || i.product.name, price: i.unitPrice, taxRate: i.taxRate, pricingStatus: 'confirmed' as const, pricingSource: 'guest-order', qty: i.quantity, note: i.notes || '', coverId: `guest:${g.id}` })),
@@ -101,6 +108,9 @@ router.put('/draft', wrap(async (req, res) => {
   if (alreadyPaid) throw new PosError('Ce brouillon contient un couvert déjà réglé. Rechargez le plan serveur.', 409)
   const floor = getFloorState()
   const seats = req.body.seats === undefined ? undefined : z.array(seatSchema).max(9000).parse(req.body.seats)
+  const candidateLines = [...tables.flatMap(t => t.covers.filter(c => !c.id.startsWith('guest:')).flatMap(c => c.items.map(i => i.id))), ...(seats || []).flatMap(s => s.items.map(i => i.id))]
+  if (await prisma.saleOrigin.count({ where: { companyId: req.companyId, kind: 'LINE', sourceId: { in: candidateLines } } })) throw new PosError('Ce brouillon contient une ligne déjà réglée. Rechargez depuis le serveur ; ne recréez pas la vente.', 409)
+  if (await prisma.orderItem.count({ where: { id: { in: candidateLines }, order: { companyId: req.companyId } } })) throw new PosError('Une ligne de commande ou QR ne peut pas être recopiée en nouvelle vente native. Utilisez sa commande d’origine.', 409)
   if (seats && (new Set(seats.map(s => s.id)).size !== seats.length || seats.some(s => s.tableId && !tables.some(t => t.id === s.tableId)))) throw new PosError('Chaises dupliquées ou table inconnue.')
   if (seats && floor.chairs.some(c => c.items.length && !seats.some(s => s.id === c.id))) throw new PosError('Une chaise non vide ne peut pas être supprimée.', 409)
   if (req.body.editor !== undefined) {
@@ -207,7 +217,7 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
         || JSON.stringify([...previous.coverIds].sort()) !== JSON.stringify([...input.coverIds].sort())) throw new PosError('Cette référence désigne un autre règlement.', 409)
       return existing.snapshot as any
     }
-    const table = (await tablesFor(companyId)).find(t => t.id === input.tableId)
+    const table = (await tablesFor(companyId, tx)).find(t => t.id === input.tableId)
     const covers = table?.covers.filter(c => input.coverIds.includes(c.id)) || []
     if (!table || !covers.length || covers.length !== new Set(input.coverIds).size || covers.some(c => c.paidAt || !c.items.length)) throw new PosError('Ces couverts sont absents, vides ou déjà réglés.', 409)
     if (table.customerId && !await tx.customer.findFirst({ where: { id: table.customerId, companyId }, select: { id: true } })) throw new PosError('Le client rattaché à cette table est absent de cet établissement.', 409)
@@ -220,6 +230,7 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
     if (await activePaymentExists(tx, companyId, guestIds)) throw new PosError('Paiement en cours ou résultat incertain : vérifiez-le avant de régler cette addition en caisse.', 409)
     const guests = await tx.order.findMany({ where: { companyId, id: { in: guestIds }, paidAt: null, status: { not: 'CANCELLED' } }, include: { items: true } })
     if (guests.length !== guestIds.length) throw new PosError('Une commande QR a déjà été réglée.', 409)
+    if (await tx.orderTender.count({ where: { companyId, orderId: { in: guestIds } } })) throw new PosError('Un paiement partiel existe : réglez uniquement le solde depuis la gestion des commandes.', 409)
     const products = await tx.product.findMany({ where: { companyId, id: { in: covers.flatMap(c => c.items.map(i => i.menuItemId)) } } })
     const lines = covers.flatMap(c => c.items.map(i => {
       const p = products.find(p => p.id === i.menuItemId)
@@ -227,7 +238,7 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
       const quote = quoteFor(getFloorState(), i)
       if (!guest && (!quote || quote.status !== 'confirmed' || quote.taxRate === undefined)) throw new PosError(`Ancienne ligne à vérifier par un responsable avant encaissement : ${i.name}.`, 409)
       if (!p || (!guest && quote?.productId !== p.id)) throw new PosError(`Article absent de cet établissement : ${i.name}.`)
-      return { name: guest?.productName || quote!.name, productId: p.id, price: guest?.unitPrice ?? quote!.priceCents / 100, taxRate: guest?.taxRate ?? quote!.taxRate!,
+      return { sourceLineId: i.id, name: guest?.productName || quote!.name, productId: p.id, price: guest?.unitPrice ?? quote!.priceCents / 100, taxRate: guest?.taxRate ?? quote!.taxRate!,
         qty: guest?.quantity ?? i.qty, notes: i.note, guest: !!guest }
     }))
     const brut = cents(lines.reduce((s, l) => s + l.price * l.qty, 0))
@@ -313,11 +324,13 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
     const taxGroups = totalsFromTtc(lines, moneyMinor(brut - remaining)).groups.map(({ taxRate, baseCents, taxCents, totalCents }) => ({ taxRate, baseCents, taxCents, totalCents }))
     const snapshot = { version: 2, id: input.requestId, requestHash, confirmation: 'manual_declaration', numero: (previous?.number || 0) + 1, horodatage: Date.now(), tableId: table.id, tableName: table.name,
       issuer, currency: company.currency, taxGroups, orderIds, cashChange,
-      couverts: covers.map(c => c.label), coverIds: input.coverIds, lignes: lines.map(({ name, price, qty, taxRate, productId }) => ({ name, price, qty, taxRate, productId })),
+      couverts: covers.map(c => c.label), coverIds: input.coverIds, lignes: lines.map(({ sourceLineId, name, price, qty, taxRate, productId }) => ({ sourceLineId, name, price, qty, taxRate, productId })),
       receipt: input.options?.receipt || { message: '', includeBrand: false, includePromo: false },
       ...amounts, pourboire: tip, arrondiCaritatif: charity, remises, reglements, methode: principale, vendeur: `${user.firstName} ${user.lastName}` }
     await tx.posSale.create({ data: { id: snapshot.id, companyId, userId: req.user.userId, number: snapshot.numero, snapshot,
-      covers: { create: input.coverIds.map(coverId => ({ companyId, coverId })) } } })
+      covers: { create: input.coverIds.map(coverId => ({ companyId, coverId })) },
+      origins: { create: [...native.map(l => ({ kind: 'LINE', sourceId: l.sourceLineId })), ...orderIds.map(sourceId => ({ kind: 'ORDER', sourceId }))] } } })
+    await recordPosTenders(tx, companyId, req.user.userId, snapshot)
     return snapshot
   }, { timeout: 15000 })
   // Si le disque tombe après le commit, la même référence permet de retrouver la vente sans la rejouer.

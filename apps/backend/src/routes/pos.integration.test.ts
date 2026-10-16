@@ -89,6 +89,18 @@ describe('Caisse native : verrou commun et centimes', () => {
     await auth(request(app).post('/api/pos/checkout')).send({ ...nativeBody(), expectedTotal: 1.7, options: { giftCard: { code: gift.code, amount: 10 } } }).expect(409)
     expect((await prisma.giftCard.findUniqueOrThrow({ where: { id: gift.id } })).currentBalance).toBe(10)
   })
+  it('ventile cadeau, espèces, pourboire et don sans gonfler la vente ni sa TVA', async () => {
+    const gift = await prisma.giftCard.create({ data: { companyId, code: randomUUID(), initialValue: 10, currentBalance: 10 } })
+    const result = await auth(request(app).post('/api/pos/checkout')).send({ ...nativeBody(), cashReceived: 5, expectedTotal: 13.8, tip: 2,
+      options: { giftCard: { code: gift.code, amount: 10 }, arrondiCaritatif: .1 } }).expect(200)
+    const tenders = await prisma.orderTender.findMany({ where: { companyId, saleId: result.body.id }, orderBy: { method: 'asc' } })
+    expect(tenders.map(p => ({ method: p.method, amountCents: p.amountCents, tipCents: p.tipCents, charityCents: p.charityCents }))).toEqual([
+      { method: 'CASH', amountCents: 170, tipCents: 200, charityCents: 10 }, { method: 'GIFT_CARD', amountCents: 1000, tipCents: 0, charityCents: 0 },
+    ])
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: result.body.orderIds[0] } })).total).toBe(11.7)
+    expect(result.body.taxGroups).toEqual([{ taxRate: 17, baseCents: 1000, taxCents: 170, totalCents: 1170 }])
+    expect(result.body.cashChange).toBe(1.2)
+  })
   it('refuse le format historique qui déduisait une carte cadeau de la TVA', async () => {
     await auth(request(app).post('/api/pos/checkout')).send({ ...nativeBody(), expectedTotal: 1.7, options: { remises: [{ type: 'carte_cadeau', code: 'test', libelle: 'Ancien format', montant: 10 }] } }).expect(400)
   })
@@ -133,5 +145,41 @@ describe('Caisse native : verrou commun et centimes', () => {
     finally { await prisma.userCompany.update({ where: { userId_companyId: { userId, companyId } }, data: { role: 'OWNER' } }) }
     await auth(request(app).put('/api/floor-state')).set('If-Match', String(floor.updatedAt)).send({ posPricing: { [item.id]: { priceCents: 1 } } }).expect(400)
     expect(getFloorState(companyId).posPricing).toBeUndefined()
+  })
+  it('une ancienne projection récupérée ne permet pas de vendre deux fois la même ligne sous un nouveau couvert', async () => {
+    const input = { ...nativeBody(), cashReceived: 12 }
+    const before = structuredClone(getFloorState(companyId))
+    const salesBefore = await prisma.posSale.count({ where: { companyId } })
+    const stockBefore = (await prisma.product.findUniqueOrThrow({ where: { id: productId } })).stock!
+    const first = await auth(request(app).post('/api/pos/checkout')).send(input).expect(200)
+    const old: any = before.tables[0]
+    const replacementCover = `recovered:${randomUUID()}`
+    old.posCovers[0].id = replacementCover
+    old.posCovers[0].items[0].coverId = replacementCover
+    // Reproduit une projection JSON ancienne après perte de réponse/échec disque.
+    // La vente PostgreSQL reste intacte et est la source de vérité financière.
+    remplacerPlanDeSalle(before, companyId)
+    await auth(request(app).post('/api/pos/checkout')).send({ ...input, requestId: randomUUID(), coverIds: [replacementCover] }).expect(409)
+    expect(await prisma.posSale.count({ where: { companyId } })).toBe(salesBefore + 1)
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: productId } })).stock).toBe(stockBefore - 1)
+    expect(await prisma.saleOrigin.count({ where: { companyId, saleId: first.body.id, kind: 'LINE' } })).toBe(1)
+    expect((await auth(request(app).get('/api/pos/bootstrap')).expect(200)).body.tables[0].covers.filter((c: any) => !c.id.startsWith('guest:'))).toEqual([])
+  })
+  it('refuse dans un nouveau brouillon une ligne déjà réglée et déplacée dans un autre couvert', async () => {
+    const input = { ...nativeBody(), cashReceived: 12 }
+    const old: any = structuredClone(getFloorState(companyId).tables[0])
+    await auth(request(app).post('/api/pos/checkout')).send(input).expect(200)
+    const boot = await auth(request(app).get('/api/pos/bootstrap')).expect(200)
+    const table = boot.body.tables[0], coverId = randomUUID()
+    table.covers = [{ ...old.posCovers[0], id: coverId, items: old.posCovers[0].items.map((i: any) => ({ ...i, coverId })) }]
+    await auth(request(app).put('/api/pos/draft')).set('If-Match', String(boot.body.revision)).send({ tables: [table], seats: [] }).expect(409)
+  })
+  it('une ligne QR ne devient pas une deuxième vente native en changeant de couvert', async () => {
+    const input = { ...nativeBody(), cashReceived: 12 }
+    const guestLine = await prisma.orderItem.findFirstOrThrow({ where: { orderId } })
+    const floor: any = getFloorState(companyId), item = floor.tables[0].posCovers[0].items[0]
+    floor.posPricing[guestLine.id] = floor.posPricing[item.id]; item.id = guestLine.id
+    await auth(request(app).post('/api/pos/checkout')).send(input).expect(409)
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: orderId } })).paidAt).toBeNull()
   })
 })

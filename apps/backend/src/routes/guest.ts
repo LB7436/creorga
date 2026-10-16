@@ -10,6 +10,7 @@ import { requireCompany } from '../middleware/requireCompany'
 import { resolveGuestTable } from '../lib/guest-tables'
 import { GuestAccessError, lockGuestTable, requireGuestAccess } from '../lib/guest-visits'
 import { totalsFromTtc } from '../lib/money'
+import { orderPaymentBalance } from '../lib/order-tenders'
 import { PosError } from '../lib/pos-ledger'
 import { createTablePayment, reconcilePayment, merchantFor, PaymentError } from '../lib/payments/ledger'
 
@@ -293,7 +294,9 @@ router.get('/bill/:tableId', asyncRoute(async (req, res) => {
   if (!realTable) return res.status(404).json({ error: 'Table inconnue.' })
   const visit = await guestScope(req, companyId, realTable)
   const orders = commandesARegler(await readOrders(companyId, visit?.id), realTable)
-  const total = arrondi(orders.reduce((s, o) => s + o.total, 0))
+  const central = await prisma.order.findMany({ where: { companyId, publicToken: { in: orders.map(o => o.id) } } })
+  const balances = await Promise.all(central.map(order => orderPaymentBalance(prisma, companyId, order)))
+  const total = balances.reduce((s, b) => s + b.outstandingCents, 0) / 100
   const paymentProviders = ['paypal', 'stripe'].filter(provider => { try { merchantFor(provider, companyId); return true } catch { return false } })
   res.json({ tableId, total, orderIds: orders.map((o) => o.id), count: orders.length, paymentProviders })
 }))

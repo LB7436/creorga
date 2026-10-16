@@ -2,6 +2,8 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { CalendarRange, Download, Percent, Printer } from 'lucide-react'
 import { useExpenses, useTaxReport } from '@/hooks/api/useAccounting'
 import { downloadCsv } from '@/lib/csv'
+import { useQuery } from '@tanstack/react-query'
+import api from '@/lib/api'
 
 const pad = (value: number) => String(value).padStart(2, '0')
 const localDate = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
@@ -18,6 +20,8 @@ export default function TvaPage() {
   const startIso = start ? new Date(`${start}T00:00:00`).toISOString() : ''
   const endIso = end ? new Date(`${end}T23:59:59`).toISOString() : ''
   const report = useTaxReport(startIso, endIso)
+  const journal = useQuery<any>({ queryKey: ['accounting', 'document-journal', startIso, endIso], enabled: !!startIso && !!endIso,
+    queryFn: () => api.get('/accounting/document-journal', { params: { startDate: startIso, endDate: endIso } }).then(r => r.data) })
   const expenses = useExpenses()
 
   const periodExpenses = useMemo(() => (expenses.data ?? []).filter((expense) => {
@@ -30,20 +34,26 @@ export default function TvaPage() {
   const rows = Object.entries(report.data?.byTaxRate ?? {}).sort(([a], [b]) => a.localeCompare(b, 'fr', { numeric: true }))
 
   const exportCsv = () => {
-    if (!report.data) return
+    if (!report.data || report.isError) return
     downloadCsv(
       `tva-${start}_${end}.csv`,
       ['Taux', 'Base HT', 'TVA collectée', 'Total TTC'],
       rows.map(([rate, value]) => [rate, value.base, value.tax, value.total]),
     )
   }
+  const exportDocuments = () => {
+    if (!journal.data || journal.isError) return
+    downloadCsv(`pieces-factures-avoirs-${start}_${end}.csv`, ['Type de pièce', 'Référence', 'Date UTC', 'Devise', 'Facture origine', 'Commande origine', 'Ticket origine', 'Taux TVA', 'HT signé', 'TVA signée', 'TTC signé', 'Périmètre'],
+      journal.data.documents.flatMap((d: any) => d.taxGroups.map((g: any) => [d.kind, d.number, d.date, d.currency, d.sourceInvoiceId || '', d.sourceOrderId || '', d.sourcePosSaleId || '', g.taxRate,
+        d.sign * g.baseCents / 100, d.sign * g.taxCents / 100, d.sign * g.totalCents / 100, 'PIECES_SEULEMENT_PAS_NOUVELLES_VENTES_NI_PAIEMENTS'])))
+  }
 
   return (
-    <div style={{ padding: 28, color: '#172033', maxWidth: 1080, margin: '0 auto' }}>
+    <div style={{ padding: 28, color: 'var(--crg-text, #172033)', maxWidth: 1080, margin: '0 auto' }}>
       <style>{`@media print { aside, nav, button, .no-print { display:none!important } body { background:#fff!important } }`}</style>
       <header style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 21 }}>
         <div><h1 style={{ margin: 0, fontSize: 27, letterSpacing: '-0.03em' }}>TVA</h1><p style={{ color: '#64748b', margin: '6px 0 0' }}>Calcul fondé sur les ventes payées et les dépenses enregistrées.</p></div>
-        <div className="no-print" style={{ display: 'flex', gap: 8 }}><button type="button" onClick={exportCsv} disabled={!report.data} style={secondaryButton}><Download size={15} /> CSV</button><button type="button" onClick={() => window.print()} disabled={!report.data} style={secondaryButton}><Printer size={15} /> Imprimer / PDF</button></div>
+        <div className="no-print" style={{ display: 'flex', gap: 8 }}><button type="button" onClick={exportCsv} disabled={!report.data || report.isError} style={secondaryButton}><Download size={15} /> CSV ventes</button><button type="button" onClick={() => window.print()} disabled={!report.data || report.isError} style={secondaryButton}><Printer size={15} /> Imprimer / PDF</button></div>
       </header>
 
       <section className="no-print" style={{ ...cardStyle, display: 'flex', alignItems: 'end', gap: 12, flexWrap: 'wrap' }}>
@@ -52,8 +62,12 @@ export default function TvaPage() {
         <label style={fieldStyle}>Au<input type="date" value={end} min={start} onChange={(event) => setEnd(event.target.value)} style={inputStyle} /></label>
       </section>
 
-      {report.isError && <div role="alert" style={errorStyle}>Le rapport de TVA n'a pas pu être calculé.</div>}
-      {report.isLoading ? <Empty text="Calcul du rapport de TVA…" /> : report.data && (
+      <section style={cardStyle}><h2 style={{ marginTop: 0 }}>Journal des factures et avoirs</h2><p>Pièces émises, montants historiques signés par taux. Ne pas les additionner aux ventes de caisse : une facture issue d’un ticket n’est pas une deuxième vente. Un avoir n’est pas un remboursement. Format à valider avec votre comptable.</p>
+        <button type="button" disabled={!journal.data || journal.isError} onClick={exportDocuments} style={secondaryButton}>Exporter factures et avoirs CSV</button>
+        {journal.isError && <p role="alert">Journal non réconcilié ou indisponible : export désactivé, aucune pièce omise silencieusement.</p>}
+      </section>
+      {report.isError && <div role="alert" style={errorStyle}>{(report.error as any)?.response?.data?.message || "Le rapport de TVA n'a pas pu être calculé."}</div>}
+      {report.isLoading ? <Empty text="Calcul du rapport de TVA…" /> : !report.isError && report.data && (
         <>
           <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 12, marginBottom: 18 }}>
             <Metric label="Chiffre d'affaires HT" value={euro(report.data.totalRevenue)} />

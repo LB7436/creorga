@@ -28,6 +28,16 @@ describe('browser recovery is a private copy, never a migration', () => {
     const result = await collectSnapshot(storage({ 'creorga-pos-v2': '{ broken' }), 'http://localhost:5175', emptyQueue)
     expect(result.localStorage[0].raw).toBe('{ broken')
   })
+  it('preserves new uncertain financial references without importing or replaying them', async () => {
+    const key = 'creorga-financial-v1:payment:fixture-company:fixture-actor:fixture-order'
+    const value = '{"requestId":"f8e209de-7378-41ac-a31b-f5a765bf41d7","partialAmountCents":500}'
+    const snapshot = await collectSnapshot(storage({ [key]: value }), 'http://localhost:5174', emptyQueue)
+    expect(snapshot.localStorage).toHaveLength(1)
+    expect(snapshot.localStorage[0]).toMatchObject({ key, raw: value })
+    const bundle = await encryptSnapshot(snapshot)
+    expect(await decryptSnapshot(bundle.archive, bundle.recoveryKey)).toEqual(snapshot)
+    expect(snapshot.automaticallyImported).toBe(false)
+  })
   it('rejects concurrent changes rather than claim a stable snapshot', async () => {
     const values = { 'creorga-pos-v2': raw }
     await expect(collectSnapshot(storage(values), 'http://localhost:5175', async () => {

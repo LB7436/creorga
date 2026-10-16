@@ -77,6 +77,34 @@ export class PayPalClient {
     })
     return response.verification_status === 'SUCCESS'
   }
+  private async refundOrigin(externalOrderId: string, captureId: string) {
+    const order = await this.api('/v2/checkout/orders/' + encodeURIComponent(externalOrderId))
+    const unit = order.purchase_units?.[0], captures = unit?.payments?.captures
+    if (order.id !== externalOrderId || order.purchase_units?.length !== 1 || captures?.length !== 1 || captures[0].id !== captureId
+      || !['COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(captures[0].status) || unit.payee?.merchant_id !== this.merchant) throw new Error('Origine de remboursement PayPal incohérente.')
+    return captures[0]
+  }
+  async startRefund(input: Parameters<NonNullable<PaymentGateway['startRefund']>>[0]) {
+    if (!input.requestId || !Number.isSafeInteger(input.amountCents) || input.amountCents <= 0) throw new Error('Référence et montant de remboursement requis.')
+    const capture = await this.refundOrigin(input.externalOrderId, input.captureId)
+    if (capture.amount?.currency_code !== input.currency || input.amountCents > moneyMinor(capture.amount?.value)) throw new Error('Montant ou devise incompatible avec la capture.')
+    const result = await this.api('/v2/payments/captures/' + encodeURIComponent(input.captureId) + '/refund', 'POST', {
+      amount: { value: (input.amountCents / 100).toFixed(2), currency_code: input.currency },
+    }, input.requestId)
+    if (typeof result.id !== 'string') throw new Error('Référence de remboursement non confirmée.')
+    return { id: result.id }
+  }
+  async verifyRefund(id: string, captureId: string, externalOrderId: string) {
+    const refund = await this.api('/v2/payments/refunds/' + encodeURIComponent(id))
+    await this.refundOrigin(externalOrderId, captureId)
+    const parent = refund.links?.find((l: any) => l.rel === 'up')?.href
+    if (typeof parent !== 'string') throw new Error('Capture du remboursement absente.')
+    const url = new URL(parent), allowed = new URL(this.base)
+    if (refund.id !== id || url.protocol !== 'https:' || ![allowed.hostname, allowed.hostname.replace('api-m.', 'api.')].includes(url.hostname)
+      || url.username || url.password || url.search || url.hash || url.pathname !== '/v2/payments/captures/' + encodeURIComponent(captureId)) throw new Error('Capture du remboursement incohérente.')
+    const status: 'succeeded' | 'pending' | 'failed' = refund.status === 'COMPLETED' ? 'succeeded' : refund.status === 'PENDING' ? 'pending' : 'failed'
+    return { provider: 'paypal', status, refundId: id, captureId, amountCents: moneyMinor(refund.amount?.value), currency: refund.amount?.currency_code, merchantId: this.merchant }
+  }
 }
 export const paypalGateway: PaymentGateway = {
   provider: 'paypal',
@@ -86,4 +114,6 @@ export const paypalGateway: PaymentGateway = {
   },
   verify(id) { return new PayPalClient().verify(id) },
   capture(id, key) { return new PayPalClient().capture(id, key) },
+  startRefund(input) { return new PayPalClient().startRefund(input) },
+  verifyRefund(id, captureId, externalOrderId) { return new PayPalClient().verifyRefund(id, captureId, externalOrderId) },
 }

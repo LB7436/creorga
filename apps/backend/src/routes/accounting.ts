@@ -5,8 +5,13 @@ import { z } from 'zod'
 import { validate } from '../middleware/validate'
 import { requireRole } from '../middleware/requireCompany'
 import { moneyMinor, totalsFromTtc } from '../lib/money'
+import cashLedger from './cashLedger'
+import documentJournal, { journalPeriod } from './documentJournal'
 
 const router = Router()
+// Toutes les écritures de caisse passent par le journal v2 et son verrou commun.
+router.use('/cash-drawers', cashLedger)
+router.use(documentJournal)
 router.use('/expenses', (req, res, next) => {
   if (['GET', 'HEAD'].includes(req.method)) return next()
   return requireRole('OWNER', 'MANAGER')(req, res, next)
@@ -28,50 +33,6 @@ router.get('/cash-drawers', async (req: any, res: Response) => {
   }
 })
 
-router.post('/cash-drawers/open', async (req: any, res: Response) => {
-  try {
-    const { openAmount, notes } = req.body
-
-    // req.user expose `userId` (payload JWT), pas `id` : `req.user.id` était
-    // undefined et faisait échouer la clé étrangère — l'ouverture de caisse
-    // renvoyait systématiquement 500.
-    const userId = req.user?.userId ?? req.user?.id
-    if (!userId) {
-      res.status(401).json({ message: 'Utilisateur non identifié' })
-      return
-    }
-
-    const fond = Number(openAmount)
-    if (!Number.isFinite(fond) || fond < 0) {
-      res.status(400).json({ message: 'openAmount doit être un nombre positif ou nul' })
-      return
-    }
-
-    // Deux caisses ouvertes en même temps rendent la clôture ininterprétable.
-    const déjàOuverte = await prisma.cashDrawer.findFirst({
-      where: { companyId: req.companyId, closedAt: null },
-    })
-    if (déjàOuverte) {
-      res.status(409).json({ message: 'Une caisse est déjà ouverte' })
-      return
-    }
-
-    const drawer = await prisma.cashDrawer.create({
-      data: {
-        companyId: req.companyId,
-        userId,
-        openAmount: Math.round(fond * 100) / 100,
-        notes: notes || null,
-      },
-      include: { user: { select: { id: true, firstName: true, lastName: true } } },
-    })
-    res.status(201).json(drawer)
-  } catch (error) {
-    logger.error('Erreur POST /cash-drawers/open:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
-  }
-})
-
 // L'écart de caisse ne peut se calculer que sur l'argent réellement entré
 // dans le tiroir : une vente carte n'y passe pas, et une vente mixte n'y
 // laisse que sa part espèces (cashReceived).
@@ -85,54 +46,6 @@ export function especesEncaissees(
   }, 0)
   return somme / 100
 }
-
-router.put('/cash-drawers/:id/close', async (req: any, res: Response) => {
-  try {
-    const existing = await prisma.cashDrawer.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
-    if (!existing) { res.status(404).json({ message: 'Caisse non trouvée' }); return }
-
-    // Re-clôturer élargirait la fenêtre de ventes et réécrirait un écart déjà
-    // constaté : la clôture est définitive.
-    if (existing.closedAt) { res.status(409).json({ message: 'Caisse déjà clôturée' }); return }
-
-    const { closeAmount, notes } = req.body
-    const montantCompte = Number(closeAmount)
-    if (!Number.isFinite(montantCompte) || montantCompte < 0) {
-      res.status(400).json({ message: 'closeAmount doit être un nombre positif ou nul' })
-      return
-    }
-
-    // totalSales n'était jamais alimenté (toujours 0) : l'écart calculé
-    // accusait systématiquement le fond de caisse, quelles que soient les
-    // ventes de la session.
-    const maintenant = new Date()
-    const ventes = await prisma.order.findMany({
-      where: {
-        companyId: req.companyId,
-        status: 'PAID',
-        paidAt: { gte: existing.openedAt, lte: maintenant },
-      },
-      select: { total: true, paymentMethod: true, cashReceived: true, cashChange: true },
-    })
-    const totalSales = especesEncaissees(ventes)
-    const discrepancy = Math.round((existing.openAmount + totalSales - montantCompte) * 100) / 100
-
-    const drawer = await prisma.cashDrawer.update({
-      where: { id: req.params.id },
-      data: {
-        closedAt: maintenant,
-        closeAmount: montantCompte,
-        totalSales,
-        discrepancy,
-        notes: notes ?? existing.notes,
-      },
-    })
-    res.json(drawer)
-  } catch (error) {
-    logger.error('Erreur PUT /cash-drawers/:id/close:', error)
-    res.status(500).json({ message: 'Erreur serveur' })
-  }
-})
 
 // ─── EXPENSES ─────────────────────────────────────────
 
@@ -277,6 +190,11 @@ export function taxReportFromOrders(orders: TaxOrder[]) {
 router.get('/tax-report', async (req: any, res: Response) => {
   try {
     const { startDate, endDate } = req.query
+    const { dates } = journalPeriod(req.query)
+    if (await prisma.creditNote.findFirst({ where: { companyId: req.companyId, createdAt: dates }, select: { id: true } })) {
+      res.status(409).json({ code: 'TAX_CREDITS_RECONCILIATION_REQUIRED', message: 'Cette période contient des avoirs. Le rapport historique des ventes payées ne constitue pas un net fiscal réconcilié. Exportez le journal des factures/avoirs et rapprochez-le avec les ventes et votre comptable.' })
+      return
+    }
     const where: any = { companyId: req.companyId, status: 'PAID' }
     if (startDate || endDate) {
       where.paidAt = {}

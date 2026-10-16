@@ -4,14 +4,18 @@ import { getGateway, SUPPORTED_PROVIDERS, type PaymentProvider } from './gateway
 // Réponses HTTP fictives du prestataire : aucune clé bancaire, aucun réseau externe.
 const posted: any[] = []
 let paymentStatus = 'COMPLETED', merchant = 'merchant-test', amount = '24.00'
+let refundStatus = 'COMPLETED', refundCapture = 'CAPTURE-TEST'
 const orderFixture = () => ({ id: 'PAYPAL-ORDER', status: paymentStatus, purchase_units: [{ reference_id: 'restaurant-order', custom_id: 'attempt-test',
   payee: { merchant_id: merchant }, payments: { captures: [{ id: 'CAPTURE-TEST', status: paymentStatus, amount: { value: amount, currency_code: 'EUR' } }] } }] })
 beforeEach(() => {
   vi.stubEnv('PAYPAL_CLIENT_ID', 'fixture-only'); vi.stubEnv('PAYPAL_CLIENT_SECRET', 'fixture-only'); vi.stubEnv('PAYPAL_MERCHANT_ID', 'merchant-test'); vi.stubEnv('PAYPAL_ENV', 'sandbox')
   posted.length = 0; paymentStatus = 'COMPLETED'; merchant = 'merchant-test'; amount = '24.00'
+  refundStatus = 'COMPLETED'; refundCapture = 'CAPTURE-TEST'
   vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
     if (url.endsWith('/v1/oauth2/token')) return new Response(JSON.stringify({ access_token: 'fixture-only', expires_in: 300 }), { status: 200 })
     if (init?.method === 'POST') posted.push({ url, body: JSON.parse(String(init.body)), headers: init.headers })
+    if (url.includes('/v2/payments/refunds/') || url.endsWith('/CAPTURE-TEST/refund')) return new Response(JSON.stringify({ id: 'REFUND-TEST', status: refundStatus,
+      amount: { value: '3.00', currency_code: 'EUR' }, links: [{ rel: 'up', href: 'https://api.sandbox.paypal.com/v2/payments/captures/' + refundCapture }] }), { status: 200 })
     if (url.endsWith('/v2/checkout/orders') && init?.method === 'POST') return new Response(JSON.stringify({ id: 'PAYPAL-ORDER', status: 'CREATED', links: [{ rel: 'payer-action', href: 'https://www.sandbox.paypal.com/checkoutnow?token=PAYPAL-ORDER' }] }), { status: 201 })
     return new Response(JSON.stringify(orderFixture()), { status: 200 })
   })
@@ -50,5 +54,18 @@ describe('Connecteur PayPal — contrat HTTP simulé', () => {
     expect(gateway).toBeDefined()
     expect((await gateway.charge({ provider: 'paypal' as PaymentProvider, amount: 24, orderId: 'restaurant-order' })).ok).toBe(false)
     expect(posted).toHaveLength(0)
+  })
+  it('demande un remboursement partiel avec montant exact et référence stable, sans annoncer son succès', async () => {
+    const gateway = getGateway('paypal')
+    const result = await gateway.startRefund?.({ requestId: 'stable-refund-id', captureId: 'CAPTURE-TEST', externalOrderId: 'PAYPAL-ORDER', amountCents: 300, currency: 'EUR' })
+    expect(result).toEqual({ id: 'REFUND-TEST' })
+    expect(posted[0].body).toEqual({ amount: { value: '3.00', currency_code: 'EUR' } })
+    expect(new Headers(posted[0].headers).get('PayPal-Request-Id')).toBe('stable-refund-id')
+  })
+  it('relit le remboursement et son ordre d’origine ; une autre capture est rejetée', async () => {
+    const gateway = getGateway('paypal')
+    expect(await gateway.verifyRefund?.('REFUND-TEST', 'CAPTURE-TEST', 'PAYPAL-ORDER')).toMatchObject({ refundId: 'REFUND-TEST', captureId: 'CAPTURE-TEST', status: 'succeeded', amountCents: 300, merchantId: 'merchant-test' })
+    refundCapture = 'OTHER-CAPTURE'
+    await expect(gateway.verifyRefund?.('REFUND-TEST', 'CAPTURE-TEST', 'PAYPAL-ORDER')).rejects.toThrow()
   })
 })
