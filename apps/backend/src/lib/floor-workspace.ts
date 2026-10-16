@@ -23,6 +23,12 @@ export async function sessionFor(tx: Prisma.TransactionClient, companyId: string
 }
 async function syncCovers(tx: Prisma.TransactionClient, companyId: string, draft: any, actorId: string) {
   const current = await tx.serviceCover.findMany({ where: { companyId, state: 'OPEN', NOT: { coverId: { startsWith: 'guest:' } } } })
+  const byCover = new Map(current.map(c => [c.coverId, c]))
+  // Une sauvegarde d'agencement ne change pas les commandes. Résoudre les sessions une
+  // fois et n'écrire que les couverts effectivement modifiés, sous le même verrou/CAS.
+  const sessions = await tx.serviceSession.findMany({ where: { companyId, closedAt: null } })
+  const byTable = new Map(sessions.map(s => [s.tableId, s]))
+  const bySession = new Map(sessions.map(s => [s.id, s]))
   const seen = new Set<string>()
   const entries = (draft.tables || []).flatMap((t: any) => (t.posCovers || (t.items?.length ? [{ id: `table-${t.id}-${t.openedAt || 0}`, items: t.items }] : []))
     .filter((c: any) => c.items.length && !c.id.startsWith('guest:')).map((c: any) => ({ tableId: t.id, ...c })))
@@ -30,20 +36,32 @@ async function syncCovers(tx: Prisma.TransactionClient, companyId: string, draft
   for (const c of entries) {
     if (seen.has(c.id)) throw new WorkspaceError(409, 'Un couvert ne peut appartenir à deux sessions.')
     seen.add(c.id)
-    const previous = current.find(p => p.coverId === c.id)
+    const previous = byCover.get(c.id)
     if (previous?.orderId && coverFingerprint(previous.items as any[]) !== coverFingerprint(c.items)) throw new WorkspaceError(409, 'Un acompte existe : les lignes sont figées. Conservez ce couvert et ajoutez une autre tournée séparément.')
-    const session = await sessionFor(tx, companyId, c.tableId)
+    const moved = !!previous && bySession.get(previous.sessionId)?.tableId !== c.tableId
+    if (previous && !moved && floorHash(previous.items) === floorHash(c.items)) continue
+    let session = byTable.get(c.tableId)
+    if (!session) {
+      session = await sessionFor(tx, companyId, c.tableId)
+      byTable.set(c.tableId, session); bySession.set(session.id, session)
+    }
     await tx.serviceCover.upsert({ where: { companyId_coverId: { companyId, coverId: c.id } },
       create: { companyId, coverId: c.id, sessionId: session.id, items: c.items, actorId },
       update: { sessionId: session.id, items: c.items, actorId } })
-    if (previous?.orderId) await tx.order.updateMany({ where: { id: previous.orderId, companyId, paidAt: null, status: { not: 'CANCELLED' } }, data: { externalTableId: c.tableId } })
+    if (previous?.orderId && moved) await tx.order.updateMany({ where: { id: previous.orderId, companyId, paidAt: null, status: { not: 'CANCELLED' } }, data: { externalTableId: c.tableId } })
   }
-  for (const previous of current) if (!seen.has(previous.coverId)) {
-    const paid = await tx.posCoverPayment.findUnique({ where: { companyId_coverId: { companyId, coverId: previous.coverId } } })
-    if (previous.orderId && !paid) throw new WorkspaceError(409, 'Un couvert avec acompte ne peut être supprimé ni fusionné destructivement. Transférez son identité complète.')
-    await tx.serviceCover.update({ where: { id: previous.id }, data: { state: paid ? 'SETTLED' : 'CANCELLED', actorId } })
+  const removed = current.filter(c => !seen.has(c.coverId))
+  if (removed.length) {
+    const paid = new Set((await tx.posCoverPayment.findMany({ where: { companyId, coverId: { in: removed.map(c => c.coverId) } }, select: { coverId: true } })).map(p => p.coverId))
+    if (removed.some(c => c.orderId && !paid.has(c.coverId))) throw new WorkspaceError(409, 'Un couvert avec acompte ne peut être supprimé ni fusionné destructivement. Transférez son identité complète.')
+    for (const state of ['SETTLED', 'CANCELLED']) {
+      const ids = removed.filter(c => paid.has(c.coverId) === (state === 'SETTLED')).map(c => c.id)
+      if (ids.length) await tx.serviceCover.updateMany({ where: { companyId, id: { in: ids } }, data: { state, actorId } })
+    }
   }
-  for (const s of await tx.serviceSession.findMany({ where: { companyId, closedAt: null } })) if (!await tx.serviceCover.count({ where: { companyId, sessionId: s.id, state: 'OPEN' } })) await tx.serviceSession.update({ where: { id: s.id }, data: { closedAt: new Date() } })
+  const occupied = new Set((await tx.serviceCover.groupBy({ by: ['sessionId'], where: { companyId, state: 'OPEN' } })).map(c => c.sessionId))
+  const empty = [...bySession.keys()].filter(id => !occupied.has(id))
+  if (empty.length) await tx.serviceSession.updateMany({ where: { companyId, id: { in: empty }, closedAt: null }, data: { closedAt: new Date() } })
 }
 
 function checked(snapshot: any, expectedHash?: string) {

@@ -152,4 +152,22 @@ describe('Autorité PostgreSQL des sessions et des lignes ouvertes', () => {
     expect(await prisma.order.count({ where: { companyId } })).toBe(3)
     expect((await prisma.product.findUniqueOrThrow({ where: { id: productId } })).stock).toBe(96)
   })
+  it('un déplacement graphique ne réécrit pas les couverts inchangés, mais persiste les véritables changements de lignes', async () => {
+    const before = (await auth(request(app).get('/api/pos/bootstrap')).expect(200)).body
+    const coverId = randomUUID(), lineId = randomUUID(), tables = structuredClone(before.tables)
+    if (!tables.some((t: any) => t.id === tableId)) tables.push({ id: tableId, name: 'Profil fictif', shape: 'round', seats: 2, x: 0, y: 0, section: 'Salle', mergedWith: [], status: 'available', covers: [] })
+    tables.find((t: any) => t.id === tableId).covers.push({ id: coverId, label: 'Profil fictif', items: [{ id: lineId, menuItemId: productId, name: 'Café', price: 11.7, qty: 1, note: '', coverId }] })
+    await auth(request(app).put('/api/pos/draft')).set('If-Match', String(before.revision)).send({ tables, seats: [] }).expect(200)
+    const original = await prisma.serviceCover.findUniqueOrThrow({ where: { companyId_coverId: { companyId, coverId } } })
+    const first = (await auth(request(app).get('/api/pos/bootstrap')).expect(200)).body
+    first.tables.find((t: any) => t.id === tableId).x += 20
+    await auth(request(app).put('/api/pos/draft')).set('If-Match', String(first.revision)).send({ tables: first.tables, seats: first.seats }).expect(200)
+    expect(await prisma.serviceCover.findUniqueOrThrow({ where: { id: original.id } })).toEqual(original)
+    const second = (await auth(request(app).get('/api/pos/bootstrap')).expect(200)).body
+    second.tables.find((t: any) => t.id === tableId).covers.find((c: any) => c.id === coverId).items[0].qty = 2
+    await auth(request(app).put('/api/pos/draft')).set('If-Match', String(second.revision)).send({ tables: second.tables, seats: second.seats }).expect(200)
+    const changed = await prisma.serviceCover.findUniqueOrThrow({ where: { id: original.id } })
+    expect((changed.items as any[])[0].qty).toBe(2)
+    expect(changed.sessionId).toBe(original.sessionId)
+  })
 })
