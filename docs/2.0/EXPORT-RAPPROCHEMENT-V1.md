@@ -2,6 +2,13 @@
 
 16 octobre 2026. Outil technique de contrôle, **pas grand livre ni format comptable certifié**.
 
+Complément courant (`23bba568ec54c7c0acc3861f3ba639f155c1dd3d`) : versements **fictifs** intégrés,
+ligne BANK_PAYOUT sans vente/encaissement supplémentaire et sept colonnes ajoutées en fin de CSV.
+La libération prouvée NOT_REFUNDED ne compte plus comme réserve de remboursement détenue.
+Le champ `payouts` reste null sans relevé ; sinon compteurs par période et réception validée manuellement,
+jamais preuve d'une banque connectée. Voir `VERSEMENTS-BANCAIRES.md`. Le format conserve les colonnes
+v1 précédentes ; un consommateur à positions fixes doit accepter cette extension avant réutilisation.
+
 Accès OWNER/MANAGER : `GET /api/accounting/reconciliation`, ou `?format=csv`.
 Le panneau se trouve dans Comptabilité → Rapports de caisse → Rapprochement financier.
 Les bornes facultatives `startDate` / `endDate` sont des instants ISO avec fuseau, inclusifs.
@@ -44,9 +51,9 @@ ont aussi un code de contrôle. Ce contrôle est limité et ne certifie pas les 
 
 Les pourboires, dons, frais et remboursements ne deviennent pas des ventes nouvelles.
 Le flux espèces net ne comprend pas le fond initial, qui figure dans les rapports de caisse.
-Les versements bancaires restent `null` / « non intégrés ». Une capture ou son net ne prouve
-ni versement ni réception bancaire. L'import des relevés, rapprochement des commissions,
-dates de règlement et écritures de banque reste un lot distinct.
+Sans relevé, les versements restent `null`, pas zéro. Les relevés fictifs sont désormais rapprochables
+manuellement sans connecter une banque. Une capture ou son net ne prouve toujours ni versement
+ni réception bancaire. Les vrais formats de relevés et écritures comptables restent à qualifier.
 
 Contrôles reproduits : ticket 11,70 € + facture liée = 11,70 € de ventes, pas 23,40 € ;
 avoir 3 € documentaire séparé d'une sortie espèces de 3 €, sortie comptée une seule fois ;

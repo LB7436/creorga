@@ -1,5 +1,11 @@
 # Lot P0 suivant : sessions, acomptes POS et rapprochement
 
+Mise à jour après ce lot : `23bba568ec54c7c0acc3861f3ba639f155c1dd3d` livre les déplacements
+POS/QR avec révocation et renouvellement par groupe, une procédure de rapprochement des remboursements
+et les relevés de versements **fictifs**. Voir `FUSIONS-QR-P0.md`, `REMBOURSEMENTS-RAPPROCHEMENT.md`,
+`VERSEMENTS-BANCAIRES.md` et le checkpoint. Les états « restant » ci-dessous sont historiques ;
+ils ne doivent pas conduire à réimplémenter les fonctions désormais livrées.
+
 État du 16 octobre 2026, sur Windows, après `163d70dd7544dc4cf608da508cc849092ee87cba`.
 Branche : `codex/creorga-2-0-2026-10-08`, dépôt `LB7436/creorga`.
 Ce lot est progressif, **pas une unification achevée de tous les parcours ni une autorisation de production**.

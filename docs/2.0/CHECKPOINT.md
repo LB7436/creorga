@@ -2,7 +2,89 @@
 
 Mission en cours. **Pas de qualification de production ni de recette complète T01–T100.**
 
-## Dernier lot — sessions et rapprochement, 16 octobre 2026
+## Dernier lot — fusions QR, remboursements et versements, 16 octobre 2026
+
+- Dépôt `LB7436/creorga`, branche `codex/creorga-2-0-2026-10-08`. Base locale et distante
+  vérifiée : `879155d769428d1a59d5b830ee180043785f668b`, incluant `6080a6a`.
+- Code : **`23bba568ec54c7c0acc3861f3ba639f155c1dd3d`**.
+  [Commit immuable](https://github.com/LB7436/creorga/commit/23bba568ec54c7c0acc3861f3ba639f155c1dd3d),
+  [branche exacte](https://github.com/LB7436/creorga/tree/codex/creorga-2-0-2026-10-08).
+  Le commit documentaire qui suit conserve les preuves et ce checkpoint sur la même branche.
+- Répertoire réel : `creorga-2.0` sous le dossier projet, pas le dépôt vide parent.
+  Windows, Node 22.19, PostgreSQL 16.15 loopback:5450, Prisma 5.22. Bases privées
+  `creorga_local` et `creorga_tests` exclusivement. `master`, VPS, DNS et production inchangés.
+  Le `tsconfig.tsbuildinfo` guest modifié avant la mission reste hors commit.
+- **Implémenté :** transfert/fusion explicite POS/QR, identités des couverts/commandes conservées,
+  acomptes et réservations de paiement inchangés, audit idempotent, CAS PostgreSQL atomique.
+  Toutes les capacités QR des groupes concernés sont révoquées ; renouvellement distinct par
+  visite, choix explicite du groupe dans l'interface. Pas de copie de lignes, stock ou préparation.
+  Une addition renouvelée est maintenant visible sans créer une nouvelle commande.
+- **Implémenté :** rapprochement PayPal avec événements/proofs/décisions conservés, association
+  d'une référence inconnue uniquement après relecture exacte et preuve de sa clé prestataire.
+  Libération `NOT_REFUNDED` seulement après refus terminal relu et décision responsable motivée.
+  UNKNOWN non identifiable, preuve incohérente, panne ou état pending : réservation conservée.
+  Un timeout de création tardif ne rétrograde plus une confirmation concurrente.
+- **Implémenté, fictif uniquement :** relevés et versements, captures/remboursements/frais/retenues/
+  libérations, calcul serveur du net, déduplication, écarts bloquants, relecture des pièces tardives,
+  validation manuelle et historique. Aucun connecteur bancaire réel. Option d'import désactivée
+  par défaut et activée uniquement dans le lanceur privé. CSV enrichi sans doubler ventes/encaissements.
+- Migrations `20261018100000_table_movements`, `20261018110000_refund_reviews`,
+  `20261018120000_bank_payouts` appliquées par `migrate deploy` aux deux bases privées.
+  Aucun seed/reset/backfill des ventes. Le remplacement de l'unicité « une visite par table »
+  est explicite et non destructif : plusieurs groupes séparés peuvent partager une table après fusion.
+  Les préfixes 20261018 identifient la séquence ; exécution réelle le **16 octobre 2026**.
+- **Testé actuellement : 406 unités** (265 backend, 91 web, 50 POS), **138 intégrations PostgreSQL /
+  15 fichiers**, cinq builds, 23 autocontrôles de restauration, **un test navigateur versionné**.
+  Six intégrations de déplacement : QR révoqués/renouvelés, acompte, tentative en cours, concurrence,
+  conflit PostgreSQL tardif avec rollback des révocations, société et préparation.
+  Prestataires simulés : ni sandbox PayPal réelle ni opération bancaire réelle.
+- Chrome neuf : 15 observations finales POS/QR et 9 versements/remboursements, plus reprise
+  après réponse perdue/rechargement observée lors du premier passage. Profils historiques intacts.
+  Trois largeurs 375/768/1440 ; QR privés masqués dans les captures. Pas de baseline visuelle,
+  axe, lecteur d'écran ou mesure de performance en service : **non qualifiés**.
+- Dernière restauration réelle : **76 tables égales**, huit fichiers, neuf PDF facture et huit
+  PDF d'avoir intègres ; AES-GCM vérifié, clé séparée. Les six nouvelles tables ont des données :
+  `TableMovement` 3, `RefundReviewEvent` 5, `PayoutStatement` 1, `BankPayout` 1,
+  `PayoutLine` 5, `PayoutDecision` 1 ; `RefundAttempt`/`RefundAllocation` contiennent deux lignes
+  chacun, d'origine fictive. Mesure 1 847 ms sur petite copie, **pas un RTO**.
+  Deux anciennes générations de dumps de travail ont été retirées par la rétention habituelle
+  pendant les deux essais ; originaux et archives de reprise préservés.
+- Services locaux redémarrés ; **neuf contrôles de lecture** confirment les couverts distincts,
+  deux soldes de 2,50 €, paiement inconnu non payé, réserve et décisions conservées, versement
+  fictif et ancien QR encore refusé. POS : `http://localhost:5175`, gestion : `http://localhost:5174`.
+- Preuves privées : `unit-qr-refunds-payouts-final.log`, `integration-qr-refunds-payouts-final.log`,
+  `build-qr-refunds-payouts-final.log`, `BROWSER-TABLE-MOVES.json`,
+  `BROWSER-QR-REFUNDS-PAYOUTS.json`, `RESTART-QR-REFUNDS-PAYOUTS.json`, `RESTORATION-2.0.json`.
+  Ni secrets, ni dumps, ni fixtures privées publiés. Test navigateur reproductible dans
+  `tests/browser-lab/qr-movements.spec.ts`, configuration `playwright.lab.config.ts`.
+
+### Limites et prochaine action concrète
+
+Le lot est utilisable **pour recette en laboratoire**, pas déclaré prêt en production.
+Stripe Refunds reste désactivé. PayPal réel/sandbox, vrais relevés/acquéreurs, terminaux,
+impression physique, coupure électrique et recette métier T01–T100 restent non testés.
+T04 et les profils historiques n'ont pas été ouverts. Vidéo toujours hors activation.
+
+Les gestes commerciaux globaux et consignes cuisine différentes bloquent explicitement une
+fusion plutôt que contaminer un autre groupe. Séparation fine d'un groupe/ligne après fusion,
+affectation automatique des lignes natives à une visite QR, cuisine totalement unifiée et
+véritable caisse autonome hors connexion restent à qualifier/livrer. Ne pas les annoncer terminés.
+Le versement v1 rapproche une capture/remboursement entier une seule fois : découpage multi-versements,
+change, litiges, corrections de relevés validés et connecteurs bancaires réels restent à développer.
+Sans clé prestataire retrouvable ou preuve terminale fiable, le remboursement reste bloqué ;
+aucune dérogation manuelle ne libère sa réserve.
+
+Prochaine action sûre : compléter la séparation/réassociation fine des groupes et la qualification
+des cas de gestes/consignes, puis corrections/versionnement des relevés et pagination. Pour les
+essais prestataire ou matériels, une configuration et une autorisation distinctes restent nécessaires.
+Ne pas refaire avoirs, acomptes, paiements mixtes, clôtures, factures ni les fonctions de ce lot.
+Reprise : arrêt des écrivains, archive cohérente, restauration en nouvelle base, correctif en avant ;
+jamais retour d'un ancien code en écriture sur les visites multiples ou réserves migrées.
+
+Références : `FUSIONS-QR-P0.md`, `REMBOURSEMENTS-RAPPROCHEMENT.md`, `VERSEMENTS-BANCAIRES.md`,
+`RECETTE-ET-PREUVES.md`, `MIGRATION-REPRISE-ROLLBACK.md`.
+
+## Lot antérieur — sessions et rapprochement, 16 octobre 2026
 
 - Base vérifiée locale/distante : `163d70dd7544dc4cf608da508cc849092ee87cba`.
 - Code publié : **`6080a6a90fe864ad24f7b4565ee6988e56469fd4`**, contrôlé par `git ls-remote`.

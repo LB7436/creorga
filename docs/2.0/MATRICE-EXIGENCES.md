@@ -1,12 +1,12 @@
 # Matrice des cent exigences
 
-État de départ de la mission du 8 octobre 2026. Une ligne partielle ne signifie pas que le scénario complet est validé. Les preuves courantes sont dans RECETTE-ET-PREUVES.md et CHECKPOINT.md.
+État de départ de la mission du 8 octobre 2026, actualisé au lot `23bba56` du 16 octobre. Une ligne partielle ne signifie pas que le scénario complet est validé. Les preuves courantes sont dans RECETTE-ET-PREUVES.md et CHECKPOINT.md.
 
 | ID | Priorité | Exigence | État actuel |
 |---|---|---|---|
 | T01 | P0 | installation neuve complète | Partiel : installation locale ; recette UI en cours |
-| T02 | P0 | restauration sur copie avec pièces jointes | Vérifié : 65 tables, 8 fichiers dont RH, 7 PDF facture + 6 avoir intègres ; médias absents ; réservations de remboursement absentes de cette archive |
-| T03 | P0 | migration de la copie ancienne | Migrations additives appliquées à une copie |
+| T02 | P0 | restauration sur copie avec pièces jointes | Vérifié au lot courant : 76 tables, 8 fichiers, 9 PDF facture et 8 avoir intègres ; six nouvelles tables et réservations fictives peuplées ; médias absents |
+| T03 | P0 | migration de la copie ancienne | 29 migrations appliquées aux deux copies de laboratoire ; extension non destructive des états et retrait explicite de l'unicité de visite/table, aucune vente réécrite |
 | T04 | P0 | export d’anciennes ventes navigateur sans perte | Étude/procédure prête ; export chiffré testé sur fixtures ; profils réels interdits/non ouverts, provenance/export complet manquants |
 | T05 | P0 | refus d’accès intersociétés | Paiements, commandes, visites et documents testés ; réponses tardives web/POS isolées ; périmètre global partiel |
 | T06 | P0 | refus intersites selon rôle | À implémenter ou à recetter |
@@ -16,8 +16,8 @@
 | T10 | P0 | rapprochement avant/après des ventes, TVA, soldes et documents. | Tables et octets comparés égaux sur copie ; anciennes ventes navigateur non rapprochées |
 | T11 | P1 | vente café comptoir | Caisse fictive testée par clics jusqu'aux espèces, rendu et journal ; matériel restant |
 | T12 | P1 | table avec plusieurs tournées | À implémenter ou à recetter |
-| T13 | P1 | transfert de table | À implémenter ou à recetter |
-| T14 | P1 | fusion puis partage | À implémenter ou à recetter |
+| T13 | P1 | transfert de table | Couvert complet natif/QR avec acompte et tentative en cours testé SQL/Chrome ; identités conservées, anciens QR révoqués, aucune banque réelle |
+| T14 | P1 | fusion puis partage | Fusion de couverts et visites séparées testée ; partage/réassociation fine et gestes/consignes divergents restent à qualifier |
 | T15 | P1 | partage par article | À implémenter ou à recetter |
 | T16 | P1 | partage par montant avec centimes résiduels | À implémenter ou à recetter |
 | T17 | P1 | offert avec permission et motif | À implémenter ou à recetter |
@@ -26,7 +26,7 @@
 | T20 | P0 | deux terminaux modifient la même session | Partiel : verrous, provenance unique et vingt acomptes concurrents testés ; session de salle/KDS complète restante |
 | T21 | P0 | double clic sur validation | API testée ; clic tactile à vérifier |
 | T22 | P0 | perte réseau après validation locale | Partiel : Chrome perd les réponses après commit serveur puis rejoue après rechargement sans doublon ; caisse autonome hors réseau non qualifiée |
-| T23 | P0 | reprise sans double préparation | À implémenter ou à recetter |
+| T23 | P0 | reprise sans double préparation | Partiel : tickets/états conservés lors des déplacements et redémarrage, pas de double préparation constatée ; matériel bar/cuisine non qualifié |
 | T24 | P1 | variantes de taille et suppléments | À implémenter ou à recetter |
 | T25 | P1 | produit indisponible | À implémenter ou à recetter |
 | T26 | P1 | clôture avec écart déclaré. | Session v2, acomptes/mouvements, motif d'écart, vingt reprises et rapport figé testés ; CSV/relecture navigateur ; comptage physique non testé |
@@ -52,13 +52,13 @@
 | T46 | P1 | webhook avant retour navigateur | Rapprochement sans retour navigateur testé ; vrai prestataire non raccordé |
 | T47 | P0 | signature falsifiée rejetée | Signature Stripe locale testée ; vérification PayPal HTTP simulée |
 | T48 | P0 | montant/devise/marchand incohérent rejeté | Incohérences rejetées en intégration, aucune fausse confirmation |
-| T49 | P0 | événements désordonnés | À implémenter ou à recetter |
-| T50 | P1 | remboursement partiel | PayPal implémenté, réserve/preuve testées par doubles ; part de commande protégée ; aucun vrai sandbox, espèces/Stripe et réserves refusées restants |
+| T49 | P0 | événements désordonnés | Partiel : timeout tardif ne rétrograde plus un remboursement rapproché ; ordre complet des événements des vrais prestataires non qualifié |
+| T50 | P1 | remboursement partiel | Déclarations espèces/carte livrées ; PayPal simulé avec association/revue/libération prouvée et journal ; UNKNOWN sans preuve bloqué, sandbox réel et Stripe non testés |
 | T51 | P0 | deux tentatives concurrentes sur le même solde | Tentatives concurrentes testées sur PostgreSQL |
 | T52 | P1 | paiement espèces + carte | Partiel/mixte testé PostgreSQL et Chrome ; cadeau/espèces/pourboire/don ventilés sans CA gonflé ; matériel non testé |
 | T53 | P1 | terminal autonome affiché comme déclaration manuelle | Libellé et journal manual_declaration vérifiés navigateur/API ; aucun terminal physique |
 | T54 | P0 | paiement en attente sans faux solde nul | Tentative et solde conservés en intégration ; aucun prestataire réel |
-| T55 | P1 | rapprochement frais/net/brut | À implémenter ou à recetter |
+| T55 | P1 | rapprochement frais/net/brut | Modèle/import de relevés fictifs, frais/retenues/libérations et net calculé, écarts bloquants et validation manuelle testés ; aucun vrai canal bancaire |
 | T56 | P1 | séparation des abonnements CréOrga et recettes du commerçant. | Clés Stripe séparées et rattachement commerçant contrôlé ; onboarding multiple restant |
 | T57 | P1 | ticket 58 mm | Partiel : facture PDF 58 mm téléchargée et inspectée ; papier/ticket POS non qualifiés |
 | T58 | P1 | ticket 80 mm | Partiel : facture PDF 80 mm téléchargée et inspectée ; papier/ticket POS non qualifiés |

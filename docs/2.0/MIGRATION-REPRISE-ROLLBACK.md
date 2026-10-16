@@ -1,5 +1,43 @@
 # Reprise et retour arrière
 
+## Complément courant — QR, rapprochements et versements
+
+16 octobre 2026, code `23bba568ec54c7c0acc3861f3ba639f155c1dd3d`, après `879155d`.
+Seulement `creorga_local` / `creorga_tests`, PostgreSQL 16.15. Aucun seed/reset/purge ou migration
+en production. Trois migrations de séquence 20261018, réellement exécutées le 16 octobre :
+
+- `20261018100000_table_movements` : journal de mouvements et révocation nullable des capacités QR.
+  **Retrait explicite de l'ancien index unique GuestVisit_one_open_table**, sans supprimer de données :
+  plusieurs visites séparées peuvent désormais cohabiter à une table après fusion. Les ouvertures
+  ordinaires restent sérialisées et refusent un doublon. Ne pas rétablir cet index sur ces données.
+- `20261018110000_refund_reviews` : événements append-only et horodatage de libération nullable,
+  état NOT_REFUNDED avec contrainte de cohérence. Aucun ancien remboursement libéré par migration.
+- `20261018120000_bank_payouts` : quatre tables de relevés/versements/lignes/décisions, liens
+  composites intersociétés interdits, unicités de références et UPDATE des décisions refusé.
+
+Étapes sur **copie isolée uniquement** : arrêt de tous les écrivains, archive base/fichiers cohérente,
+restauration dans une nouvelle base, `prisma migrate deploy`, génération Prisma avant redémarrage
+(arrêter le processus Node sous Windows pour libérer la DLL). Puis recette avec les deux groupes QR,
+les paiements en cours et les anciennes versions de brouillons. Ne pas lancer `db:migrate` qui utilise
+`migrate dev`. L'import de relevés fictifs reste désactivé par défaut ; option locale explicite seulement.
+
+Retour arrière : conserver la copie courante et les preuves, restaurer dans **une autre base**, ne
+jamais effacer une visite ou réserve pour rendre compatible un ancien binaire. Ancien code en écriture
+interdit sur les visites multiples et états NOT_REFUNDED ; correctif en avant recommandé. Les capacités
+déjà révoquées ne doivent pas être réactivées en réimportant un JSON. Renouveler les QR par visite.
+L'archive originale et les profils historiques restent hors périmètre.
+
+Dernier essai réel, applications arrêtées : pg_dump puis archive v2, chiffrement/déchiffrement AES-GCM
+avec clé séparée, pg_restore transactionnel vers nouvelle base. **76 tables et huit fichiers égaux**,
+neuf PDF facture et huit d'avoir intègres. Six nouvelles tables peuplées : mouvements 3, événements de
+remboursement 5, relevé 1, versement 1, lignes 5, décision 1. Deux remboursements et leurs deux
+allocations fictives inclus. Comparaison SHA-256 de toutes les lignes et colonnes, pas seulement
+contrôle d'existence des tables. 1 847 ms mesurées sur cette petite copie, pas un engagement RTO.
+Neuf lectures de reprise après redémarrage réussies. Deux générations anciennes de dumps de travail
+retirées par la rétention des deux essais ; archives originales/chiffrées et clés séparées préservées.
+
+## État antérieur conservé
+
 ## Complément — migrations de sessions et remboursements, 16 octobre 2026
 
 Code `6080a6a90fe864ad24f7b4565ee6988e56469fd4`, après `163d70d`. Appliqué seulement aux bases

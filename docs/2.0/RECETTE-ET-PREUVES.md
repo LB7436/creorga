@@ -1,6 +1,80 @@
 # Recette actuelle
 
-## Dernière recette — sessions et rapprochement P0, 16 octobre 2026
+## Dernière recette — fusions QR, remboursements et versements
+
+16 octobre 2026. Code `23bba568ec54c7c0acc3861f3ba639f155c1dd3d`, après `879155d`.
+**Qualification de laboratoire, pas de mise en production.**
+
+| Vérification exécutée | Résultat | Périmètre réel |
+|---|---|---|
+| Unités complètes backend/web/POS | 406 réussites : 265/91/50 | 57 fichiers, pas de banque réelle |
+| Intégrations PostgreSQL complètes | 138 réussites / 15 fichiers | creorga_tests, prestataires simulés |
+| Builds | Cinq applications compilées | web, backend, POS, guest, superadmin ; avertissements de gros bundles POS/superadmin |
+| Navigateur versionné | 1 test Playwright réussi | Fusion POS/QR, acompte, réponse perdue, QR séparés, addition relue sans nouvelle commande |
+| Chrome privé POS/QR | 15 observations finales | Deux commandes QR et un couvert natif, deux acomptes, tentative UNKNOWN, groupes et largeurs |
+| Chrome privé versements/remboursements | 9 observations finales | Import/rejeu après perte de réponse, validation et historique, maintien de réserve, référence non prouvée refusée |
+| Reprise après redémarrage | 9 contrôles de lecture réussis | Même identité des couverts, soldes, réserve, décisions, versement et ancien QR refusé |
+| Vérificateur de restauration | 23 autocontrôles réussis | Tests du comparateur, distincts de la restauration ci-dessous |
+| Restauration complète en nouvelle base | 76 tables et 8 fichiers égaux | Toutes lignes/colonnes ; 9 PDF facture + 8 PDF d'avoir intègres, AES-GCM + clé séparée |
+
+Les six nouvelles tables contiennent des données dans le dump restauré : TableMovement 3,
+RefundReviewEvent 5, PayoutStatement 1, BankPayout 1, PayoutLine 5, PayoutDecision 1.
+RefundAttempt 2 et RefundAllocation 2 inclus également. Les écritures de recette sont fictives.
+Temps mesuré 1 847 ms, pas un RTO. Les données d'essais interrompus sont conservées, non nettoyées.
+
+Tests nouveaux : `table-movements.integration.test.ts` (6), `bank-payouts.integration.test.ts` (4),
+`refunds.integration.test.ts` étendu à 17, deux cas POS de récupération/scope, deux cas de sélection
+de groupe et un cas de compteurs de versements par période. Les suites précédentes restent présentes.
+Le contrat HTTP PayPal vérifie désormais la clé invoice_id en plus de l'idempotence.
+
+Échecs reproduits et corrigés : routes initialement absentes, compteur de versements hors période,
+preuve de remboursement SUCCEEDED rétrogradée en UNKNOWN par timeout tardif, addition absente du
+menu d'un QR renouvelé tant qu'aucune nouvelle commande n'était envoyée. Échecs de scripts distincts :
+champ updatedAt cuisine manquant, relation de fixture tender incomplète, mauvaise route du rapport,
+sélecteur d'historique trop strict après plusieurs décisions, API pas encore démarrée. La limite
+normale des connexions a également interrompu une recette ; seul le laboratoire a été redémarré,
+aucune protection globale de production assouplie.
+
+Les réponses réseau ont été volontairement perdues **après** commit côté serveur. La reprise POS
+après rechargement a été observée lors du premier passage, puis les parcours ont été relus. Ne pas
+confondre ces tests avec une caisse autonome hors ligne ou une panne électrique.
+
+### Reproduction
+
+Depuis le dépôt réel sur ce PC, lanceurs privés avec secrets non publiés :
+
+```powershell
+node ../local-2.0/run.mjs unit
+node ../local-2.0/run.mjs integration
+node ../local-2.0/run-browser-lab.mjs
+node scripts/verify-restored-copy.mjs --self-test
+```
+
+Depuis un autre clone, créer/configurer un laboratoire PostgreSQL fictif, appliquer les migrations
+avec `migrate deploy`, générer Prisma et fournir séparément JWT_SECRET/JWT_REFRESH_SECRET.
+La base de recette doit s'appeler **creorga_tests**, avec `CREORGA_TEST_DATABASE=creorga_tests` ;
+aucune URL réelle. Depuis apps/backend :
+
+```powershell
+node ../../node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts
+```
+
+Navigateur : `node node_modules/@playwright/test/cli.js test --config playwright.lab.config.ts`.
+Nécessite Chrome installé, serveurs loopback 3002/5174/5175, autorité PostgreSQL, activation
+`CREORGA_LAB_BROWSER_TESTS=1` et identifiants CREORGA_E2E_EMAIL/CREORGA_E2E_PASSWORD fournis hors Git.
+Le test refuse un email hors .invalid ou une société non propriétaire/non marquée fictive ; il crée
+des données de recette qu'il conserve. Aucun profil persistant, vidéo ou trace contenant des secrets.
+
+Preuves privées : logs `*-qr-refunds-payouts-final.log`, BROWSER-TABLE-MOVES.json,
+BROWSER-QR-REFUNDS-PAYOUTS.json, RESTART-QR-REFUNDS-PAYOUTS.json, RESTORATION-2.0.json et captures.
+QR privés masqués. Les captures 375/768/1440 ont été inspectées, sans baseline : comparaison visuelle
+**INCONCLUSIVE**. Pas d'audit axe/lecteur d'écran ni de qualification d'accessibilité/performance globale.
+
+**Non exécuté/bloqué :** PayPal sandbox officiel, banque/acquéreur réel, remboursement Stripe,
+vrais relevés et change, impression/terminal/carte physiques, coupure électrique, T04 réel et recette
+métier complète T01–T100. Aucun paiement simulé n'est une transaction bancaire vérifiée.
+
+## Recette antérieure — sessions et rapprochement P0, 16 octobre 2026
 
 Code : `6080a6a90fe864ad24f7b4565ee6988e56469fd4`, branche dédiée publiée, sans production.
 
