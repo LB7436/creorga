@@ -7,6 +7,8 @@ import {
   Tag, AlertCircle, Check, Sparkles, RefreshCw, Smartphone,
 } from 'lucide-react'
 import { generateQR } from '@/components/QRCodeCanvas'
+import VisitQrPanel from '@/components/VisitQrPanel'
+import api from '@/lib/api'
 
 function QrSvg({
   value, size, fg, bg = '#ffffff', radius = 0,
@@ -53,6 +55,12 @@ const LANGUAGES = ['FR', 'DE', 'EN', 'PT']
 /* ───────────────────────── Main Component ──────────────────────── */
 export default function QrMenuPage() {
   const companyId = useAuthStore((state) => state.companyId)
+  const [actualTables, setActualTables] = useState<Array<{ id: string; name: string }>>([])
+  useEffect(() => {
+    let active = true; setActualTables([])
+    api.get('/guest-visits').then(({ data }) => { if (active) setActualTables(data.tables || []) }).catch(() => {})
+    return () => { active = false }
+  }, [companyId])
   // Restaurant config
   const [restaurantName, setRestaurantName] = useState('Mon établissement')
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
@@ -130,14 +138,14 @@ export default function QrMenuPage() {
   const MENU_ITEMS = carteReelle?.items ?? {}
 
   const qrPixelSize = qrSize === 'S' ? 100 : qrSize === 'M' ? 200 : 400
-  const portalUrl = (table: number) => {
+  const portalUrl = (table?: string) => {
     const origin = typeof window === 'undefined' ? 'https://creorga.n8nautomatisations.org' : window.location.origin
     const url = new URL('/c', origin)
     if (companyId && companyId !== 'fallback-company') url.searchParams.set('companyId', companyId)
-    url.searchParams.set('table', String(table))
+    if (table) url.searchParams.set('table', table)
     return url.toString()
   }
-  const fullUrl = portalUrl(1)
+  const fullUrl = portalUrl()
 
   // ── Export du QR et impression du poster ──
   // v4.8 : ces quatre boutons (PNG / SVG / PDF / Imprimer poster A4) n'avaient
@@ -263,9 +271,9 @@ export default function QrMenuPage() {
   }
 
   const imprimerTousLesQr = () => {
-    const cartes = Array.from({ length: 12 }, (_, index) => {
-      const table = index + 1
-      return `<article>${qrSvgMarkup(portalUrl(table), 155)}<strong>TABLE ${table}</strong></article>`
+    if (!actualTables.length) { alert('Créez ou chargez les tables réelles avant cette impression.'); return }
+    const cartes = actualTables.map(table => {
+      return `<article>${qrSvgMarkup(portalUrl(table.id), 155)}<strong>${echapper(table.name)}</strong><p>Menu public · commande avec QR de visite</p></article>`
     }).join('')
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>QR tables — ${echapper(restaurantName)}</title><style>
       @page{size:A4;margin:10mm}*{box-sizing:border-box;font-family:system-ui,sans-serif}body{margin:0;color:#0f172a}h1{text-align:center;font-size:22px;margin:0 0 10mm}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8mm}article{display:flex;flex-direction:column;align-items:center;gap:3mm;border:1px dashed #94a3b8;border-radius:12px;padding:5mm;break-inside:avoid}strong{font-size:16px;letter-spacing:.08em}</style></head><body><h1>${echapper(restaurantName)} — QR des tables</h1><div class="grid">${cartes}</div></body></html>`
@@ -286,6 +294,7 @@ export default function QrMenuPage() {
       padding: 32, maxWidth: 1600, margin: '0 auto',
       background: '#f8fafc', minHeight: '100vh',
     }}>
+      <VisitQrPanel />
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
@@ -874,7 +883,7 @@ export default function QrMenuPage() {
               Stickers pour les tables
             </h2>
             <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0 0' }}>
-              Chaque table a son propre QR pour identifier les commandes
+              QR permanents du menu ; utilisez les accès de visite ci-dessus pour commander et régler
             </p>
           </div>
           <motion.button
@@ -891,7 +900,7 @@ export default function QrMenuPage() {
             }}
           >
             <Download size={15} />
-            Imprimer les 12 QR tables
+            Imprimer les QR des tables réelles
           </motion.button>
         </div>
 
@@ -900,12 +909,12 @@ export default function QrMenuPage() {
           gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
           gap: 12,
         }}>
-          {Array.from({ length: 12 }, (_, i) => i + 1).map(n => (
+          {actualTables.map((table, index) => (
             <motion.div
-              key={n}
+              key={table.id}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.02 * n }}
+              transition={{ delay: 0.02 * index }}
               whileHover={{ y: -4, boxShadow: `0 8px 24px ${accentColor}22` }}
               style={{
                 padding: 14, borderRadius: 14,
@@ -918,7 +927,7 @@ export default function QrMenuPage() {
                 padding: 6, borderRadius: 8,
                 background: '#fff', border: `2px solid ${accentColor}`,
               }}>
-                <QrSvg value={portalUrl(n)} size={80} fg={accentColor} />
+                <QrSvg value={portalUrl(table.id)} size={80} fg={accentColor} />
               </div>
               <div style={{ textAlign: 'center' }}>
                 <p style={{
@@ -931,7 +940,7 @@ export default function QrMenuPage() {
                   fontSize: 18, fontWeight: 800, color: '#0f172a',
                   margin: 0, lineHeight: 1.2,
                 }}>
-                  N°{n}
+                  {table.name}
                 </p>
               </div>
             </motion.div>

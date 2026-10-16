@@ -25,7 +25,15 @@ n'est pas rejouée automatiquement.
 Les clés Stripe commerçant et abonnement SaaS sont séparées. Un connecteur non vérifiable
 ne devient pas un paiement bancaire confirmé par simple retour de navigateur.
 
+Les visites QR sont distinctes du plan : `GuestVisit`/`GuestVisitAccess`, capacités révocables et
+FK société/visite. Les anciens impayés ne passent pas au groupe suivant. Un même verrou de table
+sérialise ouverture, fermeture, commande et réservation de paiement. La capture tardive reste affectée.
+
+Les prix POS ouverts sont gelés dans un registre réservé au serveur. Le catalogue courant sert
+aux nouvelles lignes ; l'historique incomplet exige une revue OWNER/MANAGER motivée. Ce registre
+JSON reste à unifier avec une autorité transactionnelle de sessions natives.
+
 Prochaines décisions : allocation des paiements partiels, conversion ticket/facture unique,
-revocation des QR de session et file d'impression durable. Ne pas multiplier les services :
+unification POS/visites et file d'impression durable. Ne pas multiplier les services :
 impression et vidéo seront isolées uniquement lorsque leurs connexions réelles seront qualifiées.
 La vidéo ne possède aucun droit d'écriture sur paiements, ventes ou comptabilité.

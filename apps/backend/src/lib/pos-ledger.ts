@@ -10,7 +10,8 @@ const finite = z.number().finite()
 export const coverSchema = z.object({
   id, label: z.string().max(100), paidAt: finite.optional(), paidMethod: z.enum(['cash', 'card', 'contactless']).optional(),
   items: z.array(z.object({ id, menuItemId: id, name: z.string().max(160), price: finite.min(0).max(1e6),
-    qty: finite.int().min(1).max(50), note: z.string().max(1000), coverId: id })).max(100),
+    qty: finite.int().min(1).max(50), note: z.string().max(1000), coverId: id,
+    taxRate: finite.min(0).max(100).optional(), pricingStatus: z.enum(['review', 'confirmed']).optional(), pricingSource: z.string().max(40).optional() })).max(100),
 })
 export const posTableSchema = z.object({
   id, name: z.string().min(1).max(60), shape: z.enum(['round', 'square', 'rect', 'bar']),

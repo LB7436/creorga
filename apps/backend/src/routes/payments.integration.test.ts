@@ -189,9 +189,9 @@ describe('Paiement : cloisonnement et montant serveur', () => {
     const next = await prisma.order.aggregate({ where: { companyId: a }, _max: { orderNumber: true } })
     const second = await prisma.order.create({ data: { companyId: a, source: 'GUEST', externalTableId: table.id, orderNumber: (next._max.orderNumber || 0) + 1, total: 12, subtotal: 10, taxAmount: 2 } })
     const input = { companyId: a, tableId: table.id, provider: 'paypal', requestId: randomUUID(), total: 1 }
-    const created = await request(app).post('/api/guest/pay').send(input)
+    const created = await auth(request(app).post('/api/guest/pay')).send(input)
     expect(created.status).toBe(200); expect(created.body.amount).toBe(36)
-    await request(app).post('/api/guest/pay').send(input).expect(200)
+    await auth(request(app).post('/api/guest/pay')).send(input).expect(200)
     expect(remote.requests).toHaveLength(1)
     await auth(request(app).post(`/api/orders/${second.id}/checkout`)).send({ paymentMethod: 'CASH', cashReceived: 20 }).expect(409)
     const primary = await prisma.paymentAttempt.findUniqueOrThrow({ where: { id: created.body.attemptId } })

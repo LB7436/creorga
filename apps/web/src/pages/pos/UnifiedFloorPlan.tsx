@@ -1018,7 +1018,7 @@ function TablePanel({
           <div style={{ display: 'grid', gap: 4, gridTemplateColumns: 'repeat(2, 1fr)' }}>
             {quickMenu.map((m: { id: string; name: string; price: number }) => (
               <button key={m.id}
-                onClick={() => floor.addItemToChair(selectedChair, { name: m.name, price: m.price, qty: 1 })}
+                onClick={() => floor.addItemToChair(selectedChair, { productId: m.id, name: m.name, price: m.price, qty: 1 })}
                 style={{
                   padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',
                   background: 'rgba(255,255,255,0.05)', color: theme.text, cursor: 'pointer',
@@ -1141,7 +1141,7 @@ function ChairPanel({ chair, parentTable, floor, theme, onClose, onTransfer, onS
         <div style={{ display: 'grid', gap: 4, gridTemplateColumns: 'repeat(2, 1fr)' }}>
           {quickMenu.map((m: { id: string; name: string; price: number }) => (
             <button key={m.id}
-              onClick={() => floor.addItemToChair(chair.id, { name: m.name, price: m.price, qty: 1 })}
+              onClick={() => floor.addItemToChair(chair.id, { productId: m.id, name: m.name, price: m.price, qty: 1 })}
               style={{
                 padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',
                 background: 'rgba(255,255,255,0.05)', color: theme.text, cursor: 'pointer',

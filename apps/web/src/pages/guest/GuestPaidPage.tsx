@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Check } from 'lucide-react'
+import { guestHeaders } from '@/lib/guestAccess'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -31,13 +32,13 @@ export default function GuestPaidPage() {
     }
     fetch(`${BACKEND}/api/guest/paid-confirm`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...guestHeaders(companyId, tableId) },
+      credentials: 'include',
       body: JSON.stringify({ companyId, tableId, sessionId, attemptId }),
     })
       .then(async (r) => {
         const data = await r.json().catch(() => ({}))
         if (r.ok && data.status === 'succeeded' && data.confirmation === 'provider_verified') {
-          try { localStorage.removeItem(`creorga-payment:${companyId}:${tableId}:${data.provider}`) } catch { /* Aucun nouveau débit. */ }
           setEtat('confirme'); return
         }
         setEtat('refuse')

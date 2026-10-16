@@ -21,6 +21,7 @@ import {
 import { useGuestLang } from './i18n'
 import OrderTracking from './OrderTracking'
 import GuestCallButtons from './GuestCallButtons'
+import { getGuestAccess, guestHeaders, guestScopeKey } from '@/lib/guestAccess'
 import GuestLoyaltyCard from './GuestLoyaltyCard'
 
 // ─── Types ─────────────────────────────────────────────
@@ -124,12 +125,19 @@ function LangPicker({ lang, setLang }: { lang: string; setLang: (l: string) => v
 type Tab = 'jeux' | 'menu' | 'avis'
 
 export default function GuestHome() {
+  const [params] = useSearchParams()
+  const scope = guestScopeKey(params.get('companyId'), params.get('table'))
+  return <GuestHomeContent key={scope} />
+}
+
+function GuestHomeContent() {
   const company = useAuthStore((s) => s.company)
   const authCompanyId = useAuthStore((s) => s.companyId)
   const [searchParams] = useSearchParams()
   const portalCompanyId = searchParams.get('companyId') || (searchParams.get('preview') === 'admin' ? authCompanyId : null)
   const { config, error: configError } = usePortalConfig(2500, portalCompanyId)
   const tableId = searchParams.get('table')
+  const cartKey = `creorga-cart-visit:${guestScopeKey(portalCompanyId, tableId)}`
   const embed = searchParams.get('embed')
 
   const [tab, setTab] = useState<Tab>('jeux')
@@ -142,14 +150,14 @@ export default function GuestHome() {
   // Cart state shared with menu
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
-      const saved = localStorage.getItem('creorga-cart')
+      const saved = sessionStorage.getItem(cartKey)
       return saved ? JSON.parse(saved) : []
     } catch { return [] }
   })
 
   useEffect(() => {
-    localStorage.setItem('creorga-cart', JSON.stringify(cart))
-  }, [cart])
+    sessionStorage.setItem(cartKey, JSON.stringify(cart))
+  }, [cart, cartKey])
 
   useEffect(() => {
     const refreshGuest = () => setGuestClient(loadGuestClient(portalCompanyId))
@@ -176,7 +184,6 @@ export default function GuestHome() {
   const cartTotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
 
   const addToCart = (product: { id: string; name: string; price: number; emoji: string }) => {
-    if (!requireGuestClient('Inscrivez-vous pour commander: email, mobile et pseudo permettent au serveur et au patron de retrouver votre demande.')) return
     setCart(prev => {
       const existing = prev.find(i => i.id === product.id)
       if (existing) return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
@@ -462,21 +469,22 @@ function GuestMenu({
 
   const handleSendOrder = () => {
     if (orderState === 'sending') return
-    if (!requireGuestClient('Inscrivez-vous pour envoyer une commande: le serveur verra votre nom, mobile, table et historique client.')) return
+    if (!getGuestAccess(companyId, tableNumber)) { setOrderError('Demandez au personnel le QR de votre visite pour commander. La carte reste consultable.'); return }
     setOrderState('sending')
     setOrderError(null)
     // Le serveur recalcule les prix depuis sa base ; on n'envoie que les
     // identifiants et quantités (le nom sert au journal client local).
     const orderItems = cart.map((item) => ({ productId: item.id, name: item.name, qty: item.qty, price: item.price }))
-    const requestKey = `creorga-guest-order:${companyId}:${tableNumber}:${orderItems.map(i => `${i.productId}:${i.qty}`).sort().join('|')}`
+    const requestKey = `creorga-guest-order:${guestScopeKey(companyId, tableNumber)}:${orderItems.map(i => `${i.productId}:${i.qty}`).sort().join('|')}`
     let requestId: string
     try { requestId = localStorage.getItem(requestKey) || crypto.randomUUID(); localStorage.setItem(requestKey, requestId) }
     catch { setOrderState('idle'); setOrderError('Stockage local indisponible : appelez le serveur pour éviter une commande en double.'); return }
 
     fetch(`${(import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'}/api/guest/orders`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...guestHeaders(companyId, tableNumber) },
       body: JSON.stringify({ requestId, companyId, tableId: tableNumber || 'sans-table', items: orderItems.map(({ productId, qty }) => ({ productId, qty })) }),
+      credentials: 'include',
     })
       .then(async (r) => {
         const data = await r.json().catch(() => ({}))

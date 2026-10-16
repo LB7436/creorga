@@ -17,6 +17,8 @@ Migrations supplémentaires appliquées uniquement aux copies locale et fictive 
 - `20261008163000_issued_documents` : profil légal, champs professionnels du client,
   contenu d'émission, PDF et empreinte. Aucun original historique n'est inventé.
 - `20261008173000_invoice_delivery` : file transactionnelle et références d'envoi.
+- `20261008190000_guest_visits` : visites, capacités hachées, rattachement nullable des nouvelles
+  commandes et tentatives. Aucun ancien impayé n'est automatiquement rattaché.
 
 Ces évolutions sont additives. Le code précédent ne sait pas rapprocher toutes les nouvelles
 affectations : revenir au vieux code avec des tentatives actives constitue un retour dangereux.
@@ -32,3 +34,13 @@ Une tentative inconnue doit être rapprochée avant remise en service financièr
 Les anciens profils de navigateur et leurs origines n'ont pas été effacés. L'export des ventes
 qui n'existeraient que dans ces profils reste à exécuter dans chaque navigateur concerné.
 Le travail local ne déclenche pas d'encaissement, remboursement, SMS ou email réel.
+
+Le code antérieur au gel des prix et aux visites pourrait recalculer un ancien tarif et rouvrir
+un QR permanent. Ne pas remettre ces endpoints en service avec l'ancien code. Conserver migration
+et données ; préférer un correctif en avant. Tout retour impose arrêt, sauvegarde et recette des
+prix/autorisations. Ne jamais appliquer les tests ou migrations au snapshot original.
+
+Reprise native du 16 octobre : archive v2 chiffrée, déchiffrée, restaurée dans une base neuve ;
+59 tables, six fichiers et deux PDF égaux. Ancien outil Docker durci : extraction en flux contrôlée,
+UUID exclusifs, `pg_restore --exit-on-error --single-transaction`, erreurs expurgées, nettoyage des
+seules ressources créées. Ses 18 tests simulent Docker ; ils ne prouvent pas une exécution Docker.

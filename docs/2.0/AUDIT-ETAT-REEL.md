@@ -5,6 +5,13 @@ Le VPS Creorga a été retiré le 24 septembre ; le travail porte sur une copie 
 
 ## Mise à jour après les lots locaux
 
+Complément du 16 octobre : gel des prix POS et revue tracée des lignes historiques incomplètes,
+visites QR révocables, suppression des canaux publics de table, isolation des requêtes tardives
+dans la caisse. Export navigateur chiffré testé sur fixtures, ancien restaurateur durci.
+Référence actuelle : 379 unités, 65 intégrations, cinq compilations et parcours navigateur réussis.
+Reprise courante : 59 tables, six fichiers, deux PDF intègres. Aucun paiement bancaire ni matériel
+physique qualifié ; les anciens profils navigateur réels n'ont pas été exportés.
+
 Les constats de départ du tableau ci-dessous sont historiques. Dans la copie 2.0 :
 
 - Commandes, captures et caisse utilisent des verrous communs ; montant et devise sont contrôlés

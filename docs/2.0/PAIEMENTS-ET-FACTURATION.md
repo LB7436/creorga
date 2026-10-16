@@ -32,8 +32,8 @@ Stripe 23 utilise l'API 2026-09-30 et les clés commerçant distinctes `STRIPE_P
 `STRIPE_PAYMENT_WEBHOOK_SECRET`. La signature est vérifiée sur le corps brut, puis Checkout
 et PaymentIntent sont relus : capture effective, marchand, montant, devise et références doivent
 concorder. Les paiements d'additions QR partagent le journal serveur et ses affectations par commande.
-Le QR statique n'est pas encore un QR de visite révocable ; ce parcours public reste non qualifié
-pour un service réel. Le mode manuel d'un terminal autonome ne devient pas une preuve bancaire.
+Le QR permanent ouvre le menu ; une visite révocable autorise commandes, addition et paiement
+publics. Voir `QR-VISITES.md`. Le mode manuel d'un terminal ne devient pas une preuve bancaire.
 
 Les cartes cadeaux prépayées constituent désormais un règlement `GIFT_CARD` distinct des remises.
 Exemple testé : 11,70 € TTC, dont 1,70 € de TVA, payés avec 10 € de crédit et 1,70 € d'espèces.
@@ -47,5 +47,6 @@ Les essais d'email sont limités au dialogue loopback et aux adresses fictives a
 
 Restent : paiements partiels persistants, paiement en ligne de couverts POS natifs, remboursements,
 commissions, conversion ticket vers facture unique, avoirs et onboarding multicommerçant.
-La prise de commande POS ouverte doit encore figer ses prix côté serveur. L'émission du crédit
-cadeau ne possède pas encore un livre comptable complet. Aucun historique n'est réécrit.
+Les prix et taux POS ouverts sont désormais figés côté serveur, y compris après modification de
+catalogue et reconnexion. Les lignes anciennes incomplètes exigent une revue tracée. L'émission
+du crédit cadeau ne possède pas encore un livre comptable complet. Aucun historique n'est réécrit.

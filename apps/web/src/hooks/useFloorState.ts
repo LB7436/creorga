@@ -154,12 +154,12 @@ export function useFloorState(pollMs = 2000) {
     setChairCustomer: async (id: string, customerName: string) =>
       apply(await fetchFn(`${BASE}/chairs/${id}`, 'PATCH', { customerName })),
 
-    addItemToChair: async (chairId: string, item: { name: string; price: number; qty?: number; note?: string }) =>
+    addItemToChair: async (chairId: string, item: { productId: string; name: string; price: number; qty?: number; note?: string }) =>
       apply(await fetchFn(`${BASE}/chairs/${chairId}/items`, 'POST', item)),
     removeItemFromChair: async (chairId: string, itemId: string) =>
       apply(await fetchFn(`${BASE}/chairs/${chairId}/items/${itemId}`, 'DELETE')),
 
-    addItemToTable: async (tableId: string, item: { name: string; price: number; qty?: number; note?: string }) =>
+    addItemToTable: async (tableId: string, item: { productId: string; name: string; price: number; qty?: number; note?: string }) =>
       apply(await fetchFn(`${BASE}/tables/${tableId}/items`, 'POST', item)),
 
     transferChair: async (chairId: string, toTableId: string) =>

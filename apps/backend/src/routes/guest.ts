@@ -1,12 +1,15 @@
 import { Router, type Request, type Response } from 'express'
 import path from 'path'
-import { randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import { safeReadJson, safeWriteJson } from '../lib/safe-json'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
 import { deviceOrUserAuth } from '../middleware/deviceAuth'
 import { requireCompany } from '../middleware/requireCompany'
-import { getFloorState } from './floorState'
+import { resolveGuestTable } from '../lib/guest-tables'
+import { GuestAccessError, lockGuestTable, requireGuestAccess } from '../lib/guest-visits'
+import { totalsFromTtc } from '../lib/money'
 import { PosError } from '../lib/pos-ledger'
 import { createTablePayment, reconcilePayment, merchantFor, PaymentError } from '../lib/payments/ledger'
 
@@ -49,6 +52,7 @@ export interface GuestOrder {
   id: string
   /** Enseigne déduite des produits commandés. Absent sur les anciennes entrées. */
   companyId?: string
+  guestVisitId?: string | null
   tableId: string
   items: GuestOrderItem[]
   total: number
@@ -61,11 +65,51 @@ export interface GuestOrder {
 }
 
 const router = Router()
+router.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store')
+  // Staff access remains authenticated; an invalid staff header never becomes a guest privilege.
+  if (!req.headers.authorization && !req.headers['x-device-token']) return next()
+  deviceOrUserAuth(req, res, () => requireCompany(req, res, () => {
+    const context = req as any
+    if (!context.device && !['OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', 'CASHIER'].includes(context.role)) {
+      res.status(403).json({ error: 'Accès au service réservé au personnel habilité.' }); return
+    }
+    context.guestStaff = true
+    next()
+  }))
+})
+const visitToken = (req: Request) => typeof req.headers['x-guest-access'] === 'string' ? req.headers['x-guest-access'] : undefined
+async function guestScope(req: Request, companyId: string, tableId?: string, db: any = prisma) {
+  if ((req as any).guestStaff) {
+    if ((req as any).companyId !== companyId) throw new GuestAccessError(403, 'Accès refusé à cet établissement.')
+    return null
+  }
+  return requireGuestAccess(companyId, visitToken(req), tableId, db)
+}
+function returnCookieName(attemptId: string) { return 'creorga_return_' + attemptId }
+function setPaymentReturn(req: Request, res: Response, companyId: string, attemptId: string) {
+  const token = jwt.sign({ purpose: 'guest-payment-return', companyId, attemptId }, process.env.JWT_SECRET!, {
+    expiresIn: '12h', audience: 'creorga-guest-payment', issuer: 'creorga',
+  })
+  const hostname = req.hostname
+  res.cookie(returnCookieName(attemptId), token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' || !['localhost', '127.0.0.1', '::1', '[::1]'].includes(hostname),
+    sameSite: 'lax', path: '/api/guest/paid-confirm', maxAge: 12 * 3600_000 })
+}
+function hasPaymentReturn(req: Request, companyId: string, attemptId: string) {
+  try {
+    // cookie-parser is installed by the application. Tests may provide the raw Cookie header.
+    const name = returnCookieName(attemptId)
+    const cookie = req.cookies?.[name] || req.headers.cookie?.split(';').map(s => s.trim()).find(s => s.startsWith(name + '='))?.slice(name.length + 1)
+    if (!cookie) return false
+    const data = jwt.verify(decodeURIComponent(cookie), process.env.JWT_SECRET!, { audience: 'creorga-guest-payment', issuer: 'creorga' }) as jwt.JwtPayload
+    return data.purpose === 'guest-payment-return' && data.companyId === companyId && data.attemptId === attemptId
+  } catch { return false }
+}
 const asyncRoute = (handler: (req: Request, res: Response) => Promise<any>) => async (req: Request, res: Response) => {
   try { await handler(req, res) }
   catch (error) {
-    logger.error('[guest] opération non confirmée', error)
-    if (!res.headersSent) res.status(error instanceof PosError || error instanceof PaymentError ? error.status : 503).json({ error: error instanceof PosError || error instanceof PaymentError ? error.message : 'Le serveur ne peut pas confirmer cette opération. Réessayez avec la même référence.' })
+    if (!(error instanceof GuestAccessError)) logger.error('[guest] opération non confirmée', { code: error instanceof PaymentError || error instanceof PosError ? error.status : 'GUEST_OPERATION_FAILED' })
+    if (!res.headersSent) res.status(error instanceof PosError || error instanceof PaymentError || error instanceof GuestAccessError ? error.status : 503).json({ error: error instanceof PosError || error instanceof PaymentError || error instanceof GuestAccessError ? error.message : 'Le serveur ne peut pas confirmer cette opération. Réessayez avec la même référence.' })
   }
 }
 
@@ -104,142 +148,68 @@ export function commandesARegler(orders: GuestOrder[], tableId: string, _now = D
 }
 
 /** Le QR doit désigner une table réelle, pas seulement une chaîne bien formée. */
-async function resolveTable(companyId: string, value: string): Promise<string | null> {
-  const fromDb = await prisma.table.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true } })
-  const tables = [...new Map([...fromDb, ...getFloorState(companyId).tables].map(t => [t.id, t])).values()]
-  const exact = tables.find(t => t.id === value)
-  if (exact) return exact.id
-  const normal = (s: string) => s.toLowerCase().trim().replace(/^table\s*/i, '')
-  const matches = tables.filter(t => normal(t.name) === normal(value))
-  return matches.length === 1 ? matches[0].id : null
-}
+const resolveTable = resolveGuestTable
 
-async function readOrders(companyId: string): Promise<GuestOrder[]> {
-  const stored = await prisma.order.findMany({ where: { companyId, source: 'GUEST' }, include: { items: { include: { product: true } } } })
-  const central = stored.map(o => ({ id: o.publicToken!, companyId, tableId: o.externalTableId!,
+async function readOrders(companyId: string, guestVisitId?: string): Promise<GuestOrder[]> {
+  const stored = await prisma.order.findMany({ where: { companyId, source: 'GUEST', ...(guestVisitId ? { guestVisitId } : {}) }, include: { items: { include: { product: true } } } })
+  const central = stored.map(o => ({ id: o.publicToken!, companyId, guestVisitId: o.guestVisitId, tableId: o.externalTableId!,
     items: o.items.map(i => ({ productId: i.productId, name: i.productName || i.product.name, qty: i.quantity, price: i.unitPrice })),
     total: o.total, status: (o.guestStatus || 'received') as OrderStatus, paid: !!o.paidAt || o.status === 'CANCELLED',
     paidAt: o.paidAt?.getTime(), createdAt: o.createdAt.getTime(), updatedAt: o.updatedAt.getTime(),
     stripeSessionId: o.paymentMethod?.startsWith('stripe:') ? o.paymentMethod.slice(7) : undefined }))
   // Les impayés historiques restent visibles : aucune purge ni conversion destructive automatique.
-  return [...central, ...safeReadJson<GuestOrder[]>(ORDERS_FILE, []).filter(o => o.companyId === companyId && !central.some(c => c.id === o.id))]
+  return [...central, ...(guestVisitId ? [] : safeReadJson<GuestOrder[]>(ORDERS_FILE, []).filter(o => o.companyId === companyId && !central.some(c => c.id === o.id)))]
 }
 
 // ─── Suivi de commande ──────────────────────────────────
 
-router.post('/orders', async (req, res) => {
-  const { companyId, items, requestId } = req.body as { companyId?: unknown; tableId?: unknown; items?: unknown; requestId?: unknown }
-  let tableId = req.body.tableId as unknown
-  if (!companyValide(companyId)) {
-    return res.status(400).json({ error: 'Établissement requis : scannez le QR code de votre table.' })
+router.post('/orders', asyncRoute(async (req, res) => {
+  const { companyId, items, requestId } = req.body
+  if (!companyValide(companyId) || !tableValide(req.body.tableId)) return res.status(400).json({ error: 'Établissement et table requis.' })
+  if (typeof requestId !== 'string' || !/^[a-f0-9-]{36}$/i.test(requestId)) return res.status(400).json({ error: 'Référence stable de commande requise.' })
+  const tableId = await resolveTable(companyId, req.body.tableId)
+  if (!tableId) return res.status(404).json({ error: 'Table inconnue.' })
+  if (!Array.isArray(items) || !items.length || items.length > MAX_LIGNES) return res.status(400).json({ error: 'Lignes de commande invalides.' })
+  const quantities = new Map<string, number>()
+  for (const item of items) {
+    if (typeof item?.productId !== 'string' || !item.productId || item.productId.length > 100 || !Number.isInteger(item.qty) || item.qty < 1 || item.qty > MAX_QTE) return res.status(400).json({ error: 'Produit ou quantité invalide.' })
+    quantities.set(item.productId, (quantities.get(item.productId) || 0) + item.qty)
   }
-  if (!tableValide(tableId)) {
-    return res.status(400).json({ error: 'Table requise : scannez le QR code de votre table.' })
-  }
-  try {
-    const realTable = await resolveTable(companyId, tableId)
-    if (!realTable) return res.status(404).json({ error: 'Table inconnue : scannez son QR code actuel.' })
-    tableId = realTable
-  } catch { return res.status(503).json({ error: 'Vérification de la table impossible.' }) }
-  if (requestId !== undefined && (typeof requestId !== 'string' || !/^[a-f0-9-]{36}$/i.test(requestId))) return res.status(400).json({ error: 'Référence de commande invalide.' })
-  if (!Array.isArray(items) || items.length === 0 || items.length > MAX_LIGNES) {
-    return res.status(400).json({ error: `items[] requis (1 à ${MAX_LIGNES} lignes)` })
-  }
-
-  // Quantités et identifiants seulement : le prix et le nom viennent de la base.
-  const lignes: { productId: string; qty: number }[] = []
-  for (const brut of items as any[]) {
-    const productId = typeof brut?.productId === 'string' ? brut.productId.trim() : ''
-    const qty = Number(brut?.qty)
-    if (!productId) return res.status(400).json({ error: 'Chaque ligne doit porter un productId.' })
-    if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTE) {
-      return res.status(400).json({ error: `Quantité invalide pour ${productId} (entier de 1 à ${MAX_QTE}).` })
+  const lines = [...quantities].sort(([a], [b]) => a.localeCompare(b)).map(([productId, qty]) => ({ productId, qty }))
+  if (lines.some(l => l.qty > MAX_QTE)) return res.status(400).json({ error: 'Quantité maximale par produit dépassée.' })
+  const saved = await prisma.$transaction(async tx => {
+    await lockGuestTable(tx, companyId, tableId)
+    const visit = await guestScope(req, companyId, tableId, tx)
+    const hash = createHash('sha256').update(JSON.stringify({ companyId, tableId, visitId: visit?.id || null, lines })).digest('hex')
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext('pos-ledger'))::text`
+    const previous = await tx.order.findUnique({ where: { publicToken: requestId } })
+    if (previous) {
+      if (previous.companyId !== companyId || previous.externalTableId !== tableId || previous.guestVisitId !== (visit?.id || null) || previous.guestRequestHash !== hash) throw new GuestAccessError(409, 'Cette référence appartient à une autre commande. Vérifiez la commande déjà envoyée.')
+      return previous
     }
-    const existante = lignes.find((l) => l.productId === productId)
-    if (existante) existante.qty += qty
-    else lignes.push({ productId, qty })
-  }
-  if (lignes.some(l => l.qty > MAX_QTE)) return res.status(400).json({ error: `Maximum ${MAX_QTE} unités par produit, lignes répétées comprises.` })
-
-  let produits: { id: string; name: string; price: number; companyId: string }[]
-  try {
-    produits = await prisma.product.findMany({
-      where: { companyId, id: { in: lignes.map((l) => l.productId) }, isActive: true },
-      select: { id: true, name: true, price: true, companyId: true },
+    const products = await tx.product.findMany({ where: { companyId, id: { in: lines.map(l => l.productId) }, isActive: true } })
+    if (products.length !== lines.length) throw new GuestAccessError(409, 'Un produit est indisponible. Actualisez la carte.')
+    const lineData = lines.map(line => {
+      const product = products.find(p => p.id === line.productId)!
+      if (product.stock !== null && product.stock < line.qty) throw new GuestAccessError(409, 'Quantité indisponible pour ce produit.')
+      return { productId: product.id, productName: product.name, quantity: line.qty, unitPrice: product.price, taxRate: product.taxRate }
     })
-  } catch (e: any) {
-    // Sans base, impossible de connaître les prix : on n'enregistre pas une
-    // commande à montant inventé.
-    logger.error(`[guest] commande refusée, base indisponible : ${e?.message || e}`)
-    return res.status(503).json({ error: 'Commande impossible pour le moment, appelez le serveur.' })
-  }
-
-  const parId = new Map(produits.map((p) => [p.id, p]))
-  const inconnu = lignes.find((l) => !parId.has(l.productId))
-  if (inconnu) {
-    return res.status(400).json({ error: `Produit inconnu ou indisponible : ${inconnu.productId}` })
-  }
-  const enseignes = new Set(produits.map((p) => p.companyId))
-  if (enseignes.size !== 1) {
-    return res.status(400).json({ error: 'Une commande ne peut pas mélanger plusieurs enseignes.' })
-  }
-  if (produits[0].companyId !== companyId) {
-    return res.status(400).json({ error: 'Ces produits ne correspondent pas à cet établissement.' })
-  }
-
-  const orderItems: GuestOrderItem[] = lignes.map((l) => {
-    const p = parId.get(l.productId)!
-    return { productId: p.id, name: p.name, qty: l.qty, price: arrondi(p.price) }
-  })
-  const total = arrondi(orderItems.reduce((sum, i) => sum + i.price * i.qty, 0))
-  const now = Date.now()
-  const order: GuestOrder = {
-    id: 'gord-' + Math.random().toString(36).slice(2, 10),
-    companyId,
-    tableId: String(tableId),
-    items: orderItems,
-    total,
-    status: 'received',
-    paid: false,
-    createdAt: now,
-    updatedAt: now,
-  }
-  try {
-    const token = typeof requestId === 'string' ? requestId : randomUUID()
-    await prisma.$transaction(async tx => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext('pos-ledger'))::text`
-      const previous = await tx.order.findUnique({ where: { publicToken: token } })
-      if (previous) {
-        if (previous.companyId !== companyId || previous.externalTableId !== tableId) throw new Error('Référence déjà utilisée.')
-        return
-      }
-      const products = await tx.product.findMany({ where: { companyId, id: { in: lignes.map(l => l.productId) }, isActive: true } })
-      if (products.length !== lignes.length) throw new Error('Un produit est devenu indisponible.')
-      const lineData = lignes.map(l => {
-        const p = products.find(p => p.id === l.productId)!
-        if (p.stock !== null && p.stock < l.qty) throw new Error(`Stock insuffisant pour ${p.name}.`)
-        return { productId: p.id, productName: p.name, quantity: l.qty, unitPrice: arrondi(p.price), taxRate: p.taxRate }
-      })
-      const amount = arrondi(lineData.reduce((s, l) => s + l.unitPrice * l.quantity, 0))
-      const ht = arrondi(lineData.reduce((s, l) => s + l.unitPrice * l.quantity / (1 + l.taxRate / 100), 0))
-      const last = await tx.order.findFirst({ where: { companyId }, orderBy: { orderNumber: 'desc' } })
-      await tx.order.create({ data: { companyId, userId: null, source: 'GUEST', externalTableId: String(tableId), publicToken: token,
-        guestStatus: 'received', orderNumber: (last?.orderNumber || 0) + 1, subtotal: ht, taxAmount: arrondi(amount - ht), total: amount,
-        items: { create: lineData } } })
-    })
-    const saved = (await readOrders(companyId)).find(o => o.id === token)!
-    broadcast(`table-${companyId}-${tableId}`, 'order-status', { orderId: saved.id, status: saved.status, ts: saved.updatedAt })
-    res.status(201).json(saved)
-  } catch (e: any) {
-    logger.warn('[guest] commande centrale refusée', { code: e?.code })
-    res.status(e?.code === 'P2002' ? 409 : 503).json({ error: 'Commande non confirmée. Réessayez avec la même référence ou appelez le serveur.' })
-  }
-})
+    const totals = totalsFromTtc(lineData.map(i => ({ price: i.unitPrice, qty: i.quantity, taxRate: i.taxRate })))
+    const last = await tx.order.aggregate({ where: { companyId }, _max: { orderNumber: true } })
+    return tx.order.create({ data: { companyId, userId: null, source: 'GUEST', externalTableId: tableId, publicToken: requestId,
+      guestVisitId: visit?.id || null, guestRequestHash: hash, guestStatus: 'received',
+      orderNumber: (last._max.orderNumber || 0) + 1, subtotal: totals.baseCents / 100, taxAmount: totals.taxCents / 100,
+      total: totals.totalCents / 100, items: { create: lineData } } })
+  }, { maxWait: 15000, timeout: 10000 })
+  const result = (await readOrders(companyId, saved.guestVisitId || undefined)).find(o => o.id === saved.publicToken)
+  res.status(201).json(result)
+}))
 
 router.get('/orders/:id', asyncRoute(async (req, res) => {
   const companyId = req.query.companyId
   if (!companyValide(companyId)) return res.status(400).json({ error: 'Établissement requis' })
-  const orders = await readOrders(companyId)
+  const visit = await guestScope(req, companyId)
+  const orders = await readOrders(companyId, visit?.id)
   const order = orders.find((o) => o.id === req.params.id && o.companyId === companyId)
   if (!order) return res.status(404).json({ error: 'not found' })
   res.json(order)
@@ -290,7 +260,9 @@ router.post('/call-waiter', asyncRoute(async (req, res) => {
   } catch {
     return res.status(503).json({ error: 'Appel impossible pour le moment' })
   }
-  const callKey = `${companyId}:${tableId}`
+  const realTable = await resolveTable(companyId, tableId)
+  const visit = await guestScope(req, companyId, realTable!)
+  const callKey = `${companyId}:${realTable}:${visit?.id || 'staff'}`
   const last = lastCallByTable.get(callKey) || 0
   if (Date.now() - last < CALL_COOLDOWN_MS) {
     return res.status(429).json({ error: 'Appel déjà envoyé, patientez quelques secondes.' })
@@ -319,7 +291,8 @@ router.get('/bill/:tableId', asyncRoute(async (req, res) => {
   if (!companyValide(companyId) || !tableValide(tableId)) return res.status(400).json({ error: 'Établissement ou table invalide' })
   const realTable = await resolveTable(companyId, tableId)
   if (!realTable) return res.status(404).json({ error: 'Table inconnue.' })
-  const orders = commandesARegler(await readOrders(companyId), realTable)
+  const visit = await guestScope(req, companyId, realTable)
+  const orders = commandesARegler(await readOrders(companyId, visit?.id), realTable)
   const total = arrondi(orders.reduce((s, o) => s + o.total, 0))
   const paymentProviders = ['paypal', 'stripe'].filter(provider => { try { merchantFor(provider, companyId); return true } catch { return false } })
   res.json({ tableId, total, orderIds: orders.map((o) => o.id), count: orders.length, paymentProviders })
@@ -333,7 +306,10 @@ router.post('/pay', asyncRoute(async (req, res) => {
   const realTable = await resolveTable(companyId, tableId)
   if (!realTable) return res.status(404).json({ error: 'Table inconnue.' })
   if (typeof req.body.requestId !== 'string' || !/^[a-f0-9-]{36}$/i.test(req.body.requestId)) return res.status(400).json({ error: 'Référence de paiement stable requise.' })
-  const result = await createTablePayment(companyId, realTable, { requestId: req.body.requestId, provider: req.body.provider })
+  await guestScope(req, companyId, realTable)
+  const result = await createTablePayment(companyId, realTable, { requestId: req.body.requestId, provider: req.body.provider },
+    (req as any).guestStaff ? { staffUserId: (req as any).user?.userId, staffDevice: !!(req as any).device } : { guestToken: visitToken(req) })
+  setPaymentReturn(req, res, companyId, result.body.attemptId)
   res.status(result.httpStatus).json({ ...result.body, url: result.body.redirectUrl, total: result.body.amount })
 }))
 
@@ -353,6 +329,10 @@ router.post('/paid-confirm', asyncRoute(async (req, res) => {
   const attempt = await prisma.paymentAttempt.findFirst({ where: { companyId, scope: 'TABLE', tableId: realTable,
     ...(typeof attemptId === 'string' ? { id: attemptId } : { provider: 'stripe', externalId: sessionId as string }) } })
   if (!attempt) return res.status(404).json({ error: 'Référence inconnue pour cette addition. Le responsable doit vérifier les anciens règlements hors journal 2.0.' })
+  if (!hasPaymentReturn(req, companyId, attempt.id)) {
+    const visit = await guestScope(req, companyId, realTable)
+    if (visit && attempt.guestVisitId !== visit.id) throw new GuestAccessError(403)
+  }
   const payment = await reconcilePayment(companyId, attempt.id, attempt.provider === 'paypal' && attempt.status !== 'SUCCEEDED')
   if (payment.status !== 'succeeded') return res.status(202).json({ ...payment, error: 'Paiement encore en attente ou incertain. Ne réglez pas une deuxième fois sans vérification.' })
   return res.json({ ...payment, ok: true })

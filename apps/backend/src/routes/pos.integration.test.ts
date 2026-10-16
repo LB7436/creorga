@@ -7,19 +7,23 @@ import prisma from '../lib/prisma'
 import { deviceOrUserAuth } from '../middleware/deviceAuth'
 import { requireCompany } from '../middleware/requireCompany'
 import pos from './pos'
-import { floorCompanyContext, remplacerPlanDeSalle } from './floorState'
+import floorRouter, { floorCompanyContext, remplacerPlanDeSalle, getFloorState } from './floorState'
+import { canonicalizeFloorPricing } from '../lib/pos-pricing'
 
 const app = express(); app.use(express.json()); app.use('/api/pos', deviceOrUserAuth, requireCompany, floorCompanyContext, pos)
+app.use('/api/floor-state', deviceOrUserAuth, requireCompany, floorCompanyContext, floorRouter)
 const companyId = 'integration-pos', userId = 'integration-pos-owner', tableId = 'integration-pos-table'
 let token: string, productId: string, orderId: string
 let databaseVerified = false
 const auth = (req: any) => req.set('Authorization', 'Bearer ' + token).set('x-company-id', companyId)
 const body = () => ({ requestId: randomUUID(), tableId, coverIds: [`guest:${orderId}`], expectedTotal: 11.7, tip: 0, method: 'cash', cashReceived: 20 })
-function nativeBody() {
+function nativeBody(legacy = false) {
   const coverId = `native:${randomUUID()}`
-  remplacerPlanDeSalle({ tables: [{ id: tableId, name: 'Table recette', seats: 2, section: 'Salle', shape: 'round', status: 'OCCUPEE', x: 0, y: 0, items: [],
+  const floor = { tables: [{ id: tableId, name: 'Table recette', seats: 2, section: 'Salle', shape: 'round', status: 'OCCUPEE', x: 0, y: 0, items: [],
     posCovers: [{ id: coverId, label: 'Couvert fictif', items: [{ id: randomUUID(), menuItemId: productId, name: 'Café TTC', price: 11.7, qty: 1, note: '', coverId }] }] } as any],
-    chairs: [], photos: [], zones: [], updatedAt: Date.now() }, companyId)
+    chairs: [], photos: [], zones: [], updatedAt: Date.now() }
+  if (!legacy) canonicalizeFloorPricing({ tables: [], chairs: [] }, floor, [{ id: productId, name: 'Café TTC', price: 11.7, taxRate: 17, isActive: true }])
+  remplacerPlanDeSalle(floor, companyId)
   return { ...body(), coverIds: [coverId], cashReceived: 2 }
 }
 describe('Caisse native : verrou commun et centimes', () => {
@@ -35,6 +39,7 @@ describe('Caisse native : verrou commun et centimes', () => {
     token = jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: '10m' })
   })
   beforeEach(async () => {
+    await prisma.product.update({ where: { id: productId }, data: { price: 11.7, taxRate: 17, isActive: true } })
     const max = await prisma.order.aggregate({ where: { companyId }, _max: { orderNumber: true } })
     orderId = (await prisma.order.create({ data: { companyId, source: 'GUEST', externalTableId: tableId, publicToken: randomUUID(), orderNumber: (max._max.orderNumber || 0) + 1,
       total: 11.7, subtotal: 10, taxAmount: 1.7, items: { create: { productId, productName: 'Café TTC', quantity: 1, unitPrice: 11.7, taxRate: 17 } } } })).id
@@ -96,5 +101,37 @@ describe('Caisse native : verrou commun et centimes', () => {
     await prisma.company.update({ where: { id: companyId }, data: { name: 'Nom changé après vente', address: 'Autre adresse de recette', vatNumber: 'TVA-CHANGEE' } })
     const after = await auth(request(app).get(`/api/pos/sales/${result.body.id}/receipt`)).expect(200)
     expect(after.text).toBe(before.text); expect(after.text).toContain('Émetteur original'); expect(after.text).toContain('17 %')
+  })
+  it('fige réellement un nouveau brouillon et encaisse son tarif malgré une modification de catalogue', async () => {
+    const boot = await auth(request(app).get('/api/pos/bootstrap')).expect(200)
+    const tables = boot.body.tables.map((t: any) => ({ ...t, covers: [{ id: randomUUID(), label: 'Nouveau couvert', items: [{ id: randomUUID(), menuItemId: productId, name: 'Faux prix client', price: 0.01, taxRate: 0, qty: 1, note: '', coverId: 'temp' }] }] }))
+    const saved = await auth(request(app).put('/api/pos/draft')).set('If-Match', String(boot.body.revision)).send({ tables, seats: [] }).expect(200)
+    const item = saved.body.tables[0].posCovers[0].items[0]
+    expect(item.price).toBe(11.7); expect(item.taxRate).toBe(17)
+    await prisma.product.update({ where: { id: productId }, data: { price: 30, taxRate: 3, isActive: false, name: 'Catalogue changé' } })
+    const reloaded = await auth(request(app).get('/api/pos/bootstrap')).expect(200)
+    expect(reloaded.body.tables[0].covers.find((c: any) => !c.id.startsWith('guest:')).items[0]).toMatchObject({ price: 11.7, taxRate: 17, name: 'Café TTC' })
+    const sale = await auth(request(app).post('/api/pos/checkout')).send({ ...body(), coverIds: [tables[0].covers[0].id] }).expect(200)
+    expect(sale.body.total).toBe(11.7); expect(sale.body.tva).toBe(1.7)
+  })
+  it('requiert une revue explicite des lignes anciennes, puis conserve auteur, motif et prix observé', async () => {
+    const input = { ...nativeBody(true), cashReceived: 12 }
+    await auth(request(app).post('/api/pos/checkout')).send(input).expect(409)
+    const boot = await auth(request(app).get('/api/pos/bootstrap')).expect(200)
+    const item = boot.body.tables[0].covers.find((c: any) => !c.id.startsWith('guest:')).items[0]
+    expect(item.pricingStatus).toBe('review')
+    const review = await auth(request(app).post(`/api/pos/pricing/${item.id}/review`)).set('If-Match', String(boot.body.revision)).send({ productId, price: 11.7, taxRate: 17, reason: 'Ancien tarif papier vérifié pour recette' }).expect(200)
+    expect(review.body.posPricing[item.id].review).toMatchObject({ actorId: userId, observedPriceCents: 1170 })
+    expect(review.body.posPricing[item.id].source).toBe('legacy-reviewed')
+    await auth(request(app).post('/api/pos/checkout')).send(input).expect(200)
+  })
+  it('refuse la revue par un salarié et l’import d’un faux registre de prix', async () => {
+    nativeBody(true)
+    const floor = getFloorState(companyId), item = (floor.tables[0] as any).posCovers[0].items[0]
+    await prisma.userCompany.update({ where: { userId_companyId: { userId, companyId } }, data: { role: 'EMPLOYEE' } })
+    try { await auth(request(app).post(`/api/pos/pricing/${item.id}/review`)).set('If-Match', String(floor.updatedAt)).send({ productId, price: 1, taxRate: 0, reason: 'Tentative refusée' }).expect(403) }
+    finally { await prisma.userCompany.update({ where: { userId_companyId: { userId, companyId } }, data: { role: 'OWNER' } }) }
+    await auth(request(app).put('/api/floor-state')).set('If-Match', String(floor.updatedAt)).send({ posPricing: { [item.id]: { priceCents: 1 } } }).expect(400)
+    expect(getFloorState(companyId).posPricing).toBeUndefined()
   })
 })

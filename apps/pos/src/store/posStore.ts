@@ -35,6 +35,9 @@ export interface OrderItem {
   qty: number
   note: string
   coverId: string
+  taxRate?: number
+  pricingStatus?: 'review' | 'confirmed'
+  pricingSource?: string
 }
 
 export interface Cover {
@@ -741,7 +744,7 @@ export const usePOS = create<POSStore>()(
             covers: t.covers.map(c => {
               if (c.id !== coverId) return c
               // Check if same item+note already exists → increment qty
-              const existing = c.items.find(i => i.menuItemId === menuItem.id && i.note === note)
+              const existing = c.items.find(i => i.menuItemId === menuItem.id && i.note === note && i.price === menuItem.price && i.taxRate === menuItem.taxRate && i.pricingStatus !== 'review')
               if (existing) {
                 return {
                   ...c,
@@ -755,6 +758,7 @@ export const usePOS = create<POSStore>()(
                   menuItemId: menuItem.id,
                   name: menuItem.name,
                   price: menuItem.price,
+                  taxRate: menuItem.taxRate,
                   qty: 1,
                   note,
                   coverId,

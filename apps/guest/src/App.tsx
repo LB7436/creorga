@@ -13,6 +13,7 @@ export function buildPortalUrl(tableNumber?: string, companyId?: string) {
   const url = new URL('/c', base)
   if (tableNumber) url.searchParams.set('table', tableNumber)
   if (companyId) url.searchParams.set('companyId', companyId)
+  if (typeof window !== 'undefined') url.hash = window.location.hash
   return url.toString()
 }
 

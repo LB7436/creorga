@@ -1,5 +1,42 @@
 # Recette actuelle
 
+## Référence du 16 octobre 2026
+
+**379 tests unitaires** (253 backend, 80 web, 46 POS), **65 intégrations PostgreSQL** et
+compilation des cinq applications réussis. Les échanges bancaires restent simulés ; aucun
+paiement PayPal sandbox réel ni essai physique d'imprimante n'est inclus.
+
+- `guest-visits.integration.test.ts` : dix cas, ancien QR refusé, révocation, isolation entre
+  groupes et sociétés, prix serveur, référence liée au contenu, visite concurrente, expiration,
+  retour bancaire tardif après fermeture. Le dialogue bancaire est remplacé.
+- `server.test.ts` et `floorBridge.scope.test.ts` POS : dix cas de réponses tardives, changement de
+  compte, cookie d'un autre utilisateur, adhésion retirée, renouvellement concurrent, règlement
+  et clôture terminés après déconnexion. Aucune contamination de la société suivante.
+- `browser-recovery.test.ts` : seize contrôles de copie chiffrée, empreintes, données malformées
+  conservées, types non sérialisables refusés, IndexedDB et caches historiques. Aucun rejeu.
+- `verifier-restauration.test.ts` : dix-huit contrôles hermétiques ; Docker simulé.
+
+Recette Chrome neuf, données fictives, preuves privées :
+
+- `BROWSER-VISITS.json` : dix observations, QR ouvert et fermé par clics, commande à 3,50 € sans
+  inscription CRM, ancien lien refusé, seconde visite avec solde nul, aucune exception JavaScript.
+- `BROWSER-POS-PRICING.json` : six observations, catalogue passé de 3,50 € à 6 € et de 3 % à 17 %,
+  reconnexion, commande conservée à 3,50 € avec sa TVA historique de 0,10 €, espèces reçues 5 €,
+  rendu 1,50 €, vente retrouvée dans le journal.
+- `BROWSER-RECOVERY.json` : quinze observations, téléchargements archive/clé puis relecture,
+  IndexedDB et cache inchangés, mauvais fichier invalidant le succès, mauvaise clé refusée,
+  deux origines séparées, aucune requête API ni exception. **Profils historiques réels non exportés.**
+
+Nouvelle sauvegarde applications arrêtées, déchiffrement AES-GCM et restauration native :
+**59 tables égales, six fichiers et deux originaux PDF intègres**. Médias absents explicitement.
+Durée observée sur cette petite copie : 1 671 ms, sans promesse RTO. La rétention a supprimé un
+ancien dump de la copie de travail ; archives initiales préservées. Preuve `RESTORATION-2.0.json`.
+
+Reproduction depuis le parent : `node local-2.0/run.mjs unit`, `node local-2.0/run.mjs integration`,
+`node local-2.0/browser-visits.mjs`, `node local-2.0/browser-pos-pricing.mjs`,
+`node local-2.0/browser-recovery.mjs`. Les scripts privés exigent le compte fictif `.invalid` et
+créent des données de recette. Les suites partageables sont dans les workspaces du dépôt.
+
 ## Avancement du 8 octobre — vérifications distinctes
 
 Dernier passage global après réunion des lots : **326 tests unitaires** (227 backend, 64 web,

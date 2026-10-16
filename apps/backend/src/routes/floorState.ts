@@ -5,6 +5,8 @@ import { JsonStoreUnavailableError, readJsonStrict, safeWriteJson } from '../lib
 import { dataPath } from '../middleware/audit-log'
 import logger from '../lib/logger'
 import { floorSchema, protectedFloorFieldsChanged } from '../lib/floor-validation'
+import prisma from '../lib/prisma'
+import { canonicalizeFloorPricing, PosPricingError, type LineQuote, type PricingProduct } from '../lib/pos-pricing'
 
 /**
  * Shared floor state — used by both 5174 (/pos/floor) and 5175 (POS standalone).
@@ -28,6 +30,7 @@ export interface FloorItem {
   qty: number
   note?: string
   addedAt: number
+  productId?: string
 }
 
 export interface FloorChair {
@@ -75,6 +78,7 @@ export interface FloorTable {
 }
 
 export interface FloorState {
+  posPricing?: Record<string, LineQuote>
   posEditor?: any
   kitchenTickets?: Record<string, any>
   tables: FloorTable[]
@@ -100,9 +104,24 @@ const DEFAULT_STATE: FloorState = {
 }
 
 const FICHIER_HISTORIQUE = 'floor-state.json'
-interface FloorContext { companyId: string; draft?: FloorState; paymentLock?: symbol }
+interface FloorContext { companyId: string; original?: FloorState; draft?: FloorState; pricingProducts?: PricingProduct[]; serverQuotes?: Record<string, LineQuote>; paymentLock?: symbol }
 const floorContext = new AsyncLocalStorage<FloorContext>()
 const paymentLocks = new Map<string, symbol>()
+
+/** Le catalogue est résolu une seule fois avant la sauvegarde de nouvelles lignes. */
+export async function prepareFloorPricing() {
+  const context = floorContext.getStore()
+  if (!context?.draft || !context.original) throw new Error('Contexte de modification du plan absent')
+  context.pricingProducts ??= await prisma.product.findMany({ where: { companyId: context.companyId }, select: { id: true, name: true, price: true, taxRate: true, isActive: true } })
+  context.serverQuotes = canonicalizeFloorPricing(context.original, context.draft, context.pricingProducts, Date.now(), context.serverQuotes)
+}
+
+/** Appel interne après autorisation et validation de la route de revue. Jamais lu du corps HTTP. */
+export function setReviewedFloorQuote(lineId: string, quote: LineQuote) {
+  const context = floorContext.getStore()
+  if (!context?.serverQuotes || quote.source !== 'legacy-reviewed' || !quote.review) throw new Error('Revue responsable absente')
+  Object.defineProperty(context.serverQuotes, lineId, { value: quote, enumerable: true, configurable: true, writable: true })
+}
 
 /** Empêche de modifier une addition pendant son commit comptable PostgreSQL. */
 export function lockFloorForPayment(): (() => void) | null {
@@ -222,6 +241,7 @@ export function floorCompanyContext(req: Request, res: Response, next: NextFunct
   }
   const context: FloorContext = { companyId }
   if (MUTATING.has(req.method)) {
+    context.original = original
     context.draft = structuredClone(original)
     const originalJson = res.json.bind(res)
     res.json = (body: any) => {
@@ -233,6 +253,12 @@ export function floorCompanyContext(req: Request, res: Response, next: NextFunct
             const previous: any = original.tables.find(t => t.id === table.id)
             if (previous?.posCovers && JSON.stringify(previous.items) !== JSON.stringify(table.items)) (table as any).posCovers = undefined
           }
+        }
+        try { canonicalizeFloorPricing(original, draft, context.pricingProducts, Date.now(), context.serverQuotes) }
+        catch (error) {
+          if (!(error instanceof PosPricingError)) throw error
+          res.status(409)
+          return originalJson({ error: error.message, code: 'POS_PRICING_REVIEW_REQUIRED' })
         }
         if (!floorSchema.safeParse(draft).success) {
           res.status(400)
@@ -322,14 +348,15 @@ function articleValide(body: any): Omit<FloorItem, 'id' | 'addedAt'> | null {
   const name = texteCourt(body?.name, 120)
   const price = nombreBorne(body?.price, 0, 100_000)
   const qty = nombreBorne(body?.qty ?? 1, 1, 99)
-  if (!name || price === null || qty === null) return null
+  const productId = texteCourt(body?.productId, 100)
+  if (!name || price === null || qty === null || !productId) return null
   let note: string | undefined
   if (body?.note !== undefined && body?.note !== null && body?.note !== '') {
     const safeNote = texteCourt(body.note, 500)
     if (!safeNote) return null
     note = safeNote
   }
-  return { name, price, qty: Math.round(qty), note }
+  return { name, price, qty: Math.round(qty), note, productId }
 }
 
 // Full state read (public)
@@ -541,12 +568,13 @@ router.patch('/chairs/:id', (req, res) => {
 })
 
 // Add item on a chair
-router.post('/chairs/:id/items', (req, res) => {
+router.post('/chairs/:id/items', async (req, res, next) => {
   const c = state.chairs.find((x) => x.id === req.params.id)
   if (!c) return res.status(404).json({ error: 'chair not found' })
   const item = articleValide(req.body)
   if (!item) return res.status(400).json({ error: 'Article invalide' })
   c.items.push({ id: uid(), ...item, addedAt: Date.now() })
+  try { await prepareFloorPricing() } catch (e) { if (e instanceof PosPricingError) return res.status(409).json({ error: e.message }); return next(e) }
   state.updatedAt = Date.now()
   res.json(state)
 })
@@ -560,12 +588,15 @@ router.delete('/chairs/:chairId/items/:itemId', (req, res) => {
 })
 
 // Add item directly on a table (no chair)
-router.post('/tables/:id/items', (req, res) => {
+router.post('/tables/:id/items', async (req, res, next) => {
   const t = state.tables.find((x) => x.id === req.params.id)
   if (!t) return res.status(404).json({ error: 'table not found' })
   const item = articleValide(req.body)
   if (!item) return res.status(400).json({ error: 'Article invalide' })
   t.items.push({ id: uid(), ...item, addedAt: Date.now() })
+  // L'ajout back-office remplace la vue plate ; les couverts sont reconstruits.
+  delete (t as any).posCovers
+  try { await prepareFloorPricing() } catch (e) { if (e instanceof PosPricingError) return res.status(409).json({ error: e.message }); return next(e) }
   if (t.status === 'LIBRE') { t.status = 'OCCUPEE'; t.openedAt = Date.now() }
   state.updatedAt = Date.now()
   res.json(state)
@@ -603,7 +634,8 @@ router.post('/transfer/items', (req, res) => {
   if (!src || !dst) return res.status(404).json({ error: 'source or destination not found' })
 
   const toMove = src.filter((i) => itemIds.includes(i.id))
-  for (const i of toMove) dst.push({ ...i, id: uid() })
+  if (src === dst) return res.status(400).json({ error: 'Source et destination identiques.' })
+  for (const i of toMove) dst.push({ ...i })
 
   if (fromType === 'chair') {
     const c = state.chairs.find((x) => x.id === fromId)

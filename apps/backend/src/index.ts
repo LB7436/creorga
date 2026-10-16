@@ -83,6 +83,8 @@ import assistantAdvancedRoutes from './routes/assistant-advanced'
 import ownerRoutes from './routes/owner'
 import gameScoresRoutes from './routes/gameScores'
 import guestRoutes from './routes/guest'
+import guestVisitRoutes from './routes/guestVisits'
+import { isPublicLiveChannel } from './lib/live-channels'
 import { auditLog } from './middleware/audit-log'
 import { assertProductionSecrets, buildCorsOrigin, authLimiter, aiLimiter, publicLimiter, creatorAuthLimiter } from './lib/security'
 import { deviceOrUserAuth } from './middleware/deviceAuth'
@@ -130,9 +132,8 @@ liveNs.on('connection', (socket) => {
     // Ce namespace est public pour le suivi QR. Seuls les canaux publics,
     // bornés et cloisonnés par société peuvent être rejoints. Les boîtes
     // internes (`inbox-*`, etc.) restent accessibles uniquement par API JWT.
-    const publicChannel = /^(?:table-[a-zA-Z0-9_-]{1,100}-[\w .-]{1,40}|games-[a-zA-Z0-9_-]{1,100}|floor-[a-zA-Z0-9_-]{1,100})$/
     channels.slice(0, 10).forEach((channel) => {
-      if (typeof channel === 'string' && publicChannel.test(channel)) socket.join(channel)
+      if (isPublicLiveChannel(channel)) socket.join(channel)
     })
   })
 })
@@ -276,6 +277,7 @@ function portalConfigManagementGuard(req: express.Request, res: express.Response
 app.use('/api/portal-config', publicLimiter, portalConfigManagementGuard, portalConfigRoutes) // portail client public (QR)
 app.use('/api/game-scores', publicLimiter, gameScoresRoutes) // scores jeux guest (public)
 app.use('/api/guest', publicLimiter, guestRoutes) // suivi commande, appel serveur, paiement (public)
+app.use('/api/guest-visits', publicLimiter, guestVisitRoutes)
 app.use('/api/floor-state', deviceOrUserAuth, requireCompany, floorCompanyContext, floorStateRoutes)
 // L'ancien pont caisse → stock et l'ancien OCR s'appuyaient sur un fichier
 // partagé par toutes les entreprises. Ils restent fermés jusqu'à leur migration

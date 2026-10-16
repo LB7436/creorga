@@ -54,6 +54,7 @@ model Company {
   posSales        PosSale[]
   posClosures     PosClosure[]
   paymentAttempts PaymentAttempt[]
+  guestVisits     GuestVisit[]
 }
 
 model CompanySettings {
@@ -204,6 +205,8 @@ model Order {
   externalTableId String?
   publicToken   String?   @unique
   guestStatus   String?
+  guestVisitId  String?
+  guestRequestHash String?
   customerId    String?
   orderNumber   Int
   status        String    @default("OPEN")
@@ -227,6 +230,7 @@ model Order {
   paymentAttempts PaymentAttempt[]
   paymentSettlements PaymentSettlement[]
   paymentAllocations PaymentAllocation[]
+  guestVisit GuestVisit? @relation(fields: [companyId, guestVisitId], references: [companyId, id])
 
   // Deux commandes ne peuvent pas porter le même numéro dans une société :
   // la numérotation applicative (lecture du max + 1) ne suffit pas sous
@@ -238,6 +242,36 @@ model Order {
   // chaque calcul balaie la table entière.
   @@index([companyId, paidAt])
   @@index([companyId, status])
+}
+
+// Une visite est une autorisation d'accès, jamais une preuve d'occupation/paiement.
+model GuestVisit {
+  id String @id @default(uuid())
+  companyId String
+  tableId String
+  openedAt DateTime @default(now())
+  expiresAt DateTime
+  openedBy String
+  closedAt DateTime?
+  closedBy String?
+  closeReason String?
+  company Company @relation(fields: [companyId], references: [id])
+  accesses GuestVisitAccess[]
+  orders Order[]
+  paymentAttempts PaymentAttempt[]
+  @@unique([companyId, id])
+  @@index([companyId, tableId])
+}
+
+model GuestVisitAccess {
+  id String @id @default(uuid())
+  companyId String
+  visitId String
+  tokenHash String @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  visit GuestVisit @relation(fields: [companyId, visitId], references: [companyId, id])
+  @@index([companyId, visitId])
 }
 
 model OrderItem {
@@ -262,6 +296,7 @@ model PaymentAttempt {
   companyId        String
   orderId          String
   tableId          String?
+  guestVisitId     String?
   scope            String   @default("ORDER")
   userId           String?
   requestId        String
@@ -281,6 +316,7 @@ model PaymentAttempt {
   order   Order   @relation(fields: [companyId, orderId], references: [companyId, id])
   settlement PaymentSettlement?
   allocations PaymentAllocation[]
+  guestVisit GuestVisit? @relation(fields: [companyId, guestVisitId], references: [companyId, id])
   @@unique([companyId, id])
   @@unique([companyId, requestId])
   @@unique([provider, merchantId, externalId])

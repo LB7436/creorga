@@ -4,8 +4,8 @@ Pas de date certaine : le calendrier exige matériel, prestataires, volumétrie 
 
 | Lot | Bénéfice | Critères restants |
 |---|---|---|
-| P0 reprise | Données récupérables | Reprise v2 chiffrée puis restaurée vérifiée ; export navigateur, ancien restaurateur et rapprochement métier complet à finir |
-| P0 intégrité | Moins de doubles écritures | Verrous, affectations, contrôle serveur, cartes cadeaux et fichiers testés ; prix POS historiques, QR révocables et stores persistants restants |
+| P0 reprise | Données récupérables | Reprise v2 et restaurateur durcis ; export navigateur testé, profils réels et rapprochement métier complet restants |
+| P0 intégrité | Moins de doubles écritures | Prix POS figés, visites révocables et sessions web/POS isolées ; unification salle/commandes et qualification globale des stores restantes |
 | P1 caisse | Commande jusqu'à justificatif et clôture | Paiements partiels, facture depuis ticket, avoirs, impression et établissement pilote |
 | P1 PayPal | Capture rapprochée | Contrat simulé testé ; sandbox réel et compte marchand à qualifier |
 | P2 exploitation | Stock, RH, QR, HACCP et gestion | Migrations multi-locataires et parcours des boutons |

@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma'
 import { requireRole } from '../middleware/requireCompany'
-import { getFloorState, lockFloorForPayment } from './floorState'
+import { getFloorState, lockFloorForPayment, prepareFloorPricing, setReviewedFloorQuote } from './floorState'
 import { PosError, cents, calculateSale, buildClosure, receiptHtml, checkoutSchema, posTableSchema, seatSchema, type PosTable } from '../lib/pos-ledger'
 import { sendEmail } from '../lib/email'
 import logger from '../lib/logger'
@@ -11,6 +11,7 @@ import { importedProductId } from '../lib/catalog-import'
 import { createHash } from 'node:crypto'
 import { moneyMinor, totalsFromTtc, allocateMinor } from '../lib/money'
 import { activePaymentExists, lockOrderPayment } from '../lib/payments/ledger'
+import { floorLines, pricedItem, quoteFor, PosPricingError } from '../lib/pos-pricing'
 
 const router = Router()
 const stateStatus: Record<string, string> = { available: 'LIBRE', occupied: 'OCCUPEE', reserved: 'RESERVEE', dirty: 'NETTOYAGE' }
@@ -29,6 +30,7 @@ const wrap = (fn: (req: any, res: any) => Promise<any>) => async (req: any, res:
   try { await fn(req, res) } catch (e: any) {
     if (e instanceof z.ZodError) return res.status(400).json({ error: 'Saisie invalide', details: e.issues })
     if (e instanceof PosError) return res.status(e.status).json({ error: e.message })
+    if (e instanceof PosPricingError) return res.status(409).json({ error: e.message, code: 'POS_PRICING_REVIEW_REQUIRED' })
     if (e?.code === 'P2002') return res.status(409).json({ error: 'Ce règlement existe déjà. Rechargez le journal.' })
     logger.error('[pos] opération refusée', e)
     return res.status(503).json({ error: 'Confirmation serveur impossible. Conservez cet écran et réessayez : aucun règlement ne sera créé deux fois.' })
@@ -45,7 +47,7 @@ async function tablesFor(companyId: string): Promise<PosTable[]> {
   const paidIds = new Set(paid.map(p => p.coverId))
   const toItems = (items: any[], coverId: string) => items.map(i => ({
     id: i.id, menuItemId: i.productId || i.menuItemId || (products.filter(p => p.name === i.name).length === 1 ? products.find(p => p.name === i.name)!.id : 'produit-a-verifier'),
-    name: i.name, price: i.price, qty: i.qty, note: i.note || '', coverId,
+    ...pricedItem(getFloorState(companyId), i), note: i.note || '', coverId,
   }))
   const configured = getFloorState(companyId).tables
   const standalone = getFloorState(companyId).chairs.filter(c => c.tableId === null).map(c => ({ id: `standalone-seat:${c.id}`, name: c.label, section: 'Chaises indépendantes', seats: 1, x: c.x || 0, y: c.y || 0, shape: 'round', status: c.status || 'LIBRE', items: [] }))
@@ -59,13 +61,11 @@ async function tablesFor(companyId: string): Promise<PosTable[]> {
         return { id, label: c.customerName || c.label, items: toItems(c.items, id) }
       }),
     ]
-    const unpaid = covers.filter((c: any) => !paidIds.has(c.id) && !c.id.startsWith('guest:')).map((c: any) => ({ ...c, paidAt: undefined, paidMethod: undefined, items: c.items.map((i: any) => {
-      const p = products.find(p => p.id === i.menuItemId)
-      return p ? { ...i, name: p.name, price: p.price } : i
-    }) }))
+    const unpaid = covers.filter((c: any) => !paidIds.has(c.id) && !c.id.startsWith('guest:')).map((c: any) => ({ ...c, paidAt: undefined, paidMethod: undefined,
+      items: c.items.map((i: any) => pricedItem(getFloorState(companyId), i)) }))
     const fromGuest = guests.filter(g => g.externalTableId === t.id).map(g => ({
       id: `guest:${g.id}`, label: `QR #${g.orderNumber}`, items: g.items.map(i => ({ id: i.id, menuItemId: i.productId,
-        name: i.productName || i.product.name, price: i.unitPrice, qty: i.quantity, note: i.notes || '', coverId: `guest:${g.id}` })),
+        name: i.productName || i.product.name, price: i.unitPrice, taxRate: i.taxRate, pricingStatus: 'confirmed' as const, pricingSource: 'guest-order', qty: i.quantity, note: i.notes || '', coverId: `guest:${g.id}` })),
     }))
     return { ...t, status: unpaid.some((c: any) => c.items.length) || fromGuest.length ? 'occupied' : (posStatus[t.status] || 'available'),
       covers: [...unpaid, ...fromGuest], mergedWith: t.mergedWith || [] }
@@ -86,7 +86,7 @@ router.get('/bootstrap', wrap(async (req, res) => {
   const editor = editorFor(companyId)
   res.json({ companyId, revision: getFloorState(companyId).updatedAt, tables: tables.filter(t => !t.id.startsWith('standalone-seat:')).map(t => ({ ...t, section: editor.rooms.find((r: any) => r.label === t.section)?.id || t.section })),
     seats: getFloorState(companyId).chairs.map((c: any) => ({ ...c, position: c.position, createdAt: c.createdAt || c.openedAt || 0, status: c.status === 'RESERVEE' ? 'reserved' : c.items.length ? 'occupied' : 'free',
-      items: c.items.map((i: any) => { const exact = products.find(p => p.id === (i.productId || i.menuItemId)); const byName = products.filter(p => p.name === i.name); const p = exact || (!i.productId && !i.menuItemId && byName.length === 1 ? byName[0] : undefined); return { ...i, menuItemId: p?.id || i.productId || i.menuItemId || 'produit-a-verifier', name: p?.name || i.name, price: p?.price ?? i.price, note: i.note || '', coverId: `seat:${c.id}:${c.createdAt || c.openedAt || 0}` } }) })),
+      items: c.items.map((i: any) => ({ ...pricedItem(getFloorState(companyId), i), menuItemId: i.productId || i.menuItemId || 'produit-a-verifier', note: i.note || '', coverId: `seat:${c.id}:${c.createdAt || c.openedAt || 0}` })) })),
     reservations,
     editor,
     menu: products.map(p => ({ id: p.id, name: p.name, price: p.price, category: p.category.name, emoji: p.category.icon || '🍽️', active: true, stock: p.stock ?? undefined, taxRate: p.taxRate })),
@@ -139,11 +139,30 @@ router.put('/draft', wrap(async (req, res) => {
   if (floor.posEditor?.rooms?.length) floor.zones = floor.posEditor.rooms.map((r: any) => ({ id: r.id, name: r.label, color: r.color }))
   if (seats) floor.chairs = seats.map(s => ({ ...s, label: `Place ${(s.position ?? 0) + 1}`, status: s.status === 'reserved' ? 'RESERVEE' : s.items.length ? 'OCCUPEE' : 'LIBRE',
     items: s.items.map(i => ({ ...i, productId: i.menuItemId, addedAt: Date.now() })) }))
+  await prepareFloorPricing()
   const activeTickets = syncKitchenTickets(floor, await tablesFor(req.companyId), req.user.userId)
   const paidTickets = new Set((await prisma.posCoverPayment.findMany({ where: { companyId: req.companyId }, select: { coverId: true } })).map(p => p.coverId))
   for (const ticket of Object.values(floor.kitchenTickets || {}) as any[]) if (!activeTickets.has(ticket.id) && !paidTickets.has(ticket.id) && !['served', 'cancelled'].includes(ticket.status)) {
     ticket.status = 'cancelled'; ticket.updatedAt = Date.now(); ticket.actorId = req.user.userId
   }
+  res.json(floor)
+}))
+
+router.post('/pricing/:lineId/review', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+  const input = z.object({ productId: z.string().min(1), price: z.number().finite().min(0).max(1e6), taxRate: z.number().finite().min(0).max(100), reason: z.string().trim().min(5).max(500) }).parse(req.body)
+  const floor = getFloorState()
+  if (String(req.get('If-Match')) !== String(floor.updatedAt)) throw new PosError('Le plan a changé. Actualisez avant de vérifier la ligne.', 409)
+  const item = floorLines(floor).find(i => i.id === req.params.lineId)
+  if (!item) throw new PosError('Ligne absente ou déjà réglée.', 404)
+  await prepareFloorPricing()
+  const quote = quoteFor(floor, item)!
+  if (quote.status !== 'review') throw new PosError('Cette ligne possède déjà un tarif confirmé ; il ne peut pas être réécrit.', 409)
+  const product = await prisma.product.findFirst({ where: { id: input.productId, companyId: req.companyId } })
+  if (!product) throw new PosError('Produit absent de cette société.', 404)
+  setReviewedFloorQuote(item.id, { ...quote, productId: product.id, status: 'confirmed', source: 'legacy-reviewed', priceCents: moneyMinor(input.price), taxRate: input.taxRate,
+    review: { actorId: req.user.userId, reason: input.reason, at: Date.now(), observedPriceCents: quote.priceCents } })
+  item.menuItemId = product.id; item.productId = product.id
+  await prepareFloorPricing()
   res.json(floor)
 }))
 
@@ -205,8 +224,10 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
     const lines = covers.flatMap(c => c.items.map(i => {
       const p = products.find(p => p.id === i.menuItemId)
       const guest = c.id.startsWith('guest:') ? guests.find(g => g.id === c.id.slice(6))?.items.find(l => l.id === i.id) : undefined
-      if (!p || (!guest && !p.isActive)) throw new PosError(`Article indisponible : ${i.name}.`)
-      return { name: guest?.productName || p.name, productId: p.id, price: guest?.unitPrice ?? p.price, taxRate: guest?.taxRate ?? p.taxRate,
+      const quote = quoteFor(getFloorState(), i)
+      if (!guest && (!quote || quote.status !== 'confirmed' || quote.taxRate === undefined)) throw new PosError(`Ancienne ligne à vérifier par un responsable avant encaissement : ${i.name}.`, 409)
+      if (!p || (!guest && quote?.productId !== p.id)) throw new PosError(`Article absent de cet établissement : ${i.name}.`)
+      return { name: guest?.productName || quote!.name, productId: p.id, price: guest?.unitPrice ?? quote!.priceCents / 100, taxRate: guest?.taxRate ?? quote!.taxRate!,
         qty: guest?.quantity ?? i.qty, notes: i.note, guest: !!guest }
     }))
     const brut = cents(lines.reduce((s, l) => s + l.price * l.qty, 0))

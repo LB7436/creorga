@@ -6,6 +6,7 @@ import { checkoutServer, flushFloor } from '../lib/floorBridge'
 import { api, sessionCompany } from '../lib/server'
 import { requestTablePayment } from '../lib/table-payment'
 import { moneyMinor } from '../../../backend/src/lib/money'
+import PricingReview from './PricingReview'
 
 interface Props {
   tableId: string
@@ -590,7 +591,8 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
     onDone()
   }
 
-  const canPay = splitMode !== 'by-cover' || selectedCoverIds.size > 0
+  const pricingReviews = covers.filter(c => !c.id.startsWith('guest:')).flatMap(c => c.items).filter(i => i.pricingStatus === 'review')
+  const canPay = !pricingReviews.length && (splitMode !== 'by-cover' || selectedCoverIds.size > 0)
   const mixedFullyPaid = mixedMode && moneyMinor(paidSoFar) === moneyMinor(totalToPay)
 
   async function startOnlinePayment() {
@@ -704,6 +706,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
         borderBottom: etroit ? '1px solid rgba(255,255,255,0.06)' : 'none',
         background: '#0a0a14', overflow: etroit ? 'visible' : 'hidden',
       }}>
+        {pricingReviews.length > 0 && <div style={{ maxHeight: '55vh', overflowY: 'auto' }}><PricingReview lines={pricingReviews} /></div>}
         <div style={{ padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
           <div style={labelStyle}>Mode de partage</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const }}>
@@ -1197,7 +1200,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
               <div style={labelStyle}>Montant reçu</div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
                 <input
-                  type="number" placeholder="0.00" value={cashInput}
+                  type="number" aria-label="Montant reçu en espèces" placeholder="0.00" value={cashInput}
                   onChange={e => setCashInput(e.target.value)}
                   style={{
                     flex: 1, padding: '12px 16px', borderRadius: 12,

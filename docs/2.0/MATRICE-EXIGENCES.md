@@ -7,14 +7,14 @@
 | T01 | P0 | installation neuve complète | Partiel : installation locale ; recette UI en cours |
 | T02 | P0 | restauration sur copie avec pièces jointes | Vérifié localement : 57 tables, 6 fichiers, PDF émis intègre ; médias absents déclarés |
 | T03 | P0 | migration de la copie ancienne | Migrations additives appliquées à une copie |
-| T04 | P0 | export d’anciennes ventes navigateur sans perte | À implémenter ou à recetter |
-| T05 | P0 | refus d’accès intersociétés | Partiel : paiements et commandes testés sur API |
+| T04 | P0 | export d’anciennes ventes navigateur sans perte | Outil chiffré testé sur fixtures localStorage/IndexedDB/caches ; export des profils réels restant |
+| T05 | P0 | refus d’accès intersociétés | Paiements, commandes, visites et documents testés ; réponses tardives web/POS isolées ; périmètre global partiel |
 | T06 | P0 | refus intersites selon rôle | À implémenter ou à recetter |
 | T07 | P0 | panne de base sans élévation de privilège | Garde-fous testés avec panne simulée : middlewares, login, refresh, me ; aucun rôle inventé |
 | T08 | P0 | révocation d’une caisse | À implémenter ou à recetter |
 | T09 | P0 | restauration chiffrée de sauvegarde externe | Partiel : copie AES-GCM locale restaurée ; transfert/stockage externe non testé |
 | T10 | P0 | rapprochement avant/après des ventes, TVA, soldes et documents. | Tables et octets comparés égaux sur copie ; anciennes ventes navigateur non rapprochées |
-| T11 | P1 | vente café comptoir | À implémenter ou à recetter |
+| T11 | P1 | vente café comptoir | Caisse fictive testée par clics jusqu'aux espèces, rendu et journal ; matériel restant |
 | T12 | P1 | table avec plusieurs tournées | À implémenter ou à recetter |
 | T13 | P1 | transfert de table | À implémenter ou à recetter |
 | T14 | P1 | fusion puis partage | À implémenter ou à recetter |
@@ -30,7 +30,7 @@
 | T24 | P1 | variantes de taille et suppléments | À implémenter ou à recetter |
 | T25 | P1 | produit indisponible | À implémenter ou à recetter |
 | T26 | P1 | clôture avec écart déclaré. | À implémenter ou à recetter |
-| T27 | P0 | prix catalogue TTC | API et calcul TTC testés |
+| T27 | P0 | prix catalogue TTC | Gel serveur testé, catalogue modifié puis reconnexion et encaissement au tarif historique par navigateur |
 | T28 | P1 | facture à prix HT | Testée : formulaire, calcul serveur, émission et PDF téléchargé |
 | T29 | P0 | plusieurs taux | Calcul, ventilation PDF et parcours navigateur testés ; régime fiscal à valider |
 | T30 | P1 | remise répartie | Calcul exact testé, dont ventilation fiscale du rapport ; parcours complet à recetter |
@@ -99,7 +99,7 @@
 | T93 | P2 | recette et conversions de stock | À implémenter ou à recetter |
 | T94 | P2 | inventaire et pertes | À implémenter ou à recetter |
 | T95 | P2 | réservation concurrente | À implémenter ou à recetter |
-| T96 | P2 | QR d’ancienne session révoqué | À implémenter ou à recetter |
+| T96 | P0 | QR d’ancienne session révoqué | Visites révocables et refus ancien lien testés API/navigateur ; créances conservées au personnel |
 | T97 | P2 | congé visible selon rôle | À implémenter ou à recetter |
 | T98 | P2 | donnée HACCP manquante non inventée | À implémenter ou à recetter |
 | T99 | P2 | langues et responsive | À implémenter ou à recetter |

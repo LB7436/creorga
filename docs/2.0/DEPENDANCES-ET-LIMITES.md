@@ -1,5 +1,8 @@
 # Dépendances — contrôle du 8 octobre 2026
 
+Recontrôle le 16 octobre : `npm audit --omit=dev --json` retourne encore **0 alerte**.
+Le relevé complet de développement ci-dessous reste daté du 8 octobre.
+
 Installation locale sous Node 22.19.0. npm 10.9.3 a échoué dans son résolveur (`edgesOut`) ;
 l'installation a abouti avec `npx --yes npm@11.21.0 install --ignore-scripts`, sans remplacement
 global de npm. Client Prisma généré séparément. Ne pas présenter l'échec intermédiaire comme validé.

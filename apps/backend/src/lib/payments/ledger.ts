@@ -4,6 +4,7 @@ import prisma from '../prisma'
 import { charge, getGateway, SUPPORTED_PROVIDERS, type PaymentProvider } from './gateway'
 import { moneyMinor } from '../money'
 import { debitOrderInventory } from '../order-inventory'
+import { lockGuestTable, requireGuestAccess } from '../guest-visits'
 
 export class PaymentError extends Error {
   constructor(public status: number, message: string) { super(message) }
@@ -97,17 +98,19 @@ async function dispatchReservation(reservation: { attempt: any; created: boolean
   }
 }
 
-export async function createTablePayment(companyId: string, tableId: string, raw: unknown) {
+export async function createTablePayment(companyId: string, tableId: string, raw: unknown, access: { staffUserId?: string; staffDevice?: boolean; guestToken?: string }) {
   const input = z.object({ requestId: z.string().uuid(), provider: z.enum(['paypal', 'stripe']).default('stripe') }).parse(raw)
-  const requestHash = createHash('sha256').update(JSON.stringify({ ...input, tableId, scope: 'TABLE' })).digest('hex')
   const reservation = await prisma.$transaction(async tx => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext(${`table-payment:${tableId}`}))::text`
+    await lockGuestTable(tx, companyId, tableId)
+    const staff = !!access.staffUserId || access.staffDevice === true
+    const visit = staff ? null : await requireGuestAccess(companyId, access.guestToken, tableId, tx)
+    const requestHash = createHash('sha256').update(JSON.stringify({ ...input, tableId, scope: 'TABLE', guestVisitId: visit?.id || null })).digest('hex')
     const existing = await tx.paymentAttempt.findUnique({ where: { companyId_requestId: { companyId, requestId: input.requestId } } })
     if (existing) {
-      if (existing.scope !== 'TABLE' || existing.tableId !== tableId || existing.userId || existing.requestHash !== requestHash) throw new PaymentError(409, 'Référence réutilisée pour une autre addition.')
+      if (existing.scope !== 'TABLE' || existing.tableId !== tableId || existing.userId !== (access.staffUserId || null) || existing.guestVisitId !== (visit?.id || null) || existing.requestHash !== requestHash) throw new PaymentError(409, 'Référence réutilisée pour une autre addition.')
       return { attempt: existing, created: false }
     }
-    const orders = await tx.order.findMany({ where: { companyId, source: 'GUEST', externalTableId: tableId, paidAt: null, status: { notIn: ['PAID', 'CANCELLED'] }, total: { gt: 0 } }, orderBy: { id: 'asc' }, include: { company: true } })
+    const orders = await tx.order.findMany({ where: { companyId, source: 'GUEST', externalTableId: tableId, ...(visit ? { guestVisitId: visit.id } : {}), paidAt: null, status: { notIn: ['PAID', 'CANCELLED'] }, total: { gt: 0 } }, orderBy: { id: 'asc' }, include: { company: true } })
     if (!orders.length) throw new PaymentError(409, 'Aucune commande serveur à régler sur cette table.')
     for (const order of orders) await lockOrderPayment(tx, companyId, order.id)
     const refreshed = await tx.order.findMany({ where: { companyId, id: { in: orders.map(o => o.id) } } })
@@ -117,7 +120,7 @@ export async function createTablePayment(companyId: string, tableId: string, raw
     const amounts = refreshed.map(o => ({ companyId, orderId: o.id, amountCents: amountInCents(o.total) }))
     const amountCents = amounts.reduce((sum, a) => sum + a.amountCents, 0)
     if (amountCents > 1_000_000_000) throw new PaymentError(400, 'Addition hors limites.')
-    const attempt = await tx.paymentAttempt.create({ data: { companyId, orderId: orders[0].id, tableId, scope: 'TABLE', userId: null,
+    const attempt = await tx.paymentAttempt.create({ data: { companyId, orderId: orders[0].id, tableId, scope: 'TABLE', userId: access.staffUserId || null, guestVisitId: visit?.id || null,
       requestId: input.requestId, requestHash, provider: input.provider, merchantId: merchantFor(input.provider, companyId), currency, amountCents,
       allocations: { create: amounts.map(({ orderId, amountCents }) => ({ orderId, amountCents })) } } })
     return { attempt, created: true }

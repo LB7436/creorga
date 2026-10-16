@@ -1,113 +1,69 @@
 import { useEffect, useState } from 'react'
 import { Bell, Receipt, CreditCard } from 'lucide-react'
 import { useGuestLang } from './i18n'
-
+import { bankRedirectAllowed, getGuestAccess, guestHeaders, guestScopeKey } from '@/lib/guestAccess'
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
-
-/**
- * v5.0.2/5.0.3 — Appel serveur, demande d'addition et paiement à table.
- */
-export default function GuestCallButtons({ tableId, companyId, billTotal }: { tableId: string; companyId: string; billTotal?: number }) {
+interface Bill { total: number; orderIds: string[]; paymentProviders: string[] }
+export default function GuestCallButtons({ tableId, companyId }: { tableId: string; companyId: string; billTotal?: number }) {
   const { t } = useGuestLang()
-  const [waiterSent, setWaiterSent] = useState(false)
-  const [billSent, setBillSent] = useState(false)
-  const [paying, setPaying] = useState(false)
-  const [payError, setPayError] = useState<string | null>(null)
-  const [callError, setCallError] = useState<string | null>(null)
-  const [providers, setProviders] = useState<string[]>([])
-  const [provider, setProvider] = useState('stripe')
+  const [sent, setSent] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('')
+  const [bill, setBill] = useState<Bill | null>(null), [provider, setProvider] = useState('')
+  const access = getGuestAccess(companyId, tableId)
+  async function readBill(signal?: AbortSignal): Promise<Bill> {
+    const response = await fetch(`${BACKEND}/api/guest/bill/${encodeURIComponent(tableId)}?companyId=${encodeURIComponent(companyId)}`, { headers: guestHeaders(companyId, tableId), signal })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'Addition indisponible.')
+    return data
+  }
   useEffect(() => {
+    if (!access) return
+    let alive = true
     const controller = new AbortController()
-    fetch(`${BACKEND}/api/guest/bill/${encodeURIComponent(tableId)}?companyId=${encodeURIComponent(companyId)}`, { signal: controller.signal })
-      .then(async r => r.ok ? await r.json() as { paymentProviders?: unknown } : { paymentProviders: [] })
-      .then(data => {
-        const available = Array.isArray(data.paymentProviders) ? data.paymentProviders.filter((p): p is string => typeof p === 'string') : []
-        setProviders(available)
-        if (available.length) setProvider(available[0])
-      }).catch(() => {})
-    return () => controller.abort()
-  }, [tableId, companyId])
-
-  const call = async (type: 'waiter' | 'bill') => {
+    readBill(controller.signal).then(data => { if (alive) { setBill(data); setProvider(data.paymentProviders?.[0] || '') } })
+      .catch(e => { if (alive) setError(e.message) })
+    return () => { alive = false; controller.abort() }
+  }, [companyId, tableId, access?.visitId])
+  async function call(type: 'waiter' | 'bill') {
+    if (busy) return
+    setBusy(true); setError('')
     try {
-      setCallError(null)
-      const r = await fetch(`${BACKEND}/api/guest/call-waiter`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, tableId, type }),
-      })
-      const data = await r.json().catch(() => ({}))
-      if (!r.ok) { setCallError(data?.error || 'Appel non envoyé.'); return }
-      if (type === 'waiter') {
-        setWaiterSent(true)
-        window.setTimeout(() => setWaiterSent(false), 30_000)
-      } else {
-        setBillSent(true)
-        window.setTimeout(() => setBillSent(false), 30_000)
-      }
-    } catch { setCallError('Appel non envoyé : serveur injoignable.') }
+      const response = await fetch(`${BACKEND}/api/guest/call-waiter`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...guestHeaders(companyId, tableId) }, body: JSON.stringify({ companyId, tableId, type }) })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Appel non envoyé.')
+      setSent(type)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Appel non envoyé.') }
+    finally { setBusy(false) }
   }
-
-  const pay = async () => {
-    if (!billTotal || paying) return
-    setPaying(true)
-    setPayError(null)
+  async function pay() {
+    if (busy || !provider) return
+    setBusy(true); setError('')
     try {
-      const key = `creorga-payment:${companyId}:${tableId}:${provider}`
-      // Conserver la même référence après timeout, rechargement ou double clic.
-      let requestId = localStorage.getItem(key)
-      if (!requestId) { requestId = crypto.randomUUID(); localStorage.setItem(key, requestId) }
-      // Le montant est calculé par le serveur depuis les commandes de la
-      // table : on n'envoie plus de total depuis le navigateur.
-      const r = await fetch(`${BACKEND}/api/guest/pay`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, tableId, provider, requestId }),
-      })
-      const data = await r.json().catch(() => ({}))
-      if (r.status === 501) { setPayError(t('pay_bill_unavailable')); return }
-      if (!r.ok) { setPayError(data?.error || t('pay_bill_unavailable')); return }
-      if (data.url) window.location.href = data.url
-      else setPayError(data.error || 'Référence conservée : paiement en attente ou résultat incertain. Demandez une vérification avant de réessayer.')
-    } catch {
-      setPayError(t('pay_bill_unavailable'))
-    } finally {
-      setPaying(false)
-    }
+      const current = await readBill()
+      setBill(current)
+      if (!current.total || !current.orderIds.length || !current.paymentProviders.includes(provider)) throw new Error('Addition modifiée ou moyen indisponible. Vérifiez avec le personnel.')
+      const key = `creorga-payment-visit:${guestScopeKey(companyId, tableId)}:${provider}:${[...current.orderIds].sort().join(',')}`
+      let requestId = sessionStorage.getItem(key)
+      if (!requestId) { requestId = crypto.randomUUID(); sessionStorage.setItem(key, requestId) }
+      const response = await fetch(`${BACKEND}/api/guest/pay`, { method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...guestHeaders(companyId, tableId) },
+        body: JSON.stringify({ companyId, tableId, provider, requestId }) })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Paiement non confirmé.')
+      if (!bankRedirectAllowed(data.url)) throw new Error('Référence conservée : paiement en attente ou lien indisponible. Demandez une vérification avant un autre règlement.')
+      window.location.assign(data.url)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Paiement non confirmé.') }
+    finally { setBusy(false) }
   }
-
-  const btnStyle: React.CSSProperties = {
-    flex: 1, minHeight: 44, padding: '12px 10px', borderRadius: 12, border: '1px solid rgba(168,85,247,0.25)',
-    background: 'rgba(255,255,255,0.03)', color: '#f8fafc', fontWeight: 700, fontSize: 12,
-    cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button onClick={() => call('waiter')} disabled={waiterSent} style={btnStyle}>
-          <Bell size={18} color="#f59e0b" />
-          {waiterSent ? t('call_waiter_sent') : t('call_waiter')}
-        </button>
-        <button onClick={() => call('bill')} disabled={billSent} style={btnStyle}>
-          <Receipt size={18} color="#22c55e" />
-          {billSent ? t('call_bill_sent') : t('call_bill')}
-        </button>
-      </div>
-      {providers.length > 1 && <label style={{ fontSize: 13 }}>Moyen de paiement <select value={provider} onChange={e => setProvider(e.target.value)} disabled={paying}>
-        {providers.map(p => <option key={p} value={p}>{p === 'paypal' ? 'PayPal' : 'Paiement bancaire'}</option>)}
-      </select></label>}
-      {typeof billTotal === 'number' && billTotal > 0 && (
-        <button onClick={pay} disabled={paying || !providers.length} style={{
-          ...btnStyle, flexDirection: 'row', justifyContent: 'center',
-          background: 'linear-gradient(135deg,#a855f7,#06b6d4)', border: 'none',
-        }}>
-          <CreditCard size={16} />
-          {!providers.length ? 'Paiement en ligne non configuré' : paying ? t('pay_bill_processing') : t('pay_bill')}
-        </button>
-      )}
-      {payError && <div style={{ fontSize: 11, color: '#f87171', textAlign: 'center' }}>{payError}</div>}
-      {callError && <div role="alert" style={{ fontSize: 11, color: '#f87171', textAlign: 'center' }}>{callError}</div>}
-    </div>
-  )
+  if (!access) return <p>Pour commander ou régler, demandez au personnel le QR de votre visite.</p>
+  const style: React.CSSProperties = { minHeight: 44, padding: 12, borderRadius: 10, border: '1px solid #64748b', background: '#1e293b', color: '#fff', cursor: 'pointer' }
+  return <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
+    <button style={style} disabled={busy} onClick={() => call('waiter')}><Bell size={16} /> {sent === 'waiter' ? t('call_waiter_sent') : t('call_waiter')}</button>
+    <button style={style} disabled={busy} onClick={() => call('bill')}><Receipt size={16} /> {sent === 'bill' ? t('call_bill_sent') : t('call_bill')}</button>
+    {bill && <p>Addition de cette visite : {bill.total.toLocaleString('fr-LU', { style: 'currency', currency: 'EUR' })}</p>}
+    {!!bill?.paymentProviders.length && <label>Moyen de paiement <select value={provider} onChange={e => setProvider(e.target.value)} disabled={busy}>
+      {bill.paymentProviders.map(p => <option key={p} value={p}>{p === 'paypal' ? 'PayPal' : 'Paiement bancaire'}</option>)}
+    </select></label>}
+    {!!bill?.total && <button style={style} disabled={busy || !provider} onClick={pay}><CreditCard size={16} /> {provider ? busy ? t('pay_bill_processing') : t('pay_bill') : 'Paiement en ligne non configuré'}</button>}
+    {error && <p role="alert" style={{ color: '#fca5a5' }}>{error}</p>}
+  </div>
 }

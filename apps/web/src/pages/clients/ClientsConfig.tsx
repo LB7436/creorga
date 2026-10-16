@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { useAuthStore } from '@/stores/authStore'
 import LogoUploader from '@/components/LogoUploader'
 import QRCodeCanvas from '@/components/QRCodeCanvas'
+import VisitQrPanel from '@/components/VisitQrPanel'
 import PhotoWall from '@/components/PhotoWall'
 import { useBrand } from '@/stores/brandStore'
 import { usePortalConfig } from '@/hooks/usePortalConfig'
@@ -706,6 +707,7 @@ function QRSection({
   const url = portalUrl.toString()
   return (
     <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      <div style={{ width: '100%' }}><VisitQrPanel /></div>
       <QRCodeCanvas value={url} size={200} label={`table-${tableNumber || '1'}`} />
       <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
@@ -736,7 +738,7 @@ function QRSection({
           <strong>URL :</strong> {url}
         </div>
         <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
-          Le QR code redirige les clients vers le portail de cet établissement avec la table {tableNumber || '1'} pré-sélectionnée.
+          Ce QR permanent ouvre le menu. Les commandes et additions nécessitent le QR de visite créé ci-dessus.
         </p>
       </div>
     </div>
