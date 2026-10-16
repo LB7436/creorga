@@ -7,7 +7,7 @@ vi.mock('../store/posStore', () => ({ usePOS: {
   subscribe: () => () => {},
 } }))
 vi.mock('../store/seatStore', () => ({ useSeats: { getState: () => ({ seats: state.seats }), setState: (value: { seats: unknown[] }) => { state.seats = value.seats }, subscribe: () => () => {} } }))
-import { checkoutServer, closeServerDay, startFloorBridge, stopFloorBridge, loadServerState } from './floorBridge'
+import { checkoutServer, payPartServer, closeServerDay, startFloorBridge, stopFloorBridge, loadServerState } from './floorBridge'
 const fixture = (companyId: string) => ({ companyId, revision: 1, currentStaff: { id: 'owner-' + companyId }, tables: [{ id: 'table-a', covers: [{ id: 'cover-a', items: [{ id: 'line-a', price: 2, qty: 1 }] }] }], editor: {}, ventes: [], clotures: [], seats: [] })
 const values = new Map<string, string>()
 const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value) }, removeItem: (key: string) => { values.delete(key) } }
@@ -21,6 +21,30 @@ beforeEach(async () => {
 })
 afterEach(() => { stopFloorBridge(); vi.unstubAllGlobals() })
 describe('POS asynchronous operation scope', () => {
+  it('retrouve un acompte après perte de réponse, sans inventer une autre référence', async () => {
+    let payload: any
+    state.api.mockImplementation((path: string, options: any) => {
+      if (path === '/pos/payments') { payload = JSON.parse(options.body); return Promise.reject(new Error('réponse réseau perdue')) }
+      if (path.startsWith('/pos/payments/')) return Promise.resolve({ requestId: payload.requestId, status: 'PARTIAL', paidCents: 100, outstandingCents: 100 })
+      return Promise.resolve(fixture(state.company))
+    })
+    const result = await payPartServer({ tableId: 'table-a', coverIds: ['cover-a'], amountCents: 100, expectedOutstandingCents: 200, method: 'CASH', cashReceivedCents: 100 })
+    expect(result.outstandingCents).toBe(100)
+    expect(state.api.mock.calls.filter(([p]) => p === '/pos/payments')).toHaveLength(1)
+    expect([...values.keys()].some(k => k.startsWith('creorga-pos-partial:'))).toBe(false)
+    expect(state.pos.tables[0].covers).toHaveLength(1)
+  })
+  it('ne publie pas un acompte tardif dans un autre compte', async () => {
+    const result = deferred<any>()
+    state.api.mockImplementation((path: string) => path === '/pos/payments' ? result.promise : Promise.resolve(fixture(state.company)))
+    const operation = payPartServer({ tableId: 'table-a', coverIds: ['cover-a'], amountCents: 100, expectedOutstandingCents: 200, method: 'CASH' })
+    await vi.waitFor(() => expect(state.api.mock.calls.some(([p]) => p === '/pos/payments')).toBe(true))
+    stopFloorBridge(); state.company = 'company-b'; state.pos = fixture(state.company)
+    result.resolve({ status: 'PARTIAL', paidCents: 100, outstandingCents: 100 })
+    await expect(operation).rejects.toThrow('session de caisse a changé')
+    expect(state.pos.companyId).toBe('company-b')
+    expect([...values.keys()]).toContain('creorga-pos-partial:company-a:owner-company-a:table-a')
+  })
   it('keeps an old pending payment under its old account and rejects its late result', async () => {
     const sale = deferred<unknown>(); state.api.mockImplementation((path: string) => path === '/pos/checkout' ? sale.promise : Promise.resolve(fixture(state.company)))
     const operation = checkoutServer('table-a', 'cash', 0, ['cover-a'], {}, 2, 2)

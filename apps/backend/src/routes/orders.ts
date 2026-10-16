@@ -106,6 +106,7 @@ router.post('/:id/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER
       if (replay.orderId !== req.params.id || replay.provider !== 'manual' || replay.requestHash !== hash || replay.userId !== (req.user?.userId || null)) throw new PaymentError(409, 'Référence de règlement incompatible.')
       return tx.order.findFirstOrThrow({ where: { id: req.params.id, companyId: req.companyId }, include: { items: { include: { product: true } }, table: true } })
     }
+    if (await tx.serviceCover.count({ where: { companyId: req.companyId, orderId: req.params.id, NOT: { coverId: { startsWith: 'guest:' } } } })) throw new PaymentError(409, 'Commande native liée à un couvert : terminez dans Acompte / solde de la caisse pour conserver le reçu et la session atomiques.')
     const current = await openOrder(tx, req.companyId, req.params.id, true)
     const balance = await orderPaymentBalance(tx, req.companyId, current)
     const totalCents = input.partialAmountCents ?? balance.outstandingCents

@@ -4,6 +4,7 @@ import api from '@/lib/api'
 import { moneyMinor } from '@/lib/money'
 import { useAuthStore } from '@/stores/authStore'
 import { readFinancialRequest, preserveFinancialRequest, forgetFinancialRequest } from '@/lib/financial-request'
+import ManualRefundPanel from './ManualRefundPanel'
 
 export default function CreditNotesPanel({ invoiceId, issued }: { invoiceId: string; issued: boolean }) {
   const companyId = useAuthStore(s => s.companyId), actorId = useAuthStore(s => s.user?.id)
@@ -45,6 +46,7 @@ export default function CreditNotesPanel({ invoiceId, issued }: { invoiceId: str
         <strong>{c.number} · {(c.totalCents / 100).toFixed(2)} {c.currency}</strong><p>{c.reason} · Avoir émis, remboursement distinct.</p>
         <button type="button" onClick={() => void download(c)} style={{ padding: 10 }}>PDF de l’avoir {c.number}</button>
         <RefundPanel invoiceId={invoiceId} credit={c} />
+        <ManualRefundPanel invoiceId={invoiceId} credit={c} />
       </div>)}
     </>}
     {error && <p role="alert" style={{ color: '#b91c1c' }}>{error}</p>}
@@ -83,7 +85,7 @@ function RefundPanel({ invoiceId, credit }: { invoiceId: string; credit: any }) 
       </fieldset>
       <button disabled={busy} type="submit" style={{ padding: 10 }}>{pending ? 'Réessayer la même demande' : 'Demander le remboursement PayPal'}</button>
     </form> : <p>Aucune capture PayPal remboursable et configurée pour ce document. L’avoir seul ne prouve aucun remboursement.</p>}
-    {refunds.data?.map(r => <p key={r.id}>{r.status === 'SUCCEEDED' ? 'Remboursement confirmé par preuve prestataire' : `Remboursement ${r.status} — non confirmé`} · {(r.amountCents / 100).toFixed(2)} {r.currency} {r.status !== 'SUCCEEDED' && r.externalId && <button disabled={busy} onClick={() => void reconcile(r.id)}>Vérifier auprès du prestataire</button>}</p>)}
+    {refunds.data?.map(r => <p key={r.id}>{r.status === 'SUCCEEDED' ? 'Remboursement confirmé par preuve prestataire' : r.status === 'REFUSED_RECONCILIATION' ? 'Refus prestataire — réservation conservée, à rapprocher' : `Remboursement ${r.status} — non confirmé, réservation conservée`} · {(r.amountCents / 100).toFixed(2)} {r.currency} {r.status !== 'SUCCEEDED' && r.externalId && <button disabled={busy} onClick={() => void reconcile(r.id)}>Vérifier auprès du prestataire</button>}</p>)}
     {(captures.isError || refunds.isError) && <p role="alert">Historique de rapprochement indisponible.</p>}{error && <p role="alert">{error}</p>}
   </div>
 }

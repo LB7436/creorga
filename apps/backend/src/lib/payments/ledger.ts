@@ -69,6 +69,7 @@ export async function createPayment(companyId: string, userId: string | null, ra
     }
     const order = await tx.order.findFirst({ where: { id: input.orderId, companyId }, include: { company: true } })
     if (!order) throw new PaymentError(404, 'Commande introuvable.')
+    if (await tx.serviceCover.count({ where: { companyId, orderId: order.id, NOT: { coverId: { startsWith: 'guest:' } } } })) throw new PaymentError(409, 'Le paiement en ligne de cette session native n’est pas qualifié. Utilisez Acompte / solde dans la caisse, sans contourner sa transaction.')
     if (order.paidAt || ['PAID', 'CANCELLED'].includes(order.status)) throw new PaymentError(409, 'Commande déjà réglée ou annulée.')
     const currency = order.company.currency
     if (!['EUR', 'USD'].includes(currency) || (input.currency && input.currency !== currency)) throw new PaymentError(400, 'Devise incompatible avec la commande.')
@@ -197,6 +198,7 @@ export async function reconcilePayment(companyId: string, attemptId: string, cap
       if (!(await orderPaymentBalance(tx, companyId, order)).outstandingCents) {
         await debitOrderInventory(tx, companyId, allocation.orderId)
         await tx.order.update({ where: { id: allocation.orderId }, data: { status: 'PAID', paidAt: new Date(), paymentMethod: `${attempt.provider}:${proof.captureId}` } })
+        await tx.serviceCover.updateMany({ where: { companyId, orderId: allocation.orderId, coverId: { startsWith: 'guest:' }, state: 'OPEN' }, data: { state: 'SETTLED' } })
       }
     }
     await tx.paymentAllocation.updateMany({ where: { companyId, attemptId: attempt.id }, data: { active: false, settlementId: settlement.id } })

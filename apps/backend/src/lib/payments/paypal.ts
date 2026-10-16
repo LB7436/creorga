@@ -103,7 +103,8 @@ export class PayPalClient {
     if (refund.id !== id || url.protocol !== 'https:' || ![allowed.hostname, allowed.hostname.replace('api-m.', 'api.')].includes(url.hostname)
       || url.username || url.password || url.search || url.hash || url.pathname !== '/v2/payments/captures/' + encodeURIComponent(captureId)) throw new Error('Capture du remboursement incohérente.')
     const status: 'succeeded' | 'pending' | 'failed' = refund.status === 'COMPLETED' ? 'succeeded' : refund.status === 'PENDING' ? 'pending' : 'failed'
-    return { provider: 'paypal', status, refundId: id, captureId, amountCents: moneyMinor(refund.amount?.value), currency: refund.amount?.currency_code, merchantId: this.merchant }
+    if (!['COMPLETED', 'PENDING', 'FAILED', 'CANCELLED'].includes(refund.status)) throw new Error('Statut de remboursement PayPal inconnu : réservation conservée.')
+    return { provider: 'paypal', status, providerStatus: refund.status, refundId: id, captureId, amountCents: moneyMinor(refund.amount?.value), currency: refund.amount?.currency_code, merchantId: this.merchant }
   }
 }
 export const paypalGateway: PaymentGateway = {

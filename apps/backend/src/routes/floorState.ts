@@ -7,6 +7,8 @@ import logger from '../lib/logger'
 import { floorSchema, protectedFloorFieldsChanged } from '../lib/floor-validation'
 import prisma from '../lib/prisma'
 import { canonicalizeFloorPricing, PosPricingError, type LineQuote, type PricingProduct } from '../lib/pos-pricing'
+import type { Prisma } from '@prisma/client'
+import { loadFloorWorkspace, saveFloorWorkspace, postgresFloorEnabled, floorHash, WorkspaceError } from '../lib/floor-workspace'
 
 /**
  * Shared floor state — used by both 5174 (/pos/floor) and 5175 (POS standalone).
@@ -104,7 +106,7 @@ const DEFAULT_STATE: FloorState = {
 }
 
 const FICHIER_HISTORIQUE = 'floor-state.json'
-interface FloorContext { companyId: string; original?: FloorState; draft?: FloorState; pricingProducts?: PricingProduct[]; serverQuotes?: Record<string, LineQuote>; paymentLock?: symbol }
+interface FloorContext { companyId: string; original?: FloorState; draft?: FloorState; pricingProducts?: PricingProduct[]; serverQuotes?: Record<string, LineQuote>; paymentLock?: symbol; postgres?: boolean; pgWritten?: boolean }
 const floorContext = new AsyncLocalStorage<FloorContext>()
 const paymentLocks = new Map<string, symbol>()
 
@@ -222,6 +224,30 @@ export function sauvegarderPlanDeSalle(companyId?: string): void {
  */
 export function floorCompanyContext(req: Request, res: Response, next: NextFunction): void {
   const companyId = (req as any).companyId
+  if (!postgresFloorEnabled() || floorContext.getStore()?.companyId === companyId || !companyId) return floorContextFromMemory(req, res, next)
+  void loadFloorWorkspace(companyId, () => getFloorState(companyId)).then(snapshot => {
+    const cached = states.get(companyId)
+    if (!cached || floorHash(cached) !== floorHash(snapshot)) states.set(companyId, snapshot)
+    floorContextFromMemory(req, res, next)
+  }).catch(error => {
+    logger.error('[floor-state] autorité PostgreSQL indisponible', { code: error instanceof WorkspaceError ? 'WORKSPACE_INVALID' : 'WORKSPACE_UNAVAILABLE' })
+    res.status(503).json({ error: 'Sessions PostgreSQL indisponibles. Aucun repli sur un plan ancien ni succès local inventé.', code: 'FLOOR_DATABASE_UNAVAILABLE' })
+  })
+}
+
+/** À appeler dans la même transaction que les lignes/règlements concernés. */
+export async function commitCurrentFloor(tx: Prisma.TransactionClient, actorId: string, action: string) {
+  const context = floorContext.getStore()
+  if (!context?.postgres || !context.original || !context.draft || context.pgWritten) return
+  const draft = context.draft
+  canonicalizeFloorPricing(context.original, draft, context.pricingProducts, Date.now(), context.serverQuotes)
+  draft.updatedAt = Math.max(Date.now(), context.original.updatedAt + 1)
+  await saveFloorWorkspace(tx, context.companyId, context.original, draft, actorId, action)
+  context.pgWritten = true
+}
+
+function floorContextFromMemory(req: Request, res: Response, next: NextFunction): void {
+  const companyId = (req as any).companyId
   if (!companyId || typeof companyId !== 'string') {
     res.status(500).json({ error: 'Contexte société absent pour le plan de salle' })
     return
@@ -233,19 +259,32 @@ export function floorCompanyContext(req: Request, res: Response, next: NextFunct
   let original: FloorState
   try {
     original = getFloorState(companyId)
+    if ((original as any).storageAuthority === 'postgres' && !postgresFloorEnabled()) {
+      res.status(503).json({ error: 'Cette salle a été reprise dans PostgreSQL. Réactivez son autorité ; le miroir disque ne peut pas devenir maître silencieusement.', code: 'FLOOR_AUTHORITY_REQUIRED' })
+      return
+    }
   } catch (error) {
     if (!(error instanceof JsonStoreUnavailableError)) { next(error); return }
     logger.error('[floor-state] Plan indisponible, récupération nécessaire', { file: companyFloorFilename(companyId), recoveryAvailable: error.recoveryAvailable })
     res.status(503).json({ error: 'Le plan enregistré ne peut pas être chargé. Une vérification et une récupération des données sont nécessaires avant de continuer.', code: 'FLOOR_STORAGE_UNAVAILABLE', recoveryAvailable: error.recoveryAvailable })
     return
   }
-  const context: FloorContext = { companyId }
+  const context: FloorContext = { companyId, postgres: postgresFloorEnabled() }
   if (MUTATING.has(req.method)) {
     context.original = original
     context.draft = structuredClone(original)
     const originalJson = res.json.bind(res)
+    const publishPostgres = () => {
+      const draft = context.draft!
+      states.set(companyId, draft)
+      try { safeWriteJson(dataPath(companyFloorFilename(companyId)), draft) }
+      catch { res.set('X-Floor-Mirror', 'unavailable'); logger.warn('[floor-state] PostgreSQL confirmé, miroir disque à réparer', { companyId }) }
+      try { (globalThis as any).liveBroadcast?.(`floor-${companyId}`, 'floor-updated', { companyId, updatedAt: draft.updatedAt }) }
+      catch { /* PostgreSQL est confirmé ; notification facultative. */ }
+    }
     res.json = (body: any) => {
       const draft = context.draft!
+      if (context.pgWritten && res.statusCode < 400) { publishPostgres(); return originalJson(body) }
       const changed = JSON.stringify(draft) !== JSON.stringify(original)
       if (res.statusCode < 400 && changed) {
         if (req.baseUrl === '/api/floor-state') {
@@ -260,9 +299,10 @@ export function floorCompanyContext(req: Request, res: Response, next: NextFunct
           res.status(409)
           return originalJson({ error: error.message, code: 'POS_PRICING_REVIEW_REQUIRED' })
         }
-        if (!floorSchema.safeParse(draft).success) {
+        const validation = floorSchema.safeParse(draft)
+        if (!validation.success) {
           res.status(400)
-          return originalJson({ error: 'Plan invalide : vérifiez les tables, les quantités, les images et leurs dimensions.', code: 'FLOOR_INVALID' })
+          return originalJson({ error: 'Plan invalide : vérifiez les tables, les quantités, les images et leurs dimensions.', code: 'FLOOR_INVALID', fields: validation.error.issues.map(i => ({ path: i.path.join('.'), code: i.code })) })
         }
         const missingUnpaid = original.tables.some(t => !draft.tables.some(d => d.id === t.id) && (t.items.length || original.chairs.some(c => c.tableId === t.id && c.items.length)))
         if (missingUnpaid) {
@@ -275,11 +315,17 @@ export function floorCompanyContext(req: Request, res: Response, next: NextFunct
           return originalJson({ error: 'Un encaissement est en cours. Réessayez après sa confirmation.', code: 'FLOOR_PAYMENT_IN_PROGRESS' })
         }
         const expected = req.get('If-Match')?.replace(/"/g, '')
-        if (states.get(companyId) !== original || (expected && expected !== String(original.updatedAt))) {
+        if ((!context.postgres && states.get(companyId) !== original) || (expected && expected !== String(original.updatedAt))) {
           res.status(409)
           return originalJson({ error: 'Le plan a changé dans une autre session. Rechargez avant de réessayer.', code: 'FLOOR_CONFLICT' })
         }
         draft.updatedAt = Math.max(Date.now(), original.updatedAt + 1)
+        if (context.postgres) {
+          void prisma.$transaction(tx => saveFloorWorkspace(tx, companyId, original, draft, (req as any).user?.userId || 'device', `${req.method} ${req.baseUrl}${req.path}`), { maxWait: 15000, timeout: 10000 })
+            .then(() => { publishPostgres(); originalJson(body) })
+            .catch(error => { res.status(error instanceof WorkspaceError ? error.status : 503); originalJson({ error: error instanceof WorkspaceError ? error.message : 'Enregistrement PostgreSQL non confirmé. Conservez le brouillon et rechargez.', code: 'FLOOR_DATABASE_SAVE_FAILED' }) })
+          return res
+        }
         try {
           safeWriteJson(dataPath(companyFloorFilename(companyId)), draft)
         } catch (err) {

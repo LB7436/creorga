@@ -43,6 +43,14 @@ export async function startFloorBridge() {
   await loadServerState()
   assertBridge(epoch)
   scope = `${sessionCompany()}:${usePOS.getState().currentStaff?.id}`
+  for (const key of Object.keys(localStorage).filter(k => k.startsWith(`creorga-pos-partial:${scope}:`))) {
+    try {
+      const pending = JSON.parse(localStorage.getItem(key)!)
+      const result = await api<PartialResult>(`/pos/payments/${encodeURIComponent(pending.requestId)}`)
+      assertBridge(epoch); localStorage.removeItem(key)
+      status(`Règlement retrouvé : ${(result.paidCents / 100).toFixed(2)} € enregistrés, reste ${(result.outstandingCents / 100).toFixed(2)} €.`)
+    } catch { assertBridge(epoch); status('Un acompte reste à vérifier. Utilisez Réessayer dans Acompte / solde ; sa référence est conservée.', true) }
+  }
   // Rapprocher les réponses perdues avant une nouvelle vente, y compris après fermeture.
   for (const key of Object.keys(localStorage).filter(k => k.startsWith(`creorga-pos-pending:${scope}:`))) {
     try {
@@ -161,6 +169,36 @@ export async function checkoutServer(tableId: string, method: PayMethod, tip: nu
   await loadServerState().catch(() => { if (epoch === bridgeEpoch) status('Vente confirmée ; actualisation du plan en attente.', true) })
   assertBridge(epoch)
   return sale
+  } finally { if (epoch === bridgeEpoch) checkingPayment = false }
+}
+export type PartialInput = { tableId: string; coverIds: string[]; amountCents: number; expectedOutstandingCents: number; method: 'CASH' | 'CARD' | 'MIXED';
+  cashReceivedCents?: number; allocations?: Array<{ method: 'CASH' | 'CARD'; amountCents: number }> }
+export type PartialResult = { requestId: string; status: 'PARTIAL' | 'SETTLED'; confirmation: 'manual_declaration'; paidCents: number; outstandingCents: number; cashChangeCents: number; sales: Vente[] }
+export async function payPartServer(input: PartialInput): Promise<PartialResult> {
+  if (checkingPayment) throw new Error('Un règlement est déjà en cours de vérification.')
+  const epoch = bridgeEpoch, key = `creorga-pos-partial:${scope}:${input.tableId}`
+  checkingPayment = true
+  try {
+    await flushFloor(); assertBridge(epoch)
+    const stored = localStorage.getItem(key), payload = stored ? JSON.parse(stored) : { ...input, requestId: crypto.randomUUID() }
+    // Une réponse ambiguë conserve le montant ET la référence d'origine, même si l'écran a changé.
+    localStorage.setItem(key, JSON.stringify(payload))
+    let result: PartialResult
+    try { result = await api('/pos/payments', { method: 'POST', body: JSON.stringify(payload) }) }
+    catch (error: any) {
+      assertBridge(epoch)
+      try { result = await api(`/pos/payments/${encodeURIComponent(payload.requestId)}`) }
+      catch (check: any) {
+        if (error.status >= 400 && error.status < 500 && check.status === 404) localStorage.removeItem(key)
+        throw error
+      }
+    }
+    assertBridge(epoch)
+    localStorage.removeItem(key)
+    checkingPayment = false
+    await loadServerState().catch(() => status('Règlement enregistré ; solde affiché à actualiser avant toute autre opération.', true))
+    assertBridge(epoch)
+    return result
   } finally { if (epoch === bridgeEpoch) checkingPayment = false }
 }
 export async function closeServerDay(): Promise<Cloture> {

@@ -48,6 +48,7 @@ export interface Cover {
   paidAt?: number
   /** Moyen de paiement retenu pour ce couvert. */
   paidMethod?: PayMethod
+  payment?: { orderId: string; totalCents: number; paidCents: number; outstandingCents: number }
 }
 
 /** Ligne figée d'une vente : le prix est copié, pas référencé. */
@@ -180,6 +181,7 @@ export interface Table {
 }
 
 export interface POSSettings {
+  floorAuthority?: 'postgres' | 'legacy-file'
   receiptFooter?: string
   restaurantName: string
   currency: string

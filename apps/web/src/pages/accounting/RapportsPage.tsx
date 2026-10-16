@@ -3,6 +3,7 @@ import { Download, Printer, Mail, CalendarRange, Lock } from 'lucide-react'
 import { downloadCsv } from '@/lib/csv'
 import { toastInfo } from '@/lib/toast'
 import { useRapportCaisse, type RapportCaisse } from '@/hooks/api/useRapportsCaisse'
+import FinancialReconciliationPanel from './FinancialReconciliationPanel'
 
 /**
  * Extraits de caisse.
@@ -203,6 +204,7 @@ export default function RapportsPage() {
       </div>
 
       {/* Sélecteur de période */}
+      <FinancialReconciliationPanel start={debut?.toISOString()} end={fin?.toISOString()} />
       <div className="sans-impression" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
         {PRESETS.map((p) => (
           <button

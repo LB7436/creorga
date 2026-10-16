@@ -11,6 +11,7 @@ import { resolveGuestTable } from '../lib/guest-tables'
 import { GuestAccessError, lockGuestTable, requireGuestAccess } from '../lib/guest-visits'
 import { totalsFromTtc } from '../lib/money'
 import { orderPaymentBalance } from '../lib/order-tenders'
+import { lockFinancialCompany } from '../lib/financial-lock'
 import { PosError } from '../lib/pos-ledger'
 import { createTablePayment, reconcilePayment, merchantFor, PaymentError } from '../lib/payments/ledger'
 
@@ -179,10 +180,10 @@ router.post('/orders', asyncRoute(async (req, res) => {
   const lines = [...quantities].sort(([a], [b]) => a.localeCompare(b)).map(([productId, qty]) => ({ productId, qty }))
   if (lines.some(l => l.qty > MAX_QTE)) return res.status(400).json({ error: 'Quantité maximale par produit dépassée.' })
   const saved = await prisma.$transaction(async tx => {
+    await lockFinancialCompany(tx, companyId)
     await lockGuestTable(tx, companyId, tableId)
     const visit = await guestScope(req, companyId, tableId, tx)
     const hash = createHash('sha256').update(JSON.stringify({ companyId, tableId, visitId: visit?.id || null, lines })).digest('hex')
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext('pos-ledger'))::text`
     const previous = await tx.order.findUnique({ where: { publicToken: requestId } })
     if (previous) {
       if (previous.companyId !== companyId || previous.externalTableId !== tableId || previous.guestVisitId !== (visit?.id || null) || previous.guestRequestHash !== hash) throw new GuestAccessError(409, 'Cette référence appartient à une autre commande. Vérifiez la commande déjà envoyée.')
@@ -196,6 +197,7 @@ router.post('/orders', asyncRoute(async (req, res) => {
       return { productId: product.id, productName: product.name, quantity: line.qty, unitPrice: product.price, taxRate: product.taxRate }
     })
     const totals = totalsFromTtc(lineData.map(i => ({ price: i.unitPrice, qty: i.quantity, taxRate: i.taxRate })))
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext('order-number'))::text`
     const last = await tx.order.aggregate({ where: { companyId }, _max: { orderNumber: true } })
     return tx.order.create({ data: { companyId, userId: null, source: 'GUEST', externalTableId: tableId, publicToken: requestId,
       guestVisitId: visit?.id || null, guestRequestHash: hash, guestStatus: 'received',

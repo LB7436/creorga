@@ -51,7 +51,7 @@ export interface PaymentEvidence {
 
 export interface PaymentGateway {
   startRefund?(request: { requestId: string; captureId: string; externalOrderId: string; amountCents: number; currency: string }): Promise<{ id?: string }>
-  verifyRefund?(id: string, captureId: string, externalOrderId: string): Promise<{ provider: string; status: 'succeeded' | 'pending' | 'failed'; refundId: string; captureId: string; amountCents: number; currency: string; merchantId: string }>
+  verifyRefund?(id: string, captureId: string, externalOrderId: string): Promise<{ provider: string; status: 'succeeded' | 'pending' | 'failed'; providerStatus?: string; refundId: string; captureId: string; amountCents: number; currency: string; merchantId: string }>
   provider: PaymentProvider
   charge(req: ChargeRequest): Promise<ChargeResult>
   verify?(transactionId: string): Promise<ChargeResult>

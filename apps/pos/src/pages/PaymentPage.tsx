@@ -7,6 +7,7 @@ import { api, sessionCompany } from '../lib/server'
 import { requestTablePayment } from '../lib/table-payment'
 import { moneyMinor } from '../../../backend/src/lib/money'
 import PricingReview from './PricingReview'
+import PartialPaymentPanel from './PartialPaymentPanel'
 
 interface Props {
   tableId: string
@@ -325,6 +326,8 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   const table = usePOS(s => s.tables.find(t => t.id === tableId))
   const [confirmed, setConfirmed] = useState<{ sale: Vente; change: number | null } | null>(null)
   const [paying, setPaying] = useState(false)
+  const [partialMode, setPartialMode] = useState(false)
+  useEffect(() => { if (table?.covers.some(c => c.payment)) setPartialMode(true) }, [table])
   const [receiptRequestId] = useState(() => crypto.randomUUID())
   // Telephone : recap et paiement s'empilent, plus de panneau de 40 % sur 375 px.
   const etroit = useEcranEtroit()
@@ -525,6 +528,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
    */
   async function handleConfirm() {
     if (paying || onlineBusy) return
+    if (payingCovers.some(c => c.payment)) { setErreurEncaissement('Un acompte existe : utilisez le panneau Acompte / solde.'); return }
     setPaying(true); setErreurEncaissement(null)
     if (keepOpen) {
       try { await flushFloor(); onDone() } catch (e: any) { setErreurEncaissement(e.message) } finally { setPaying(false) }
@@ -607,6 +611,10 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
     finally { setOnlineBusy(false) }
   }
 
+  if (partialMode || covers.some(c => c.payment)) return <div style={{ height: '100%', overflowY: 'auto', background: '#07070d' }}>
+    <button onClick={onBack} style={{ margin: 16, padding: 12 }}>← Retour à la table</button>
+    <PartialPaymentPanel tableId={tableId} covers={covers.filter(c => c.items.length)} onDone={onDone} />
+  </div>
   return (
     <div style={{ display: 'flex', flexDirection: etroit ? 'column' : 'row', height: '100%', overflow: etroit ? 'auto' : 'hidden', background: '#07070d' }}>
 
@@ -777,6 +785,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
         )}
 
         <div style={{ flex: 1, overflowY: 'auto' as const, padding: '14px 18px' }}>
+          <button onClick={() => setPartialMode(true)} disabled={paying || onlineBusy || usePOS.getState().settings.floorAuthority !== 'postgres'} style={{ ...counterBtnStyle, width: '100%', marginBottom: 16 }}>Acompte / paiement partiel / solde{usePOS.getState().settings.floorAuthority !== 'postgres' ? ' — autorité PostgreSQL requise' : ''}</button>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div style={labelStyle}>Aperçu reçu temps réel</div>
           </div>

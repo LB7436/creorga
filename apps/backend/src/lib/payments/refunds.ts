@@ -20,6 +20,7 @@ export async function refundableOrderParts(tx: Prisma.TransactionClient, company
 }
 export const refundDto = (r: any) => ({ id: r.id, creditNoteId: r.creditNoteId, settlementId: r.settlementId, amountCents: r.amountCents, currency: r.currency,
   provider: r.provider, externalId: r.externalId, status: r.status, confirmedAt: r.confirmedAt, createdAt: r.createdAt,
+  reservationHeld: true, verifiedAt: r.verifiedAt,
   confirmation: r.status === 'SUCCEEDED' ? 'provider_verified' : 'not_confirmed' })
 export async function requestRefund(companyId: string, actorId: string, raw: unknown) {
   const input = z.object({ requestId: z.string().uuid(), creditNoteId: z.string().min(1).max(200), settlementId: z.string().min(1).max(200),
@@ -37,11 +38,12 @@ export async function requestRefund(companyId: string, actorId: string, raw: unk
     if (credit.currency !== settlement.currency || merchantFor(settlement.provider, companyId) !== settlement.merchantId || !settlement.attempt.externalId) throw new PaymentError(409, 'Devise, marchand ou référence de capture incompatible.')
     const gateway = getGateway(settlement.provider as PaymentProvider)
     if (!gateway?.startRefund || !gateway.verifyRefund) throw new PaymentError(501, 'Remboursement vérifiable non pris en charge par ce connecteur. Aucune opération lancée.')
-    const [creditUsed, captureUsed] = await Promise.all([
+    const [creditUsed, captureUsed, manualUsed] = await Promise.all([
       tx.refundAttempt.aggregate({ where: { companyId, creditNoteId: credit.id }, _sum: { amountCents: true } }),
       tx.refundAttempt.aggregate({ where: { companyId, settlementId: settlement.id }, _sum: { amountCents: true } }),
+      tx.manualRefund.aggregate({ where: { companyId, creditNoteId: credit.id }, _sum: { amountCents: true } }),
     ])
-    if (input.amountCents > credit.totalCents - (creditUsed._sum.amountCents || 0) || input.amountCents > settlement.amountCents - (captureUsed._sum.amountCents || 0)) throw new PaymentError(409, 'Montant supérieur à l’avoir disponible ou à la capture restante, réservations incertaines incluses.')
+    if (input.amountCents > credit.totalCents - (creditUsed._sum.amountCents || 0) - (manualUsed._sum.amountCents || 0) || input.amountCents > settlement.amountCents - (captureUsed._sum.amountCents || 0)) throw new PaymentError(409, 'Montant supérieur à l’avoir disponible ou à la capture restante, réservations incertaines incluses.')
     const parts = await refundableOrderParts(tx, companyId, settlement, sourceOrders)
     if (parts.some(p => p.amountCents < 0) || input.amountCents > parts.reduce((s, p) => s + p.amountCents, 0)) throw new PaymentError(409, 'Montant supérieur à la part réglée des ventes d’origine encore remboursable.')
     const allocations = allocateMinor(input.amountCents, parts.map(p => p.amountCents))
@@ -62,7 +64,7 @@ export async function requestRefund(companyId: string, actorId: string, raw: unk
   } catch { saved = await prisma.refundAttempt.update({ where: { id: result.attempt.id }, data: { status: 'UNKNOWN' } }) }
   return { httpStatus: 202, body: refundDto(saved) }
 }
-const proofSchema = z.object({ provider: z.string(), status: z.enum(['succeeded', 'pending', 'failed']), refundId: z.string(), captureId: z.string(), amountCents: z.number().int().positive(), currency: z.string(), merchantId: z.string() })
+const proofSchema = z.object({ provider: z.string(), status: z.enum(['succeeded', 'pending', 'failed']), providerStatus: z.string().max(60).optional(), refundId: z.string(), captureId: z.string(), amountCents: z.number().int().positive(), currency: z.string(), merchantId: z.string() })
 export async function reconcileRefund(companyId: string, id: string) {
   const attempt = await prisma.refundAttempt.findFirst({ where: { companyId, id }, include: { settlement: { include: { attempt: true } } } })
   if (!attempt) throw new PaymentError(404, 'Remboursement introuvable.')
@@ -80,12 +82,13 @@ export async function reconcileRefund(companyId: string, id: string) {
     await prisma.refundAttempt.updateMany({ where: { id, companyId, status: { not: 'SUCCEEDED' } }, data: { status: 'REVIEW' } })
     throw new PaymentError(409, 'Preuve de remboursement incohérente : aucune confirmation enregistrée.')
   }
-  if (proof.data.status !== 'succeeded') return refundDto(attempt)
   const confirmed = await prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, companyId)
     const current = await tx.refundAttempt.findFirstOrThrow({ where: { id, companyId } })
     if (current.status === 'SUCCEEDED') return current
-    return tx.refundAttempt.update({ where: { id }, data: { status: 'SUCCEEDED', confirmedAt: new Date() } })
+    const status = proof.data.status === 'succeeded' ? 'SUCCEEDED' : proof.data.status === 'failed' ? 'REFUSED_RECONCILIATION' : 'PENDING'
+    // Même un refus conserve sa réservation : aucune libération sur un simple libellé distant.
+    return tx.refundAttempt.update({ where: { id }, data: { status, ...(status === 'SUCCEEDED' ? { confirmedAt: new Date() } : {}), verifiedAt: new Date(), lastProof: { ...proof.data } } })
   })
   return refundDto(confirmed)
 }

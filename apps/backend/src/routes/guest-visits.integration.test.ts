@@ -69,6 +69,27 @@ describe('Visites QR : accès révocable et paiements conservés', () => {
     vi.stubEnv('PAYPAL_CLIENT_ID', 'fixture'); vi.stubEnv('PAYPAL_CLIENT_SECRET', 'fixture')
   })
   afterAll(async () => { await cleanup(); await prisma.$disconnect(); vi.unstubAllEnvs() })
+  it('une commande QR attend le verrou société sans retenir la table et créer un cycle', async () => {
+    const visit = await openVisit()
+    let entered!: () => void, release!: () => void
+    const started = new Promise<void>(r => { entered = r }), resume = new Promise<void>(r => { release = r })
+    const holder = prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext('pos-ledger'))::text`
+      entered(); await resume
+      const result: any[] = await tx.$queryRaw`SELECT pg_try_advisory_xact_lock(hashtext(${companyId}), hashtext(${`table-payment:${tableId}`})) AS available`
+      return result[0].available
+    }, { timeout: 10000 })
+    await started
+    const pending = order(visit.token).then(r => r)
+    try {
+      await vi.waitFor(async () => {
+        const waiting: any[] = await prisma.$queryRaw`SELECT count(*)::int AS count FROM pg_locks WHERE locktype='advisory' AND NOT granted AND classid=(hashtext(${companyId})::bigint & 4294967295)::oid AND objid=(hashtext('pos-ledger')::bigint & 4294967295)::oid`
+        expect(waiting[0].count).toBe(1)
+      }, { timeout: 5000, interval: 20 })
+    } finally { release() }
+    const available = await holder, response = await pending
+    expect(available).toBe(true); expect(response.status).toBe(201)
+  })
   it('refuse commande, addition et paiement avec le seul ancien QR permanent', async () => {
     await order('').expect(401)
     await bill('').expect(401)

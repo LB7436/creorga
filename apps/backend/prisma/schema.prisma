@@ -55,6 +55,66 @@ model Company {
   posClosures     PosClosure[]
   paymentAttempts PaymentAttempt[]
   guestVisits     GuestVisit[]
+  floorWorkspace  FloorWorkspace?
+  serviceSessions ServiceSession[]
+}
+
+// Autorité progressive des sessions ouvertes. Le fichier reste un miroir de compatibilité.
+model FloorWorkspace {
+  companyId String @id
+  revision BigInt
+  snapshot Json
+  snapshotHash String
+  initialSnapshot Json
+  initialHash String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  changes FloorChange[]
+}
+
+model FloorChange {
+  id String @id @default(uuid())
+  companyId String
+  revision BigInt
+  actorId String
+  action String
+  beforeHash String
+  afterHash String
+  delta Json
+  createdAt DateTime @default(now())
+  workspace FloorWorkspace @relation(fields: [companyId], references: [companyId], onDelete: Cascade)
+  @@unique([companyId, revision])
+}
+
+// Identité durable du service : déplacer un couvert ne recrée pas sa commande.
+model ServiceSession {
+  id String @id @default(uuid())
+  companyId String
+  tableId String
+  openedAt DateTime @default(now())
+  closedAt DateTime?
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  covers ServiceCover[]
+  @@unique([companyId, id])
+  @@index([companyId, tableId, closedAt])
+}
+
+model ServiceCover {
+  id String @id @default(uuid())
+  companyId String
+  coverId String
+  sessionId String
+  orderId String?
+  items Json
+  state String @default("OPEN")
+  actorId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  session ServiceSession @relation(fields: [companyId, sessionId], references: [companyId, id], onDelete: Cascade)
+  order Order? @relation(fields: [companyId, orderId], references: [companyId, id], onDelete: Restrict)
+  @@unique([companyId, coverId])
+  @@index([companyId, orderId])
 }
 
 model CompanySettings {
@@ -232,6 +292,7 @@ model Order {
   paymentAllocations PaymentAllocation[]
   tenders OrderTender[]
   refundAllocations RefundAllocation[]
+  serviceCovers ServiceCover[]
   guestVisit GuestVisit? @relation(fields: [companyId, guestVisitId], references: [companyId, id])
 
   // Deux commandes ne peuvent pas porter le même numéro dans une société :
@@ -278,6 +339,7 @@ model GuestVisitAccess {
 
 model OrderItem {
   id        String   @id @default(cuid())
+  sourceLineId String?
   orderId   String
   productId String
   productName String?
@@ -424,6 +486,7 @@ model OrderTender {
   sale PosSale? @relation(fields: [companyId, saleId], references: [companyId, id], onDelete: Cascade)
   settlement PaymentSettlement? @relation(fields: [companyId, settlementId], references: [companyId, id], onDelete: Cascade)
   cashDrawer CashDrawer? @relation(fields: [companyId, cashDrawerId], references: [companyId, id], onDelete: Restrict)
+  manualRefunds ManualRefund[]
   @@unique([companyId, id])
   @@unique([companyId, attemptId, orderId, method])
   @@unique([companyId, saleId, orderId, method])
@@ -612,6 +675,7 @@ model CreditNote {
   createdAt DateTime @default(now())
   invoice Invoice @relation(fields: [companyId, invoiceId], references: [companyId, id], onDelete: Restrict)
   refunds RefundAttempt[]
+  manualRefunds ManualRefund[]
   @@unique([companyId, id])
   @@unique([companyId, number])
   @@index([companyId, invoiceId])
@@ -634,6 +698,8 @@ model RefundAttempt {
   status String @default("PENDING")
   externalId String?
   confirmedAt DateTime?
+  verifiedAt DateTime?
+  lastProof Json?
   createdAt DateTime @default(now())
   creditNote CreditNote @relation(fields: [companyId, creditNoteId], references: [companyId, id], onDelete: Restrict)
   settlement PaymentSettlement @relation(fields: [companyId, settlementId], references: [companyId, id], onDelete: Restrict)
@@ -655,6 +721,30 @@ model RefundAllocation {
   order Order @relation(fields: [companyId, orderId], references: [companyId, id], onDelete: Restrict)
   @@unique([companyId, refundId, orderId])
   @@index([companyId, orderId])
+}
+
+// Sortie déclarée et justifiée, sans prétendre à une confirmation bancaire.
+model ManualRefund {
+  id String @id
+  companyId String
+  creditNoteId String
+  tenderId String
+  actorId String
+  method String
+  amountCents Int
+  currency String
+  reason String
+  reference String
+  requestHash String
+  snapshot Json
+  cashMovementId String? @unique
+  createdAt DateTime @default(now())
+  creditNote CreditNote @relation(fields: [companyId, creditNoteId], references: [companyId, id], onDelete: Restrict)
+  tender OrderTender @relation(fields: [companyId, tenderId], references: [companyId, id], onDelete: Restrict)
+  cashMovement CashMovement? @relation(fields: [cashMovementId], references: [id], onDelete: Restrict)
+  @@unique([companyId, id])
+  @@index([companyId, creditNoteId])
+  @@index([companyId, tenderId])
 }
 
 model InvoiceDelivery {
@@ -986,6 +1076,7 @@ model CashMovement {
   requestHash String
   createdAt DateTime @default(now())
   drawer CashDrawer @relation(fields: [companyId, drawerId], references: [companyId, id], onDelete: Cascade)
+  refund ManualRefund?
   @@index([companyId, drawerId])
 }
 

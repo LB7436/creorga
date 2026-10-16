@@ -9,6 +9,7 @@ import { PayPalClient } from '../lib/payments/paypal'
 import logger from '../lib/logger'
 import Stripe from 'stripe'
 import { requestRefund, reconcileRefund, refundDto, refundableOrderParts } from '../lib/payments/refunds'
+import { declareManualRefund, manualRefundDto, manualRefundReceipt } from '../lib/payments/manual-refunds'
 
 const router = Router()
 // Pas de repli anonyme ou administrateur sans base pour des opérations financières.
@@ -54,6 +55,28 @@ router.post('/attempts/:id/capture', wrap(async (req, res) => res.json(await rec
 router.post('/refunds', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
   const result = await requestRefund(req.companyId, req.user.userId, req.body)
   res.status(result.httpStatus).json(result.body)
+}))
+router.post('/manual-refunds', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+  const result = await declareManualRefund(req.companyId, req.user.userId, req.body)
+  res.status(result.created ? 201 : 200).json(result.refund)
+}))
+router.get('/manual-refunds', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+  const where = { companyId: req.companyId, ...(typeof req.query.creditNoteId === 'string' ? { creditNoteId: req.query.creditNoteId } : {}) }
+  res.set('Cache-Control', 'private, no-store').json((await prisma.manualRefund.findMany({ where, orderBy: { createdAt: 'desc' }, take: 200 })).map(manualRefundDto))
+}))
+router.get('/manual-refunds/:id/receipt', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+  const refund = await prisma.manualRefund.findFirst({ where: { companyId: req.companyId, id: req.params.id } })
+  if (!refund) throw new PaymentError(404, 'Déclaration introuvable.')
+  res.set('Cache-Control', 'private, no-store').type('html').send(manualRefundReceipt(refund))
+}))
+router.get('/manual-tenders', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+  const invoiceId = z.string().min(1).max(200).parse(req.query.invoiceId)
+  const invoice = await prisma.invoice.findFirst({ where: { companyId: req.companyId, id: invoiceId }, include: { sourcePosSale: true } })
+  if (!invoice) throw new PaymentError(404, 'Facture introuvable.')
+  const orderIds: string[] = invoice.sourcePosSale ? (invoice.sourcePosSale.snapshot as any).orderIds || [] : [invoice.orderId].filter((id): id is string => !!id)
+  const tenders = await prisma.orderTender.findMany({ where: { companyId: req.companyId, orderId: { in: orderIds }, method: { in: ['CASH', 'CARD'] }, confirmation: 'manual_declaration', settlementId: null }, include: { manualRefunds: true } })
+  res.set('Cache-Control', 'private, no-store').json(tenders.map(t => ({ id: t.id, orderId: t.orderId, method: t.method, amountCents: t.amountCents,
+    availableCents: t.amountCents - t.manualRefunds.reduce((n, r) => n + r.amountCents, 0) })))
 }))
 router.post('/refunds/:id/reconcile', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => res.json(await reconcileRefund(req.companyId, req.params.id))))
 router.get('/refunds', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
