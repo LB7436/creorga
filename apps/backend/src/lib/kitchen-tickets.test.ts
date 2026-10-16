@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { syncKitchenTickets } from './kitchen-tickets'
 describe('Tickets cuisine réels', () => {
+  it('un déplacement graphique conserve les 300 préparations sans reparcourir tout le journal pour chaque groupe', () => {
+    let coverReads = 0
+    const floor: any = { kitchenTickets: {} }
+    const tables = [{ name: 'Salle déplacée', covers: Array.from({ length: 300 }, (_, i) => {
+      const id = `groupe-${i}`, items = [{ id: `ligne-${i}`, name: 'Café', qty: 1, note: '' }]
+      floor.kitchenTickets[id] = { id, get coverId() { coverReads++; return id }, tableName: 'Ancien nom', items, lastRequested: items, status: 'served', createdAt: 10, updatedAt: 11, actorId: 'origine' }
+      return { id, label: id, items }
+    }) }]
+    const active = syncKitchenTickets(floor, tables, 'responsable', 20)
+    expect(active.size).toBe(300)
+    expect(Object.keys(floor.kitchenTickets)).toHaveLength(300)
+    for (const ticket of Object.values(floor.kitchenTickets) as any[]) expect(ticket).toMatchObject({ tableName: 'Salle déplacée', status: 'served', createdAt: 10, updatedAt: 11, actorId: 'origine' })
+    expect(coverReads, 'Le travail doit être linéaire dans le journal, pas groupes × journal').toBeLessThanOrEqual(1200)
+  })
   it('une quantité ajoutée ne relance pas les boissons déjà préparées', () => {
     const floor: any = {}, tables = [{ name: 'T3', covers: [{ id: 'c3', label: 'C3', items: [{ id: 'ligne', name: 'Café', qty: 1, note: '' }] }] }]
     syncKitchenTickets(floor, tables, 'a', 10)

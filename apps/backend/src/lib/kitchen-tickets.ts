@@ -2,9 +2,20 @@
 export function syncKitchenTickets(floor: any, tables: any[], actorId: string, now = Date.now(), settledCovers = new Set<string>()) {
   floor.kitchenTickets ||= {}
   const active = new Set<string>()
+  // Un journal peut contenir beaucoup de lots déjà servis. Un déplacement de
+  // salle ne doit pas le reparcourir pour chacun des groupes courants.
+  const byCover = new Map<string, any[]>(), firstByLocation = new Map<string, any>()
+  const indexTicket = (ticket: any) => {
+    const coverId = ticket.coverId || ticket.id
+    if (!byCover.has(coverId)) byCover.set(coverId, [])
+    byCover.get(coverId)!.push(ticket)
+    if (!firstByLocation.has(coverId)) firstByLocation.set(coverId, ticket)
+    for (const route of ticket.routing || []) if (!firstByLocation.has(route.coverId)) firstByLocation.set(route.coverId, ticket)
+  }
+  for (const ticket of Object.values(floor.kitchenTickets)) indexTicket(ticket)
   const present = new Set(tables.flatMap(t => t.covers.map((c: any) => c.id)))
   const removed = Object.entries(floor.kitchenBaselines || {}).filter(([id, items]) => !present.has(id) && !settledCovers.has(id) && (items as any[]).length).map(([id]) => {
-    const ticket: any = Object.values(floor.kitchenTickets).find((t: any) => (t.coverId || t.id) === id || t.routing?.some((r: any) => r.coverId === id))
+    const ticket = firstByLocation.get(id)
     return { name: ticket?.routing?.find((r: any) => r.coverId === id)?.tableName || ticket?.tableName || 'Groupe retiré', covers: [{ id, label: 'Groupe retiré', items: [] }] }
   })
   for (const table of [...tables, ...removed]) for (const cover of table.covers) {
@@ -13,8 +24,11 @@ export function syncKitchenTickets(floor: any, tables: any[], actorId: string, n
     const items: any[] = cover.items.map((i: any) => ({ id: i.id, name: i.name, qty: i.qty, note: [i.note, table.kitchenNote].filter(Boolean).join(' · ') }))
     const baseline = floor.kitchenBaselines?.[cover.id]
     const prior = baseline || previous?.lastRequested || previous?.items || []
-    if (!previous && !baseline) floor.kitchenTickets[cover.id] = { id: cover.id, coverId: cover.id, tableName: table.name, coverLabel: cover.label, items, lastRequested: items,
-      status: 'waiting', createdAt: now, updatedAt: now, actorId }
+    if (!previous && !baseline) {
+      floor.kitchenTickets[cover.id] = { id: cover.id, coverId: cover.id, tableName: table.name, coverLabel: cover.label, items, lastRequested: items,
+        status: 'waiting', createdAt: now, updatedAt: now, actorId }
+      indexTicket(floor.kitchenTickets[cover.id])
+    }
     else if (JSON.stringify(items) !== JSON.stringify(prior)) {
       const corrections: any[] = []
       for (const id of new Set<string>([...items, ...prior].map(i => i.id))) {
@@ -27,10 +41,11 @@ export function syncKitchenTickets(floor: any, tables: any[], actorId: string, n
       const key = `${cover.id}:lot:${now}:${Object.keys(floor.kitchenTickets).length}`
       floor.kitchenTickets[key] = { id: key, coverId: cover.id, tableName: table.name, coverLabel: `${cover.label} — correction`, items: corrections,
         status: 'waiting', createdAt: now, updatedAt: now, actorId }
+      indexTicket(floor.kitchenTickets[key])
       if (previous) previous.lastRequested = items
     }
     if (baseline) floor.kitchenBaselines[cover.id] = items
-    for (const ticket of Object.values(floor.kitchenTickets) as any[]) if ((ticket.coverId || ticket.id) === cover.id) {
+    for (const ticket of byCover.get(cover.id) || []) {
       active.add(ticket.id); ticket.tableName = table.name
     }
   }
