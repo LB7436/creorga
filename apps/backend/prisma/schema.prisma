@@ -57,6 +57,8 @@ model Company {
   guestVisits     GuestVisit[]
   floorWorkspace  FloorWorkspace?
   serviceSessions ServiceSession[]
+  tableMovements TableMovement[]
+  payoutStatements PayoutStatement[]
 }
 
 // Autorité progressive des sessions ouvertes. Le fichier reste un miroir de compatibilité.
@@ -333,8 +335,22 @@ model GuestVisitAccess {
   tokenHash String @unique
   createdAt DateTime @default(now())
   expiresAt DateTime
+  revokedAt DateTime?
+  revokeReason String?
   visit GuestVisit @relation(fields: [companyId, visitId], references: [companyId, id])
   @@index([companyId, visitId])
+}
+
+// Déplacement de localisation, jamais duplication de vente ou de préparation.
+model TableMovement {
+  id String @id
+  companyId String
+  actorId String
+  requestHash String
+  snapshot Json
+  createdAt DateTime @default(now())
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  @@index([companyId, createdAt])
 }
 
 model OrderItem {
@@ -406,6 +422,7 @@ model PaymentSettlement {
   allocations PaymentAllocation[]
   tenders OrderTender[]
   refunds RefundAttempt[]
+  payoutLines PayoutLine[]
   @@unique([companyId, id])
   @@unique([companyId, attemptId])
   @@unique([provider, merchantId, captureId])
@@ -700,14 +717,104 @@ model RefundAttempt {
   confirmedAt DateTime?
   verifiedAt DateTime?
   lastProof Json?
+  reservationReleasedAt DateTime?
   createdAt DateTime @default(now())
   creditNote CreditNote @relation(fields: [companyId, creditNoteId], references: [companyId, id], onDelete: Restrict)
   settlement PaymentSettlement @relation(fields: [companyId, settlementId], references: [companyId, id], onDelete: Restrict)
   allocations RefundAllocation[]
+  reviewEvents RefundReviewEvent[]
+  payoutLines PayoutLine[]
   @@unique([companyId, id])
   @@unique([provider, merchantId, externalId])
   @@index([companyId, creditNoteId])
   @@index([companyId, settlementId])
+}
+
+// Relevés fictifs déclarés : jamais une preuve de connexion bancaire.
+model PayoutStatement {
+  id String @id
+  companyId String
+  actorId String
+  requestHash String
+  contentHash String
+  statementRef String
+  provider String
+  merchantId String
+  currency String
+  createdAt DateTime @default(now())
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payouts BankPayout[]
+  @@unique([companyId, id])
+  @@unique([companyId, contentHash])
+  @@unique([companyId, provider, merchantId, statementRef])
+}
+
+model BankPayout {
+  id String @id @default(uuid())
+  companyId String
+  statementId String
+  provider String
+  merchantId String
+  currency String
+  externalRef String
+  declaredNetCents Int
+  receivedCents Int?
+  bankReference String?
+  receivedAt DateTime?
+  validatedAt DateTime?
+  validatedBy String?
+  createdAt DateTime @default(now())
+  statement PayoutStatement @relation(fields: [companyId, statementId], references: [companyId, id], onDelete: Cascade)
+  lines PayoutLine[]
+  decisions PayoutDecision[]
+  @@unique([companyId, id])
+  @@unique([companyId, provider, merchantId, externalRef])
+  @@index([companyId, createdAt])
+}
+
+model PayoutLine {
+  id String @id @default(uuid())
+  companyId String
+  payoutId String
+  provider String
+  merchantId String
+  kind String
+  externalRef String
+  amountCents Int
+  settlementId String?
+  refundId String?
+  payout BankPayout @relation(fields: [companyId, payoutId], references: [companyId, id], onDelete: Cascade)
+  settlement PaymentSettlement? @relation(fields: [companyId, settlementId], references: [companyId, id], onDelete: Restrict)
+  refund RefundAttempt? @relation(fields: [companyId, refundId], references: [companyId, id], onDelete: Restrict)
+  @@unique([companyId, provider, merchantId, kind, externalRef])
+  @@unique([companyId, settlementId])
+  @@unique([companyId, refundId])
+  @@index([companyId, payoutId])
+}
+
+model PayoutDecision {
+  id String @id
+  companyId String
+  payoutId String
+  actorId String
+  requestHash String
+  snapshot Json
+  createdAt DateTime @default(now())
+  payout BankPayout @relation(fields: [companyId, payoutId], references: [companyId, id], onDelete: Cascade)
+  @@index([companyId, payoutId])
+}
+
+model RefundReviewEvent {
+  id String @id @default(uuid())
+  companyId String
+  refundId String
+  actorId String
+  action String
+  requestHash String?
+  snapshot Json
+  createdAt DateTime @default(now())
+  refund RefundAttempt @relation(fields: [companyId, refundId], references: [companyId, id], onDelete: Cascade)
+  @@index([companyId, refundId, createdAt])
 }
 
 // Réservation du remboursement sur la part réellement réglée de chaque vente.

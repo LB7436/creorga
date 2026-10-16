@@ -8,12 +8,14 @@ import { moneyMinor, totalsFromTtc } from '../lib/money'
 import cashLedger from './cashLedger'
 import documentJournal, { journalPeriod } from './documentJournal'
 import financialReconciliation from './financialReconciliation'
+import bankPayouts from './bankPayouts'
 
 const router = Router()
 // Toutes les écritures de caisse passent par le journal v2 et son verrou commun.
 router.use('/cash-drawers', cashLedger)
 router.use(documentJournal)
 router.use(financialReconciliation)
+router.use(bankPayouts)
 router.use('/expenses', (req, res, next) => {
   if (['GET', 'HEAD'].includes(req.method)) return next()
   return requireRole('OWNER', 'MANAGER')(req, res, next)

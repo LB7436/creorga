@@ -7,7 +7,7 @@ vi.mock('../store/posStore', () => ({ usePOS: {
   subscribe: () => () => {},
 } }))
 vi.mock('../store/seatStore', () => ({ useSeats: { getState: () => ({ seats: state.seats }), setState: (value: { seats: unknown[] }) => { state.seats = value.seats }, subscribe: () => () => {} } }))
-import { checkoutServer, payPartServer, closeServerDay, startFloorBridge, stopFloorBridge, loadServerState } from './floorBridge'
+import { checkoutServer, payPartServer, moveTableServer, closeServerDay, startFloorBridge, stopFloorBridge, loadServerState } from './floorBridge'
 const fixture = (companyId: string) => ({ companyId, revision: 1, currentStaff: { id: 'owner-' + companyId }, tables: [{ id: 'table-a', covers: [{ id: 'cover-a', items: [{ id: 'line-a', price: 2, qty: 1 }] }] }], editor: {}, ventes: [], clotures: [], seats: [] })
 const values = new Map<string, string>()
 const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value) }, removeItem: (key: string) => { values.delete(key) } }
@@ -21,6 +21,29 @@ beforeEach(async () => {
 })
 afterEach(() => { stopFloorBridge(); vi.unstubAllGlobals() })
 describe('POS asynchronous operation scope', () => {
+  it('retrouve une fusion après réponse perdue et ne déplace pas le brouillon sans confirmation', async () => {
+    let payload: any
+    state.api.mockImplementation((path: string, options: any) => {
+      if (path === '/pos/table-movements') { payload = JSON.parse(options.body); return Promise.reject(new Error('réponse perdue')) }
+      if (path.startsWith('/pos/table-movements/')) return Promise.resolve({ requestId: payload.requestId, visitIds: ['visit-a'], revision: 2 })
+      return Promise.resolve(fixture(state.company))
+    })
+    const result = await moveTableServer('table-a', 'table-b', 'MERGE')
+    expect(result.visitIds).toEqual(['visit-a'])
+    expect(state.pos.tables[0].covers).toHaveLength(1)
+    expect([...values.keys()].some(k => k.startsWith('creorga-pos-move:'))).toBe(false)
+  })
+  it('conserve la référence de fusion non confirmée sous le compte initial', async () => {
+    const remote = deferred<any>()
+    state.api.mockImplementation((path: string) => path === '/pos/table-movements' ? remote.promise : Promise.resolve(fixture(state.company)))
+    const operation = moveTableServer('table-a', 'table-b', 'TRANSFER')
+    await vi.waitFor(() => expect(state.api.mock.calls.some(([p]) => p === '/pos/table-movements')).toBe(true))
+    stopFloorBridge(); state.company = 'company-b'; state.pos = fixture(state.company)
+    remote.resolve({ requestId: 'old' })
+    await expect(operation).rejects.toThrow('session de caisse a changé')
+    expect(state.pos.companyId).toBe('company-b')
+    expect([...values.keys()]).toContain('creorga-pos-move:company-a:owner-company-a:table-a')
+  })
   it('retrouve un acompte après perte de réponse, sans inventer une autre référence', async () => {
     let payload: any
     state.api.mockImplementation((path: string, options: any) => {

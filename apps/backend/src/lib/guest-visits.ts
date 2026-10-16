@@ -15,7 +15,7 @@ export async function requireGuestAccess(companyId: string, token: unknown, tabl
   const access = await db.guestVisitAccess.findUnique({ where: { tokenHash: guestTokenHash(token) }, include: { visit: true } })
   const now = Date.now()
   if (!access || access.companyId !== companyId || access.visit.companyId !== companyId
-    || (tableId !== undefined && access.visit.tableId !== tableId) || access.visit.closedAt
+    || access.revokedAt || (tableId !== undefined && access.visit.tableId !== tableId) || access.visit.closedAt
     || access.expiresAt.getTime() <= now || access.visit.expiresAt.getTime() <= now) throw new GuestAccessError(403)
   return access.visit
 }

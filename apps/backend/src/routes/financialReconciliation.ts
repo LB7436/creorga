@@ -9,15 +9,16 @@ router.get('/reconciliation', requireRole('OWNER', 'MANAGER'), async (req: any, 
     const { period, dates } = journalPeriod(req.query)
     const result = await prisma.$transaction(async tx => {
       const where = { companyId: req.companyId }, take = 5001
-      const [orders, sales, invoices, credits, tenders, settlements, refunds, manualRefunds, movements, drawers] = await Promise.all([
+      const [orders, sales, invoices, credits, tenders, settlements, refunds, manualRefunds, movements, drawers, payouts] = await Promise.all([
         tx.order.findMany({ where, take, select: { id: true, status: true, paidAt: true, createdAt: true, total: true, subtotal: true, taxAmount: true } }),
         tx.posSale.findMany({ where, take, select: { id: true, createdAt: true, snapshot: true } }),
         tx.invoice.findMany({ where, take, select: { id: true, number: true, orderId: true, sourcePosSaleId: true, currency: true, total: true, issuedAt: true } }),
         tx.creditNote.findMany({ where, take, select: { id: true, invoiceId: true, currency: true, totalCents: true, baseCents: true, taxCents: true, createdAt: true } }),
         tx.orderTender.findMany({ where, take }), tx.paymentSettlement.findMany({ where, take }), tx.refundAttempt.findMany({ where, take }), tx.manualRefund.findMany({ where, take }),
         tx.cashMovement.findMany({ where, take }), tx.cashDrawer.findMany({ where, take }),
+        tx.bankPayout.findMany({ where, take, include: { lines: true } }),
       ])
-      const data = { orders, sales, invoices, credits, tenders, settlements, refunds, manualRefunds, movements, drawers }
+      const data = { orders, sales, invoices, credits, tenders, settlements, refunds, manualRefunds, movements, drawers, payouts }
       if (Object.values(data).some(list => list.length > 5000)) throw new Error('Périmètre trop large : pagination qualifiée nécessaire')
       if ([...invoices, ...credits, ...settlements].some(row => row.currency !== req.company.currency)) throw new Error('Plusieurs devises : rapprochement séparé requis')
       // Ne jamais exporter PDF, noms clients, secrets ou preuves brutes : DTO explicite seulement.

@@ -59,7 +59,7 @@ describe('Connecteur PayPal — contrat HTTP simulé', () => {
     const gateway = getGateway('paypal')
     const result = await gateway.startRefund?.({ requestId: 'stable-refund-id', captureId: 'CAPTURE-TEST', externalOrderId: 'PAYPAL-ORDER', amountCents: 300, currency: 'EUR' })
     expect(result).toEqual({ id: 'REFUND-TEST' })
-    expect(posted[0].body).toEqual({ amount: { value: '3.00', currency_code: 'EUR' } })
+    expect(posted[0].body).toEqual({ amount: { value: '3.00', currency_code: 'EUR' }, invoice_id: 'stable-refund-id' })
     expect(new Headers(posted[0].headers).get('PayPal-Request-Id')).toBe('stable-refund-id')
   })
   it('relit le remboursement et son ordre d’origine ; une autre capture est rejetée', async () => {

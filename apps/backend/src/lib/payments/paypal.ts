@@ -90,6 +90,7 @@ export class PayPalClient {
     if (capture.amount?.currency_code !== input.currency || input.amountCents > moneyMinor(capture.amount?.value)) throw new Error('Montant ou devise incompatible avec la capture.')
     const result = await this.api('/v2/payments/captures/' + encodeURIComponent(input.captureId) + '/refund', 'POST', {
       amount: { value: (input.amountCents / 100).toFixed(2), currency_code: input.currency },
+      invoice_id: input.requestId,
     }, input.requestId)
     if (typeof result.id !== 'string') throw new Error('Référence de remboursement non confirmée.')
     return { id: result.id }
@@ -104,7 +105,7 @@ export class PayPalClient {
       || url.username || url.password || url.search || url.hash || url.pathname !== '/v2/payments/captures/' + encodeURIComponent(captureId)) throw new Error('Capture du remboursement incohérente.')
     const status: 'succeeded' | 'pending' | 'failed' = refund.status === 'COMPLETED' ? 'succeeded' : refund.status === 'PENDING' ? 'pending' : 'failed'
     if (!['COMPLETED', 'PENDING', 'FAILED', 'CANCELLED'].includes(refund.status)) throw new Error('Statut de remboursement PayPal inconnu : réservation conservée.')
-    return { provider: 'paypal', status, providerStatus: refund.status, refundId: id, captureId, amountCents: moneyMinor(refund.amount?.value), currency: refund.amount?.currency_code, merchantId: this.merchant }
+    return { provider: 'paypal', status, providerStatus: refund.status, ...(typeof refund.invoice_id === 'string' ? { providerRequestId: refund.invoice_id } : {}), refundId: id, captureId, amountCents: moneyMinor(refund.amount?.value), currency: refund.amount?.currency_code, merchantId: this.merchant }
   }
 }
 export const paypalGateway: PaymentGateway = {

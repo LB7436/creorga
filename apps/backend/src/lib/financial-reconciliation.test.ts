@@ -32,4 +32,12 @@ describe('Rapprochement sans double comptabilisation', () => {
     expect(csv).toContain("'=DANGER")
     expect(csv).toContain('salesCents')
   })
+  it('sépare le versement fictif des ventes et filtre aussi ses compteurs par période', () => {
+    const data = { ...fixture(), payouts: [{ id: 'p', statementId: 's', externalRef: 'bank', declaredNetCents: 800, receivedCents: 800, receivedAt: date, createdAt: date, validatedAt: date }] }
+    const current = reconciliation(data)
+    expect(current.totals.finalizedSalesCents).toBe(1170)
+    expect(current.totals.receiptsCents).toBe(1170)
+    expect(current.payouts?.validatedReceivedCents).toBe(800)
+    expect(reconciliation(data, { gte: new Date('2026-10-17T00:00:00Z') }).payouts?.importedCount).toBe(0)
+  })
 })

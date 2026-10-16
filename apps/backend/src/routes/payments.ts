@@ -8,7 +8,7 @@ import prisma from '../lib/prisma'
 import { PayPalClient } from '../lib/payments/paypal'
 import logger from '../lib/logger'
 import Stripe from 'stripe'
-import { requestRefund, reconcileRefund, refundDto, refundableOrderParts } from '../lib/payments/refunds'
+import { requestRefund, reconcileRefund, reviewRefund, refundDto, refundableOrderParts } from '../lib/payments/refunds'
 import { declareManualRefund, manualRefundDto, manualRefundReceipt } from '../lib/payments/manual-refunds'
 
 const router = Router()
@@ -78,7 +78,15 @@ router.get('/manual-tenders', requireRole('OWNER', 'MANAGER'), wrap(async (req, 
   res.set('Cache-Control', 'private, no-store').json(tenders.map(t => ({ id: t.id, orderId: t.orderId, method: t.method, amountCents: t.amountCents,
     availableCents: t.amountCents - t.manualRefunds.reduce((n, r) => n + r.amountCents, 0) })))
 }))
-router.post('/refunds/:id/reconcile', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => res.json(await reconcileRefund(req.companyId, req.params.id))))
+router.post('/refunds/:id/reconcile', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => res.json(await reconcileRefund(req.companyId, req.params.id, req.user.userId))))
+router.post('/refunds/:id/review', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => res.json(await reviewRefund(req.companyId, req.user.userId, req.params.id, req.body))))
+router.get('/refunds/:id/history', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+  if (!await prisma.refundAttempt.findFirst({ where: { companyId: req.companyId, id: req.params.id }, select: { id: true } })) throw new PaymentError(404, 'Remboursement introuvable.')
+  const rows = await prisma.refundReviewEvent.findMany({ where: { companyId: req.companyId, refundId: req.params.id }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: 1001,
+    select: { id: true, actorId: true, action: true, snapshot: true, createdAt: true } })
+  if (rows.length > 1000) throw new PaymentError(409, 'Historique trop large : pagination nécessaire. Aucune preuve tronquée.')
+  res.set('Cache-Control', 'private, no-store').json(rows)
+}))
 router.get('/refunds', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
   const where = { companyId: req.companyId, ...(typeof req.query.creditNoteId === 'string' ? { creditNoteId: req.query.creditNoteId } : {}) }
   res.set('Cache-Control', 'private, no-store').json((await prisma.refundAttempt.findMany({ where, orderBy: { createdAt: 'desc' }, take: 200 })).map(refundDto))

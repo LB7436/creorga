@@ -16,6 +16,7 @@ import type { Prisma } from '@prisma/client'
 import { recordPosTenders, orderPaymentBalance } from '../lib/order-tenders'
 import { partialPaymentSchema, payPosPart } from '../lib/pos-partial-payments'
 import { WorkspaceError, postgresFloorEnabled, floorHash } from '../lib/floor-workspace'
+import { tableMovementSchema, previousMovement, moveTable } from '../lib/table-movements'
 
 const router = Router()
 const stateStatus: Record<string, string> = { available: 'LIBRE', occupied: 'OCCUPEE', reserved: 'RESERVEE', dirty: 'NETTOYAGE' }
@@ -103,6 +104,27 @@ router.get('/bootstrap', wrap(async (req, res) => {
     menu: products.map(p => ({ id: p.id, name: p.name, price: p.price, category: p.category.name, emoji: p.category.icon || '🍽️', active: true, stock: p.stock ?? undefined, taxRate: p.taxRate })),
     staff, currentStaff: staff.find(s => s.id === req.user.userId), ventes: sales.map(s => s.snapshot), clotures: closures.map(c => c.snapshot),
     settings: { restaurantName: req.company.name, receiptFooter: settings?.receiptFooter || '', currency: 'EUR', taxRate: settings?.defaultTaxRate || 0, defaultTip: 0, tipPresets: [0, 5, 10, 15], floorAuthority: postgresFloorEnabled() ? 'postgres' : 'legacy-file' } })
+}))
+
+router.post('/table-movements', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', 'CASHIER'), wrap(async (req, res) => {
+  if (!postgresFloorEnabled()) throw new PosError('Autorité PostgreSQL nécessaire pour déplacer des additions.', 409)
+  const input = tableMovementSchema.parse(req.body), companyId = req.companyId, actorId = req.user.userId
+  const previous = await previousMovement(prisma, companyId, actorId, input)
+  if (previous) return void res.json(previous)
+  const release = lockFloorForPayment()
+  if (!release) throw new PosError('Une opération est en cours : réessayez avec la même référence.', 409)
+  try {
+    const result = await prisma.$transaction(async tx => {
+      await lock(tx, companyId)
+      return await previousMovement(tx, companyId, actorId, input) || moveTable(tx, companyId, actorId, input, await tablesFor(companyId, tx))
+    }, { maxWait: 15000, timeout: 20000 })
+    res.json(result)
+  } finally { release() }
+}))
+router.get('/table-movements/:id', wrap(async (req, res) => {
+  const row = await prisma.tableMovement.findFirst({ where: { id: req.params.id, companyId: req.companyId, actorId: req.user.userId } })
+  if (!row) throw new PosError('Transfert introuvable pour ce compte.', 404)
+  res.set('Cache-Control', 'private, no-store').json(row.snapshot)
 }))
 
 router.put('/draft', wrap(async (req, res) => {

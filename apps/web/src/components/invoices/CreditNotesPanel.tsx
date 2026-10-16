@@ -5,6 +5,7 @@ import { moneyMinor } from '@/lib/money'
 import { useAuthStore } from '@/stores/authStore'
 import { readFinancialRequest, preserveFinancialRequest, forgetFinancialRequest } from '@/lib/financial-request'
 import ManualRefundPanel from './ManualRefundPanel'
+import RefundReviewPanel from './RefundReviewPanel'
 
 export default function CreditNotesPanel({ invoiceId, issued }: { invoiceId: string; issued: boolean }) {
   const companyId = useAuthStore(s => s.companyId), actorId = useAuthStore(s => s.user?.id)
@@ -85,7 +86,8 @@ function RefundPanel({ invoiceId, credit }: { invoiceId: string; credit: any }) 
       </fieldset>
       <button disabled={busy} type="submit" style={{ padding: 10 }}>{pending ? 'Réessayer la même demande' : 'Demander le remboursement PayPal'}</button>
     </form> : <p>Aucune capture PayPal remboursable et configurée pour ce document. L’avoir seul ne prouve aucun remboursement.</p>}
-    {refunds.data?.map(r => <p key={r.id}>{r.status === 'SUCCEEDED' ? 'Remboursement confirmé par preuve prestataire' : r.status === 'REFUSED_RECONCILIATION' ? 'Refus prestataire — réservation conservée, à rapprocher' : `Remboursement ${r.status} — non confirmé, réservation conservée`} · {(r.amountCents / 100).toFixed(2)} {r.currency} {r.status !== 'SUCCEEDED' && r.externalId && <button disabled={busy} onClick={() => void reconcile(r.id)}>Vérifier auprès du prestataire</button>}</p>)}
+    {refunds.data?.map(r => <div key={`${companyId}:${actorId}:${r.id}`}><p>{r.status === 'SUCCEEDED' ? 'Remboursement confirmé par preuve prestataire' : r.status === 'NOT_REFUNDED' ? 'Absence de remboursement rapprochée, réservation libérée' : `Remboursement ${r.status} — non confirmé, réservation conservée`} · {(r.amountCents / 100).toFixed(2)} {r.currency} {r.status !== 'SUCCEEDED' && r.externalId && <button disabled={busy} onClick={() => void reconcile(r.id)}>Vérifier auprès du prestataire</button>}</p>
+      <RefundReviewPanel refund={r} scope={`${companyId}:${actorId}`} reload={async () => { await refunds.refetch(); await captures.refetch() }} /></div>)}
     {(captures.isError || refunds.isError) && <p role="alert">Historique de rapprochement indisponible.</p>}{error && <p role="alert">{error}</p>}
   </div>
 }

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { usePOS, Cover, OrderItem, coverTotal, tableTotal, elapsed, MENU_CATEGORIES } from '../store/posStore'
 import { useEcranEtroit } from '../lib/ecran'
 import { api } from '../lib/server'
-import { flushFloor } from '../lib/floorBridge'
+import { flushFloor, moveTableServer } from '../lib/floorBridge'
 
 interface Props {
   tableId: string
@@ -226,7 +226,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
   const favoriteItems = favoriteIds.map(id => menu.find(m => m.id === id)).filter(Boolean) as typeof menu
   const recentItems = recentIds.map(id => menu.find(m => m.id === id)).filter(Boolean) as typeof menu
 
-  const availableTables = tables.filter(t => t.id !== tableId && t.status === 'available')
+  const availableTables = tables.filter(t => t.id !== tableId && !t.isMergedInto)
 
   return (
     <div style={{
@@ -675,10 +675,9 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
             tables={availableTables}
             onClose={() => setShowTransfer(false)}
             onConfirm={(toId) => {
-              if (table.covers.some(c => c.id.startsWith('guest:') || c.id.startsWith('seat:'))) { setOperationError('Pour une commande QR ou une chaise, utilisez son transfert dédié ; le transfert global n’a pas été effectué.'); return }
-              usePOS.getState().transferTable(tableId, toId)
-              void flushFloor().then(() => { onBack() }).catch(e => setOperationError(e.message))
-              setShowTransfer(false)
+              const occupied = tables.find(t => t.id === toId)?.covers.some(c => c.items.length)
+              if (!window.confirm(`${occupied ? 'Fusionner les additions' : 'Transférer la table'} ? Les anciens QR des groupes concernés seront révoqués. Chaque groupe conservera sa propre visite et devra recevoir un nouveau QR.`)) return
+              void moveTableServer(tableId, toId, occupied ? 'MERGE' : 'TRANSFER').then(() => { setShowTransfer(false); onBack() }).catch(e => setOperationError(e.message))
             }}
           />
         )}
@@ -975,9 +974,9 @@ function ModifiersModal({ current, onClose, onConfirm }: { current: Modifier[]; 
   )
 }
 
-function TransferModal({ tables, onClose, onConfirm }: { tables: Array<{ id: string; name: string; section: string }>; onClose: () => void; onConfirm: (toId: string) => void }) {
+function TransferModal({ tables, onClose, onConfirm }: { tables: Array<{ id: string; name: string; section: string; covers?: Cover[] }>; onClose: () => void; onConfirm: (toId: string) => void }) {
   return (
-    <ModalShell onClose={onClose} title="Transférer la commande" icon="⇄" color="#38bdf8">
+    <ModalShell onClose={onClose} title="Transférer ou fusionner" icon="⇄" color="#38bdf8">
       <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 12 }}>
         Sélectionnez la table de destination :
       </div>
@@ -994,6 +993,7 @@ function TransferModal({ tables, onClose, onConfirm }: { tables: Array<{ id: str
               color: '#e2e8f0', cursor: 'pointer', textAlign: 'left',
             }}>
               <div>{t.name}</div>
+              <div>{t.covers?.some(c => c.items.length) ? 'Fusionner — groupes QR séparés' : 'Transférer'}</div>
               <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{t.section}</div>
             </button>
           ))}

@@ -642,6 +642,8 @@ function GuestMenu({
           </button>
         )}
       </div>
+      {/* Une visite renouvelée retrouve l'addition sans recréer une commande. */}
+      {tableNumber && <GuestCallButtons tableId={tableNumber} companyId={companyId} />}
       {/* Category tabs */}
       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, marginBottom: 16 }}>
         {categories.map((cat) => (

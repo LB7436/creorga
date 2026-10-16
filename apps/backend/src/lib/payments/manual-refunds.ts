@@ -23,7 +23,7 @@ export async function declareManualRefund(companyId: string, actorId: string, ra
     if (!sourceOrders.includes(tender.orderId) || tender.method !== input.method || tender.confirmation !== 'manual_declaration' || tender.settlementId || credit.currency !== (await tx.company.findUniqueOrThrow({ where: { id: companyId } })).currency) throw new PaymentError(409, 'Origine, méthode ou devise incompatible. Une capture prestataire doit être remboursée par son connecteur et rapprochée.')
     const [manualCredit, providerCredit, tenderUsed] = await Promise.all([
       tx.manualRefund.aggregate({ where: { companyId, creditNoteId: credit.id }, _sum: { amountCents: true } }),
-      tx.refundAttempt.aggregate({ where: { companyId, creditNoteId: credit.id }, _sum: { amountCents: true } }),
+      tx.refundAttempt.aggregate({ where: { companyId, creditNoteId: credit.id, reservationReleasedAt: null }, _sum: { amountCents: true } }),
       tx.manualRefund.aggregate({ where: { companyId, tenderId: tender.id }, _sum: { amountCents: true } }),
     ])
     if (input.amountCents > credit.totalCents - (manualCredit._sum.amountCents || 0) - (providerCredit._sum.amountCents || 0)

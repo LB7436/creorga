@@ -1,6 +1,6 @@
 import { moneyMinor } from './money'
 
-type Data = Record<'orders' | 'sales' | 'invoices' | 'credits' | 'tenders' | 'settlements' | 'refunds' | 'manualRefunds' | 'movements' | 'drawers', any[]>
+type Data = Record<'orders' | 'sales' | 'invoices' | 'credits' | 'tenders' | 'settlements' | 'refunds' | 'manualRefunds' | 'movements' | 'drawers', any[]> & { payouts?: any[] }
 /** Journal de rapprochement, pas déclaration fiscale. Les pièces ne sont jamais additionnées aux ventes. */
 export function reconciliation(data: Data, dates: { gte?: Date; lte?: Date } = {}) {
   const rows: any[] = [], issues: string[] = []
@@ -32,22 +32,32 @@ export function reconciliation(data: Data, dates: { gte?: Date; lte?: Date } = {
   for (const s of data.settlements) add('BANK_CAPTURE_REFERENCE', s.id, s.createdAt, { refs: [s.orderId, s.attemptId, s.captureId].filter(Boolean).join('|'),
     feesCents: s.feesCents ?? null, netCents: s.netCents ?? null, grossCents: s.amountCents, status: s.feesCents == null || s.netCents == null ? 'fees_net_unknown' : 'provider_data_not_bank_payout' })
   for (const r of data.refunds) add('PROVIDER_REFUND', r.id, r.confirmedAt || r.createdAt, { refs: [r.creditNoteId, r.settlementId].join('|'), refundCents: r.status === 'SUCCEEDED' ? r.amountCents : 0,
-    heldRefundCents: r.status === 'SUCCEEDED' ? 0 : r.amountCents, status: r.status })
+    heldRefundCents: r.status === 'SUCCEEDED' || r.reservationReleasedAt ? 0 : r.amountCents, status: r.status })
   for (const r of data.manualRefunds) add('DECLARED_REFUND', r.id, r.createdAt, { refs: [r.creditNoteId, r.tenderId, r.cashMovementId].filter(Boolean).join('|'), refundCents: r.amountCents,
     cashDeltaCents: r.method === 'CASH' ? -r.amountCents : 0, method: r.method, status: 'manual_declaration' })
   for (const m of data.movements) add('CASH_MOVEMENT', m.id, m.createdAt, { refs: m.drawerId, cashDeltaCents: data.manualRefunds.some(r => r.cashMovementId === m.id) ? 0 : (m.direction === 'OUT' ? -1 : 1) * m.amountCents,
     status: data.manualRefunds.some(r => r.cashMovementId === m.id) ? 'refund_reference_already_counted' : m.direction })
   for (const d of data.drawers) add('CASH_CLOSURE_REFERENCE', d.id, d.closedAt || d.openedAt, { countedCents: d.closeSnapshot?.countedCents ?? null,
     expectedCents: d.closeSnapshot?.expectedCents ?? null, discrepancyCents: d.closeSnapshot?.discrepancyCents ?? null, status: d.closedAt ? 'closed_frozen' : 'open' })
+  for (const p of data.payouts || []) {
+    const part = (kind: string) => (p.lines || []).filter((l: any) => l.kind === kind).reduce((n: number, l: any) => n + l.amountCents, 0)
+    add('BANK_PAYOUT', p.id, p.receivedAt || p.createdAt, { refs: [p.statementId, p.externalRef, ...(p.lines || []).map((l: any) => l.kind + ':' + l.externalRef)].join('|'),
+      netCents: p.declaredNetCents, bankReceivedCents: p.receivedCents, payoutGrossCents: part('CAPTURE'), payoutRefundCents: part('REFUND'), payoutFeesCents: part('FEE'),
+      payoutHeldCents: part('HOLD'), payoutReleasedCents: part('RELEASE'), payoutComputedNetCents: part('CAPTURE') - part('REFUND') - part('FEE') - part('HOLD') + part('RELEASE'),
+      status: p.validatedAt ? 'fictional_manually_reconciled_not_bank_verified' : 'fictional_unresolved_or_unvalidated' })
+  }
   const sum = (field: string, kind?: string) => rows.filter(r => !kind || r.kind === kind).reduce((n, r) => n + (r[field] || 0), 0)
+  const periodPayouts = (data.payouts || []).filter(p => inPeriod(p.receivedAt || p.createdAt))
   return { version: 1, basis: 'finalized_paid_orders_documents_separate_not_certified_accounting', rows, issues,
     totals: { finalizedSalesCents: sum('salesCents'), salesBaseCents: sum('salesBaseCents'), salesTaxCents: sum('salesTaxCents'), creditDocumentsCents: -sum('documentCents', 'CREDIT_NOTE'),
       receiptsCents: sum('receiptCents'), declaredRefundsCents: sum('refundCents', 'DECLARED_REFUND'), verifiedRefundsCents: sum('refundCents', 'PROVIDER_REFUND'), heldRefundsCents: sum('heldRefundCents'),
       cashNetMovementCents: sum('cashDeltaCents'), knownFeesCents: sum('feesCents'), unknownFeesCount: rows.filter(r => r.kind === 'BANK_CAPTURE_REFERENCE' && r.feesCents == null).length },
-    payouts: null, warning: 'Versements bancaires non intégrés ; absence de montant = inconnu, pas zéro. Les factures et tickets ne s’ajoutent pas aux ventes. Avoirs fiscaux et remboursements séparés. Reconnaissance des créances et écritures comptables à qualifier avec le comptable.' }
+    payouts: data.payouts?.length ? { importedCount: periodPayouts.length, validatedReceivedCents: periodPayouts.filter(p => p.validatedAt).reduce((n, p) => n + (p.receivedCents || 0), 0),
+      unvalidatedCount: periodPayouts.filter(p => !p.validatedAt).length, source: 'FICTIONAL_DECLARATION' } : null,
+    warning: 'Versements importés fictifs et validation manuelle, aucune banque connectée. Absence de montant = inconnu, pas zéro. Les factures et tickets ne s’ajoutent pas aux ventes. Avoirs fiscaux et remboursements séparés. Écritures comptables à qualifier avec le comptable.' }
 }
 export function reconciliationCsv(report: ReturnType<typeof reconciliation>) {
-  const columns = ['kind', 'id', 'date', 'number', 'refs', 'status', 'method', 'salesCents', 'salesBaseCents', 'salesTaxCents', 'documentCents', 'creditBaseCents', 'creditTaxCents', 'receiptCents', 'foodCents', 'tipCents', 'charityCents', 'refundCents', 'heldRefundCents', 'cashDeltaCents', 'grossCents', 'feesCents', 'netCents', 'countedCents', 'expectedCents', 'discrepancyCents']
+  const columns = ['kind', 'id', 'date', 'number', 'refs', 'status', 'method', 'salesCents', 'salesBaseCents', 'salesTaxCents', 'documentCents', 'creditBaseCents', 'creditTaxCents', 'receiptCents', 'foodCents', 'tipCents', 'charityCents', 'refundCents', 'heldRefundCents', 'cashDeltaCents', 'grossCents', 'feesCents', 'netCents', 'countedCents', 'expectedCents', 'discrepancyCents', 'bankReceivedCents', 'payoutGrossCents', 'payoutRefundCents', 'payoutFeesCents', 'payoutHeldCents', 'payoutReleasedCents', 'payoutComputedNetCents']
   const cell = (v: unknown) => { let s = v == null ? '' : String(v); if (typeof v === 'string' && /^[\s]*[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"' }
   return '\ufeff' + [columns, ...report.rows.map(r => columns.map(c => r[c]))].map(row => row.map(cell).join(';')).join('\r\n')
 }

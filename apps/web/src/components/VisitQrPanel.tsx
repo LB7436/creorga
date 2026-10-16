@@ -2,24 +2,26 @@ import { useEffect, useState } from 'react'
 import api from '@/lib/api'
 import QRCodeCanvas from './QRCodeCanvas'
 import { useAuthStore } from '@/stores/authStore'
+import { visitForGroup } from '@/lib/visit-groups'
 
 interface Table { id: string; name: string }
-interface Visit { id: string; tableId: string; expiresAt: string }
+interface Visit { id: string; tableId: string; expiresAt: string; orders?: Array<{ orderNumber: number }> }
 export default function VisitQrPanel() {
   const companyId = useAuthStore(s => s.companyId)
   const [tables, setTables] = useState<Table[]>([]), [visits, setVisits] = useState<Visit[]>([])
   const [selected, setSelected] = useState(''), [link, setLink] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState(false)
-  const [reason, setReason] = useState(''), [acknowledge, setAcknowledge] = useState(false)
+  const [reason, setReason] = useState(''), [acknowledge, setAcknowledge] = useState(false), [group, setGroup] = useState('')
   async function load() {
     const { data } = await api.get<{ tables: Table[]; visits: Visit[] }>('/guest-visits')
     setTables(data.tables); setVisits(data.visits)
     setSelected(value => data.tables.some(t => t.id === value) ? value : data.tables[0]?.id || '')
   }
-  useEffect(() => { let alive = true; setLink(''); setError(''); setTables([]); setVisits([])
+  useEffect(() => { let alive = true; setLink(''); setError(''); setTables([]); setVisits([]); setGroup('')
     load().catch(() => { if (alive) setError('Chargement des accès client impossible.') })
     return () => { alive = false }
   }, [companyId])
-  const visit = visits.find(v => v.tableId === selected && new Date(v.expiresAt).getTime() > Date.now())
+  const groups = visits.filter(v => v.tableId === selected && new Date(v.expiresAt).getTime() > Date.now())
+  const visit = visitForGroup(visits, selected, group)
   async function run(action: () => Promise<void>) {
     setBusy(true); setError('')
     try { await action() } catch (e: any) { setError(e.response?.data?.error || 'Opération non confirmée. Actualisez avant de recommencer.') }
@@ -28,12 +30,15 @@ export default function VisitQrPanel() {
   return <section aria-label="Accès client par visite" style={{ padding: 20, border: '1px solid #cbd5e1', borderRadius: 14, background: '#fff', color: '#0f172a', margin: '16px 0' }}>
     <h2>Accès client de la table</h2>
     <p>Le QR permanent ouvre la carte. Pour commander, suivre l’addition ou payer, donnez aux clients le QR de leur visite. Terminer la visite révoque ses liens et conserve les éventuels impayés pour le personnel.</p>
-    <label>Table réelle <select aria-label="Table de la visite" value={selected} disabled={busy} onChange={e => { setSelected(e.target.value); setLink(''); setReason(''); setAcknowledge(false) }}>
+    <label>Table réelle <select aria-label="Table de la visite" value={selected} disabled={busy} onChange={e => { setSelected(e.target.value); setGroup(''); setLink(''); setReason(''); setAcknowledge(false) }}>
       <option value="">Choisir une table</option>{tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
     </select></label>
     {!tables.length && <p>Créez d’abord vos tables dans le plan de salle.</p>}
+    {groups.length > 1 && <label>Groupe QR à cette table <select aria-label="Groupe QR à cette table" value={group} disabled={busy} onChange={e => { setGroup(e.target.value); setLink(''); setReason(''); setAcknowledge(false) }}>
+      <option value="">Choisir explicitement le groupe</option>{groups.map(v => <option key={v.id} value={v.id}>Groupe {v.id.slice(-8)}{v.orders?.length ? ` — commandes ${v.orders.map(o => '#' + o.orderNumber).join(', ')}` : ''}</option>)}
+    </select><p>Après fusion, chaque groupe garde une addition privée et doit recevoir son propre nouveau QR. Ne partagez pas un lien entre les groupes.</p></label>}
     <p>{visit ? `Visite ouverte jusqu’au ${new Date(visit.expiresAt).toLocaleString('fr-LU')}.` : 'Aucune visite ouverte pour cette table.'}</p>
-    <button disabled={busy || !selected} onClick={() => run(async () => {
+    <button disabled={busy || !selected || groups.length > 1 && !visit} onClick={() => run(async () => {
       let id = visit?.id
       if (!id) id = (await api.post<Visit>('/guest-visits', { tableId: selected })).data.id
       const { data } = await api.post<{ visitId: string; tableId: string; token: string }>(`/guest-visits/${id}/link`)

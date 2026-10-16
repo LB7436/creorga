@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import api from '@/lib/api'
 import { useAuthStore } from '@/stores/authStore'
+import BankPayoutPanel from './BankPayoutPanel'
 export default function FinancialReconciliationPanel({ start, end }: { start?: string; end?: string }) {
   const company = useAuthStore(s => s.companyId), actor = useAuthStore(s => s.user?.id), [open, setOpen] = useState(false), [error, setError] = useState('')
   const params = { startDate: start, endDate: end }
@@ -17,9 +18,9 @@ export default function FinancialReconciliationPanel({ start, end }: { start?: s
     <button onClick={() => setOpen(!open)} style={{ padding: 12 }}>{open ? 'Masquer' : 'Ouvrir'} le rapprochement financier</button>
     {open && <><p>Ventes finalisées, documents et trésorerie séparés. Export technique à qualifier avec votre comptable, pas une déclaration fiscale.</p>
       {report.isLoading && <p>Lecture des journaux…</p>}{report.isError && <p role="alert">Rapprochement incomplet : aucun résultat validé.</p>}
-      {t && <><dl><dt>Ventes finalisées TTC (commandes payées)</dt><dd>{euro(t.finalizedSalesCents)}</dd><dt>TVA de ces ventes</dt><dd>{euro(t.salesTaxCents)}</dd><dt>Avoirs documentaires (distincts)</dt><dd>{euro(t.creditDocumentsCents)}</dd><dt>Encaissements enregistrés</dt><dd>{euro(t.receiptsCents)}</dd><dt>Remboursements déclarés</dt><dd>{euro(t.declaredRefundsCents)}</dd><dt>Remboursements vérifiés prestataire</dt><dd>{euro(t.verifiedRefundsCents)}</dd><dt>Remboursements réservés / incertains</dt><dd>{euro(t.heldRefundsCents)}</dd><dt>Frais prestataire</dt><dd>{euro(t.knownFeesCents)} connus ; {t.unknownFeesCount} capture(s) aux frais inconnus</dd><dt>Versements bancaires</dt><dd>Non intégrés — inconnus, pas zéro</dd></dl>
+      {t && <><dl><dt>Ventes finalisées TTC (commandes payées)</dt><dd>{euro(t.finalizedSalesCents)}</dd><dt>TVA de ces ventes</dt><dd>{euro(t.salesTaxCents)}</dd><dt>Avoirs documentaires (distincts)</dt><dd>{euro(t.creditDocumentsCents)}</dd><dt>Encaissements enregistrés</dt><dd>{euro(t.receiptsCents)}</dd><dt>Remboursements déclarés</dt><dd>{euro(t.declaredRefundsCents)}</dd><dt>Remboursements vérifiés prestataire</dt><dd>{euro(t.verifiedRefundsCents)}</dd><dt>Remboursements réservés / incertains</dt><dd>{euro(t.heldRefundsCents)}</dd><dt>Frais prestataire</dt><dd>{euro(t.knownFeesCents)} connus ; {t.unknownFeesCount} capture(s) aux frais inconnus</dd><dt>Versements fictifs rapprochés manuellement</dt><dd>{report.data.payouts ? euro(report.data.payouts.validatedReceivedCents) : 'Aucun relevé fictif — versements réels inconnus'}</dd></dl>
         <p>{report.data.issues.length ? `Anomalies à rapprocher : ${report.data.issues.join(', ')}` : 'Aucune incohérence détectée par ces contrôles limités.'}</p>
         <button onClick={() => void download()} style={{ padding: 12 }}>Exporter le rapprochement CSV v1</button><p>{report.data.warning}</p></>}
-    </>}{error && <p role="alert">{error}</p>}
+    </>}{error && <p role="alert">{error}</p>}<BankPayoutPanel />
   </section>
 }

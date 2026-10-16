@@ -43,6 +43,14 @@ export async function startFloorBridge() {
   await loadServerState()
   assertBridge(epoch)
   scope = `${sessionCompany()}:${usePOS.getState().currentStaff?.id}`
+  for (const key of Object.keys(localStorage).filter(k => k.startsWith(`creorga-pos-move:${scope}:`))) {
+    try {
+      const pending = JSON.parse(localStorage.getItem(key)!)
+      await api(`/pos/table-movements/${encodeURIComponent(pending.requestId)}`)
+      assertBridge(epoch); localStorage.removeItem(key)
+      status('Transfert retrouvé sur le serveur. Renouvelez séparément les QR des groupes concernés.')
+    } catch { assertBridge(epoch); status('Un transfert reste à vérifier. Sa référence est conservée ; réessayez la même destination.', true) }
+  }
   for (const key of Object.keys(localStorage).filter(k => k.startsWith(`creorga-pos-partial:${scope}:`))) {
     try {
       const pending = JSON.parse(localStorage.getItem(key)!)
@@ -114,6 +122,31 @@ export async function flushFloor(): Promise<void> {
   })()
   writing = task
   try { await task } finally { if (writing === task) writing = null }
+}
+export async function moveTableServer(fromTableId: string, intoTableId: string, kind: 'TRANSFER' | 'MERGE') {
+  if (checkingPayment) throw new Error('Une opération de caisse est déjà en cours.')
+  const epoch = bridgeEpoch, key = `creorga-pos-move:${scope}:${fromTableId}`
+  checkingPayment = true
+  try {
+    await flushFloor(); assertBridge(epoch)
+    const stored = localStorage.getItem(key)
+    const payload = stored ? JSON.parse(stored) : { requestId: crypto.randomUUID(), fromTableId, intoTableId, kind, expectedRevision: revision }
+    if (payload.intoTableId !== intoTableId || payload.kind !== kind) throw new Error('Un transfert incertain existe vers une autre destination. Vérifiez-le avant de changer la demande.')
+    localStorage.setItem(key, JSON.stringify(payload))
+    let result: any
+    try { result = await api('/pos/table-movements', { method: 'POST', body: JSON.stringify(payload) }) }
+    catch (error: any) {
+      assertBridge(epoch)
+      try { result = await api(`/pos/table-movements/${encodeURIComponent(payload.requestId)}`) }
+      catch (check: any) { if (error.status >= 400 && error.status < 500 && check.status === 404) localStorage.removeItem(key); throw error }
+    }
+    assertBridge(epoch); localStorage.removeItem(key)
+    checkingPayment = false
+    await loadServerState()
+    assertBridge(epoch)
+    status('Déplacement confirmé. Les anciens QR sont révoqués : renouvelez un QR distinct pour chaque visite.')
+    return result
+  } finally { if (epoch === bridgeEpoch) checkingPayment = false }
 }
 export async function reviewLinePricing(lineId: string, input: { productId: string; price: number; taxRate: number; reason: string }) {
   const epoch = bridgeEpoch
