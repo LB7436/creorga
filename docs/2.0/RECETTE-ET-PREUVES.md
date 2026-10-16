@@ -1,6 +1,29 @@
 # Recette actuelle
 
-## Allocation financière et recette étendue — résultat courant
+## T100 et profilage HTTP — lot suivant c0ddd81
+
+16 octobre 2026. [Rapport T100](T100-CONTROLES-ET-PERFORMANCE.md),
+[validation fraîche](preuves/t100-validation-2026-10-16.json),
+[inventaire source](preuves/t100-inventaire-source-2026-10-16.jsonl),
+[mesure HTTP appariée](preuves/profil-http-t100-2026-10-16.json) et
+[restauration](preuves/restauration-t100-2026-10-16.json).
+
+450 unités (272 backend / 114 web / 64 POS) et 173 intégrations PostgreSQL relancées, sans
+échec/ignoré. **21 parcours Chrome dans huit fichiers** et leur portée réelle figurent dans le JSON de validation.
+Les nouveaux cas incluent des frontières simulées explicitement nommées, pas de banque réelle.
+Les cinq applications compilent ; les avertissements de gros bundles restent visibles.
+Restauration à 18:39 UTC : 79 tables et 8 fichiers égaux, 17 PDF intègres (9 factures / 8 avoirs),
+AES-GCM vérifié, 17 contrôles après redémarrage ; 3 221 ms sur cette copie, pas un RTO.
+12 tests des outils d'inventaire/preuves/profilage, 23 contrôles du comparateur de restauration,
+100 identifiants métier et 8 contrôles de statut/provenance du générateur sont conservés/vérifiés.
+
+La qualification globale demeure **54 PASS / 0 FAIL / 45 BLOCKED / 1 NOT RUN**. L'inventaire des
+contrôles est réalisé au niveau source ; T100 entier n'est toujours pas exécuté. Les preuves
+précédentes ne sont ni effacées ni présentées comme de nouveaux essais matériels ou externes.
+Gain HTTP apparié démontré sur le même jeu : p95 2 605,46 → 1 703,63 ms, −34,61 % ; aucune
+qualification de charge de service. Les séries historiques ci-dessous restent distinctes.
+
+## Allocation financière et recette étendue — lot précédent
 
 16 octobre 2026, après `7c08307`, même branche dédiée. Références de livraison dans CHECKPOINT.
 **Laboratoire uniquement, pas de qualification de production.**

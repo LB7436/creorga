@@ -1,5 +1,11 @@
 # Recette métier T01–T100
 
+Mise à jour du lot T100 après `c0ddd81` : [validation ciblée](preuves/t100-validation-2026-10-16.json)
+et [rapport](T100-CONTROLES-ET-PERFORMANCE.md). Les statuts globaux restent inchangés ; les preuves
+historiques ci-dessous conservent leur date, notamment T03 (ancienne copie non remigrée pour ce lot
+sans nouvelle migration). Les suites unitaires/PostgreSQL et les cinq anciens parcours Chrome ont
+été relancés, avec seize parcours Chrome nouveaux. Le scénario T100 entier reste non validé.
+
 Générée le 2026-10-16T17:22:34.577Z. Laboratoire loopback privé ; sociétés fictives ; banque remplacée ; jamais production.
 
 **54 PASS / 0 FAIL / 45 BLOCKED / 1 NOT RUN.**
@@ -1292,6 +1298,6 @@ Actions utilisateur / API : Cliquer chaque contrôle et vérifier sa persistance
 
 Attendu : Aucune action fantôme, erreurs honnêtes et droits respectés.
 
-Observé : Parcours critiques étendus exécutés dans Chrome, mais inventaire exhaustif de tous les boutons et erreurs du produit non terminé. Aucun accès manquant ne justifie de cacher ce travail restant en BLOCKED.
+Observé : Inventaire JSX/handlers/routes reproductible réalisé dans cinq applications et parcours Chrome critiques étendus exécutés ; voir [T100-CONTROLES-ET-PERFORMANCE.md](T100-CONTROLES-ET-PERFORMANCE.md) et [les preuves ciblées](preuves/t100-validation-2026-10-16.json). Les instances rendues, tous les rôles et variantes erreur/persistance restent à terminer. Aucun PASS global n'est déduit du scan, et ce travail restant n'est pas caché en BLOCKED.
 
 Preuves : Aucune exécution complète du scénario revendiquée.

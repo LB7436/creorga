@@ -2,7 +2,57 @@
 
 Mission en cours. **Matrice T01–T100 documentée, mais pas de recette intégralement exécutée ni de qualification de production.**
 
-## Lot courant — allocation financière et recette étendue
+## Lot courant — T100, erreurs d'interface et performance HTTP
+
+16 octobre 2026. Reprise sur `c0ddd81eba5ea006af023ec4748d961d44337470`, dépôt et
+branche dédiés inchangés. Commits de code : `245731f` (cuisine), `de37329` (POS),
+`959ffec` (web/sécurité). Le commit documentaire suivant contient ce checkpoint et les preuves.
+Aucun push vers master, aucune production ni suppression de données réelles.
+
+- Inventaire AST reproductible des cinq applications, avec références de contrôles et routes,
+  libellés réduits et limites explicites. Le scan initial comptait 3 666 contrôles ; total final
+  dans [la preuve](preuves/t100-validation-2026-10-16.json) : **3 676 contrôles, 157 routes JSX,
+  393 fichiers et 826 gabarits répétés**, aucun diagnostic de parsing. Chaque entrée statique demeure NOT RUN.
+- Sauvegarde HTTP profilée à jeu figé : p95 **2 605,46 → 1 703,63 ms (−34,61 %)**,
+  dix mesures après quatre échauffements, même empreinte, 726 produits / 251 tables / 650 groupes /
+  1 250 lignes. Index cuisine linéaire sans retirer les garanties de préparation ou de durabilité.
+  Dernière série Chrome distincte : p95 2 091,84 ms sur 730 produits / 258 tables / 1 254 lignes,
+  aucune erreur JS ; elle n'est pas la mesure appariée instrumentée.
+- POS : import atomique validé, undo/redo limité à la géométrie, données financières courantes
+  préservées ; transfert réel via API existantes plutôt que copie catalogue ; gestes et inactivité
+  corrigés ; raccourcis sans connecteur annoncés indisponibles, pas présentés comme implémentés.
+- Web : jeton limité aux origines approuvées, confirmation Robi réellement contrôlée,
+  séparation utilisateur/société/session/discussion, pièce PDF transmise de façon éphémère,
+  erreurs d'alertes/stock/publicité visibles, vraie personnalisation et fausses protections retirées.
+- Unités fraîches : **450 (272 backend / 114 web / 64 POS)**. PostgreSQL : **173**, prestataires
+  remplacés. **21 parcours Chrome réussis dans huit fichiers**, cinq compilations et 12 tests
+  d'outils réussis. Dates et parcours dans la preuve dédiée ; les simulations
+  de frontières UI sont explicitement distinguées des écritures PostgreSQL réelles.
+- Aucun schéma SQL modifié : les **34 migrations existantes** restent en place, aucun seed/reset.
+  Assistant navigateur v3 : historique non attribuable conservé en quarantaine non affichée ;
+  aucun ancien profil ouvert. `apps/guest/tsconfig.tsbuildinfo` préexistant reste hors commit.
+
+**Matrice métier : 54 PASS / 0 FAIL / 45 BLOCKED / 1 NOT RUN** inchangée dans sa qualification.
+T100 a désormais un inventaire et davantage de preuves ciblées, mais tous les contrôles, rôles,
+erreurs et écrans n'ont pas été exécutés : il reste **NOT RUN / partiellement exécuté**, pas PASS.
+Les précédentes preuves T01–T99 restent horodatées ; aucune fonction matérielle, bancaire,
+historique ou absente n'est promue artificiellement par ce lot.
+
+Sauvegarde/restauration et reprise du lot à 18:39 UTC : **79 tables, 8 fichiers, 9 PDF facture et
+8 PDF avoir identiques**, chiffrement AES-GCM/clé séparée ; **17 contrôles** après redémarrage.
+Durée de cette restauration : 3 221 ms, pas un RTO. [Preuve dédiée](preuves/restauration-t100-2026-10-16.json).
+Archives privées, clés et configurations restent hors Git. Aucun envoi IA/bancaire réel,
+déploiement, DNS, activation Stripe Refunds/vidéo ou modification d'archive originale.
+
+**Prochaine action concrète :** reprendre l'inventaire T100 par écran/rôle avec ses variantes
+réseau/persistance, puis reproduire les candidats de caches multi-sociétés et de configuration
+portail/planning avant correction. Le snapshot global de salle reste coûteux malgré le gain mesuré.
+Les essais externes et la recette métier complète restent nécessaires avant toute mise en production.
+
+Rapport et commandes : [T100-CONTROLES-ET-PERFORMANCE.md](T100-CONTROLES-ET-PERFORMANCE.md).
+Reprise et limites de retour : [MIGRATION-REPRISE-ROLLBACK.md](MIGRATION-REPRISE-ROLLBACK.md).
+
+## Lot précédent — allocation financière et recette étendue
 
 16 octobre 2026. Base locale/distance vérifiée avant travaux :
 `7c08307ae4096e03027b5afcfbde7a3f38f66caf`, `LB7436/creorga`, branche

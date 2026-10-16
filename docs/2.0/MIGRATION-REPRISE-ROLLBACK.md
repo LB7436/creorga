@@ -1,6 +1,36 @@
 # Reprise et retour arrière
 
-## Lot courant — allocation financière, 16 octobre 2026
+## Lot T100 après c0ddd81 — 16 octobre 2026
+
+Aucune migration SQL nouvelle. Conserver les 34 migrations et toutes les données financières,
+réserves, journaux et fichiers existants. Les fixtures nouvelles sont uniquement fictives et ne
+nécessitent aucun nettoyage. La sauvegarde de ce lot est créée depuis une copie cohérente arrêtée,
+chiffrée avec clé séparée et restaurée dans une autre base ; preuve dédiée
+[restauration T100](preuves/restauration-t100-2026-10-16.json). Les anciennes archives et preuves
+ne sont pas utilisées comme répertoires de rétention ni écrasées.
+
+L'éditeur de salle importe/exporte désormais uniquement la géométrie. Il refuse le retrait d'une
+table active, fusionnée ou portant des données client ; l'historique ne restaure jamais d'anciennes
+lignes ni d'anciens règlements. Ne pas revenir à l'ancien import destructeur pour contourner ce refus.
+
+La clé navigateur `creorga-assistant` passe à v3. Les conversations non attribuables restent en
+quarantaine ; celles attribuées sont séparées par utilisateur/société. Aucun profil historique n'a
+été ouvert pour cette migration. **Ne pas lancer un ancien frontend sur un profil v3 pour faire
+un rollback** : il ignore ces portées et pourrait réécrire le stockage. Conserver une copie privée
+du stockage concerné avant toute reprise expressément autorisée, ou privilégier un correctif en
+avant et un profil neuf de laboratoire. Ne pas exporter ces conversations vers Git/support public.
+
+Les origines autorisées de l'API sont l'origine de l'application et le backend fixé à l'installation
+(`VITE_BACKEND_URL`). Une URL tapée dans les paramètres n'ajoute aucune origine approuvée.
+Ne pas réactiver l'ancien envoi de jeton vers une destination libre pour reconnecter un serveur :
+reconfigurer l'installation approuvée et refaire sa recette dans le laboratoire.
+
+Retour logiciel : commits séparés, pas de réécriture de branche partagée. Arrêter les écrivains,
+préserver l'état puis tester un revert ciblé dans une copie/neuf profil ; ne jamais retirer les
+contraintes SQL précédentes ni réutiliser un ancien POS en écriture sur des données migrées.
+Aucun rollback en production effectué ou autorisé ici.
+
+## Lot précédent — allocation financière, 16 octobre 2026
 
 Base `7c08307`, même branche dédiée. Quatre migrations additives, appliquées seulement aux copies
 de laboratoire ; **34 migrations** au total. Les identifiants 20261018 sont des séquences, pas

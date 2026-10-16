@@ -38,7 +38,7 @@ const currentLot = {
   97: run(pg('business-extended', 'un congé ne fuit pas')),
   98: run(pg('business-extended', 'une température manquante'), chrome('business-extended', 'gestion Chrome')),
   99: blocked('Traductions complètes des écrans métier non implémentées (textes français codés dans les pages, sélecteur global partiel). Les fenêtres testées à 375/768/1440 et au clavier ne valident pas toutes les langues / le zoom global.'),
-  100: todo('Parcours critiques étendus exécutés dans Chrome, mais inventaire exhaustif de tous les boutons et erreurs du produit non terminé. Aucun accès manquant ne justifie de cacher ce travail restant en BLOCKED.'),
+  100: todo('Inventaire JSX/handlers/routes reproductible réalisé dans cinq apps et parcours Chrome critiques étendus exécutés ; preuves dans T100-CONTROLES-ET-PERFORMANCE.md. Les instances rendues, tous les rôles et variantes erreur/persistance restent à terminer : aucun PASS global déduit du scan. Aucun accès manquant ne justifie de cacher ce travail en BLOCKED.'),
 }
 const externalCases = new Set([9, 41, 56, 57, 58, 59, 60, 61, 62, 63, 65, 66])
 export const scenarios = [

@@ -1,0 +1,100 @@
+{
+  "generatedAt": "2026-10-16T18:24:12.176Z",
+  "request": "PUT /api/pos/draft complet, déplacements graphiques fictifs confirmés",
+  "environment": {
+    "os": "10.0.26200",
+    "cpu": "AMD Ryzen 5 7600X 6-Core Processor",
+    "node": "v22.19.0",
+    "network": "loopback privé",
+    "instrumentation": "Prisma query events + CPU inspector 1ms + durées I/O, mêmes instruments avant/après"
+  },
+  "dataset": {
+    "products": 726,
+    "tables": 251,
+    "covers": 650,
+    "lines": 1250
+  },
+  "datasetHash": "e1efc5085e1707a113e087900ee141bb750069f20e84edaee2d5d24b78ade1d6",
+  "before": {
+    "measuredAt": "2026-10-16T18:13:26.842Z",
+    "n": 10,
+    "warmup": 4,
+    "samplesMs": [
+      2403.3,
+      2515.09,
+      2455.66,
+      2519.16,
+      2409.31,
+      2427.99,
+      2379.36,
+      2357.11,
+      2605.46,
+      2385.49
+    ],
+    "medianMs": 2427.99,
+    "p95Ms": 2605.46,
+    "queries": 1234,
+    "sqlCumulativeMs": 1712,
+    "kitchenCpuSelfMs": 8995,
+    "io": {
+      "writeFileSync": {
+        "n": 40,
+        "ms": 75
+      },
+      "fsyncSync": {
+        "n": 40,
+        "ms": 64.73
+      },
+      "readFileSync": {
+        "n": 20,
+        "ms": 25.63
+      },
+      "renameSync": {
+        "n": 40,
+        "ms": 32.43
+      }
+    }
+  },
+  "after": {
+    "measuredAt": "2026-10-16T18:19:50.159Z",
+    "n": 10,
+    "warmup": 4,
+    "samplesMs": [
+      1620.76,
+      1443.2,
+      1517.1,
+      1423.78,
+      1398.73,
+      1452.18,
+      1416.59,
+      1512.98,
+      1488.56,
+      1703.63
+    ],
+    "medianMs": 1488.56,
+    "p95Ms": 1703.63,
+    "queries": 1202,
+    "sqlCumulativeMs": 1748,
+    "kitchenCpuSelfMs": 60,
+    "io": {
+      "writeFileSync": {
+        "n": 30,
+        "ms": 72.8
+      },
+      "fsyncSync": {
+        "n": 30,
+        "ms": 59.2
+      },
+      "readFileSync": {
+        "n": 15,
+        "ms": 22.73
+      },
+      "renameSync": {
+        "n": 30,
+        "ms": 24.97
+      }
+    }
+  },
+  "p95ReductionPercent": 34.61,
+  "limits": "Dix mesures par série après quatre échauffements, même empreinte sémantique. API instrumentée, mono-utilisateur, sans builds/tests concurrents. Les sondes et tâches locales de fond restent actives : les compteurs SQL/IO ne sont pas un budget strict par requête. Pas un seuil de production, un débit multi-caisses, un essai électrique ou bancaire. Ne pas comparer directement aux séries historiques sur des jeux différents."
+}
