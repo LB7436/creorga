@@ -1,5 +1,7 @@
 node_modules/
 dist/
+dist-business/
+dist-full/
 .env
 .env.local
 .env*.local

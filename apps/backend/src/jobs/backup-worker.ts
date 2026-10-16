@@ -6,6 +6,7 @@ import yauzl, { type Entry } from 'yauzl'
 import { Transform, type Readable } from 'node:stream'
 import logger from '../lib/logger'
 import { runPgDump } from './pg-dump'
+import { runtimeProfile } from '../lib/runtime-profile'
 
 const DATA_DIR = path.resolve(process.cwd(), 'data')
 const SCAN_INTERVAL_MS = 6 * 60 * 60 * 1000
@@ -233,6 +234,8 @@ export function listFullBackups(dataDir = DATA_DIR): FullBackupInfo[] {
 }
 
 function pruneOldBackups(dataDir: string) {
+  // Le lancement local ne reçoit aucune autorisation de supprimer des archives.
+  if (!runtimeProfile().pruneBackups) return
   const backups = listFullBackups(dataDir).filter((backup) => backup.complete)
   for (const backup of backups.slice(30)) {
     if (new Date(backup.createdAt).getDate() === 1) continue

@@ -5,9 +5,9 @@ import LogoUploader from '@/components/LogoUploader'
 import QRCodeCanvas from '@/components/QRCodeCanvas'
 import VisitQrPanel from '@/components/VisitQrPanel'
 import PhotoWall from '@/components/PhotoWall'
-import { useBrand } from '@/stores/brandStore'
 import { usePortalConfig } from '@/hooks/usePortalConfig'
-import { JEUX_SELECTIONNES, estCasino, estJouable, libelleJoueurs } from '@/pages/guest/games/catalog'
+import { portalSettingsPatch } from '@/hooks/portalSettingsPatch'
+import { gameEntries, GAMES_ENABLED } from '@/optional/entertainment'
 import { toastError } from '@/lib/toast'
 
 // ---------------------------------------------------------------------------
@@ -50,21 +50,12 @@ const PORTAL_TOGGLES: PortalToggle[] = [
   { id: 'order', label: 'Commande en ligne', description: 'Permettre la commande depuis la table', emoji: '\u{1F6D2}', previewTab: 'order' },
   { id: 'games', label: 'Activer les jeux', description: 'Section divertissement pour les clients', emoji: '\u{1F3AE}', previewTab: 'games' },
   { id: 'reviews', label: 'Demander les avis', description: 'Formulaire de notation après la visite', emoji: '⭐', previewTab: 'reviews' },
-]
+].filter(toggle => GAMES_ENABLED || toggle.id !== 'games')
 
 // Même registre que le portail client : un jeu « bientôt » n'est pas proposé,
 // un jeu bêta ou casino est signalé comme tel au restaurateur avant qu'il ne
 // l'active pour ses clients.
-const GAMES: GameEntry[] = JEUX_SELECTIONNES
-  .filter(estJouable)
-  .map((game) => ({
-    id: game.id,
-    name: game.name,
-    emoji: game.icon,
-    detail: estCasino(game) ? 'Casino · mises fictives · 18+' : libelleJoueurs(game),
-    beta: game.statut === 'beta',
-    casino: estCasino(game),
-  }))
+const GAMES: GameEntry[] = gameEntries
 
 const ACCENT_COLORS = [
   { id: 'indigo', label: 'Indigo', value: '#6366f1' },
@@ -289,22 +280,18 @@ export default function ClientsConfig() {
   }, [configServeur])
 
   const persist = useCallback((next: PortalSettings) => {
+    if (enregistrementRef.current) return
     // La valeur visible ne change qu'après confirmation du serveur. C'est plus
     // sûr qu'un état optimiste : un GET concurrent ne peut pas réappliquer une
     // valeur pendant le rollback d'un PATCH refusé.
     const precedent = settingsConfirmesRef.current
+    const patch = portalSettingsPatch(precedent, next, GAMES_ENABLED)
+    if (!Object.keys(patch).length) return
     settingsRef.current = next
     setSettings(next)
     enregistrementRef.current = true
     setEnregistrement(true)
-    updateRemoteConfig({
-      toggles: next.toggles,
-      games: next.games,
-      welcomeMessage: next.welcomeMessage,
-      accentColor: next.accentColor,
-      tableNumber: next.tableNumber,
-      themeMode: next.themeMode,
-    })
+    updateRemoteConfig(patch)
       .then((serveur) => {
         // Le serveur a le dernier mot sur ce qui est réellement enregistré.
         const confirme: PortalSettings = {
@@ -462,7 +449,7 @@ export default function ClientsConfig() {
           </Section>
 
           {/* Games */}
-          <Section title="Jeux disponibles" delay={0.1}>
+          {GAMES_ENABLED && <Section title="Jeux disponibles" delay={0.1}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <p style={{ margin: 0, fontSize: 13, color: '#64748b', fontWeight: 500 }}>
                 {activeGamesCount} / {GAMES.length} jeux activés
@@ -472,6 +459,7 @@ export default function ClientsConfig() {
                   <button
                     key={btn.label}
                     onClick={btn.fn}
+                    disabled={enregistrement}
                     style={{
                       background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8,
                       padding: '5px 14px', color: '#475569', fontSize: 11, fontWeight: 600, cursor: 'pointer',
@@ -540,7 +528,7 @@ export default function ClientsConfig() {
                 )
               })}
             </div>
-          </Section>
+          </Section>}
 
           {/* Customization */}
           <Section title="Personnalisation" delay={0.2}>
@@ -592,6 +580,8 @@ export default function ClientsConfig() {
                       <button
                         key={theme.id}
                         onClick={() => setThemeMode(theme.id)}
+                        disabled={enregistrement}
+                        aria-pressed={active}
                         style={{
                           border: active ? `2px solid ${settings.accentColor}` : '1px solid #e2e8f0',
                           borderRadius: 14,
@@ -621,6 +611,8 @@ export default function ClientsConfig() {
                     <button
                       key={c.id}
                       onClick={() => setAccent(c.value)}
+                      disabled={enregistrement}
+                      aria-pressed={settings.accentColor === c.value}
                       style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                         background: 'none', border: 'none', cursor: 'pointer', padding: 0,
@@ -700,8 +692,8 @@ function QRSection({
   hasChanges: boolean
   companyId: string | null
 }) {
-  const portalBase = useBrand((s) => s.portalBaseUrl)
-  const portalUrl = new URL(portalBase, window.location.origin)
+  // Même installation que l'éditeur : pas d'ancien domaine global codé en dur.
+  const portalUrl = new URL('/c', window.location.origin)
   portalUrl.searchParams.set('table', tableNumber || '1')
   if (companyId) portalUrl.searchParams.set('companyId', companyId)
   const url = portalUrl.toString()

@@ -1,5 +1,8 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useMemo, useSyncExternalStore } from 'react'
 import { fetchAuth } from '@/lib/fetchAuth'
+import { authDataScope } from '@/lib/authScope'
+import { useAuthStore } from '@/stores/authStore'
+import { createFloorStateClient } from './floorStateClient'
 
 export type TableStatus = 'LIBRE' | 'OCCUPEE' | 'RESERVEE' | 'NETTOYAGE'
 
@@ -67,147 +70,95 @@ export interface FloorState {
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 const BASE = `${BACKEND}/api/floor-state`
 
-function isUsableFloorState(data: FloorState | null | undefined) {
-  return Boolean(
-    data
-    && Array.isArray(data.tables)
-    && Array.isArray(data.chairs)
-    && Array.isArray(data.photos)
-    && Array.isArray(data.zones)
-    && typeof data.updatedAt === 'number',
-  )
-}
-
 export function useFloorState(pollMs = 2000) {
-  const [state, setState] = useState<FloorState | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const lastUpdate = useRef(0)
-
-  const fetchState = useCallback(async () => {
-    try {
-      const r = await fetchAuth(BASE)
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      const data = await r.json() as FloorState
-      if (!isUsableFloorState(data)) throw new Error('Réponse du plan de salle invalide')
-      const next = data
-      // Only update if remote is newer (prevent clobbering optimistic edits)
-      if (next.updatedAt >= lastUpdate.current) {
-        setState(next)
-        lastUpdate.current = next.updatedAt
-      }
-      setError(null)
-    } catch (e: any) {
-      setError(e.message)
-    }
-  }, [])
+  const scope = useAuthStore(authDataScope)
+  const connection = useMemo(() => createFloorStateClient({
+    base: BASE,
+    fetcher: fetchAuth,
+    getScope: () => authDataScope(useAuthStore.getState()),
+    subscribeScope: (listener) => useAuthStore.subscribe(listener),
+  }), [])
+  const { state, error } = useSyncExternalStore(connection.subscribe, connection.getSnapshot, connection.getSnapshot)
+  const client = connection.bindActions()
 
   useEffect(() => {
-    fetchState()
-    if (pollMs > 0) {
-      const id = setInterval(fetchState, pollMs)
-      return () => clearInterval(id)
+    connection.start()
+    void connection.refresh()
+    const id = pollMs > 0 ? setInterval(() => { void connection.refresh() }, pollMs) : undefined
+    return () => {
+      if (id !== undefined) clearInterval(id)
+      connection.stop()
     }
-  }, [fetchState, pollMs])
+  }, [connection, pollMs, scope])
 
   // ── Actions ────────────────────────────────────────────────────────────────
-  const apply = useCallback(async (res: Response) => {
-    if (!res.ok) {
-      const raw = await res.text()
-      let message = raw
-      try {
-        const payload = JSON.parse(raw)
-        message = payload.error || raw
-      } catch { /* réponse non JSON */ }
-      throw new Error(message || `HTTP ${res.status}`)
-    }
-    const data = await res.json() as FloorState
-    setState(data)
-    lastUpdate.current = data.updatedAt
-    return data
-  }, [])
-
-  async function fetchFn(url: string, method: string, body?: any) {
-    return fetchAuth(url, {
-      method,
-      headers: { 'If-Match': String(lastUpdate.current), ...(body ? { 'Content-Type': 'application/json' } : {}) },
-      body: body ? JSON.stringify(body) : undefined,
-    })
-  }
-
   const actions = {
     addTable: async (data: { name: string; seats: number; section: string; shape: FloorTable['shape']; x?: number; y?: number }) =>
-      apply(await fetchFn(`${BASE}/tables`, 'POST', data)),
+      client.mutate('/tables', 'POST', data),
     patchTable: async (id: string, data: Partial<Pick<FloorTable, 'name' | 'seats' | 'section' | 'shape'>>) =>
-      apply(await fetchFn(`${BASE}/tables/${id}`, 'PATCH', data)),
+      client.mutate(`/tables/${id}`, 'PATCH', data),
     deleteTable: async (id: string) =>
-      apply(await fetchFn(`${BASE}/tables/${id}`, 'DELETE')),
-    openTable: async (id: string) => apply(await fetchFn(`${BASE}/tables/${id}/open`, 'POST')),
-    closeTable: async (id: string) => apply(await fetchFn(`${BASE}/tables/${id}/close`, 'POST')),
+      client.mutate(`/tables/${id}`, 'DELETE'),
+    openTable: async (id: string) => client.mutate(`/tables/${id}/open`, 'POST'),
+    closeTable: async (id: string) => client.mutate(`/tables/${id}/close`, 'POST'),
     setStatus: async (id: string, status: TableStatus) =>
-      apply(await fetchFn(`${BASE}/tables/${id}/status`, 'POST', { status })),
+      client.mutate(`/tables/${id}/status`, 'POST', { status }),
 
     addChair: async (tableId: string, label?: string, customerName?: string) =>
-      apply(await fetchFn(`${BASE}/chairs`, 'POST', { tableId, label, customerName })),
-    removeChair: async (id: string) => apply(await fetchFn(`${BASE}/chairs/${id}`, 'DELETE')),
+      client.mutate('/chairs', 'POST', { tableId, label, customerName }),
+    removeChair: async (id: string) => client.mutate(`/chairs/${id}`, 'DELETE'),
     renameChair: async (id: string, label: string) =>
-      apply(await fetchFn(`${BASE}/chairs/${id}`, 'PATCH', { label })),
+      client.mutate(`/chairs/${id}`, 'PATCH', { label }),
     setChairCustomer: async (id: string, customerName: string) =>
-      apply(await fetchFn(`${BASE}/chairs/${id}`, 'PATCH', { customerName })),
+      client.mutate(`/chairs/${id}`, 'PATCH', { customerName }),
 
     addItemToChair: async (chairId: string, item: { productId: string; name: string; price: number; qty?: number; note?: string }) =>
-      apply(await fetchFn(`${BASE}/chairs/${chairId}/items`, 'POST', item)),
+      client.mutate(`/chairs/${chairId}/items`, 'POST', item),
     removeItemFromChair: async (chairId: string, itemId: string) =>
-      apply(await fetchFn(`${BASE}/chairs/${chairId}/items/${itemId}`, 'DELETE')),
+      client.mutate(`/chairs/${chairId}/items/${itemId}`, 'DELETE'),
 
     addItemToTable: async (tableId: string, item: { productId: string; name: string; price: number; qty?: number; note?: string }) =>
-      apply(await fetchFn(`${BASE}/tables/${tableId}/items`, 'POST', item)),
+      client.mutate(`/tables/${tableId}/items`, 'POST', item),
 
     transferChair: async (chairId: string, toTableId: string) =>
-      apply(await fetchFn(`${BASE}/transfer/chair`, 'POST', { chairId, toTableId })),
+      client.mutate('/transfer/chair', 'POST', { chairId, toTableId }),
 
     // Drag & drop
     moveTable: async (id: string, x: number, y: number) =>
-      apply(await fetchFn(`${BASE}/tables/${id}/position`, 'PATCH', { x, y })),
+      client.mutate(`/tables/${id}/position`, 'PATCH', { x, y }),
     moveChair: async (id: string, x: number, y: number) =>
-      apply(await fetchFn(`${BASE}/chairs/${id}/position`, 'PATCH', { x, y })),
+      client.mutate(`/chairs/${id}/position`, 'PATCH', { x, y }),
 
     // Zones (salles) CRUD
     addZone: async (data: { name: string; color?: string; emoji?: string }) =>
-      apply(await fetchFn(`${BASE}/zones`, 'POST', data)),
+      client.mutate('/zones', 'POST', data),
     patchZone: async (id: string, data: { name?: string; color?: string }) =>
-      apply(await fetchFn(`${BASE}/zones/${id}`, 'PATCH', data)),
+      client.mutate(`/zones/${id}`, 'PATCH', data),
     deleteZone: async (id: string) =>
-      apply(await fetchFn(`${BASE}/zones/${id}`, 'DELETE')),
+      client.mutate(`/zones/${id}`, 'DELETE'),
 
     transferItems: async (fromType: 'chair' | 'table', fromId: string, toType: 'chair' | 'table', toId: string, itemIds: string[]) =>
-      apply(await fetchFn(`${BASE}/transfer/items`, 'POST', { fromType, fromId, toType, toId, itemIds })),
+      client.mutate('/transfer/items', 'POST', { fromType, fromId, toType, toId, itemIds }),
 
     // Chair status
-    closeChair: async (id: string) => apply(await fetchFn(`${BASE}/chairs/${id}/close`, 'POST')),
+    closeChair: async (id: string) => client.mutate(`/chairs/${id}/close`, 'POST'),
 
     // Photos
     addPhoto: async (photo: { dataUrl: string; x?: number; y?: number; w?: number; h?: number; section?: string }) =>
-      apply(await fetchFn(`${BASE}/photos`, 'POST', photo)),
+      client.mutate('/photos', 'POST', photo),
     movePhoto: async (id: string, patch: Partial<FloorPhoto>) =>
-      apply(await fetchFn(`${BASE}/photos/${id}`, 'PATCH', patch)),
-    removePhoto: async (id: string) => apply(await fetchFn(`${BASE}/photos/${id}`, 'DELETE')),
+      client.mutate(`/photos/${id}`, 'PATCH', patch),
+    removePhoto: async (id: string) => client.mutate(`/photos/${id}`, 'DELETE'),
 
     // Global background
     setGlobalBackground: async (dataUrl: string | null) =>
-      apply(await fetchFn(`${BASE}/background`, 'PUT', { dataUrl })),
+      client.mutate('/background', 'PUT', { dataUrl }),
 
     // AI floor-plan generator
-    aiGeneratePlan: async (prompt: string) => {
-      const r = await fetchFn(`${BASE}/ai-generate`, 'POST', { prompt })
-      if (!r.ok) throw new Error(await r.text())
-      const data = await r.json() as { state: FloorState; aiResponse: any }
-      setState(data.state)
-      lastUpdate.current = data.state.updatedAt
-      return data
-    },
+    aiGeneratePlan: (prompt: string) => client.generate(prompt),
 
-    reset: async () => apply(await fetchFn(`${BASE}/reset`, 'POST')),
-    refresh: fetchState,
+    reset: async () => client.mutate('/reset', 'POST'),
+    refresh: connection.refresh,
   }
 
   return { state, error, ...actions }

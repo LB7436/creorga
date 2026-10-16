@@ -139,7 +139,7 @@ export default function QrMenuPage() {
 
   const qrPixelSize = qrSize === 'S' ? 100 : qrSize === 'M' ? 200 : 400
   const portalUrl = (table?: string) => {
-    const origin = typeof window === 'undefined' ? 'https://creorga.n8nautomatisations.org' : window.location.origin
+    const origin = typeof window === 'undefined' ? 'http://127.0.0.1:5174' : window.location.origin
     const url = new URL('/c', origin)
     if (companyId && companyId !== 'fallback-company') url.searchParams.set('companyId', companyId)
     if (table) url.searchParams.set('table', table)

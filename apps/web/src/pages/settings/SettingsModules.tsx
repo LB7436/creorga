@@ -1,6 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { MODULES } from '@/stores/moduleStore'
-import { useModulePreferences, type ModuleDisplayMode } from '@/stores/modulePreferencesStore'
+import { useModulePreferences, demarrerSyncPreferencesModules, capturerContextePreferencesModules,
+  estContextePreferencesModulesCourant, type ModuleDisplayMode } from '@/stores/modulePreferencesStore'
+import { useAuthStore } from '@/stores/authStore'
 import { espaceDuModule } from '@/config/espaces'
 import { toastError, toastSuccess } from '@/lib/toast'
 
@@ -11,7 +13,7 @@ import { toastError, toastSuccess } from '@/lib/toast'
  * version n'écrivait qu'en localStorage pendant que le sélecteur fusionnait
  * « le distant gagne » — les réglages étaient écrasés en silence et jamais
  * partagés entre navigateurs. Chaque contrôle se désactive pendant
- * l'enregistrement et REVIENT à sa valeur si le serveur refuse.
+ * l'enregistrement ; la valeur affichée ne change qu'après confirmation.
  */
 const MODE_LABELS: Record<ModuleDisplayMode, { label: string; color: string; emoji: string }> = {
   visible:     { label: 'Visible',      color: '#10b981', emoji: '👁' },
@@ -24,12 +26,21 @@ export default function SettingsModules() {
   const enAttente = useModulePreferences((s) => s.enAttente)
   const etat = useModulePreferences((s) => s.etat)
   const erreur = useModulePreferences((s) => s.erreur)
+  const resetEnCours = useModulePreferences((s) => s.reinitialisationEnCours)
+  const scopeKey = useModulePreferences((s) => s.scopeKey)
   const regler = useModulePreferences((s) => s.regler)
   const reinitialiser = useModulePreferences((s) => s.reinitialiser)
+  const charger = useModulePreferences((s) => s.charger)
+  const role = useAuthStore((s) => s.role)
+  const viewMode = useAuthStore((s) => s.viewMode)
+  const peutModifier = ['owner', 'manager'].includes(role) && viewMode === 'owner'
+  const indisponible = etat !== 'pret' || resetEnCours || !peutModifier
   const [filter, setFilter] = useState('')
   // Le libellé s'édite librement puis s'enregistre au blur : un PATCH par
   // frappe clavier saturerait le serveur pour rien.
   const [brouillonsLibelle, setBrouillonsLibelle] = useState<Record<string, string>>({})
+  useEffect(() => demarrerSyncPreferencesModules(), [])
+  useEffect(() => setBrouillonsLibelle({}), [scopeKey])
 
   const modules = useMemo(() => {
     const q = filter.toLowerCase()
@@ -48,14 +59,18 @@ export default function SettingsModules() {
   }, [config])
 
   const changerMode = (id: string, mode: ModuleDisplayMode) => {
+    const context = capturerContextePreferencesModules()
     regler(id, { displayMode: mode }).catch(() => {
-      toastError('Enregistrement refusé par le serveur — le réglage a été annulé.')
+      if (!estContextePreferencesModulesCourant(context)) return
+      toastError('Enregistrement non confirmé — resynchronisez pour vérifier la valeur enregistrée.')
     })
   }
 
   const changerEpingle = (id: string, pinned: boolean) => {
+    const context = capturerContextePreferencesModules()
     regler(id, { pinnedToDashboard: pinned }).catch(() => {
-      toastError('Enregistrement refusé par le serveur — le réglage a été annulé.')
+      if (!estContextePreferencesModulesCourant(context)) return
+      toastError('Enregistrement non confirmé — resynchronisez pour vérifier la valeur enregistrée.')
     })
   }
 
@@ -64,16 +79,37 @@ export default function SettingsModules() {
     if (brouillon === undefined) return
     const actuel = config[id]?.customLabel ?? ''
     if (brouillon === actuel) return
-    regler(id, { customLabel: brouillon || undefined }).catch(() => {
-      toastError('Libellé refusé par le serveur — valeur précédente conservée.')
-      setBrouillonsLibelle((b) => ({ ...b, [id]: actuel }))
+    const context = capturerContextePreferencesModules()
+    regler(id, { customLabel: brouillon || undefined }).then(() => {
+      if (!estContextePreferencesModulesCourant(context)) return
+      // Une normalisation serveur ou une future réinitialisation doit redevenir
+      // visible. Ne pas supprimer une saisie plus récente pendant la requête.
+      setBrouillonsLibelle((drafts) => {
+        if (drafts[id] !== brouillon) return drafts
+        const { [id]: _confirme, ...reste } = drafts
+        return reste
+      })
+    }).catch(() => {
+      if (!estContextePreferencesModulesCourant(context)) return
+      toastError('Libellé non confirmé — resynchronisez pour vérifier la valeur enregistrée.')
+      // Le brouillon reste disponible pour correction ou reprise ; il n'est
+      // pas présenté comme la valeur confirmée par le serveur.
     })
   }
 
   const toutReinitialiser = () => {
+    const context = capturerContextePreferencesModules()
+    const brouillonsAuDepart = brouillonsLibelle
     reinitialiser()
-      .then(() => toastSuccess('Configuration des modules réinitialisée.'))
-      .catch(() => toastError('Réinitialisation refusée par le serveur.'))
+      .then(() => {
+        if (!estContextePreferencesModulesCourant(context)) return
+        setBrouillonsLibelle((drafts) => Object.fromEntries(Object.entries(drafts)
+          .filter(([id, value]) => brouillonsAuDepart[id] !== value)))
+        toastSuccess('Configuration des modules réinitialisée.')
+      })
+      .catch(() => {
+        if (estContextePreferencesModulesCourant(context)) toastError('Réinitialisation non confirmée — resynchronisez avant de poursuivre.')
+      })
   }
 
   return (
@@ -86,15 +122,20 @@ export default function SettingsModules() {
         </p>
       </header>
 
+      {(etat === 'inconnu' || etat === 'chargement') && (
+        <p role="status">Chargement des réglages de cette société…</p>
+      )}
+
       {/* L'échec de synchronisation est affiché, jamais tu. */}
       {etat === 'erreur' && (
-        <div style={{
+        <div role="alert" style={{
           marginBottom: 14, padding: '10px 14px', borderRadius: 10,
           border: '1px solid #fecaca', background: '#fef2f2', color: '#991b1b',
           fontSize: 13, fontWeight: 600,
         }}>
-          ⚠ Serveur injoignable ({erreur}) — les réglages affichés sont la dernière copie
-          connue et les modifications seront refusées tant que la connexion n'est pas rétablie.
+          ⚠ Synchronisation non confirmée ({erreur}) — les réglages affichés sont la dernière copie
+          confirmée pour cet espace. Vérifiez le serveur avant une nouvelle modification.
+          <button type="button" onClick={() => void charger()} style={{ marginLeft: 10 }}>Resynchroniser</button>
         </div>
       )}
 
@@ -126,7 +167,7 @@ export default function SettingsModules() {
             border: '1px solid #e2e8f0', fontSize: 14, outline: 'none',
           }}
         />
-        <button onClick={toutReinitialiser} style={{
+        <button onClick={toutReinitialiser} disabled={indisponible || Object.keys(enAttente).length > 0} style={{
           padding: '10px 14px', borderRadius: 10, border: '1px solid #fee2e2', background: '#fef2f2',
           color: '#991b1b', cursor: 'pointer', fontSize: 13, fontWeight: 600,
         }}>↺ Réinitialiser</button>
@@ -136,7 +177,8 @@ export default function SettingsModules() {
       <div style={{ display: 'grid', gap: 8 }}>
         {modules.map((m) => {
           const c = config[m.id] ?? { displayMode: 'visible' as ModuleDisplayMode }
-          const enregistrement = Boolean(enAttente[m.id])
+          const enregistrement = Boolean(enAttente[m.id]) || resetEnCours
+          const controleDesactive = enregistrement || indisponible
           const espace = espaceDuModule(m.id)
           return (
             <div key={m.id} style={{
@@ -171,7 +213,7 @@ export default function SettingsModules() {
                 <input
                   type="text"
                   value={brouillonsLibelle[m.id] ?? c.customLabel ?? ''}
-                  disabled={enregistrement}
+                  disabled={controleDesactive}
                   onChange={(e) => setBrouillonsLibelle((b) => ({ ...b, [m.id]: e.target.value }))}
                   onBlur={() => enregistrerLibelle(m.id)}
                   onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
@@ -187,7 +229,7 @@ export default function SettingsModules() {
                 <input
                   type="checkbox"
                   checked={c.pinnedToDashboard ?? false}
-                  disabled={enregistrement}
+                  disabled={controleDesactive}
                   onChange={(e) => changerEpingle(m.id, e.target.checked)}
                 />
                 📌 Épingler
@@ -200,7 +242,7 @@ export default function SettingsModules() {
                     <button
                       key={mode}
                       onClick={() => changerMode(m.id, mode)}
-                      disabled={enregistrement || active}
+                      disabled={controleDesactive || active}
                       style={{
                         padding: '6px 12px', borderRadius: 999, border: 'none',
                         cursor: enregistrement ? 'wait' : active ? 'default' : 'pointer',

@@ -19,6 +19,7 @@ import PlanningOCRImport from '@/components/PlanningOCRImport'
 import { useAuthStore } from '@/stores/authStore'
 import { downloadCsv } from '@/lib/csv'
 import api from '@/lib/api'
+import { createPlanningRange, readPlanningTiming, planningNetHours, planningEmployeeRows, planningCalendarSegment } from './planningTime'
 
 const C = {
   bg: '#f8fafc',
@@ -70,6 +71,8 @@ interface Shift {
   endHour: number
   endMin: number
   hourlyRate: number
+  durationMinutes: number
+  breakMinutes: number
   hasBreak?: boolean
   skills?: Skill[]
 }
@@ -88,6 +91,7 @@ interface Reservation {
 
 interface SickLeave {
   id: string
+  userId: string
   employeeName: string
   startDate: Date
   endDate: Date
@@ -96,6 +100,7 @@ interface SickLeave {
 
 interface Vacation {
   id: string
+  userId: string
   employeeName: string
   startDate: Date
   endDate: Date
@@ -133,7 +138,7 @@ const ROLE_BG: Record<RoleType, string> = {
   Manager: C.greenSoft,
 }
 
-const HOURS = Array.from({ length: 18 }, (_, i) => i + 6)
+const HOURS = Array.from({ length: 24 }, (_, i) => i)
 
 const HOLIDAYS_2026: Holiday[] = [
   { date: new Date(2026, 0, 1), name: 'Nouvel An' },
@@ -257,8 +262,7 @@ export default function PlanningPage() {
       const équipeParId = new Map(équipe.map((employee) => [employee.id, employee]))
       setEmployees(équipe)
       setShifts((shiftsResponse.data || []).map((raw: any): Shift => {
-        const début = new Date(raw.startTime)
-        const fin = new Date(raw.endTime)
+        const timing = readPlanningTiming(raw.startTime, raw.endTime, Number(raw.breakMinutes) || 0)
         const employé = équipeParId.get(raw.userId)
         return {
           id: raw.id,
@@ -266,11 +270,7 @@ export default function PlanningPage() {
           employeeName: employé?.name || `${raw.user?.firstName || ''} ${raw.user?.lastName || ''}`.trim() || 'Employé',
           role: normaliseRole(raw.role),
           section: sectionDepuisShift(raw.notes, raw.role),
-          date: début,
-          startHour: début.getHours(),
-          startMin: début.getMinutes(),
-          endHour: fin.getHours() + (fin.getDate() !== début.getDate() ? 24 : 0),
-          endMin: fin.getMinutes(),
+          ...timing,
           hourlyRate: employé?.hourlyRate || 0,
           hasBreak: Number(raw.breakMinutes) > 0,
           skills: employé?.skills || [],
@@ -294,6 +294,7 @@ export default function PlanningPage() {
       const leaves = leavesResponse.data || []
       setSickLeaves(leaves.filter((leave: any) => leave.type === 'SICK').map((leave: any) => ({
         id: leave.id,
+        userId: leave.userId,
         employeeName: nomParId.get(leave.userId) || 'Employé',
         startDate: new Date(leave.startDate),
         endDate: new Date(leave.endDate),
@@ -301,6 +302,7 @@ export default function PlanningPage() {
       })))
       setVacations(leaves.filter((leave: any) => leave.type !== 'SICK').map((leave: any) => ({
         id: leave.id,
+        userId: leave.userId,
         employeeName: nomParId.get(leave.userId) || 'Employé',
         startDate: new Date(leave.startDate),
         endDate: new Date(leave.endDate),
@@ -363,56 +365,59 @@ export default function PlanningPage() {
   // v3.18.6 — RH permissions par rôle : si viewMode='employee', filtre les
   // shifts pour ne montrer QUE ceux de l'employé sélectionné. Patron voit tout.
   const viewMode = useAuthStore((s) => s.viewMode)
-  const viewAsName = useAuthStore((s) => s.viewAsEmployeeName)
+  const viewAsEmployeeId = useAuthStore((s) => s.viewAsEmployeeId)
+  const scopedShifts = useMemo(() => planningEmployeeRows(shifts, viewMode, viewAsEmployeeId), [shifts, viewMode, viewAsEmployeeId])
 
   const filteredShifts = useMemo(() => {
     if (!showShifts) return []
-    let list = sectionFilter === 'Toutes' ? shifts : shifts.filter(s => s.section === sectionFilter)
-    if (viewMode === 'employee' && viewAsName) {
-      list = list.filter(s => s.employeeName.toLowerCase().includes(String(viewAsName).toLowerCase()))
-    }
-    return list
-  }, [shifts, sectionFilter, showShifts, viewMode, viewAsName])
+    return sectionFilter === 'Toutes' ? scopedShifts : scopedShifts.filter(s => s.section === sectionFilter)
+  }, [scopedShifts, sectionFilter, showShifts])
 
   const getShiftsForDay = useCallback((day: Date) => filteredShifts.filter(s => isSameDay(s.date, day)), [filteredShifts])
+  // Une segmentation d’affichage uniquement : le shift et sa durée réelle
+  // restent uniques pour les statistiques, les pauses et les exports.
+  const getShiftSegmentsForDay = useCallback((day: Date) => filteredShifts.flatMap(shift => {
+    const segment = planningCalendarSegment(shift, day)
+    return segment ? [{ ...shift, ...segment }] : []
+  }), [filteredShifts])
   const getReservationsForDay = useCallback((day: Date) => showReservations ? reservations.filter(r => isSameDay(r.date, day)) : [], [reservations, showReservations])
-  const getSickLeavesForDay = useCallback((day: Date) => showMaladies ? sickLeaves.filter(sl => day >= sl.startDate && day <= sl.endDate) : [], [sickLeaves, showMaladies])
-  const getVacationsForDay = useCallback((day: Date) => showConges ? vacations.filter(v => day >= v.startDate && day <= v.endDate) : [], [vacations, showConges])
+  const getSickLeavesForDay = useCallback((day: Date) => showMaladies ? planningEmployeeRows(sickLeaves, viewMode, viewAsEmployeeId).filter(sl => day >= sl.startDate && day <= sl.endDate) : [], [sickLeaves, showMaladies, viewMode, viewAsEmployeeId])
+  const getVacationsForDay = useCallback((day: Date) => showConges ? planningEmployeeRows(vacations, viewMode, viewAsEmployeeId).filter(v => day >= v.startDate && day <= v.endDate) : [], [vacations, showConges, viewMode, viewAsEmployeeId])
 
   // Overtime calculation (Luxembourg 48h/week limit)
   const weeklyHoursByEmp = useMemo(() => {
-    const map: Record<string, number> = {}
-    shifts.filter(s => weekDays.some(d => isSameDay(d, s.date))).forEach(s => {
-      const hrs = s.endHour - s.startHour + (s.endMin - s.startMin) / 60 - (s.hasBreak ? 0.5 : 0)
-      map[s.employeeName] = (map[s.employeeName] || 0) + hrs
+    const map: Record<string, { name: string; hours: number }> = {}
+    scopedShifts.filter(s => weekDays.some(d => isSameDay(d, s.date))).forEach(s => {
+      const previous = map[s.userId]?.hours || 0
+      map[s.userId] = { name: s.employeeName, hours: previous + planningNetHours(s) }
     })
     return map
-  }, [shifts, weekDays])
+  }, [scopedShifts, weekDays])
 
-  const overtimeAlerts = Object.entries(weeklyHoursByEmp).filter(([, h]) => h >= 45).length
+  const overtimeAlerts = Object.values(weeklyHoursByEmp).filter(entry => entry.hours >= 45).length
   // Cost forecast for the week
   const weeklyCost = useMemo(() => {
-    return shifts.filter(s => weekDays.some(d => isSameDay(d, s.date)))
+    return scopedShifts.filter(s => weekDays.some(d => isSameDay(d, s.date)))
       .reduce((acc, s) => {
-        const hrs = s.endHour - s.startHour + (s.endMin - s.startMin) / 60 - (s.hasBreak ? 0.5 : 0)
+        const hrs = planningNetHours(s)
         return acc + hrs * s.hourlyRate
       }, 0)
-  }, [shifts, weekDays])
+  }, [scopedShifts, weekDays])
 
   const handleExportCSV = () => {
     // Export de paie : les colonnes chiffrées DOIVENT rester sommables dans
     // Excel FR. `toFixed()` produisait « 15.00 » — lu comme du texte, total
     // impossible. downloadCsv passe les nombres bruts et met la virgule.
-    const lignes = shifts.map(s => {
+    const lignes = scopedShifts.map(s => {
       // v3.18.1 fix H9 : minute term ADDED (not subtracted) — cohérent avec ligne 332/345
-      const hrs = s.endHour - s.startHour + (s.endMin - s.startMin) / 60 - (s.hasBreak ? 0.5 : 0)
+      const hrs = planningNetHours(s)
       const cost = hrs * s.hourlyRate
       return [
         s.employeeName,
         format(s.date, 'dd/MM/yyyy'),
         `${String(s.startHour).padStart(2, '0')}:${String(s.startMin).padStart(2, '0')}`,
         `${String(s.endHour).padStart(2, '0')}:${String(s.endMin).padStart(2, '0')}`,
-        s.hasBreak ? 30 : 0,
+        s.breakMinutes,
         Number(hrs.toFixed(1)),
         Number(s.hourlyRate.toFixed(2)),
         Number(cost.toFixed(2)),
@@ -460,16 +465,12 @@ export default function PlanningPage() {
     breakMinutes: number
     secondaryRole?: RoleType
   }) => {
-    const début = new Date(data.date)
-    début.setHours(data.startHour, 0, 0, 0)
-    const fin = new Date(data.date)
-    fin.setHours(data.endHour, 0, 0, 0)
-    if (data.endHour >= 24 || fin <= début) fin.setDate(fin.getDate() + 1)
+    const range = createPlanningRange(data.date, data.startHour, data.endHour)
     await api.post('/hr/shifts', {
       userId: data.userId,
       role: data.role,
-      startTime: début.toISOString(),
-      endTime: fin.toISOString(),
+      startTime: range.startTime,
+      endTime: range.endTime,
       breakMinutes: data.breakMinutes,
       notes: `section:${data.section}${data.secondaryRole ? `;role-secondaire:${data.secondaryRole}` : ''}`,
     })
@@ -495,21 +496,19 @@ export default function PlanningPage() {
         erreurs.push(`Horaire invalide pour ${shift.employee}`)
         continue
       }
-      const début = new Date(date); début.setHours(startHour, startMinute, 0, 0)
-      const fin = new Date(date); fin.setHours(endHour, endMinute, 0, 0)
-      if (fin <= début) fin.setDate(fin.getDate() + 1)
       try {
+        const range = createPlanningRange(date, startHour, endHour, startMinute, endMinute)
         await api.post('/hr/shifts', {
           userId: employee.id,
           role: normaliseRole(shift.role || employee.role),
-          startTime: début.toISOString(),
-          endTime: fin.toISOString(),
-          breakMinutes: (fin.getTime() - début.getTime()) / 3_600_000 >= 6 ? 30 : 0,
+          startTime: range.startTime,
+          endTime: range.endTime,
+          breakMinutes: range.durationMinutes >= 360 ? 30 : 0,
           notes: 'section:Salle;source:ocr',
         })
         importés += 1
       } catch (error: any) {
-        erreurs.push(error?.response?.data?.message || `Échec pour ${shift.employee}`)
+        erreurs.push(error?.response?.data?.message || error?.message || `Échec pour ${shift.employee}`)
       }
     }
     await loadPlanning()
@@ -548,10 +547,10 @@ export default function PlanningPage() {
 
       {/* Stats row */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
-        <StatCard icon={<Users size={16} />} label="Shifts semaine" value={shifts.filter(s => weekDays.some(d => isSameDay(d, s.date))).length} sub="planifiés" color={C.indigo} bg={C.indigoSoft} />
+        <StatCard icon={<Users size={16} />} label="Shifts semaine" value={scopedShifts.filter(s => weekDays.some(d => isSameDay(d, s.date))).length} sub="planifiés" color={C.indigo} bg={C.indigoSoft} />
         <StatCard icon={<Euro size={16} />} label="Coût prévu" value={`${weeklyCost.toFixed(0)}€`} sub="masse salariale" color={C.green} bg={C.greenSoft} />
         <StatCard icon={<AlertTriangle size={16} />} label="Alertes 48h" value={overtimeAlerts} sub="employés proches" color={C.red} bg={C.redSoft} />
-        <StatCard icon={<Heart size={16} />} label="Équipe" value={employees.length} sub="employés actifs" color={C.purple} bg={C.purpleSoft} />
+        <StatCard icon={<Heart size={16} />} label="Équipe" value={viewMode === 'employee' ? employees.filter(employee => employee.id === viewAsEmployeeId).length : employees.length} sub="employés actifs" color={C.purple} bg={C.purpleSoft} />
       </motion.div>
 
       {/* Action bar */}
@@ -622,7 +621,7 @@ export default function PlanningPage() {
           <AlertTriangle size={16} color={C.red} />
           <div style={{ fontSize: 12, color: C.text }}>
             <strong>Conformité droit luxembourgeois :</strong>{' '}
-            {Object.entries(weeklyHoursByEmp).filter(([, h]) => h >= 45).map(([name, h]) => `${name} (${h.toFixed(1)}h)`).join(', ')}{' '}
+            {Object.values(weeklyHoursByEmp).filter(entry => entry.hours >= 45).map(entry => `${entry.name} (${entry.hours.toFixed(1)}h)`).join(', ')}{' '}
             approche/dépasse la limite de 48h/semaine.
           </div>
         </div>
@@ -633,7 +632,7 @@ export default function PlanningPage() {
         {(view === 'day' || view === '3days') ? (
           <WeekView
             days={visibleDays}
-            shifts={getShiftsForDay}
+            shifts={getShiftSegmentsForDay}
             reservations={getReservationsForDay}
             sickLeaves={getSickLeavesForDay}
             vacations={getVacationsForDay}
@@ -643,7 +642,7 @@ export default function PlanningPage() {
         ) : view === 'week' ? (
           <WeekView
             days={weekDays}
-            shifts={getShiftsForDay}
+            shifts={getShiftSegmentsForDay}
             reservations={getReservationsForDay}
             sickLeaves={getSickLeavesForDay}
             vacations={getVacationsForDay}
@@ -715,10 +714,9 @@ function WeekView({ days, shifts, reservations, sickLeaves, vacations, getHolida
   onCellClick: (day: Date, hour: number) => void
 }) {
   const CELL_H = 50
-  const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '60px repeat(7, 1fr)', minHeight: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `60px repeat(${days.length}, minmax(110px, 1fr))`, minHeight: '100%' }}>
       <div style={{ position: 'sticky', top: 0, zIndex: 5, background: C.card, borderBottom: `1px solid ${C.border}`, padding: '10px 0' }} />
       {days.map((day, i) => {
         const holiday = getHoliday(day)
@@ -730,7 +728,7 @@ function WeekView({ days, shifts, reservations, sickLeaves, vacations, getHolida
             borderLeft: `1px solid ${C.borderSoft}`,
             padding: '8px 6px', textAlign: 'center',
           }}>
-            <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>{dayNames[i]}</div>
+            <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>{format(day, 'EEE', { locale: fr })}</div>
             <div style={{ fontSize: 18, fontWeight: 700, color: isToday(day) ? C.indigo : C.text }}>
               {format(day, 'd')}
             </div>
@@ -757,7 +755,15 @@ function WeekView({ days, shifts, reservations, sickLeaves, vacations, getHolida
             return (
               <div
                 key={`c-${hour}-${di}`}
+                role="button"
+                tabIndex={0}
+                aria-label={`Ajouter un shift ${format(day, 'dd/MM/yyyy')} ${String(hour).padStart(2, '0')}:00`}
                 onClick={() => onCellClick(day, hour)}
+                onKeyDown={event => {
+                  if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+                    event.preventDefault(); onCellClick(day, hour)
+                  }
+                }}
                 style={{
                   position: 'relative', height: CELL_H, cursor: 'pointer',
                   borderTop: `1px solid ${C.borderSoft}`,
@@ -776,9 +782,9 @@ function WeekView({ days, shifts, reservations, sickLeaves, vacations, getHolida
                       animate={{ opacity: 1, scale: 1 }}
                       style={{
                         position: 'absolute',
-                        top: 2, left: 2 + si * 4,
+                        top: 2 + s.startMin / 60 * CELL_H, left: 2 + si * 4,
                         right: 2 + (dayShifts.length - 1 - si) * 4,
-                        height: (s.endHour - s.startHour) * CELL_H - 4,
+                        height: Math.max(14, (s.endHour - s.startHour + (s.endMin - s.startMin) / 60) * CELL_H - 4),
                         background: ROLE_BG[s.role],
                         borderLeft: `3px solid ${ROLE_COLORS[s.role]}`,
                         borderRadius: 6, padding: '3px 6px', overflow: 'hidden',
@@ -884,7 +890,7 @@ function MonthView({ days, currentDate, shifts, getHoliday }: {
   }
 
   const costForDay = (day: Date) =>
-    shifts(day).reduce((acc, s) => acc + (s.endHour - s.startHour - (s.hasBreak ? 0.5 : 0)) * s.hourlyRate, 0)
+    shifts(day).reduce((acc, s) => acc + planningNetHours(s) * s.hourlyRate, 0)
 
   return (
     <div style={{ padding: 16 }}>
@@ -976,7 +982,12 @@ function AddShiftModal({ isOpen, onClose, date, hour, onToast, employees, onSave
 
   if (!isOpen || !date) return null
 
-  const duration = endH - startH
+  let range: ReturnType<typeof createPlanningRange> | null = null
+  let rangeError = ''
+  try { range = createPlanningRange(date, startH, endH) } catch (error) {
+    rangeError = error instanceof Error ? error.message : 'Horaire invalide'
+  }
+  const duration = (range?.durationMinutes || 0) / 60
   const breakMinutes = duration >= 6 ? 30 : 0
   const employeeRec = employees.find(e => e.role === role && (!requiredSkill || e.skills.includes(requiredSkill)))
 
@@ -985,8 +996,8 @@ function AddShiftModal({ isOpen, onClose, date, hour, onToast, employees, onSave
       onToast('Veuillez sélectionner un employé')
       return
     }
-    if (endH === startH) {
-      onToast('La fin doit être différente du début')
+    if (rangeError) {
+      onToast(rangeError)
       return
     }
     setSaving(true)
@@ -1001,7 +1012,7 @@ function AddShiftModal({ isOpen, onClose, date, hour, onToast, employees, onSave
         breakMinutes,
         secondaryRole: multiRole ? secondaryRole : undefined,
       })
-      onToast(`Shift enregistré${breakMinutes ? ' - Pause légale insérée' : ''}`)
+      onToast(`Shift enregistré${breakMinutes ? ' - Pause de 30 min insérée' : ''}`)
       setEmployee('')
       onClose()
     } catch (error: any) {
@@ -1054,8 +1065,8 @@ function AddShiftModal({ isOpen, onClose, date, hour, onToast, employees, onSave
             )}
 
             <div>
-              <label style={labelStyle}>Employé</label>
-              <select style={inputStyle} value={employee} onChange={e => setEmployee(e.target.value)}>
+              <label htmlFor="planning-shift-employee" style={labelStyle}>Employé</label>
+              <select id="planning-shift-employee" style={inputStyle} value={employee} onChange={e => setEmployee(e.target.value)}>
                 <option value="">Sélectionner...</option>
                 {employees.map(e => (
                   <option key={e.id} value={e.id}>{e.name} · {e.role}{e.hourlyRate ? ` · ${e.hourlyRate.toFixed(2)}€/h` : ''}</option>
@@ -1094,15 +1105,15 @@ function AddShiftModal({ isOpen, onClose, date, hour, onToast, employees, onSave
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={labelStyle}>Début</label>
-                <select style={inputStyle} value={startH} onChange={e => setStartH(+e.target.value)}>
+                <label htmlFor="planning-shift-start" style={labelStyle}>Début</label>
+                <select id="planning-shift-start" style={inputStyle} value={startH} onChange={e => setStartH(+e.target.value)}>
                   {HOURS.map(h => <option key={h} value={h}>{`${String(h).padStart(2, '0')}:00`}</option>)}
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Fin</label>
-                <select style={inputStyle} value={endH} onChange={e => setEndH(+e.target.value)}>
-                  {HOURS.map(h => <option key={h} value={h}>{`${String(h).padStart(2, '0')}:00`}</option>)}
+                <label htmlFor="planning-shift-end" style={labelStyle}>Fin</label>
+                <select id="planning-shift-end" style={inputStyle} value={endH} onChange={e => setEndH(+e.target.value)}>
+                  {[...HOURS, ...(endH >= 24 ? [endH] : [])].map(h => <option key={h} value={h}>{`${String(h % 24).padStart(2, '0')}:00${h >= 24 ? ` (J+${Math.floor(h / 24)})` : ''}`}</option>)}
                 </select>
               </div>
             </div>
@@ -1110,13 +1121,16 @@ function AddShiftModal({ isOpen, onClose, date, hour, onToast, employees, onSave
             {breakMinutes > 0 && (
               <div style={{ padding: 10, background: C.amberSoft, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: C.text }}>
                 <Coffee size={13} color={C.amber} />
-                <span>Pause légale de <strong>30 min</strong> automatiquement insérée (shift ≥ 6h au Luxembourg)</span>
+                <span>Pause proposée de <strong>30 min</strong> incluse dans le créneau (durée écoulée ≥ 6h).</span>
               </div>
             )}
 
+            {rangeError ? <p role="alert" style={{ color: C.red, fontSize: 12, margin: 0 }}>{rangeError}</p>
+              : <p style={{ color: C.muted, fontSize: 12, margin: 0 }}>Durée écoulée : {duration.toLocaleString('fr-LU')} h{breakMinutes ? `, dont ${breakMinutes} min de pause` : ''}. Horaires Europe/Luxembourg.</p>}
+
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
               <button onClick={onClose} style={btnGhost}>Annuler</button>
-              <button onClick={handleSave} disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}><Plus size={15} /> {saving ? 'Enregistrement…' : 'Ajouter'}</button>
+              <button onClick={handleSave} disabled={saving || Boolean(rangeError)} style={{ ...btnPrimary, opacity: saving || rangeError ? 0.6 : 1 }}><Plus size={15} /> {saving ? 'Enregistrement…' : 'Ajouter'}</button>
             </div>
           </div>
         </motion.div>

@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth'
 import { requireCompany } from '../middleware/requireCompany'
 import { validate } from '../middleware/validate'
 import type { AuthRequest } from '../middleware/auth'
+import { lockPortalConfiguration, nextPortalRevision } from '../lib/portal-config-lock'
 
 const router = Router()
 router.use(authenticate)
@@ -212,6 +213,7 @@ router.put('/:id', requireCompany, validate(updateSchema), async (req: AuthReque
     // Le premier démarrage enregistre identité visuelle et couleur du portail
     // dans une seule transaction : pas d'état « nom sauvegardé, couleur perdue ».
     const company = await prisma.$transaction(async (tx) => {
+      if (portalAccentColor) await lockPortalConfiguration(tx, companyId)
       const updated = await tx.company.update({
         where: { id },
         data: {
@@ -226,10 +228,12 @@ router.put('/:id', requireCompany, validate(updateSchema), async (req: AuthReque
         },
       })
       if (portalAccentColor) {
+        const existing = await tx.portalConfiguration.findUnique({ where: { companyId } })
+        const updatedAt = nextPortalRevision(existing)
         await tx.portalConfiguration.upsert({
           where: { companyId },
-          create: { companyId, accentColor: portalAccentColor },
-          update: { accentColor: portalAccentColor },
+          create: { companyId, accentColor: portalAccentColor, updatedAt },
+          update: { accentColor: portalAccentColor, updatedAt },
         })
       }
       return updated

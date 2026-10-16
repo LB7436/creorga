@@ -4,6 +4,7 @@ import path from 'path'
 import { promisify } from 'util'
 import { randomInt } from 'node:crypto'
 import logger from '../lib/logger'
+import { runtimeProfile } from '../lib/runtime-profile'
 
 const execFileAsync = promisify(execFile)
 
@@ -173,6 +174,7 @@ function weekKey(ms: number): string {
 
 /** Conserve les 7 plus recents, puis 1 dump par semaine sur 4 semaines. */
 export function prunePgDumps(directory = DB_BACKUP_DIR): string[] {
+  if (!runtimeProfile().pruneBackups) return []
   const all = listPgDumps(directory)
   const keep = new Set(all.slice(0, DAILY_RETENTION).map((x) => x.filename))
 

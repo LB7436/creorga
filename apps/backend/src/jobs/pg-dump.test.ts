@@ -20,6 +20,7 @@ async function loadModule() {
 }
 
 afterEach(() => {
+  vi.unstubAllEnvs()
   process.chdir(CWD)
   if (tmpRoot) {
     const resolved = path.resolve(tmpRoot)
@@ -48,6 +49,17 @@ describe('parseDatabaseUrl', () => {
 })
 
 describe('prunePgDumps — retention 7 quotidiens + 4 hebdomadaires', () => {
+  it.each(['business', 'essential'])('le profil local %s ne purge aucun dump préexistant', async profile => {
+    const { prunePgDumps, listPgDumps, DB_BACKUP_DIR, timestamp } = await loadModule()
+    vi.stubEnv(profile === 'business' ? 'CREORGA_BUSINESS_ONLY' : 'CREORGA_BACKGROUND_MODE', profile === 'business' ? 'true' : 'essential')
+    fs.mkdirSync(DB_BACKUP_DIR, { recursive: true })
+    for (let i = 0; i < 20; i++) {
+      const when = new Date(Date.now() - i * 86_400_000), file = path.join(DB_BACKUP_DIR, `creorga-db-${timestamp(when)}.dump`)
+      fs.writeFileSync(file, 'PGDMP'); fs.utimesSync(file, when, when)
+    }
+    expect(prunePgDumps()).toEqual([])
+    expect(listPgDumps()).toHaveLength(20)
+  })
   it('conserve les 7 plus recents et 1 dump par semaine sur 4 semaines', async () => {
     const { prunePgDumps, listPgDumps, DB_BACKUP_DIR, timestamp } = await loadModule()
     fs.mkdirSync(DB_BACKUP_DIR, { recursive: true })

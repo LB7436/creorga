@@ -8,7 +8,7 @@ import {
   ShoppingCart, Plus, Minus, ChevronDown, ChevronUp,
   Star,
 } from 'lucide-react'
-import GamesSection from './GamesSection'
+import { GamesSection, GAMES_ENABLED } from '@/optional/entertainment'
 import { useAuthStore } from '@/stores/authStore'
 import { usePortalConfig } from '@/hooks/usePortalConfig'
 import GuestRegistrationModal from './GuestRegistrationModal'
@@ -140,12 +140,12 @@ function GuestHomeContent() {
   const cartKey = `creorga-cart-visit:${guestScopeKey(portalCompanyId, tableId)}`
   const embed = searchParams.get('embed')
 
-  const [tab, setTab] = useState<Tab>('jeux')
+  const [tab, setTab] = useState<Tab>(GAMES_ENABLED ? 'jeux' : 'menu')
   const { lang, setLang, t } = useGuestLang()
   const [announcements] = useState<Announcement[]>([])
   const [guestClient, setGuestClient] = useState<GuestClientProfile | null>(() => loadGuestClient(portalCompanyId))
   const [registrationOpen, setRegistrationOpen] = useState(false)
-  const [registrationReason, setRegistrationReason] = useState('Creorga crée votre fiche client pour les commandes, les avis et les records de jeux.')
+  const [registrationReason, setRegistrationReason] = useState('Creorga crée votre fiche client pour les commandes et les avis.')
 
   // Cart state shared with menu
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -214,7 +214,10 @@ function GuestHomeContent() {
     return <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: BG, color: TEXT }}><Loader2 className="h-7 w-7 animate-spin" /></main>
   }
 
-  if (embed === 'games') {
+  if (embed === 'games' && !GAMES_ENABLED) {
+    return <GuestPortalError title="Profil professionnel" message="Les jeux ne sont pas installés dans ce profil. Ouvrez le menu depuis le QR de votre table." />
+  }
+  if (embed === 'games' && GAMES_ENABLED) {
     return (
       <div style={{ minHeight: '100vh', background: theme.bg, color: theme.text }}>
         <GamesSection companyId={portalCompanyId} />
@@ -223,12 +226,12 @@ function GuestHomeContent() {
   }
 
   const tabs: { id: Tab; icon: React.ReactNode; label: string; badge?: number; visible: boolean }[] = [
-    { id: 'jeux', icon: <Gamepad2 className="h-5 w-5" />, label: t('tab_games'), visible: toggles.games !== false },
+    { id: 'jeux', icon: <Gamepad2 className="h-5 w-5" />, label: t('tab_games'), visible: GAMES_ENABLED && toggles.games !== false },
     { id: 'menu', icon: <UtensilsCrossed className="h-5 w-5" />, label: t('tab_menu'), badge: cartCount || undefined, visible: toggles.menu !== false },
     { id: 'avis', icon: <MessageSquare className="h-5 w-5" />, label: t('tab_reviews'), visible: toggles.reviews !== false },
   ]
   const visibleTabs = tabs.filter((item) => item.visible)
-  const activeTab = visibleTabs.some((item) => item.id === tab) ? tab : (visibleTabs[0]?.id ?? 'jeux')
+  const activeTab = visibleTabs.some((item) => item.id === tab) ? tab : (visibleTabs[0]?.id ?? 'menu')
 
   return (
     <div className="flex min-h-screen flex-col" style={{ background: theme.bg, color: theme.text }}>
@@ -260,7 +263,7 @@ function GuestHomeContent() {
         {guestClient?.phone && <GuestLoyaltyCard phone={guestClient.phone} companyId={portalCompanyId} />}
 
         {/* JEUX */}
-        {activeTab === 'jeux' && toggles.games !== false && (
+        {GAMES_ENABLED && activeTab === 'jeux' && toggles.games !== false && (
           <GamesSection companyId={portalCompanyId} />
         )}
 
@@ -287,7 +290,7 @@ function GuestHomeContent() {
         {activeTab === 'avis' && toggles.reviews !== false && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <GuestFeedback
-              onBack={() => setTab('jeux')}
+              onBack={() => setTab(GAMES_ENABLED ? 'jeux' : 'menu')}
               guestClient={guestClient}
               requireGuestClient={requireGuestClient}
               companyId={portalCompanyId}

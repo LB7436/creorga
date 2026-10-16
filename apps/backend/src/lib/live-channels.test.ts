@@ -9,4 +9,8 @@ describe('public realtime subscriptions', () => {
     expect(isPublicLiveChannel('games-tenant-a')).toBe(true); expect(isPublicLiveChannel('floor-tenant-a')).toBe(true)
     expect(isPublicLiveChannel('floor-' + 'a'.repeat(101))).toBe(false)
   })
+  it('ferme seulement les scores en profil professionnel', () => {
+    expect(isPublicLiveChannel('games-tenant-a', { gamesEnabled: false })).toBe(false)
+    expect(isPublicLiveChannel('floor-tenant-a', { gamesEnabled: false })).toBe(true)
+  })
 })

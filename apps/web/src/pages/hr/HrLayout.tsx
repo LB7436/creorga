@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import ModuleLayout from '@/components/layout/ModuleLayout'
 import { useAuthStore } from '@/stores/authStore'
 import { fetchAuth } from '@/lib/fetchAuth'
+import { planningTeamOptions } from './planningTime'
 
 const items = [
   { label: 'Planning', path: '/hr/planning', icon: CalendarRange },
@@ -32,10 +33,7 @@ export default function HrLayout() {
       .then((r) => r.ok ? r.json() : [])
       .then((data: any) => {
         const list = Array.isArray(data) ? data : data?.team || []
-        setEmployees(list.map((e: any) => ({
-          id: e.id || `${e.firstName || ''}-${e.lastName || ''}`,
-          name: e.name || `${e.firstName || ''} ${e.lastName || ''}`.trim(),
-        })).filter((e: any) => e.name))
+        setEmployees(planningTeamOptions(list))
       })
       .catch(() => { /* ignore */ })
   }, [])

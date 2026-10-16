@@ -321,9 +321,7 @@ export default function ModuleSelector() {
   const moduleConfig = useModulePreferences((s) => s.config)
   const etatSync = useModulePreferences((s) => s.etat)
   const erreurSync = useModulePreferences((s) => s.erreur)
-  useEffect(() => {
-    demarrerSyncPreferencesModules()
-  }, [])
+  useEffect(() => demarrerSyncPreferencesModules(), [])
 
   const serviceIds = useMemo(() => new Set<ModuleId>(['pos', 'hr', 'sales', 'haccp', 'qrmenu']), [])
   const adminIds = useMemo(() => new Set<ModuleId>(['owner', 'sites', 'rgpd', 'backup', 'api', 'maintenance']), [])
@@ -417,7 +415,7 @@ export default function ModuleSelector() {
       {/* Échec de synchronisation des réglages : affiché, jamais avalé. */}
       {etatSync === 'erreur' && (
         <div style={{ position: 'relative', zIndex: 12, margin: '16px auto 0', maxWidth: 1080, padding: '10px 14px', borderRadius: 14, border: '1px solid rgba(248,113,113,0.35)', background: 'rgba(239,68,68,0.10)', color: '#fecaca', fontSize: 13, fontWeight: 600 }}>
-          ⚠ Réglages des modules non synchronisés ({erreurSync}) — affichage d'après la dernière copie locale.
+          ⚠ Réglages des modules non synchronisés ({erreurSync}) — la disponibilité affichée est à revérifier dans cet espace.
         </div>
       )}
 

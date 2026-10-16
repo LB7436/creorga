@@ -24,11 +24,9 @@ test('T100 accès distant : saisir et sauvegarder une origine étrangère ne tra
   await page.getByRole('textbox', { name: 'URL du serveur', exact: true }).fill('https://autre.fixture.invalid')
   await page.getByRole('button', { name: 'Sauvegarder & connecter', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('Aucun jeton n’a été envoyé')
-  const outcome = await page.evaluate(async () => {
-    const { fetchAuth } = await import('/src/lib/fetchAuth.ts')
-    try { await fetchAuth('https://autre.fixture.invalid/api'); return 'SENT' } catch (e: any) { return e.message }
-  })
-  expect(outcome).toContain('non autorisée')
+  // Contrôle par l'interface réelle, également sur le livrable compilé.
+  // Le refus direct de fetchAuth est exercé séparément par ses tests unitaires ;
+  // importer /src depuis Chrome n'est possible que sur un serveur Vite de dev.
   expect(externalRequests).toBe(0)
 })
 

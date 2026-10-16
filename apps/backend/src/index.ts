@@ -81,10 +81,10 @@ import helpFeedbackRoutes from './routes/help-feedback'
 import assistantRoutes from './routes/assistant'
 import assistantAdvancedRoutes from './routes/assistant-advanced'
 import ownerRoutes from './routes/owner'
-import gameScoresRoutes from './routes/gameScores'
 import guestRoutes from './routes/guest'
 import guestVisitRoutes from './routes/guestVisits'
 import { isPublicLiveChannel } from './lib/live-channels'
+import { runtimeProfile } from './lib/runtime-profile'
 import { auditLog } from './middleware/audit-log'
 import { assertProductionSecrets, buildCorsOrigin, authLimiter, aiLimiter, publicLimiter, creatorAuthLimiter } from './lib/security'
 import { deviceOrUserAuth } from './middleware/deviceAuth'
@@ -103,6 +103,7 @@ assertProductionSecrets()
 initMonitoring()
 
 const app = express()
+const profile = runtimeProfile()
 
 // Un seul intermédiaire devant nous : Caddy, sur la même machine.
 // Sans ce réglage, express-rate-limit voit l'IP de Caddy (127.0.0.1) pour
@@ -133,7 +134,7 @@ liveNs.on('connection', (socket) => {
     // bornés et cloisonnés par société peuvent être rejoints. Les boîtes
     // internes (`inbox-*`, etc.) restent accessibles uniquement par API JWT.
     channels.slice(0, 10).forEach((channel) => {
-      if (isPublicLiveChannel(channel)) socket.join(channel)
+      if (isPublicLiveChannel(channel, profile)) socket.join(channel)
     })
   })
 })
@@ -191,6 +192,7 @@ app.use(auditLog)
 app.get('/api/health', async (_req, res) => {
   const base: Record<string, unknown> = {
     service: 'creorga-api',
+    profile: profile.name,
     timestamp: new Date().toISOString(),
   }
 
@@ -275,7 +277,13 @@ function portalConfigManagementGuard(req: express.Request, res: express.Response
 }
 
 app.use('/api/portal-config', publicLimiter, portalConfigManagementGuard, portalConfigRoutes) // portail client public (QR)
-app.use('/api/game-scores', publicLimiter, gameScoresRoutes) // scores jeux guest (public)
+if (profile.gamesEnabled) {
+  // Le code ludique n'est même pas chargé par le processus professionnel.
+  const { default: gameScoresRoutes } = await import('./routes/gameScores')
+  app.use('/api/game-scores', publicLimiter, gameScoresRoutes)
+} else {
+  app.use('/api/game-scores', (_req, res) => res.status(404).json({ code: 'BUSINESS_ONLY', message: 'Jeux absents du profil professionnel.' }))
+}
 app.use('/api/guest', publicLimiter, guestRoutes) // suivi commande, appel serveur, paiement (public)
 app.use('/api/guest-visits', publicLimiter, guestVisitRoutes)
 app.use('/api/floor-state', deviceOrUserAuth, requireCompany, floorCompanyContext, floorStateRoutes)
@@ -348,11 +356,11 @@ export { io }
 
 // Start
 const PORT = parseInt(process.env.PORT || '3002', 10)
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, process.env.CREORGA_BIND_HOST || undefined, () => {
   logger.info(`Serveur Creorga démarré sur http://localhost:${PORT}`)
   logger.info(`Environnement: ${process.env.NODE_ENV || 'development'}`)
   // Réplication stock JSON → Prisma Ingredient (no-op si DB indisponible)
-  startStockSyncJob()
+  if (profile.legacyStockSync) startStockSyncJob()
   setInterval(() => { void processPendingPaymentWebhooks().catch(() => logger.warn('[payments] reprise des notifications différée')) }, 60000).unref()
   // Signalement des sessions anciennes, sans effacer les additions ni les chaises.
   import('./jobs/closeStaleFloorSessions').then(({ startStaleSessionJanitor }) => {
@@ -382,20 +390,20 @@ httpServer.listen(PORT, () => {
   }).catch((e) => logger.warn('[backup] non démarré:', e?.message))
 
   // Console créateur — rétention RGPD des événements (5 min après boot, puis 24h)
-  import('./jobs/creator-retention').then(({ startCreatorRetention }) => {
+  if (profile.creatorRetention) import('./jobs/creator-retention').then(({ startCreatorRetention }) => {
     startCreatorRetention()
     logger.info('[creator-retention] purge quotidienne activée (ActivityEvent 90j, LoginEvent 180j, ErrorLog 30j)')
   }).catch((e) => logger.warn('[creator-retention] non démarré:', e?.message))
 
   // Console créateur — snapshot quotidien par société (2 min après boot, puis 1h, idempotent)
-  import('./jobs/creator-metrics').then(({ startCreatorMetrics }) => {
+  if (profile.creatorMetrics) import('./jobs/creator-metrics').then(({ startCreatorMetrics }) => {
     startCreatorMetrics()
     logger.info('[creator-metrics] snapshot quotidien par société activé (1h, upsert J-1)')
   }).catch((e) => logger.warn('[creator-metrics] non démarré:', e?.message))
 
   // Console créateur — moteur d'opportunités (10 min après boot, puis 24h ;
   // CREATOR_ENGINE_ENABLED=1 requis en production)
-  import('./jobs/opportunity-engine').then(({ startOpportunityEngine }) => {
+  if (profile.opportunityEngine) import('./jobs/opportunity-engine').then(({ startOpportunityEngine }) => {
     startOpportunityEngine()
   }).catch((e) => logger.warn('[opportunites] non démarré:', e?.message))
 })

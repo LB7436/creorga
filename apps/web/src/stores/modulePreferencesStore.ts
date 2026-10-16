@@ -1,29 +1,16 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import api from '@/lib/api'
+import { authDataScope } from '@/lib/authScope'
+import { useAuthStore } from './authStore'
 
 /**
- * Préférences de modules — source de vérité : le serveur.
- *
- * Remplace le couple défaillant moduleConfigStore (localStorage seul, jamais
- * poussé au serveur) + useSharedModuleConfig (fetch nu sans jeton, repli
- * localhost:3002 mort en production, erreurs avalées). Historique du défaut :
- * SettingsModules écrivait en local pendant que le sélecteur fusionnait avec
- * « le distant gagne » — tout réglage pouvait être écrasé en silence et rien
- * n'était partagé entre navigateurs.
- *
- * Règles :
- *  - toute écriture est optimiste MAIS annulée si l'API refuse : un
- *    interrupteur ne reste jamais affiché « enregistré » sur un échec ;
- *  - les erreurs remontent à l'appelant (pour le toast), jamais avalées ;
- *  - le cache localStorage ne sert qu'à l'affichage instantané au démarrage,
- *    le serveur reprend la main dès la première lecture.
- *
- * La « dernière sélection » (module actif) reste portée par moduleStore
- * (protégé) ; le mode service/admin/tout reste dans moduleUXStore — un seul
- * propriétaire par donnée.
+ * Le serveur est la seule source attribuée des préférences de modules.
+ * Le cache actif reste en mémoire, pour une identité, une société, des droits
+ * et une génération de session. Les anciens caches non attribuables sont
+ * conservés, mais jamais affichés ni importés automatiquement chez un client.
+ * Une valeur n'est remplacée qu'après confirmation du serveur.
  */
-
 export type ModuleDisplayMode = 'visible' | 'hidden' | 'coming_soon'
 
 export interface PreferenceModule {
@@ -35,22 +22,22 @@ export interface PreferenceModule {
 }
 
 type EtatSync = 'inconnu' | 'chargement' | 'pret' | 'erreur'
-
 interface ReponseServeur {
   config: Record<string, PreferenceModule>
   updatedAt: number
 }
 
 interface PreferencesModulesState {
+  scopeKey: string | null
   config: Record<string, PreferenceModule>
   etat: EtatSync
   erreur: string | null
-  /** Modules dont l'enregistrement est en cours : leurs contrôles se désactivent. */
   enAttente: Record<string, true>
-  /** Migration unique de l'ancien localStorage vers le serveur. */
-  migrationFaite: boolean
+  reinitialisationEnCours: boolean
   derniereSync: number
-
+  revisionServeur: number
+  /** Copie de l'ancien état global, sans attribution à la session courante. */
+  quarantinedPreferences: unknown
   charger: () => Promise<void>
   regler: (moduleId: string, patch: Partial<PreferenceModule>) => Promise<void>
   reinitialiser: () => Promise<void>
@@ -58,132 +45,199 @@ interface PreferencesModulesState {
 }
 
 const DEFAUT: PreferenceModule = { displayMode: 'visible' }
+let generation = 0
+let mutationVersion = 0
+let lectureEnCours: Promise<void> | null = null
+let fileEcritures: Promise<void> = Promise.resolve()
 
-/** Clé de l'ancien store local, lue une seule fois pour la reprise. */
-const ANCIENNE_CLE = 'creorga-module-config'
+function scopeActuel(): string | null {
+  const auth = useAuthStore.getState()
+  return auth.isAuthenticated && auth.user?.id && auth.companyId ? authDataScope(auth) : null
+}
 
-function lireAncienStockage(): Record<string, PreferenceModule> {
-  try {
-    const brut = localStorage.getItem(ANCIENNE_CLE)
-    if (!brut) return {}
-    const parse = JSON.parse(brut)
-    return parse?.state?.config ?? {}
-  } catch {
-    return {}
+/** Les formulaires utilisent aussi la génération, y compris pour A → B → A. */
+export function capturerContextePreferencesModules() {
+  return { scope: scopeActuel(), generation }
+}
+
+function contexte() {
+  const context = capturerContextePreferencesModules()
+  if (!context.scope) throw new Error('Connectez-vous et sélectionnez une société avant de modifier ses modules.')
+  return context
+}
+
+export function estContextePreferencesModulesCourant(context: ReturnType<typeof capturerContextePreferencesModules>): boolean {
+  return context.scope !== null && context.generation === generation && context.scope === scopeActuel()
+}
+
+const estCourant = estContextePreferencesModulesCourant
+
+function verifierContexte(context: ReturnType<typeof contexte>): void {
+  if (!estCourant(context)) throw new Error('La session ou la société a changé. Rechargez les réglages dans votre espace actuel.')
+}
+
+function verifierDroits(): void {
+  const auth = useAuthStore.getState()
+  if (!['owner', 'manager'].includes(auth.role) || auth.viewMode !== 'owner') {
+    throw new Error('La configuration des modules est réservée aux responsables, hors vue salarié.')
   }
 }
+
+function verifierReponse(data: ReponseServeur): void {
+  if (!data || !data.config || typeof data.config !== 'object' || Array.isArray(data.config)
+    || !Number.isFinite(data.updatedAt) || data.updatedAt < 0) {
+    throw new Error('Réponse de configuration incomplète : aucune confirmation d’enregistrement.')
+  }
+}
+
+const messageErreur = (error: unknown) => error instanceof Error ? error.message : 'Serveur injoignable'
 
 export const useModulePreferences = create<PreferencesModulesState>()(
   persist(
     (set, get) => ({
-      config: {},
-      etat: 'inconnu',
-      erreur: null,
-      enAttente: {},
-      migrationFaite: false,
-      derniereSync: 0,
+      scopeKey: scopeActuel(), config: {}, etat: 'inconnu', erreur: null,
+      enAttente: {}, reinitialisationEnCours: false, derniereSync: 0,
+      revisionServeur: 0, quarantinedPreferences: null,
 
-      charger: async () => {
-        if (get().etat === 'chargement') return
-        set({ etat: 'chargement' })
-        try {
-          const { data } = await api.get<ReponseServeur>('/module-config')
-          let config = data.config ?? {}
-
-          // Reprise unique : si le serveur est vierge mais que l'ancien store
-          // local contient des réglages, on les pousse — sinon des mois de
-          // configuration disparaîtraient au premier passage sur ce code.
-          if (!get().migrationFaite && Object.keys(config).length === 0) {
-            const ancien = lireAncienStockage()
-            if (Object.keys(ancien).length > 0) {
-              const { data: apres } = await api.put<ReponseServeur>('/module-config', { config: ancien })
-              config = apres.config ?? ancien
-            }
+      charger: () => {
+        if (!scopeActuel()) return Promise.resolve()
+        if (lectureEnCours) return lectureEnCours
+        if (get().reinitialisationEnCours || Object.keys(get().enAttente).length) return Promise.resolve()
+        const context = contexte()
+        const version = mutationVersion
+        // Une relecture de fond n'interdit pas une action sur une copie déjà
+        // confirmée. Son résultat est invalidé dès qu'une écriture commence.
+        if (!get().derniereSync) set({ etat: 'chargement' })
+        const operation = (async () => {
+          try {
+            const { data } = await api.get<ReponseServeur>('/module-config')
+            if (!estCourant(context) || version !== mutationVersion) return
+            verifierReponse(data)
+            if (data.updatedAt < get().revisionServeur) return
+            set({ config: data.config, revisionServeur: data.updatedAt, etat: 'pret', erreur: null, derniereSync: Date.now() })
+          } catch (error) {
+            if (estCourant(context) && version === mutationVersion) set({ etat: 'erreur', erreur: messageErreur(error) })
           }
-
-          set({
-            config,
-            etat: 'pret',
-            erreur: null,
-            migrationFaite: true,
-            derniereSync: Date.now(),
-          })
-        } catch (e) {
-          // On garde le cache affiché, mais l'échec est visible, jamais muet.
-          set({
-            etat: 'erreur',
-            erreur: e instanceof Error ? e.message : 'Serveur injoignable',
-          })
-        }
+        })().finally(() => { if (lectureEnCours === operation) lectureEnCours = null })
+        lectureEnCours = operation
+        return operation
       },
 
       regler: async (moduleId, patch) => {
-        const precedent = get().config[moduleId]
-        // Optimiste : l'interface réagit tout de suite…
-        set((s) => ({
-          config: { ...s.config, [moduleId]: { ...(precedent ?? DEFAUT), ...patch } },
-          enAttente: { ...s.enAttente, [moduleId]: true },
-        }))
-        try {
-          const { data } = await api.patch<ReponseServeur>(`/module-config/${moduleId}`, patch)
-          set((s) => {
-            const { [moduleId]: _fini, ...reste } = s.enAttente
-            return { config: data.config ?? s.config, enAttente: reste, erreur: null, derniereSync: Date.now() }
+        const context = contexte()
+        verifierDroits()
+        if (get().etat !== 'pret') throw new Error('Attendez une synchronisation confirmée avant de modifier les modules.')
+        if (get().reinitialisationEnCours || get().enAttente[moduleId]) throw new Error('Un enregistrement est déjà en cours. Attendez sa confirmation.')
+        mutationVersion++
+        // Le formulaire utilise undefined pour revenir au libellé d'origine.
+        // JSON supprimerait ce champ ; la route attend une chaîne vide explicite.
+        const modification = Object.prototype.hasOwnProperty.call(patch, 'customLabel')
+          ? { ...patch, customLabel: patch.customLabel ?? '' } : patch
+        set((state) => ({ enAttente: { ...state.enAttente, [moduleId]: true } }))
+        const operation = fileEcritures.then(async () => {
+          verifierContexte(context)
+          if (get().etat !== 'pret') throw new Error('Un enregistrement précédent n’est pas confirmé. Resynchronisez avant de poursuivre.')
+          const { data } = await api.patch<ReponseServeur>(`/module-config/${encodeURIComponent(moduleId)}`, modification)
+          verifierContexte(context)
+          verifierReponse(data)
+          if (data.updatedAt < get().revisionServeur) throw new Error('Réponse ancienne : resynchronisez la configuration avant de poursuivre.')
+          set({ config: data.config, revisionServeur: data.updatedAt, erreur: null, derniereSync: Date.now() })
+        })
+        // Le refus d'une écriture ne bloque pas définitivement la file ; une
+        // nouvelle lecture est toutefois obligatoire avant une autre action.
+        fileEcritures = operation.catch(() => {})
+        try { await operation }
+        catch (error) {
+          if (estCourant(context)) set({ etat: 'erreur', erreur: messageErreur(error) })
+          throw error
+        } finally {
+          if (estCourant(context)) set((state) => {
+            const { [moduleId]: _fini, ...enAttente } = state.enAttente
+            return { enAttente }
           })
-        } catch (e) {
-          // …mais un refus du serveur ANNULE l'affichage : jamais un réglage
-          // montré comme enregistré alors qu'il ne l'est pas.
-          set((s) => {
-            const { [moduleId]: _fini, ...reste } = s.enAttente
-            const config = { ...s.config }
-            if (precedent === undefined) delete config[moduleId]
-            else config[moduleId] = precedent
-            return { config, enAttente: reste, erreur: e instanceof Error ? e.message : 'Échec de l’enregistrement' }
-          })
-          throw e
         }
       },
 
       reinitialiser: async () => {
-        const precedent = get().config
-        set({ config: {} })
+        const context = contexte()
+        verifierDroits()
+        if (get().reinitialisationEnCours || Object.keys(get().enAttente).length) throw new Error('Un enregistrement est en cours. Attendez avant de réinitialiser.')
+        if (get().etat !== 'pret') throw new Error('Attendez une synchronisation confirmée avant de réinitialiser les modules.')
+        mutationVersion++
+        set({ reinitialisationEnCours: true })
         try {
           const { data } = await api.post<ReponseServeur>('/module-config/reset')
-          set({ config: data.config ?? {}, erreur: null, derniereSync: Date.now() })
-        } catch (e) {
-          set({ config: precedent, erreur: e instanceof Error ? e.message : 'Échec de la réinitialisation' })
-          throw e
+          verifierContexte(context)
+          verifierReponse(data)
+          if (data.updatedAt < get().revisionServeur) throw new Error('Réponse ancienne : resynchronisez la configuration avant de poursuivre.')
+          set({ config: data.config, revisionServeur: data.updatedAt, erreur: null, derniereSync: Date.now() })
+        } catch (error) {
+          if (estCourant(context)) set({ etat: 'erreur', erreur: messageErreur(error) })
+          throw error
+        } finally {
+          if (estCourant(context)) set({ reinitialisationEnCours: false })
         }
       },
 
       lire: (moduleId) => get().config[moduleId] ?? DEFAUT,
     }),
     {
-      name: 'creorga-module-prefs',
-      // Seul le cache de config et le drapeau de migration survivent au
-      // rechargement ; l'état de sync repart toujours de zéro.
-      partialize: (s) => ({ config: s.config, migrationFaite: s.migrationFaite }),
+      name: 'creorga-module-prefs', version: 1,
+      migrate: (persisted, version) => version < 1 ? { quarantinedPreferences: persisted } : persisted as any,
+      // Même une réhydratation explicite ne peut installer le cache d'une
+      // autre identité. L'ancienne clé creorga-module-config reste intacte.
+      merge: (persisted: any, current) => ({ ...current, quarantinedPreferences: persisted?.quarantinedPreferences ?? current.quarantinedPreferences }),
+      partialize: (state) => ({ quarantinedPreferences: state.quarantinedPreferences }),
     }
   )
 )
 
-/* ------------------------------------------------------------------ */
-/* Cycle de vie de la synchronisation                                  */
-/* ------------------------------------------------------------------ */
+/* Un cycle partagé uniquement tant qu'un écran consommateur est monté. */
+let lecteurs = 0
+let arreterLecturePeriodique: (() => void) | null = null
 
-let syncDemarree = false
-
-/**
- * Démarre la synchronisation (une seule fois par onglet) : lecture immédiate,
- * relecture au retour de focus et toutes les 60 s. L'ancien canal interrogeait
- * le serveur toutes les 1,5 s sans authentification — c'est ce polling qui
- * rendait « networkidle » inatteignable pour les tests e2e.
- */
-export function demarrerSyncPreferencesModules(): void {
-  if (syncDemarree || typeof window === 'undefined') return
-  syncDemarree = true
-  const charger = () => useModulePreferences.getState().charger()
-  charger()
+function actualiserCycle(): void {
+  arreterLecturePeriodique?.()
+  arreterLecturePeriodique = null
+  if (!lecteurs || !scopeActuel() || typeof window === 'undefined') return
+  const charger = () => { void useModulePreferences.getState().charger() }
   window.addEventListener('focus', charger)
-  window.setInterval(charger, 60_000)
+  const interval = window.setInterval(charger, 60_000)
+  arreterLecturePeriodique = () => {
+    window.removeEventListener('focus', charger)
+    window.clearInterval(interval)
+  }
+  charger()
 }
+
+/** Le désabonnement est celui de useEffect, y compris sous React StrictMode. */
+export function demarrerSyncPreferencesModules(): () => void {
+  lecteurs++
+  if (lecteurs === 1) actualiserCycle()
+  let actif = true
+  return () => {
+    if (!actif) return
+    actif = false
+    lecteurs--
+    if (!lecteurs) {
+      arreterLecturePeriodique?.()
+      arreterLecturePeriodique = null
+    }
+  }
+}
+
+const unsubscribeAuthScope = useAuthStore.subscribe((auth, previous) => {
+  if (authDataScope(auth) === authDataScope(previous)) return
+  generation++
+  mutationVersion++
+  lectureEnCours = null
+  fileEcritures = Promise.resolve()
+  useModulePreferences.setState({ scopeKey: scopeActuel(), config: {}, etat: 'inconnu', erreur: null,
+    enAttente: {}, reinitialisationEnCours: false, derniereSync: 0, revisionServeur: 0 })
+  actualiserCycle()
+})
+
+;(import.meta as any).hot?.dispose(() => {
+  unsubscribeAuthScope()
+  arreterLecturePeriodique?.()
+})

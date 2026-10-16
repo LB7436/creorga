@@ -1,6 +1,7 @@
 import { Router, type Request } from 'express'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
+import { lockPortalConfiguration, nextPortalRevision } from '../lib/portal-config-lock'
 
 export interface PortalConfig {
   companyId: string
@@ -235,7 +236,10 @@ async function saveConfig(req: Request, res: any) {
     const company = await loadCompany(req)
     if (!company) { res.status(404).json({ message: 'Entreprise inconnue' }); return }
     const body = req.body || {}
-    const existing = await prisma.portalConfiguration.findUnique({ where: { companyId: company.id } })
+    const saved = await prisma.$transaction(async tx => {
+    // Un PATCH de clés distinctes ne doit pas écraser la lecture d'une autre caisse.
+    await lockPortalConfiguration(tx, company.id)
+    const existing = await tx.portalConfiguration.findUnique({ where: { companyId: company.id } })
     const allowedToggles = new Set(['menu', 'order', 'games', 'reviews'])
     const toggles = {
       ...DEFAULT_TOGGLES,
@@ -256,11 +260,13 @@ async function saveConfig(req: Request, res: any) {
       : String(body.tableNumber).trim().slice(0, 40) || '1'
     const themeMode = body.themeMode === 'light' ? 'light' : body.themeMode === 'dark' ? 'dark' : existing?.themeMode || 'dark'
 
-    const saved = await prisma.portalConfiguration.upsert({
+    const updatedAt = nextPortalRevision(existing)
+    return tx.portalConfiguration.upsert({
       where: { companyId: company.id },
-      create: { companyId: company.id, toggles, games, welcomeMessage, accentColor, tableNumber, themeMode },
-      update: { toggles, games, welcomeMessage, accentColor, tableNumber, themeMode },
+      create: { companyId: company.id, toggles, games, welcomeMessage, accentColor, tableNumber, themeMode, updatedAt },
+      update: { toggles, games, welcomeMessage, accentColor, tableNumber, themeMode, updatedAt },
     })
+    }, { maxWait: 10_000, timeout: 15_000 })
     res.json(responseConfig(company, saved))
   } catch (error) {
     logger.error('[portal-config] sauvegarde impossible:', error)
@@ -275,8 +281,16 @@ router.post('/reset', async (req, res) => {
   try {
     const company = await loadCompany(req)
     if (!company) { res.status(404).json({ message: 'Entreprise inconnue' }); return }
-    await prisma.portalConfiguration.deleteMany({ where: { companyId: company.id } })
-    res.json(responseConfig(company, null))
+    const saved = await prisma.$transaction(async tx => {
+      await lockPortalConfiguration(tx, company.id)
+      const existing = await tx.portalConfiguration.findUnique({ where: { companyId: company.id } })
+      // Garder identité/création et révision : les portails déjà ouverts verront
+      // aussi la remise à zéro, sans interpréter une révision 0 comme récente.
+      const defaults = { toggles: DEFAULT_TOGGLES, games: {}, welcomeMessage: '', accentColor: '#6366f1', tableNumber: '1', themeMode: 'dark', logoDataUrl: null,
+        updatedAt: nextPortalRevision(existing) }
+      return tx.portalConfiguration.upsert({ where: { companyId: company.id }, create: { companyId: company.id, ...defaults }, update: defaults })
+    }, { maxWait: 10_000, timeout: 15_000 })
+    res.json(responseConfig(company, saved))
   } catch (error) {
     logger.error('[portal-config] remise à zéro impossible:', error)
     res.status(500).json({ message: 'Remise à zéro impossible' })
