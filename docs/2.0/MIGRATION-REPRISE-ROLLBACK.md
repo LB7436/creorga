@@ -1,5 +1,49 @@
 # Reprise et retour arrière
 
+## Profil professionnel local — après 962c01b
+
+Code `9e15b1a`, 16 octobre 2026. **Aucune migration SQL nouvelle**, 34 existantes conservées.
+Le profil retire les jeux du livrable et du routage, pas du dépôt, de la base ou des historiques.
+Mêmes ports/origines, PostgreSQL autorité et chemins privés explicites ; aucun seed/reset/install
+au lancement. Le complet utilise le même code 2.0 récent, pas un ancien exécutable financier.
+
+Depuis le dépôt, sur ce PC préparé :
+
+```powershell
+powershell.exe -NoProfile -File ../local-2.0/stop-profile.ps1
+node ../local-2.0/start-profile.mjs --full
+# Retour métier, après arrêt du profil courant :
+powershell.exe -NoProfile -File ../local-2.0/stop-profile.ps1
+node ../local-2.0/start-profile.mjs
+```
+
+PID validés par commande et chemin ; un PID réattribué à un autre logiciel reste intact.
+Pas de démarrage Windows ajouté, de purge ni changement d'origine. Chrome dédié neuf,
+profils historiques interdits/non ouverts. Préférences de jeu et données métier conservées.
+Les caches modules non attribuables restent en quarantaine, jamais importés automatiquement.
+Portail/reset/onboarding : verrou SQL commun et révision monotone, identité/création préservées
+au reset. Préférer une correction en avant à un backend ancien réinitialisant ces révisions.
+Aucun shift historique réécrit par la correction de planning.
+
+Reprise testée à 19:32 UTC : sauvegarde cohérente à écrivains arrêtés, AES-GCM/clé séparée,
+restauration dans **une nouvelle base**, 79 tables / 8 fichiers / 17 PDF égaux, 17 contrôles
+après redémarrage. 3 721 ms sur cette copie, pas un RTO. Allocations peuplées 7/14/21,
+[preuve](preuves/restauration-business-only-2026-10-16.json).
+
+**Incident déclaré :** deux dumps de rotation du laboratoire supprimés par une rétention
+autonome avant sa correction. Rétentions ZIP **et dump** désormais désactivées en mode
+business/essential ; 27 dumps absents récupérés depuis 36 ZIP du jour dans un nouveau
+répertoire privé, signature/size/SHA vérifiés. Correspondance exacte des deux noms non
+démontrable faute de journalisation. Aucun ZIP ni archive originale hors laboratoire modifié.
+[Preuve](preuves/rotation-laboratoire-2026-10-16.json). Surveiller l'espace et décider
+explicitement des archives à retirer ; absence de purge n'est pas un stockage infini.
+
+Incident : arrêter tous les écrivains, conserver état/réserves, restaurer dans une autre base
+avec les fichiers du même instant et comparer avant reprise. Pas de down/reset/purge ni retour
+en écriture à un ancien POS ignorant les allocations. Jeux seuls : récupération vérifiée depuis
+[962c01b immuable](https://github.com/LB7436/creorga/tree/962c01b2767a06db510c6b0aa3e22d521da77534),
+sans restaurer l'ancien backend. [Rapport](PROFIL-PROFESSIONNEL-SANS-JEUX.md).
+
 ## Lot T100 après c0ddd81 — 16 octobre 2026
 
 Aucune migration SQL nouvelle. Conserver les 34 migrations et toutes les données financières,

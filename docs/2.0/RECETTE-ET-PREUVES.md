@@ -1,5 +1,37 @@
 # Recette actuelle
 
+## Profil métier sans jeux — après 962c01b
+
+16 octobre 2026, code `9e15b1a`. [Rapport](PROFIL-PROFESSIONNEL-SANS-JEUX.md),
+[validation](preuves/business-only-validation-2026-10-16.json),
+[ressources avant/après](preuves/business-only-ressources-2026-10-16.json),
+[inventaire source](preuves/business-only-inventaire-t100-2026-10-16.jsonl),
+[restauration](preuves/restauration-business-only-2026-10-16.json).
+
+**518 unités (277 backend / 177 web / 64 POS), 178 intégrations PostgreSQL et 28 parcours
+Chrome dans dix fichiers**, zéro échec/ignoré. API/SQL/fichiers locaux réels, prestataires et IA
+remplacés lorsque précisé dans les noms de scénarios. Cinq applications compilées pour chacun
+des profils métier et complet ; trois contrôles de livrable/hôte/guards. Les 12 tests des outils,
+23 du comparateur et 100 identifiants/8 contrôles du générateur sont distincts des suites métier.
+Robi : confirmation, scope et PDF testés avec IA remplacée ; pas de modèle/voix réels qualifiés.
+
+À 19:32 UTC : **79 tables/8 fichiers/9 PDF facture et 8 avoir égaux**, AES-GCM/clé séparée,
+17 contrôles après redémarrage. Durée 3 721 ms, pas un RTO ; tables d'allocation peuplées 7/14/21.
+Jeux : récupération 99 fichiers vérifiée, zéro module dans le graphe métier contre 55 en complet.
+Raccourci Windows créé/contrôlé, lanceur `-NoBrowser` exécuté ; pas de clic physique revendiqué.
+
+Ressources : trois séries courtes comparables, aucun gain énergétique extrapolé. Le profil
+compilé complet consomme moins de working sets sommés que le métier dans cette série ;
+pas de causalité « suppression des jeux = baisse RAM » ni accélération universelle.
+Deux dumps de rotation du laboratoire supprimés par une rétention auparavant non neutralisée ;
+corrigée et testée. 27 copies absentes récupérées dans 36 ZIP du jour, SHA vérifiés ; les noms des
+deux suppressions manquent, correspondance exacte non prouvée. Originaux hors laboratoire intacts.
+[Preuve de récupération et limite](preuves/rotation-laboratoire-2026-10-16.json).
+
+Matrice inchangée **54 PASS / 0 FAIL / 45 BLOCKED / 1 NOT RUN**. T100 partiel : 399 fichiers,
+3 680 contrôles, 157 routes et 826 gabarits source, non convertis en PASS. Aucun déploiement,
+paiement réel, profil historique, vidéo ou Stripe Refunds activé. Limites externes inchangées.
+
 ## T100 et profilage HTTP — lot suivant c0ddd81
 
 16 octobre 2026. [Rapport T100](T100-CONTROLES-ET-PERFORMANCE.md),

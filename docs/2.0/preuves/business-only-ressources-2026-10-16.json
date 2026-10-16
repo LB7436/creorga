@@ -1,0 +1,370 @@
+{
+  "generatedAt": "2026-10-16T19:37:36.151Z",
+  "profiles": [
+    {
+      "profile": "dev-complet",
+      "measuredAt": "2026-10-16T19:06:35.4456122Z",
+      "sampleCount": 11,
+      "logicalCpus": 12,
+      "workingSetSumMiB": 2296.79,
+      "privateCommitMiB": 1889.3655,
+      "cpuNormalizedPercent": 0,
+      "gpuEnginePercentSum": 0,
+      "gpuDedicatedMiB": 153.375,
+      "gpuSharedMiB": 7.7266,
+      "processCountMin": 40,
+      "processCountMax": 44,
+      "gpuErrors": [],
+      "startup": {
+        "profile": "dev",
+        "readyMs": 4278,
+        "measuredAt": "2026-10-16T19:06:03.420Z",
+        "limit": "Une relance CLI, PostgreSQL déjà actif et cache système chaud ; pas un démarrage Windows."
+      },
+      "ui": {
+        "chrome": "155.0.8059.80",
+        "dataset": {
+          "products": 733,
+          "tables": 266,
+          "lines": 1239
+        },
+        "measurements": [
+          {
+            "name": "portail-config",
+            "samples": [
+              369.86,
+              330.01,
+              257.07,
+              260.55,
+              242.21
+            ],
+            "medianMs": 260.55,
+            "p95Ms": 369.86
+          },
+          {
+            "name": "modules",
+            "samples": [
+              484.18,
+              466.27,
+              465.88,
+              451.26,
+              490.64
+            ],
+            "medianMs": 466.27,
+            "p95Ms": 490.64
+          },
+          {
+            "name": "planning",
+            "samples": [
+              260.58,
+              340.12,
+              310.45,
+              312.63,
+              233.74
+            ],
+            "medianMs": 310.45,
+            "p95Ms": 340.12
+          },
+          {
+            "name": "qr-menu",
+            "samples": [
+              280.71,
+              298.14,
+              279.68,
+              281.11,
+              266.53
+            ],
+            "medianMs": 280.71,
+            "p95Ms": 298.14
+          },
+          {
+            "name": "pos-connexion",
+            "samples": [
+              68.59,
+              66.74,
+              65.71,
+              62.83,
+              66.98
+            ],
+            "medianMs": 66.74,
+            "p95Ms": 68.59
+          }
+        ],
+        "jsErrors": [],
+        "limits": "2 échauffements +5 mesures, p95=max sur5. Cache système chaud, réseau loopback, autres logiciels laissés actifs ; IA externe neutralisée ; ni benchmark énergétique ni service multiclient. Navigation vers en-tête/contrôle visible, pas complétude de chaque donnée."
+      },
+      "measurementLimits": "Somme des working sets : pages partagÃ©es potentiellement comptÃ©es plusieurs fois. PrivateCommit est de la mÃ©moire engagÃ©e, pas de la RAM physique. Somme des moteurs GPU par PID, pas une utilisation globale normalisÃ©e ; VRAM inclut les allocations exposÃ©es par Windows. Autres logiciels non arrÃªtÃ©s. Aucun calcul Ã©nergÃ©tique."
+    },
+    {
+      "profile": "compile-complet",
+      "measuredAt": "2026-10-16T19:22:58.5618646Z",
+      "sampleCount": 11,
+      "logicalCpus": 12,
+      "workingSetSumMiB": 1533.9745,
+      "privateCommitMiB": 1063.8909,
+      "cpuNormalizedPercent": 0,
+      "gpuEnginePercentSum": 0,
+      "gpuDedicatedMiB": 160.2148,
+      "gpuSharedMiB": 6.6172,
+      "processCountMin": 28,
+      "processCountMax": 32,
+      "gpuErrors": [],
+      "startup": {
+        "profile": "full",
+        "readyMs": 3096,
+        "measuredAt": "2026-10-16T19:22:31.219Z",
+        "limit": "Une relance CLI, PostgreSQL déjà actif et cache système chaud ; pas un démarrage Windows."
+      },
+      "ui": {
+        "chrome": "155.0.8059.80",
+        "dataset": {
+          "products": 733,
+          "tables": 266,
+          "lines": 1239
+        },
+        "measurements": [
+          {
+            "name": "portail-config",
+            "samples": [
+              106.23,
+              111.59,
+              109.61,
+              98.84,
+              101.57
+            ],
+            "medianMs": 106.23,
+            "p95Ms": 111.59
+          },
+          {
+            "name": "modules",
+            "samples": [
+              371.51,
+              87.91,
+              682.78,
+              856.48,
+              286.53
+            ],
+            "medianMs": 371.51,
+            "p95Ms": 856.48
+          },
+          {
+            "name": "planning",
+            "samples": [
+              82.26,
+              73.21,
+              71.22,
+              68.95,
+              74.51
+            ],
+            "medianMs": 73.21,
+            "p95Ms": 82.26
+          },
+          {
+            "name": "qr-menu",
+            "samples": [
+              155.23,
+              140.45,
+              151.42,
+              155.65,
+              156.18
+            ],
+            "medianMs": 155.23,
+            "p95Ms": 156.18
+          },
+          {
+            "name": "pos-connexion",
+            "samples": [
+              40.54,
+              37.76,
+              42.16,
+              39.68,
+              35.72
+            ],
+            "medianMs": 39.68,
+            "p95Ms": 42.16
+          }
+        ],
+        "jsErrors": [],
+        "limits": "2 échauffements +5 mesures, p95=max sur5. Cache système chaud, réseau loopback, autres logiciels laissés actifs ; IA externe neutralisée ; ni benchmark énergétique ni service multiclient. Navigation vers en-tête/contrôle visible, pas complétude de chaque donnée."
+      },
+      "measurementLimits": "Somme des working sets : pages partagÃ©es potentiellement comptÃ©es plusieurs fois. PrivateCommit est de la mÃ©moire engagÃ©e, pas de la RAM physique. Somme des moteurs GPU par PID, pas une utilisation globale normalisÃ©e ; VRAM inclut les allocations exposÃ©es par Windows. Autres logiciels non arrÃªtÃ©s. Aucun calcul Ã©nergÃ©tique."
+    },
+    {
+      "profile": "business-seul",
+      "measuredAt": "2026-10-16T19:23:43.8658001Z",
+      "sampleCount": 11,
+      "logicalCpus": 12,
+      "workingSetSumMiB": 1719.2736,
+      "privateCommitMiB": 1224.2527,
+      "cpuNormalizedPercent": 0,
+      "gpuEnginePercentSum": 0,
+      "gpuDedicatedMiB": 136.0771,
+      "gpuSharedMiB": 1.4943,
+      "processCountMin": 28,
+      "processCountMax": 28,
+      "gpuErrors": [],
+      "startup": {
+        "profile": "business",
+        "readyMs": 3040,
+        "measuredAt": "2026-10-16T19:23:17.937Z",
+        "limit": "Une relance CLI, PostgreSQL déjà actif et cache système chaud ; pas un démarrage Windows."
+      },
+      "ui": {
+        "chrome": "155.0.8059.80",
+        "dataset": {
+          "products": 733,
+          "tables": 266,
+          "lines": 1239
+        },
+        "measurements": [
+          {
+            "name": "portail-config",
+            "samples": [
+              95.16,
+              102.61,
+              93.04,
+              108.51,
+              94.49
+            ],
+            "medianMs": 95.16,
+            "p95Ms": 108.51
+          },
+          {
+            "name": "modules",
+            "samples": [
+              67.8,
+              91.17,
+              84.54,
+              698.82,
+              868.4
+            ],
+            "medianMs": 91.17,
+            "p95Ms": 868.4
+          },
+          {
+            "name": "planning",
+            "samples": [
+              73.28,
+              78.97,
+              76.31,
+              77.59,
+              78.31
+            ],
+            "medianMs": 77.59,
+            "p95Ms": 78.97
+          },
+          {
+            "name": "qr-menu",
+            "samples": [
+              107.45,
+              105.96,
+              123.14,
+              108.02,
+              104.31
+            ],
+            "medianMs": 107.45,
+            "p95Ms": 123.14
+          },
+          {
+            "name": "pos-connexion",
+            "samples": [
+              29.5,
+              30.7,
+              29.79,
+              33.18,
+              28.93
+            ],
+            "medianMs": 29.79,
+            "p95Ms": 33.18
+          }
+        ],
+        "jsErrors": [],
+        "limits": "2 échauffements +5 mesures, p95=max sur5. Cache système chaud, réseau loopback, autres logiciels laissés actifs ; IA externe neutralisée ; ni benchmark énergétique ni service multiclient. Navigation vers en-tête/contrôle visible, pas complétude de chaque donnée."
+      },
+      "measurementLimits": "Somme des working sets : pages partagÃ©es potentiellement comptÃ©es plusieurs fois. PrivateCommit est de la mÃ©moire engagÃ©e, pas de la RAM physique. Somme des moteurs GPU par PID, pas une utilisation globale normalisÃ©e ; VRAM inclut les allocations exposÃ©es par Windows. Autres logiciels non arrÃªtÃ©s. Aucun calcul Ã©nergÃ©tique."
+    }
+  ],
+  "webArtifacts": [
+    {
+      "profile": "business",
+      "files": 104,
+      "bytes": 83166868,
+      "graph": {
+        "version": 1,
+        "profile": "business",
+        "gameModuleCount": 0,
+        "games": [],
+        "note": "Graphe compilé, pas une preuve de recette métier."
+      }
+    },
+    {
+      "profile": "full",
+      "files": 193,
+      "bytes": 85724010,
+      "graph": {
+        "version": 1,
+        "profile": "full",
+        "gameModuleCount": 55,
+        "games": [
+          "src/pages/guest/games/catalog.ts",
+          "src/pages/guest/games/theme.ts",
+          "src/pages/guest/games/GamesLeaderboard.tsx",
+          "src/pages/guest/games/progress.ts",
+          "src/pages/guest/games/lib/GameShell.tsx",
+          "src/pages/guest/GamesSection.tsx",
+          "src/pages/guest/games/MenschGame.tsx",
+          "../../node_modules/three/build/three.core.js",
+          "../../node_modules/three/build/three.module.js",
+          "src/pages/guest/games/useGameScore.ts",
+          "src/pages/guest/games/scopaRules.ts",
+          "src/pages/guest/games/ScopaGame.tsx",
+          "src/pages/guest/games/arcade3d.tsx",
+          "src/pages/guest/games/MemoryGame.tsx",
+          "src/pages/guest/games/ConnectFourGame.tsx",
+          "src/pages/guest/games/TicTacToeGame.tsx",
+          "src/pages/guest/games/RummikubGame.tsx",
+          "src/pages/guest/games/originalsShared.tsx",
+          "src/pages/guest/games/GameOverModal.tsx",
+          "src/pages/guest/games/lib/juice.ts",
+          "src/pages/guest/games/SimonGame.tsx",
+          "src/pages/guest/games/YahtzeeGame.tsx",
+          "src/pages/guest/games/BingoGame.tsx",
+          "src/pages/guest/games/PigGame.tsx",
+          "src/pages/guest/games/FarkleGame.tsx",
+          "src/pages/guest/games/Game421.tsx",
+          "src/pages/guest/games/WarGame.tsx",
+          "src/pages/guest/games/Hangman.tsx",
+          "src/pages/guest/games/SlidingPuzzleGame.tsx",
+          "src/pages/guest/games/MahjongGame.tsx",
+          "src/pages/guest/games/SpotErrorGame.tsx",
+          "src/pages/guest/games/SolitaireGame.tsx",
+          "src/pages/guest/games/HigherLowerGame.tsx",
+          "src/pages/guest/games/Run21Game.tsx",
+          "src/pages/guest/games/TriTowersGame.tsx",
+          "src/pages/guest/games/RamiGame.tsx",
+          "src/pages/guest/games/chessEngine.ts",
+          "src/pages/guest/games/ChessGame.tsx",
+          "src/pages/guest/games/ReversiGame.tsx",
+          "src/pages/guest/games/MastermindGame.tsx",
+          "src/pages/guest/games/Game2048.tsx",
+          "src/pages/guest/games/MinesweeperGame.tsx",
+          "src/pages/guest/games/MotusGame.tsx",
+          "src/pages/guest/games/QuizGame.tsx",
+          "src/pages/guest/games/NumberMemoryGame.tsx",
+          "src/pages/guest/games/WordScrambleGame.tsx",
+          "src/pages/guest/games/SnakeGame.tsx",
+          "src/pages/guest/games/TowerDefenseGame.tsx",
+          "src/pages/guest/games/MaxiBurgerGame.tsx",
+          "src/pages/guest/games/CastleRushGame.tsx",
+          "src/pages/guest/games/ReactionGame.tsx",
+          "src/pages/guest/games/BasketballGame.tsx",
+          "src/pages/guest/games/BilliardsGame.tsx",
+          "src/pages/guest/games/BlackjackGame.tsx",
+          "src/pages/guest/games/PokerGame.tsx"
+        ],
+        "note": "Graphe compilé, pas une preuve de recette métier."
+      }
+    }
+  ],
+  "limits": "Séries courtes séquentielles, une relance par profil, même jeu fictif. Somme des working sets non dédupliquée. CPU zéro observé peut être sous la résolution sur cet intervalle. GPU somme des moteurs, pas pourcentage normalisé. Aucun wattmètre ni gain énergétique déduit. Autres applications conservées."
+}

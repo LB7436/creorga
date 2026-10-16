@@ -1,5 +1,13 @@
 # T100 — contrôles, erreurs visibles et sauvegarde de salle
 
+Complément ultérieur du même jour après `962c01b` :
+[profil métier et corrections](PROFIL-PROFESSIONNEL-SANS-JEUX.md), code `9e15b1a`.
+**518 unités / 178 PostgreSQL / 28 Chrome**, nouveau scan 399 fichiers / 3 680 contrôles /
+157 routes / 826 gabarits dans [la preuve courante](preuves/business-only-validation-2026-10-16.json).
+Les entrées [du nouvel inventaire](preuves/business-only-inventaire-t100-2026-10-16.jsonl) restent
+NOT RUN ; jeux classés profil complet. La série HTTP ci-dessous conserve sa date et son jeu,
+elle n'est pas réattribuée à l'absence de jeux. T100 global demeure NOT RUN / partiellement exécuté.
+
 16 octobre 2026. Base de reprise vérifiée : `c0ddd81eba5ea006af023ec4748d961d44337470`,
 `LB7436/creorga`, branche `codex/creorga-2-0-2026-10-08`.
 Ce lot améliore des parcours existants ; il ne réimplémente pas les avoirs, paiements ou clôtures.

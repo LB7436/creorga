@@ -1,5 +1,11 @@
 # Recette métier T01–T100
 
+Complément profil professionnel après `962c01b`, code `9e15b1a` :
+[28 parcours Chrome et suites fraîches](preuves/business-only-validation-2026-10-16.json),
+[nouvel inventaire T100](preuves/business-only-inventaire-t100-2026-10-16.jsonl),
+[rapport](PROFIL-PROFESSIONNEL-SANS-JEUX.md). Statuts globaux inchangés ; les nouveaux tests
+ciblés ne valent pas recette de tous les rôles/écrans. Preuve T02 actualisée ci-dessous.
+
 Mise à jour du lot T100 après `c0ddd81` : [validation ciblée](preuves/t100-validation-2026-10-16.json)
 et [rapport](T100-CONTROLES-ET-PERFORMANCE.md). Les statuts globaux restent inchangés ; les preuves
 historiques ci-dessous conservent leur date, notamment T03 (ancienne copie non remigrée pour ce lot
@@ -34,9 +40,9 @@ Actions utilisateur / API : Sauvegarder, chiffrer, restaurer dans une nouvelle b
 
 Attendu : Toutes tables, colonnes, lignes, fichiers et PDF égaux.
 
-Observé : 79 tables, 8 fichiers, données et PDF comparés égaux ; AES-GCM vérifié, clé séparée. 2952 ms sur cette copie, pas un RTO.
+Observé : 79 tables, 8 fichiers, 9 PDF facture et 8 avoir comparés égaux ; AES-GCM vérifié, clé séparée. 3 721 ms sur cette copie, pas un RTO. 17 contrôles de reprise, allocations peuplées 7/14/21. Limite distincte : deux dumps de rotation du lab supprimés avant correction de rétention, récupération de 27 copies vérifiées sans correspondance exacte des deux noms ; archives originales intactes.
 
-Preuves : [verify-restored-copy.mjs](../../scripts/verify-restored-copy.mjs) — « restauration native chiffrée et comparaison exhaustive », passed, 2026-10-16T17:22:29.988Z
+Preuves : [restauration métier](preuves/restauration-business-only-2026-10-16.json) — nouvelle base locale, état equal, 2026-10-16T19:32:28.062Z ; [comparateur](../../scripts/verify-restored-copy.mjs), [incident de rotation](preuves/rotation-laboratoire-2026-10-16.json).
 
 ## T03 — Migration de copie ancienne — PASS
 
@@ -1298,6 +1304,6 @@ Actions utilisateur / API : Cliquer chaque contrôle et vérifier sa persistance
 
 Attendu : Aucune action fantôme, erreurs honnêtes et droits respectés.
 
-Observé : Inventaire JSX/handlers/routes reproductible réalisé dans cinq applications et parcours Chrome critiques étendus exécutés ; voir [T100-CONTROLES-ET-PERFORMANCE.md](T100-CONTROLES-ET-PERFORMANCE.md) et [les preuves ciblées](preuves/t100-validation-2026-10-16.json). Les instances rendues, tous les rôles et variantes erreur/persistance restent à terminer. Aucun PASS global n'est déduit du scan, et ce travail restant n'est pas caché en BLOCKED.
+Observé : Inventaire actuel 399 fichiers / 3 680 contrôles / 157 routes / 826 gabarits ; 28 parcours Chrome ciblés dans dix fichiers, incluant modules, planning, portail et relecture réelle salle. [Rapport courant](PROFIL-PROFESSIONNEL-SANS-JEUX.md), [preuves ciblées](preuves/business-only-validation-2026-10-16.json), [inventaire source](preuves/business-only-inventaire-t100-2026-10-16.jsonl). Toutes les entrées statiques restent NOT RUN ; jeux classés profil complet, pas supprimés. Instances rendues, tous les rôles et variantes erreur/persistance restent à terminer. Aucun PASS global déduit du scan ni travail restant caché en BLOCKED.
 
 Preuves : Aucune exécution complète du scénario revendiquée.

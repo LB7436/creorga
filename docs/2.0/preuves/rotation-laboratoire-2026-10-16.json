@@ -1,0 +1,118 @@
+{
+  "checkedAt": "2026-10-16T19:32:02.389Z",
+  "archivesInspected": 36,
+  "recoveredDumpCopies": [
+    {
+      "bytes": 508287,
+      "sha256": "1d2722da1c721a725350945813c1e106c78682501de1aa12b87684d3ddd2ec5b"
+    },
+    {
+      "bytes": 508287,
+      "sha256": "113f65f3cc3a97aa55b7dcdea10cc547e572dc6825b03cbb92fd7967fcf69211"
+    },
+    {
+      "bytes": 511197,
+      "sha256": "46f312f1a231b0afc327459c2322443db043fc7716678b405a3d90a1724da3ef"
+    },
+    {
+      "bytes": 511390,
+      "sha256": "8fe1e1e0101fa1366e62a054d98832da3be08edad63d1faf5950db4d42d3b74f"
+    },
+    {
+      "bytes": 515679,
+      "sha256": "ce5f80c20a3a5791e6aa5b4e43bed8f2e455377c05b42ae5f4bea795e952050d"
+    },
+    {
+      "bytes": 588308,
+      "sha256": "0578527c2489a45a7da8ddd8710d29bee864f860a776dd3a4ebba66cb0543936"
+    },
+    {
+      "bytes": 913721,
+      "sha256": "fc7d175b655e1ea4605bf10b86d4b1d19e5180859549b6d80890d0c852010f42"
+    },
+    {
+      "bytes": 1097544,
+      "sha256": "2c43507cc82215a5d65416e762abf974d0d1c36e673819ac07d27e4066620615"
+    },
+    {
+      "bytes": 1127019,
+      "sha256": "f4af5534ad8d87c8d552c00ce456390593cbcc2ddddbd166f7957b77a0597500"
+    },
+    {
+      "bytes": 1163960,
+      "sha256": "1109cbb0e3ecbb20279ccca09582a779364234a62ddabff8c0dfe422e6a34eb1"
+    },
+    {
+      "bytes": 1180275,
+      "sha256": "3c1c8fa51a48354393940f53256dcad276729ad37f85a5cde408b02c7cf292fe"
+    },
+    {
+      "bytes": 1203912,
+      "sha256": "b1fc648bcc2494164bd0a5c414af2eb691466e4a718d38359bd4be7be0cf3862"
+    },
+    {
+      "bytes": 1209629,
+      "sha256": "7018d1adf5116f3a3f805e32d657151ca56b08fbbbda5ca855d1a20021dea413"
+    },
+    {
+      "bytes": 1259432,
+      "sha256": "6e5bf0ccb71185011154398528bf77e2ea852f82c262d0d0c4a53d00f4e625b0"
+    },
+    {
+      "bytes": 1259598,
+      "sha256": "c8432fe76d7f9e0e787052d1f78830e86c5c47a7429eb134e133a9dbc3e4a52a"
+    },
+    {
+      "bytes": 1263135,
+      "sha256": "fc06505f07fc8f9ed44da5139b47c03f91477810972cec5bea416b01e4db302a"
+    },
+    {
+      "bytes": 1311753,
+      "sha256": "9757a74e421be550d999e352e7a6d74f7dd3e1dc1ceade725df812faf766723f"
+    },
+    {
+      "bytes": 1311949,
+      "sha256": "5975e5ce1825fac4b59f8eb0a83334896559bfcc68d5686c71d5d08ce5ad9771"
+    },
+    {
+      "bytes": 1359766,
+      "sha256": "65314a71f8f9c69e8a00ab6795e728e2e5d8ec579a2aaa13025e892090ffd972"
+    },
+    {
+      "bytes": 1375620,
+      "sha256": "49b49f3253a3ca3a63ace176784b1657e687c92b823d1faa57623733988db3e6"
+    },
+    {
+      "bytes": 1389435,
+      "sha256": "8a28c6b91e832af3d829ea1517eeccc158f5e0be11a3efcbe3b4f2e3f8ba713a"
+    },
+    {
+      "bytes": 1390442,
+      "sha256": "d6c7ac249aa564e510d18d884ff904011fe71f69388847416ed92c73438be512"
+    },
+    {
+      "bytes": 1405442,
+      "sha256": "7d8e4f84b531fa0e67079feaf204fa8b7da392281fba45c07cc33fbc04b5cd5d"
+    },
+    {
+      "bytes": 1406413,
+      "sha256": "16680fb227beb58914365288b2bd5835f33f13badc18c2a2fda9f33753b5a157"
+    },
+    {
+      "bytes": 1407151,
+      "sha256": "3ac0c2cdb6360e6856de9089f65528bb4a97aa22a6d3345ed1b316c725684698"
+    },
+    {
+      "bytes": 1422824,
+      "sha256": "79660bdb7dfff5ce1687dd3a1e0bb8d5fe1365d5e05591a868fd3482f4bbb215"
+    },
+    {
+      "bytes": 1423784,
+      "sha256": "52a47bdd1630b76d8b0224c8dcd863e8275b82d2510343eb9c2318529eeb274b"
+    }
+  ],
+  "originalArchivesTouched": false,
+  "sourceZipModified": false,
+  "databaseRestoredByThisRecovery": false,
+  "limitation": "Deux suppressions de rotation constatées dans les journaux de ce lot, sans noms de fichiers. Les dumps absents retrouvés dans les ZIP datés du jour sont récupérés séparément ; leur association exacte à ces deux événements ne peut pas être prouvée."
+}

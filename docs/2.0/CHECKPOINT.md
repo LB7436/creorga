@@ -2,7 +2,59 @@
 
 Mission en cours. **Matrice T01–T100 documentée, mais pas de recette intégralement exécutée ni de qualification de production.**
 
-## Lot courant — T100, erreurs d'interface et performance HTTP
+## Lot courant — installation professionnelle sans jeux et T100
+
+16 octobre 2026. Base locale/GitHub vérifiée `962c01b2767a06db510c6b0aa3e22d521da77534`,
+branche `codex/creorga-2-0-2026-10-08`. **Code : `9e15b1a`**, le commit documentaire suivant
+contient les preuves. [Rapport](PROFIL-PROFESSIONNEL-SANS-JEUX.md),
+[checkpoint du lot](BUSINESS-ONLY-CHECKPOINT.md), [validation](preuves/business-only-validation-2026-10-16.json).
+
+- Profil `CREORGA_BUSINESS_ONLY` réversible : un Node API + quatre interfaces compilées,
+  PostgreSQL séparé, aucune importation de jeux/Three.js ni serveur Vite en mode métier.
+  Jeux gardés dans Git et profil complet ; **99 fichiers récupérés avec empreintes vérifiées**
+  au commit immuable de base. Aucune suppression GitHub/désinstallation Windows.
+- Raccourci Bureau « CréOrga 2.0 » créé et relu ; lanceur exécuté sans UI (`-NoBrowser`).
+  Chrome dédié neuf prévu, pas de double-clic physique revendiqué ni profil historique ouvert.
+  Aucun démarrage Windows ajouté ; loopback et origines existantes conservés.
+- Préférences modules : société/utilisateur/session, brouillon/refus/reset ; planning nocturne,
+  minutes/pauses historiques, Europe/Luxembourg et clavier ; salle/portail monotones et réponses
+  périmées rejetées. Portail/reset/onboarding sérialisés en PostgreSQL, PATCH minimal concurrent.
+  Pas de réécriture des ventes ni réimplémentation des fonctions financières déjà validées.
+- **518 unités (277 backend / 177 web / 64 POS), 178 PostgreSQL, 28 parcours Chrome** dans
+  dix fichiers, zéro échec/ignoré. Cinq builds métier + cinq complets ; trois contrôles de
+  livrable/hôte/guards. Échanges bancaires et IA remplacés, aucun paiement réel.
+- Reprise courante 19:32 UTC : **79 tables, 8 fichiers et 17 PDF égaux**, AES-GCM/clé séparée,
+  17 assertions après redémarrage ; 3 721 ms, pas un RTO. Les tables d'allocation contiennent
+  7/14/21 lignes. [Preuve](preuves/restauration-business-only-2026-10-16.json). 34 migrations inchangées.
+- Ressources comparables : working sets sommés 2 296,79 → 1 719,27 MiB (−25,14 %), 40–44 → 28
+  processus, relance CLI chaude 4 278 → 3 040 ms. Le complet compilé mesure 1 533,97 MiB : aucun
+  gain RAM attribué causalement aux seuls jeux. Modules p95 se dégrade 490,64 → 868,40 ms sur
+  cinq mesures ; séries courtes, pages partagées non dédupliquées, aucun watt/économie déduit.
+  Sauvegarde de salle, série distincte à 734 produits / 267 tables : médiane 1 738,82 ms,
+  p95 2 325,22 ms ; pas un nouveau gain apparié. [Preuve](preuves/performance-business-only-2026-10-16.json).
+- **Incident laboratoire :** deux dumps de rotation supprimés par une rétention distincte
+  avant sa correction. 27 dumps absents récupérés depuis 36 ZIP du jour avec empreintes ; les
+  journaux ne nomment pas les deux fichiers, donc correspondance exacte non prouvée.
+  Originaux de conservation hors laboratoire intacts ; rétentions ZIP/dump désormais fermées
+  dans le mode local essentiel. [Preuve](preuves/rotation-laboratoire-2026-10-16.json).
+
+Windows, Node 22.19, PostgreSQL 16.15 loopback:5450, données fictives `creorga_local`/`creorga_tests`.
+Profil métier laissé actif 3002/5174/5175/5177/5178, configs/archives/clés hors Git. Le buildinfo
+guest préexistant reste hors commit. Aucun déploiement, master, VPS, DNS ni logiciel tiers modifié.
+
+**Matrice inchangée : 54 PASS / 0 FAIL / 45 BLOCKED / 1 NOT RUN.** T100 partiel : inventaire
+399 fichiers/3 680 contrôles/157 routes/826 gabarits ; toutes les entrées source restent NOT RUN.
+Pas de qualification matériel, banque officielle/PayPal sandbox, IA/voix réelle, Android,
+paie/calendrier légal, machine vierge ou cloud. OCR global et backups clients restent fermés.
+Stripe Refunds et vidéo restent désactivés ; **pas de qualification de production**.
+
+Reprise : même code récent en profil complet via `start-profile.mjs --full`, aucune donnée
+supprimée. Incident : arrêter écrivains, conserver l'état puis restaurer dans une nouvelle base
+et comparer avant reprise ; jamais remettre un ancien POS en écriture sur la base migrée.
+**Prochaine action :** T100 par écran/rôle, Modules et snapshot de salle à profiler sur jeu figé,
+calendriers/réglages planning et blocages logiciels, puis recette matérielle/prestataire séparée.
+
+## Lot précédent — T100, erreurs d'interface et performance HTTP
 
 16 octobre 2026. Reprise sur `c0ddd81eba5ea006af023ec4748d961d44337470`, dépôt et
 branche dédiés inchangés. Commits de code : `245731f` (cuisine), `de37329` (POS),

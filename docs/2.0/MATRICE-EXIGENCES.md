@@ -1,12 +1,16 @@
 # Matrice des cent exigences
 
-État de départ de la mission du 8 octobre 2026, actualisé au lot `23bba56` du 16 octobre. Une ligne partielle ne signifie pas que le scénario complet est validé. Les preuves courantes sont dans RECETTE-ET-PREUVES.md et CHECKPOINT.md.
+Table de cadrage issue du 8 octobre, lignes historiques conservées sauf compléments explicites.
+Complément actuel : profil métier `9e15b1a` du 16 octobre. Une ligne partielle ne signifie pas
+que le scénario complet est validé. Statuts métier faisant autorité dans
+[RECETTE-METIER-T01-T100.md](RECETTE-METIER-T01-T100.md) : 54 PASS / 0 FAIL / 45 BLOCKED / 1 NOT RUN.
+Preuves courantes dans RECETTE-ET-PREUVES.md et CHECKPOINT.md ; aucune promotion automatique.
 
 | ID | Priorité | Exigence | État actuel |
 |---|---|---|---|
 | T01 | P0 | installation neuve complète | Partiel : installation locale ; recette UI en cours |
-| T02 | P0 | restauration sur copie avec pièces jointes | Vérifié au lot courant : 76 tables, 8 fichiers, 9 PDF facture et 8 avoir intègres ; six nouvelles tables et réservations fictives peuplées ; médias absents |
-| T03 | P0 | migration de la copie ancienne | 29 migrations appliquées aux deux copies de laboratoire ; extension non destructive des états et retrait explicite de l'unicité de visite/table, aucune vente réécrite |
+| T02 | P0 | restauration sur copie avec pièces jointes | Nouvelle vérification 19:32 UTC : 79 tables, 8 fichiers, 9 PDF facture et 8 avoir égaux ; allocations peuplées 7/14/21, 17 contrôles de reprise ; médias absents, pas cloud |
+| T03 | P0 | migration de la copie ancienne | Preuve précédente conservée : 7→34 migrations, 47 tables / 341 lignes anciennes identiques ; pas de nouvelle migration à ce lot, archives originales intouchées |
 | T04 | P0 | export d’anciennes ventes navigateur sans perte | Étude/procédure prête ; export chiffré testé sur fixtures ; profils réels interdits/non ouverts, provenance/export complet manquants |
 | T05 | P0 | refus d’accès intersociétés | Paiements, commandes, visites et documents testés ; réponses tardives web/POS isolées ; périmètre global partiel |
 | T06 | P0 | refus intersites selon rôle | À implémenter ou à recetter |
@@ -103,4 +107,4 @@
 | T97 | P2 | congé visible selon rôle | À implémenter ou à recetter |
 | T98 | P2 | donnée HACCP manquante non inventée | À implémenter ou à recetter |
 | T99 | P2 | langues et responsive | À implémenter ou à recetter |
-| T100 | P2 | tous les boutons du périmètre livré ont un comportement vérifié, y compris l’erreur et le mode dégradé. | À implémenter ou à recetter |
+| T100 | P2 | tous les boutons du périmètre livré ont un comportement vérifié, y compris l’erreur et le mode dégradé. | NOT RUN / partiel : 399 fichiers / 3 680 contrôles / 157 routes inventoriés ; 28 parcours Chrome ciblés, pas tous les rôles/écrans/erreurs ; jeux réservés au profil complet |

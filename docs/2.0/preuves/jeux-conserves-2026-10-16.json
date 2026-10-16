@@ -1,0 +1,962 @@
+{
+  "version": 1,
+  "commit": "962c01b2767a06db510c6b0aa3e22d521da77534",
+  "repository": "https://github.com/LB7436/creorga",
+  "games": [
+    {
+      "id": "mensch",
+      "name": "Petits Chevaux 3D",
+      "status": "jouable",
+      "renderer": "3d",
+      "loader": "./MenschGame",
+      "selected": true
+    },
+    {
+      "id": "scoopa",
+      "name": "Scoopa",
+      "status": "jouable",
+      "renderer": "2.5d",
+      "loader": "./ScopaGame",
+      "selected": true
+    },
+    {
+      "id": "memory",
+      "name": "Memory",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./MemoryGame",
+      "selected": true
+    },
+    {
+      "id": "connect4",
+      "name": "Puissance 4",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./ConnectFourGame",
+      "selected": true
+    },
+    {
+      "id": "ttt",
+      "name": "Morpion",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./TicTacToeGame",
+      "selected": false
+    },
+    {
+      "id": "rummikub",
+      "name": "Rummi Kub",
+      "status": "jouable",
+      "renderer": "2.5d",
+      "loader": "./RummikubGame",
+      "selected": true
+    },
+    {
+      "id": "simon",
+      "name": "Simon",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./SimonGame",
+      "selected": false
+    },
+    {
+      "id": "yahtzee",
+      "name": "Yahtzee",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./YahtzeeGame",
+      "selected": false
+    },
+    {
+      "id": "bingo",
+      "name": "Bingo",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./BingoGame",
+      "selected": false
+    },
+    {
+      "id": "pig",
+      "name": "Pig Dice",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./PigGame",
+      "selected": false
+    },
+    {
+      "id": "farkle",
+      "name": "Farkle",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./FarkleGame",
+      "selected": false
+    },
+    {
+      "id": "421",
+      "name": "421",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./Game421",
+      "selected": false
+    },
+    {
+      "id": "bataille",
+      "name": "Bataille",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./WarGame",
+      "selected": true
+    },
+    {
+      "id": "hangman",
+      "name": "Pendu",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./Hangman",
+      "selected": false
+    },
+    {
+      "id": "sliding",
+      "name": "Taquin",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./SlidingPuzzleGame",
+      "selected": false
+    },
+    {
+      "id": "mahjong3d",
+      "name": "Mémo Bambou",
+      "status": "jouable",
+      "renderer": "2.5d",
+      "loader": "./MahjongGame",
+      "selected": false
+    },
+    {
+      "id": "erreur11",
+      "name": "Erreur 11 Terrasse",
+      "status": "jouable",
+      "renderer": "2.5d",
+      "loader": "./SpotErrorGame",
+      "selected": false
+    },
+    {
+      "id": "solitaire",
+      "name": "Solitaire",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./SolitaireGame",
+      "selected": true
+    },
+    {
+      "id": "higherlower",
+      "name": "Plus ou Moins",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./HigherLowerGame",
+      "selected": false
+    },
+    {
+      "id": "run21",
+      "name": "Run 21",
+      "status": "jouable",
+      "renderer": "2.5d",
+      "loader": "./Run21Game",
+      "selected": true
+    },
+    {
+      "id": "tritowers",
+      "name": "Tri-Tours Neon",
+      "status": "jouable",
+      "renderer": "2.5d",
+      "loader": "./TriTowersGame",
+      "selected": true
+    },
+    {
+      "id": "rami",
+      "name": "Rami Salon",
+      "status": "beta",
+      "renderer": "2.5d",
+      "loader": "./RamiGame",
+      "selected": false
+    },
+    {
+      "id": "chess",
+      "name": "Échecs",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./ChessGame",
+      "selected": true
+    },
+    {
+      "id": "reversi",
+      "name": "Reversi",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./ReversiGame",
+      "selected": true
+    },
+    {
+      "id": "mastermind",
+      "name": "Mastermind",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./MastermindGame",
+      "selected": false
+    },
+    {
+      "id": "2048",
+      "name": "2048",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./Game2048",
+      "selected": false
+    },
+    {
+      "id": "minesweeper",
+      "name": "Démineur",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./MinesweeperGame",
+      "selected": false
+    },
+    {
+      "id": "motus",
+      "name": "Motus",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./MotusGame",
+      "selected": false
+    },
+    {
+      "id": "quizgen",
+      "name": "Quiz Général",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./QuizGame",
+      "selected": false
+    },
+    {
+      "id": "numbermemory",
+      "name": "Mémoire Chiffres",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./NumberMemoryGame",
+      "selected": false
+    },
+    {
+      "id": "wordscramble",
+      "name": "Anagramme",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./WordScrambleGame",
+      "selected": false
+    },
+    {
+      "id": "snake",
+      "name": "Snake",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./SnakeGame",
+      "selected": true
+    },
+    {
+      "id": "towerdefense",
+      "name": "Tower Defense",
+      "status": "jouable",
+      "renderer": "3d",
+      "loader": "./TowerDefenseGame",
+      "selected": true
+    },
+    {
+      "id": "maxiburger",
+      "name": "Maxi Burger",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./MaxiBurgerGame",
+      "selected": true
+    },
+    {
+      "id": "castlerush",
+      "name": "Castle Rush",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./CastleRushGame",
+      "selected": false
+    },
+    {
+      "id": "reaction",
+      "name": "Réaction",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./ReactionGame",
+      "selected": false
+    },
+    {
+      "id": "basket3d",
+      "name": "Basket Rooftop",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./BasketballGame",
+      "selected": false
+    },
+    {
+      "id": "billard",
+      "name": "Billard Lounge",
+      "status": "beta",
+      "renderer": "2d",
+      "loader": "./BilliardsGame",
+      "selected": false
+    },
+    {
+      "id": "blackjack",
+      "name": "Blackjack",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./BlackjackGame",
+      "selected": true
+    },
+    {
+      "id": "poker",
+      "name": "Poker Hold'em",
+      "status": "jouable",
+      "renderer": "2d",
+      "loader": "./PokerGame",
+      "selected": true
+    },
+    {
+      "id": "tetris",
+      "name": "Tetris",
+      "status": "bientot",
+      "renderer": "2d",
+      "loader": null,
+      "selected": false
+    },
+    {
+      "id": "slots",
+      "name": "Machine à sous",
+      "status": "bientot",
+      "renderer": "2d",
+      "loader": null,
+      "selected": false
+    },
+    {
+      "id": "roulette",
+      "name": "Roulette",
+      "status": "bientot",
+      "renderer": "2d",
+      "loader": null,
+      "selected": false
+    }
+  ],
+  "summary": {
+    "definitions": 43,
+    "loaders": 40,
+    "selected": 16,
+    "files": 99,
+    "bytes": 2555081
+  },
+  "files": [
+    {
+      "path": "apps/backend/src/routes/gameScores.ts",
+      "gitBlob": "7219fcb461b461658249ef800fa050edc3a9f430",
+      "bytes": 4173,
+      "sha256": "73a34371f98cd5b6729b63f3313194955b581dc3b727b200c231f3b9812c05c4"
+    },
+    {
+      "path": "apps/guest/src/pages/GamesPage.tsx",
+      "gitBlob": "3af3ccecf84ba2118e3c8456c501b07bc7eb1dcb",
+      "bytes": 3129,
+      "sha256": "6aeeefbc11d694c007b3a5b96de6e35633ead303bd553b96958e483f330e6951"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/10_bastoni.jpg",
+      "gitBlob": "c50c31a1bf4169c566365e04ea24da194d7735c6",
+      "bytes": 41137,
+      "sha256": "6903227d51a9324f2136889f95f04e4fa6f3450a141a57705bdc7f66b32a587f"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/10_coppe.jpg",
+      "gitBlob": "e03f4623acabbeb5e5104de2bfa73402aa8e6616",
+      "bytes": 39479,
+      "sha256": "1b3bc38902a38a1a617fcd66ee79bb5fdd9111e7f6d8310258165f3e8646779b"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/10_denari.jpg",
+      "gitBlob": "721357b887acc4daa5d35c39af5fa3a95ed148af",
+      "bytes": 37921,
+      "sha256": "e5e140f5bdb77cbc607b13cb07c227849d4fe1cbde3c8f1fff0b0c7107039f16"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/10_spade.jpg",
+      "gitBlob": "45c2e6227ff3a89f002a524e7daf125818121c38",
+      "bytes": 38650,
+      "sha256": "2f60520f559c533eed20c87756ccf6b29a88e394f2affd4f1ab33a44e4e33065"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/1_bastoni.jpg",
+      "gitBlob": "c7257ab4961058e69c6057520020176c7584f785",
+      "bytes": 34239,
+      "sha256": "eade7b700a685851bf1c580a68d8d59c7c3ccd7667c6961538889bb498398406"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/1_coppe.jpg",
+      "gitBlob": "3b51e57cdbd0ce649f69f0d71fa4e9ec98eac84c",
+      "bytes": 36884,
+      "sha256": "016eae3b841f4422685b3597cc4ab2427c42539fde32873399a3bbc605a7b680"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/1_denari.jpg",
+      "gitBlob": "47904223a32a240f13a0d1002af634d7c816f53f",
+      "bytes": 39242,
+      "sha256": "22f513c580bd3f2cc14136eb0ae557dad0915e275646e14ddd64a44ccf2d7bd3"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/1_spade.jpg",
+      "gitBlob": "a55a22585e3c7c243d132965a1879f1f27cad765",
+      "bytes": 38963,
+      "sha256": "6ff8465ce776661c58af1fd0e90555d07332ab1eb9f00315ee5f6a06336cdb37"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/2_bastoni.jpg",
+      "gitBlob": "32173fe6b66e226d1dd38ffa10920377222b8ea9",
+      "bytes": 34225,
+      "sha256": "3fabe916aa2cc94613b7f5bc186deb371bd35853fb648456a9b3bae3b571ca4c"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/2_coppe.jpg",
+      "gitBlob": "dc9eae35770987a94c88d02cba8fbdbae6cd6d30",
+      "bytes": 33813,
+      "sha256": "8df606ec935287c487a453d65494a7faa185cecfc52c36b74fe412c678aa4b10"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/2_denari.jpg",
+      "gitBlob": "a6384e7a149949bd0830adef3b2ecdce0f146cad",
+      "bytes": 31041,
+      "sha256": "b4a1704a9ed1422256c0a244151a96c4cdf73ddd8623bc119177118ff40b7abf"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/2_spade.jpg",
+      "gitBlob": "2a43ebb7332423a7ec59241c70203fd2edc06146",
+      "bytes": 26344,
+      "sha256": "10ff449ecaad0d2c75d8126aaf6f21da8dbdfe21f5431791b0f295bbd7d40564"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/3_bastoni.jpg",
+      "gitBlob": "bbc1b93b29eb71d9708795bedf3e82a0debc15de",
+      "bytes": 39826,
+      "sha256": "d259805a41f97f4607c132d4289e6baa5f38df825bd905739d8d6fbf0b76fdb7"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/3_coppe.jpg",
+      "gitBlob": "d6285cec1b8735687d447e2646e0331661b608c7",
+      "bytes": 28775,
+      "sha256": "9ed2f8a84fb29659c8353e3ea45956e2c25bb7cd055b1981a3acebf7fcd852a5"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/3_denari.jpg",
+      "gitBlob": "34ed24913701c8802b65a4cd07e95da211f12da5",
+      "bytes": 32624,
+      "sha256": "257352f20f72a626b16bde4252499a2c9ede468bd0b170e1cbf44e79a9ece904"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/3_spade.jpg",
+      "gitBlob": "141372ecdf065aa0cabb3377e61b3e9f63728a72",
+      "bytes": 35316,
+      "sha256": "60a994984e217c6daa8a1e2d8c6772eb17efcc96ecbef16ef636099c10412dff"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/4_bastoni.jpg",
+      "gitBlob": "a48a1d57bbad68b4675b2e758b84d16bb0b3a8f5",
+      "bytes": 33028,
+      "sha256": "ff415926cb58e63b0906a415f4d9950c97120e6fd013ba6e68ff5fcdaaea5a69"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/4_coppe.jpg",
+      "gitBlob": "56bace3821a0f129dc6142e698ec621fcdde3fe3",
+      "bytes": 34124,
+      "sha256": "c6f9b9171d51871d1d87e8bf00e71ec9160f1a6b283b7d7200f2d3c7fc733f2d"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/4_denari.jpg",
+      "gitBlob": "01b3cb630b9a2a89b72ef45e4822a5a93e5f0f81",
+      "bytes": 28819,
+      "sha256": "2f72afd9fea2cbae8a5f8e035e4d169a2f34a8e0fd8473096693976e2f2f551e"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/4_spade.jpg",
+      "gitBlob": "7962d3a7b844374594480f8786e01100279955d4",
+      "bytes": 33823,
+      "sha256": "3588d2085856f919004da27395af743ec6d76fee5547978065fc4be053cc57d3"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/5_bastoni.jpg",
+      "gitBlob": "607a687ffa8fbae55957d9570b92a0e7bd1926db",
+      "bytes": 32034,
+      "sha256": "8f6126418f772709ee430aa03f9ea980213d5c60d3cc14e25235d8bda6bdccf7"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/5_coppe.jpg",
+      "gitBlob": "f5c626bc15a3393850ef6449a97e7d1a231d84ad",
+      "bytes": 31337,
+      "sha256": "7f5a09c5c3a6d14890f1c69b26c641394f39572cbcbf4caf69f5c9b193a6891b"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/5_denari.jpg",
+      "gitBlob": "fef13a3125769dc10416e36d9011998a3c3a4f87",
+      "bytes": 33616,
+      "sha256": "2d23b4de910835e6aacfd2f07cab930984961fafc9238483f9f6a716955d6bf0"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/5_spade.jpg",
+      "gitBlob": "14aa3bd81b8813d91de9f0d1ec2908f8d156e8e1",
+      "bytes": 38446,
+      "sha256": "3416472f0f593c377f761e3aef84a77d8a72df0091968df4f0f3cea9d7bdc716"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/6_bastoni.jpg",
+      "gitBlob": "cefc6a97e7bbc0fee7214e0c3f2f0e430bbff912",
+      "bytes": 34037,
+      "sha256": "dd6ed71028c44953eb862190f017799032ab26c7a3fbd88c1806e37bba9eae9d"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/6_coppe.jpg",
+      "gitBlob": "396b69573974cce75d72cb02791c4e9311dc63c2",
+      "bytes": 31938,
+      "sha256": "4e18ab9a32e130ddfce8993b7031a32410d932a17010a9a6c286b4bef35be72e"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/6_denari.jpg",
+      "gitBlob": "4c6b5c382bacdc1be0d07b1a66a77cd07fcfd9f5",
+      "bytes": 25347,
+      "sha256": "d9d62e84cd4f7575f5286fc14cca722696028efac07492f486436f329a61dfa2"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/6_spade.jpg",
+      "gitBlob": "ca330fe40a252b7e5a2b2c8f4934298b822167a9",
+      "bytes": 29527,
+      "sha256": "446cfc18bb54d8dc25b7616acb36a4da94aae01093237abb384a51c88e036750"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/7_bastoni.jpg",
+      "gitBlob": "65f73f6f8296ed7516b6b4a0946a7d414d6a7a0e",
+      "bytes": 37562,
+      "sha256": "27e74343adc070db0478f795856796af3ae536013fea976184eab8da9957683a"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/7_coppe.jpg",
+      "gitBlob": "d7327f92bdb227f0032ad7fd136ea6fd63d24538",
+      "bytes": 30076,
+      "sha256": "6e547e047558d6fb760561c0bbeecb29afdd163d15c3a7243a34b00fe8f1b32d"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/7_denari.jpg",
+      "gitBlob": "585469d48a34b82abf326c58e5a987b2146acb0c",
+      "bytes": 22600,
+      "sha256": "ce457522c85679979b61dc1db5c837b73484f1f0c5e7d321c25670128cdb9b1b"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/7_spade.jpg",
+      "gitBlob": "74ad691a6efe4a5f976bbcec48e378a6a98d835a",
+      "bytes": 36873,
+      "sha256": "7e4da8d28944c9be3b80d9bc645895a0b62bd72476e9434e8acfc6307dd69b00"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/8_bastoni.jpg",
+      "gitBlob": "2525aa047844b7fdce690fe3ed5e6a8c81307a9b",
+      "bytes": 33309,
+      "sha256": "bf5450568ed73859b5cb0b8bf60704a2487805710aba1f43603489c6046c749a"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/8_coppe.jpg",
+      "gitBlob": "ef6306a5523a39bf51ffdb12751fd468d3e9abce",
+      "bytes": 33552,
+      "sha256": "e22297d067ff98930785d6f7218acfea3577730b4a2db2925106d221c17369af"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/8_denari.jpg",
+      "gitBlob": "3a5ba8a08354ff5bd868ca79c88e6d5421443efb",
+      "bytes": 31220,
+      "sha256": "11ae1955f2ab1118ad6cde66f18745ba75f5ab23e8039d0804d10297aebb28a5"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/8_spade.jpg",
+      "gitBlob": "2d2420010bc239b77f9c4196a9b1a9f1e18c0786",
+      "bytes": 33981,
+      "sha256": "6aa1d29a8ea05ce96e10f460c05c410819b88993fe59c89150e151477335488b"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/9_bastoni.jpg",
+      "gitBlob": "ad9e12828d3f0ce56ad8e8954e6758dd4d44550b",
+      "bytes": 43424,
+      "sha256": "a77f1e38f27223a5d80b6d7bbdd2d5a83b4bbd6aa400722a80e7808cb285b6c9"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/9_coppe.jpg",
+      "gitBlob": "62960c83ab2330b3e68aa739b08147fd480609da",
+      "bytes": 43944,
+      "sha256": "de79a7aaa19917914e6ab2311217410e35b21557f467f3636bd814a8717073dd"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/9_denari.jpg",
+      "gitBlob": "7b44d77563bd8c1d903bf8d042581f386d3a4273",
+      "bytes": 46451,
+      "sha256": "58b54f55f8163a485febfdafc910b90d3263fa073dfbc470f6b91fe39f37a8b3"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/9_spade.jpg",
+      "gitBlob": "b459352e5409fae9e3c5ebbafb0387cfba21480d",
+      "bytes": 46832,
+      "sha256": "8a0598aa2f6eff022a742f479266ad313faf280f03adc79f6d5dc5012a2b0e86"
+    },
+    {
+      "path": "apps/web/public/cards/scopa/back.jpg",
+      "gitBlob": "aabb4a2ab96589a46a922d41d66de5d9e86d2b2b",
+      "bytes": 93,
+      "sha256": "9b750b36fc99840474ff5186737f98ee60ae2132609d1e1fde9be2c7feb82b6f"
+    },
+    {
+      "path": "apps/web/src/pages/guest/GamesSection.tsx",
+      "gitBlob": "2d34ea28dd40cc417e7f7b9d359c20967a909d33",
+      "bytes": 64576,
+      "sha256": "467954d99bd1c69aca835d82102f68ff29c37b24a14130544bf13eeca1d1dc30"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/BasketballGame.tsx",
+      "gitBlob": "566ed743995cb02fcacdc15c4f58853aefdde331",
+      "bytes": 8699,
+      "sha256": "a797c8791c589aa04b644e0dcde558e197806a7f7e4e13f5749083e3b09f4541"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/BilliardsGame.tsx",
+      "gitBlob": "1d8eea70418f9fe3d95ca417501f066832f59ed3",
+      "bytes": 9626,
+      "sha256": "3c8d087bf6f29afb3afe487e116feaeeea88459fbf93d1a390b9cabc9a9566f1"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/BingoGame.tsx",
+      "gitBlob": "2defe522fd6f7e845fd21dd28938f584226f9ea3",
+      "bytes": 24964,
+      "sha256": "792c6415611d4961205ee95fd7d67430520624caa7bdc6d25285d1dab361f1fc"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/BlackjackGame.tsx",
+      "gitBlob": "996ef91710d40cdb24c53f153e76370a9df860a0",
+      "bytes": 50639,
+      "sha256": "edb350b0a7e0bd03a14ab7318f3697257392d95cc72e96dd7d8837504f9ff846"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/CastleRushGame.tsx",
+      "gitBlob": "4d66325df7f19541cd2eb6041045d5bd6b57ad9a",
+      "bytes": 15795,
+      "sha256": "cc594801cd018d2fb781da305965beeb8239d6487947484d2c384c7a343fa6fa"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/ChessGame.tsx",
+      "gitBlob": "1e8ca7d3a612658d401fa541949bc4a7678eb98d",
+      "bytes": 22676,
+      "sha256": "b467f2c7efcaa7c2198f739798be98bb418ac162cc3eabfa9af0c1e9a52421d4"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/ConnectFourGame.tsx",
+      "gitBlob": "1c6b0333fe300607e8f96c4ca59bf636d8b2ec96",
+      "bytes": 24531,
+      "sha256": "48e11d17b384e53627b45165e9e3eb9fdfcb411ed57e5df0e13cb2719a435dee"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/FarkleGame.tsx",
+      "gitBlob": "bd58f07bb3b040ee4b29e73a4950eda558150777",
+      "bytes": 22878,
+      "sha256": "a8070eaa45727f437c854ff4d724bb586f65cd17ab6416084b2b32151bfe4d99"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/Game2048.tsx",
+      "gitBlob": "cdc75a18701b7fff205e4631b49aa558006aba4d",
+      "bytes": 22918,
+      "sha256": "b4a7a86d7e3b3f3b1644b853150eaee21f702910d7cc9caf78029be8ffab4cf0"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/Game421.tsx",
+      "gitBlob": "73e0b3479380bd62e844dc5629f834b76989d9d9",
+      "bytes": 24303,
+      "sha256": "e16184c79e8c74cac24fb1aae88f9425d7390a81ba25331759fd5c4656b8d6aa"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/GameOverModal.tsx",
+      "gitBlob": "adf4b90f632cc9e09e6453dc348eaee5322ce18c",
+      "bytes": 3821,
+      "sha256": "1d9963b9d0c0afa51f04d9703a797c7274855b7a378da9d4ae30bcdc4c7c8bfa"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/GamesLeaderboard.tsx",
+      "gitBlob": "89388250cb821f08fe873a1ad7f6819b3fa497ce",
+      "bytes": 2065,
+      "sha256": "ab4602beeb309994f736aa628979e5eff483cf783697f2dadb6d399bd79622e0"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/Hangman.tsx",
+      "gitBlob": "1d4034d8856fb29540dc36f96622a59c31cce764",
+      "bytes": 28950,
+      "sha256": "94be8e90ffd3c849d29dc14f3b750167f82fd5033194d63fc2e1e9c2c3d37df6"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/HigherLowerGame.tsx",
+      "gitBlob": "5b717b8c39d0624ff39044380cb4cfc21fa7d54a",
+      "bytes": 18144,
+      "sha256": "fe9827a44a718317d8ff4dc6214f9220d52beb0f73dd6c9ebbb6fc7df775d185"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/MahjongGame.tsx",
+      "gitBlob": "525c055744433a31fefe50632fdcc50a021806dd",
+      "bytes": 5459,
+      "sha256": "b9c3715b9699ded3f9f6bdea3f7b2fe860bf238243b07e3fb508d12f02e0a37d"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/MastermindGame.tsx",
+      "gitBlob": "a82a638afbb8e2fb9b993b15fca318081673b50a",
+      "bytes": 24244,
+      "sha256": "d34b493f8e433e2fc5a330b5dd184c72d83a8295cefa2100e3798a3ec2145d19"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/MaxiBurgerGame.tsx",
+      "gitBlob": "1753200d5ec6a32eea28bf0de6a0f40cacca2074",
+      "bytes": 22046,
+      "sha256": "429a4ee42f83ea12ddee432e7eca4fa54513c21309fa812df1148114e430ccdb"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/MemoryGame.tsx",
+      "gitBlob": "e65f6e8c5a5e1e38a4d3f36ac3a0d8e38d2d0b40",
+      "bytes": 26055,
+      "sha256": "a3d8e97a440bb8614256dac7028e0923c0d317488f799e9a87651051481d3786"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/MenschGame.test.ts",
+      "gitBlob": "cb6d4af1f1fb0502569ebf91b6f996376ba8664a",
+      "bytes": 1160,
+      "sha256": "0297af5f9f9d4ea383b8d041a7b00a838756a1a93c29afb5011588519f10ced2"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/MenschGame.tsx",
+      "gitBlob": "17e7c21dc60c2ec5117790346f7b7b4b7ae1eb7f",
+      "bytes": 55884,
+      "sha256": "db83c8e5d156389ebaa07458e6f9a0cd653a49eecc809d73ab360b16205160d7"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/MinesweeperGame.tsx",
+      "gitBlob": "d3f5d1d8ff19953596c78405b8224e301b2ae504",
+      "bytes": 25882,
+      "sha256": "282108070a115f1cf2c9f85f3dc1e1a94780ee43d64c2b8c2bc7db4a40693856"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/MotusGame.tsx",
+      "gitBlob": "cca1646d2429d44f1787f3d61b7bd72d3f2482dd",
+      "bytes": 26785,
+      "sha256": "b83bc6d6a5e970007cfff5012e3915ab212e8a70ed326f0b7edf25c38d894b38"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/NumberMemoryGame.tsx",
+      "gitBlob": "2014c010f855bac723513326caa91e0f42f3bef0",
+      "bytes": 24365,
+      "sha256": "ec1c3bdd3a3e8566b6681621e07ae549e81efce9beb2932ba9ba2cfc522a4235"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/PigGame.tsx",
+      "gitBlob": "1e7c97d295092e337a07df1fb0e049191f45a745",
+      "bytes": 23730,
+      "sha256": "62ef8855c6451d5dd89943dc069ee38022d397ef18d284e09a934f590e1e7794"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/PokerGame.tsx",
+      "gitBlob": "c70014a45217ef5e2a0dfd4f604db6d98ee0ba8c",
+      "bytes": 31723,
+      "sha256": "e6bd60f07699946fd39c9a4a107405cb911896eca4db7b48727ed3b2314cbcb6"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/QuizGame.tsx",
+      "gitBlob": "14d070357f29836e446ea326960b444afb10f586",
+      "bytes": 37081,
+      "sha256": "b9a4d744786d911d2f7ca42cb3925dd14d00abda53c75ba0c06bddfef36edba4"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/RamiGame.tsx",
+      "gitBlob": "3eb729bba482a1e77d893cb958b664809c45addb",
+      "bytes": 8795,
+      "sha256": "2e7a84d0844c0d03ba74e41b77f69357b5ea01b986e78874fe2e661eaa84b6d5"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/ReactionGame.tsx",
+      "gitBlob": "1dce7c1ae3bcbc9afd692eb72a3ff6fff7e9ef5a",
+      "bytes": 25041,
+      "sha256": "b87d64e125f7084342bec3babc6ddaa0eaa5636ade2ede8596475eb5b5cca1f9"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/ReversiGame.tsx",
+      "gitBlob": "21aa9fe02ab19dbc64333639327c8598b0c825ce",
+      "bytes": 30492,
+      "sha256": "08df31b4ce4fb4f0d2a4e598665785651295801de1a3c3ffb36ba7eae02cab8a"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/RummikubGame.tsx",
+      "gitBlob": "7e292490e83006fe5598d45edbc90a9497295820",
+      "bytes": 14491,
+      "sha256": "6bf9476ec2423d8e1255b7c3fa330d487e787289ee4f1878effca46bd5066246"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/Run21Game.tsx",
+      "gitBlob": "8409b1f71e73d953efc64d8ea72da3667fc6da47",
+      "bytes": 5590,
+      "sha256": "747ca9e4e14eed1dca89b327a0d65d3175d9e0a5cf0bdf1941a04429adb100a5"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/ScopaGame.tsx",
+      "gitBlob": "dba73be93460360c8a7562eb798e117b61ee6ac7",
+      "bytes": 13628,
+      "sha256": "bdbbf356f5c6096f6da86fdab2c54e1815efa1e54abb1828e2434a423a71bb51"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/SimonGame.tsx",
+      "gitBlob": "3dce0006a4dacd8d994b21b74882502087cc93a3",
+      "bytes": 14172,
+      "sha256": "1dd39fc957079f84dd0e0203ecb6f1d553d02d6b4103feb6aa735fd16c27f8b8"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/SlidingPuzzleGame.tsx",
+      "gitBlob": "dff3cd0d8fdc07338b2c3920b6a7eec20aa61ae2",
+      "bytes": 17782,
+      "sha256": "3abfd7a2584a4dc608af7ade9200a3740ebc53dc4278b3d30cef110f25a5668a"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/SnakeGame.tsx",
+      "gitBlob": "853e963d547570ebee1ea4a2f63de4dc84267f58",
+      "bytes": 29903,
+      "sha256": "4bb5052657fe0cad1817f920f309b26b01c5747041baeeb250925d839c055068"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/SolitaireGame.tsx",
+      "gitBlob": "f5b2388167d52bf8d6f00c0c27439cf729dff79d",
+      "bytes": 42196,
+      "sha256": "0e809edcbe5840ac9e4a4e4d80163802f0d0df4f090f7fb124941fbd3f93d168"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/SpotErrorGame.tsx",
+      "gitBlob": "8c21fbd22f96600347d866db5e45c712755e63fd",
+      "bytes": 4991,
+      "sha256": "8dbf31e0bbc2d2d83a836ebf043d15f30dd81a38a66d633981722bfeceb9f800"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/TicTacToeGame.tsx",
+      "gitBlob": "5a3b7b556ac49c2113862b234194c185f47b761a",
+      "bytes": 18967,
+      "sha256": "277c950e9bac5d6de80bd2079aa9e324018a73901b84a9149feb824525473f63"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/TowerDefenseGame.tsx",
+      "gitBlob": "6b3aef1a481e0b5d4200cbb5dc0f8bddfb60a581",
+      "bytes": 78387,
+      "sha256": "27f6db88b84bd6defeac589d1090990b734d5900b30b1b7dd615ff342ba90a60"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/TriTowersGame.tsx",
+      "gitBlob": "ea2bc3b4018f768ce53942339c994672c07f9bc3",
+      "bytes": 5444,
+      "sha256": "c6f83bf6afaeebffe8fd6ad17aa8698ee3e4c4994ee6b82cc8ab57d21b3ad4ae"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/WarGame.tsx",
+      "gitBlob": "a5cbfb1ceb6cf97aac18ff5d5463d88e9dfa99a7",
+      "bytes": 19581,
+      "sha256": "b12cba9cb73b53cb52b82a341cc1c930181c38fde44a03f2185cb1b55abe4b33"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/WordScrambleGame.tsx",
+      "gitBlob": "cf006b2255e715862b3c2c2055db29261b7a05b8",
+      "bytes": 32173,
+      "sha256": "36504c239efcbe1b31df33551676aeb37a4ac420899bacf8b64c9a89d33fa4df"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/YahtzeeGame.tsx",
+      "gitBlob": "046926a5f2cbdafc27596794558046708f95857d",
+      "bytes": 17074,
+      "sha256": "aefff149cc97f3c73bffa056f66e98d944c86f59f8f86d88925a09444d685fcd"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/arcade3d.tsx",
+      "gitBlob": "8e626f5900d2078e1d8af3602da4b09518b638cf",
+      "bytes": 8317,
+      "sha256": "e9acdeb2533ab47708f0366c073cceecdf7a0041610ef1a50d25984fd716286d"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/catalog.test.ts",
+      "gitBlob": "c8e09e6bce5a683cd28e2e2f61cc8f419e381869",
+      "bytes": 9685,
+      "sha256": "2289af0960d357bdcb0dd484b8555d617b9de43c8605525a1d1bfe62648f0b82"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/catalog.ts",
+      "gitBlob": "77571ba44ccd55b1d8b0b8cfe110fc7568857160",
+      "bytes": 33285,
+      "sha256": "b515a468603a0e36e851ec476deb5128c713ba822fa73a45aac493e0a3f33c64"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/chess.worker.ts",
+      "gitBlob": "836e7eb31f06fc0e8956a7fdb504d01a63308128",
+      "bytes": 743,
+      "sha256": "3458956dbd331798de19885507f86d66195476b0627b4aaff24a3acc8720e0a2"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/chessEngine.ts",
+      "gitBlob": "4360895ca1870fc65edc667832b1b75274be53ce",
+      "bytes": 17923,
+      "sha256": "e07f7c7a28b6c28ff643d567cbad443ad3db3d21562c9c5249d3d76e10c0d0ca"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/lib/GameShell.tsx",
+      "gitBlob": "261cc5bf234260864313346a86f792176e0ee174",
+      "bytes": 2296,
+      "sha256": "6732900af80a7df4e8884ca882d5989da8cdcef2f83721b1c8c607dfd2c54d17"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/lib/juice.ts",
+      "gitBlob": "4891f91e01d95e5b83615752c2f066ae3e0b4bae",
+      "bytes": 11474,
+      "sha256": "57f973b7709c3a52e478ed16b2e68cd1256512140fe5661709c125c8d66f81ca"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/originalsShared.tsx",
+      "gitBlob": "f55e504e9db3880917e154e14f68d35b35accfda",
+      "bytes": 23086,
+      "sha256": "5b606cf0d4433af08f88fdeaeca82a934caf40d72784d880ea88e91a769f8be8"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/progress.ts",
+      "gitBlob": "7002f2aa8a515d18d8b6b44171319fc6cb44911b",
+      "bytes": 6014,
+      "sha256": "3eb6b6ff0d1268707c707c93f4c295c4eaed91bb46c544e80d6a5881cd6fde16"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/scopaRules.ts",
+      "gitBlob": "df125b2c670040e28477d90f19e8b988380da14e",
+      "bytes": 9037,
+      "sha256": "05f68ba73742e8d9b48faa7799fb19ee37e228948748634686201ccc5ec271f6"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/theme.ts",
+      "gitBlob": "99eb46527fc6af226d03cbdbd4af0f1dab882a05",
+      "bytes": 489,
+      "sha256": "1a76065a9637e6b25c2ebdce2d00c18d09e62f0c76bdf8e5712c3eecf4954d3f"
+    },
+    {
+      "path": "apps/web/src/pages/guest/games/useGameScore.ts",
+      "gitBlob": "1c6f0ab55937fd336183206dcefbcfc93186fbef",
+      "bytes": 3252,
+      "sha256": "2f075bb70f22aa01ea553944410d444d0f8d6d4cbd49da3456f0648737a6cfae"
+    }
+  ],
+  "limits": "Inventaire source statique. Un chargeur ou une sélection ne prouve pas les règles ni le fonctionnement complet du jeu.",
+  "recovery": {
+    "testedAt": "2026-10-16T19:09:48.740Z",
+    "method": "git archive SHA immuable, extraction dans un nouveau répertoire privé, comparaison SHA-256 aux blobs et à la source courante",
+    "filesVerified": 99,
+    "success": true,
+    "privateArchiveNotPublished": true
+  }
+}

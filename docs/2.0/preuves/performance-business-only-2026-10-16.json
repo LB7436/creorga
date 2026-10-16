@@ -1,0 +1,125 @@
+{
+  "measuredAt": "2026-10-16T19:26:12.196Z",
+  "os": "Windows_NT 10.0.26200",
+  "cpu": "AMD Ryzen 5 7600X 6-Core Processor             ",
+  "logicalCpus": 12,
+  "ramGiB": 63,
+  "node": "v22.19.0",
+  "chrome": "155.0.8059.80",
+  "network": "loopback, sans ralentissement artificiel, autres services locaux actifs",
+  "actualDataset": {
+    "menuProducts": 734,
+    "tables": 267,
+    "openLines": 1240,
+    "salesInCurrentJournal": 115
+  },
+  "bootstrapHttpAndJson": {
+    "samples": [
+      423.27,
+      417.39,
+      432.93,
+      474.71,
+      439.63,
+      436,
+      404.92,
+      412.43,
+      403.79,
+      411.27,
+      430.89,
+      422.77,
+      424.43,
+      396.24,
+      399.28,
+      413.21,
+      430.4,
+      392.2,
+      401.34,
+      386.62
+    ],
+    "n": 20,
+    "minMs": 386.6229000000003,
+    "medianMs": 417.3934999999999,
+    "p95Ms": 439.62530000000015,
+    "maxMs": 474.71330000000034
+  },
+  "draftConfirmedHttpAndJson": {
+    "samples": [
+      2325.22,
+      1741.79,
+      1730.82,
+      1859,
+      1705.21,
+      1781.99,
+      1715.67,
+      1738.82,
+      1698.47,
+      1728.24
+    ],
+    "n": 10,
+    "minMs": 1698.4725999999973,
+    "medianMs": 1738.8192999999992,
+    "p95Ms": 2325.2209000000003,
+    "maxMs": 2325.2209000000003
+  },
+  "manualPaymentConfirmedHttpAndJson": {
+    "samples": [
+      1534.19,
+      1512.37,
+      1483.07,
+      1473.45,
+      1466.06,
+      1459.22,
+      1477.57,
+      1475.04,
+      1545.12,
+      1428.94
+    ],
+    "n": 10,
+    "minMs": 1428.9353999999948,
+    "medianMs": 1477.5710000000036,
+    "p95Ms": 1545.124100000001,
+    "maxMs": 1545.124100000001
+  },
+  "dialogClickToOpaquePlaywright": {
+    "samples": [
+      341.59,
+      343.12,
+      327.02,
+      303.44,
+      346.77,
+      329.46,
+      333.04,
+      345.71,
+      346.6,
+      342.61
+    ],
+    "n": 10,
+    "minMs": 303.44130000000587,
+    "medianMs": 342.60599999999977,
+    "p95Ms": 346.77210000000196,
+    "maxMs": 346.77210000000196
+  },
+  "sizes": [
+    {
+      "width": 375,
+      "dialogFits": true,
+      "pageFits": true
+    },
+    {
+      "width": 768,
+      "dialogFits": true,
+      "pageFits": true
+    },
+    {
+      "width": 1440,
+      "dialogFits": true,
+      "pageFits": true
+    }
+  ],
+  "dialogTextContrast": {
+    "sampledTextNodes": 802,
+    "minRatio": 7.44
+  },
+  "jsErrors": [],
+  "limitations": "Mesure mono-utilisateur synthétique : lectures, sauvegardes, règlements manuels fictifs et ouverture de dialogue. Pas une baseline, un service chargé, Core Web Vitals, matériel physique ou paiement bancaire."
+}
