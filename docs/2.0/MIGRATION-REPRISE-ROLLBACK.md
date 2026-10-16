@@ -1,6 +1,55 @@
 # Reprise et retour arrière
 
-## Lot recette métier — 16 octobre 2026
+## Lot courant — allocation financière, 16 octobre 2026
+
+Base `7c08307`, même branche dédiée. Quatre migrations additives, appliquées seulement aux copies
+de laboratoire ; **34 migrations** au total. Les identifiants 20261018 sont des séquences, pas
+la date réelle d'exécution (16 octobre).
+
+| Migration | Effet |
+|---|---|
+| `20261018140000_service_allocations` | Trois tables allocation/groupe/affectation, FK composites, unicités, gardes d'immutabilité et totaux différés |
+| `20261018141000_allocation_item_guards` | Interdit ajout/effacement des lignes allouées ; préserve DELETE normal hors allocation |
+| `20261018142000_allocation_settlement_guards` | Interdit annulation allouée / statut payé sans montant complet ; règlement d'origine non modifiable |
+| `20261018150000_quote_haccp_provenance` | Lien nullable devis/facture et date, FK société ; source nullable des nouveaux relevés manuels |
+
+Aucun backfill de document, montant ou provenance historique. Une acceptation ancienne sans
+lien reste sans lien inventé ; anciennes mesures sans source restent NULL. Les gardes PostgreSQL
+complètent Prisma : ne pas les supprimer avec un `db push` ou une resynchronisation automatique.
+
+Procédure **copie isolée uniquement** : arrêter les écrivains, archiver base/fichiers du même
+instant, restaurer dans une nouvelle base, `prisma migrate deploy`, générer Prisma backend
+arrêté sous Windows, puis redémarrer en autorité PostgreSQL. Les envois et paiements réels restent
+neutralisés ; aucune clé bancaire de production réutilisée. Ne jamais lancer seed/reset/migrate dev.
+
+La restauration doit inclure `ServiceAllocation`, `ServiceShare`, `ServiceShareTender`, visites
+et capacités révoquées, commande/tenders d'origine, sessions/couverts, journaux et réserves.
+Le JSON miroir seul ne peut reconstruire ces liens. Ne pas recréer des lignes POS à partir
+d'un écran QR ou d'une ancienne sauvegarde de navigateur.
+
+Essais réellement exécutés :
+
+- Cliché privé ancien lu seulement, dump vers une **nouvelle base**, 7 → 34 migrations ;
+  47 tables / 341 lignes et colonnes historiques identiques, cliché source inchangé.
+  Aucun fichier d'archive originale ni profil historique ouvert pour cet essai.
+- Sauvegarde finale courante après arrêt des cinq applications : entrée de copie nouvelle hors
+  des anciens dumps, archive v2 avec vrai pg_dump, AES-GCM/clé séparée, pg_restore transactionnel
+  dans une autre base. **79 tables + 8 fichiers égaux**, PDF 9 factures / 8 avoirs identiques,
+  allocations 5 / groupes 10 / affectations 15. 2 952 ms, pas un objectif RTO.
+- Redémarrage des services locaux et 17 assertions : parts exactes, acompte d'origine, créance
+  restant ouverte, stock non débité prématurément, ancien QR révoqué, lien devis et PDF retrouvés.
+
+Retour arrière : arrêter **tous les écrivains**, conserver une nouvelle copie de l'état courant
+et des preuves, restaurer **dans une autre base**, corriger en avant. Ne pas effacer une part,
+un acompte, une réservation UNKNOWN/REVIEW ou un document pour rendre un ancien code compatible.
+L'ancien binaire n'est **pas autorisé en écriture** sur les allocations : il ignorerait leurs
+soldes/groupes et pourrait doubler l'encaissement. Aucun down destructif proposé.
+
+Clés et dumps restent privés et séparés. Stripe Refunds / vidéo désactivés. Aucun déploiement
+public, DNS, production ou essai de paiement réel. Preuves : [rapport courant](ALLOCATION-FINANCIERE-ET-RECETTE.md)
+et [restauration expurgée](preuves/restauration-allocation-2026-10-16.json).
+
+## Historique — lot recette métier avant 7c08307
 
 Base Git `3b02765820e4f7f452cb812be88af608870c1937`, même branche dédiée. Une migration nouvelle,
 `20261018130000_reservation_isolation`, appliquée **uniquement** à `creorga_local` et `creorga_tests`.

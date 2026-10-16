@@ -7,6 +7,40 @@ const run = (...proofs) => ({ proofs })
 const blocked = reason => ({ blocked: reason })
 const todo = reason => ({ notRun: reason })
 const restore = { special: 'restore' }
+// Lot allocation : overrides explicites, conservant les exigences et identifiants
+// de l'annexe. Un blocage de fonction absente n'est jamais transformé en PASS.
+const currentLot = {
+  1: { ...blocked('Aucune machine Windows vierge / VM de recette disponible. Les cinq builds et la base migrée ne prouvent pas une installation complète sur machine vierge.'), blockerCategory: 'EXTERNAL' },
+  3: run({ special: 'old-migration' }),
+  6: blocked('Modèle de sites et adhésions par établissement non implémenté dans le schéma actuel. Le contrôle société ne remplace pas un contrôle intersites.'),
+  8: run(pg('business-extended', 'révoquer un jeton de caisse')),
+  16: run(pg('financial-allocations', 'trois groupes partagent remise'), pg('financial-allocations', 'un nouvel acompte invalide'), pg('financial-allocations', 'vente finale conserve les centimes'), pg('financial-allocations', 'ancien original entièrement'), pg('financial-allocations', 'ancien miroir JSON fictif'), chrome('financial-allocation', 'allocation QR : décision responsable')),
+  17: run(pg('pos', 'un offert exige un motif responsable')),
+  18: { ...blocked('Parcours de correction signé après préparation non implémenté. Le risque d’annulation/effacement silencieux a été reproduit puis bloqué par 409, avec test orders ; cela ne livre pas la correction métier complète.'), ...run(pg('orders', 'annulation destructive')) },
+  24: blocked('Pas de variantes/suppléments tarifés par le serveur ; les modificateurs de note ne sont pas une preuve de cette fonction.'),
+  25: run(pg('business-extended', 'un produit inactif')),
+  36: run(pg('invoices', 'émet les seuils 99,99')),
+  39: run(pg('invoices', 'convertit un devis concurremment'), chrome('business-extended', 'gestion Chrome')),
+  42: run(pg('payments', 'un refus bancaire simulé')),
+  43: run(pg('payments', 'un abandon acheteur')),
+  46: run(pg('payments', 'un webhook vérifié avant le retour')),
+  64: { ...blocked('Réimpression thermique de duplicata non qualifiée : matériel et commande persistante absents. Les relectures HTML seules ne prouvent pas ce parcours physique.'), blockerCategory: 'EXTERNAL' },
+  69: blocked('Pas de lien documentaire signé temporaire implémenté. Les documents restent soumis à authentification et société ; l’expiration d’un QR n’est pas celle d’un document.'),
+  71: blocked('Moteur d’alertes déterministe de départ déclaré non implémenté. Aucun événement de départ fictif ne peut traverser ce parcours inexistant ; vidéo non activée.'),
+  72: blocked('Consommateur de retour humain lié aux alertes T71 non implémenté.'),
+  74: blocked('Raccordement paiement / résolution des alertes T71 non implémenté ; le paiement serveur est testé séparément.'),
+  75: blocked('Identité et suivi des alertes lors des transferts non implémentés ; aucun transfert financier n’est présenté comme un test du moteur absent.'),
+  76: blocked('Autorisation de crédit société et exemption d’alerte non modélisées / non implémentées ; une fiche client société seule ne vaut pas crédit approuvé.'),
+  91: blocked('Connecteur d’import de factures fournisseurs, pièce source et déduplication non raccordés. inventory-ai ancien n’est pas monté dans index.ts ; aucun OCR distant lancé.'),
+  92: { ...blocked('Réception partielle et lien de facture non implémentés. Une requête partielle créditait tout le stock ; elle est maintenant refusée sans écriture. Ce garde-fou ne remplace pas la réception partielle.'), ...run(pg('business-extended', 'une demande de réception partielle')) },
+  93: blocked('Recette enregistrable mais unités / conversions et journal de consommation d’ingrédients non unifiés avec debitOrderInventory (produits uniquement). Ne pas présenter cette chaîne comme livrée.'),
+  94: blocked('Comptage/pertes avec pièces, mouvements durables cloisonnés et rapprochement unifiés non livrés ; éditer Ingredient.currentStock ne constitue pas un inventaire traçable.'),
+  97: run(pg('business-extended', 'un congé ne fuit pas')),
+  98: run(pg('business-extended', 'une température manquante'), chrome('business-extended', 'gestion Chrome')),
+  99: blocked('Traductions complètes des écrans métier non implémentées (textes français codés dans les pages, sélecteur global partiel). Les fenêtres testées à 375/768/1440 et au clavier ne valident pas toutes les langues / le zoom global.'),
+  100: todo('Parcours critiques étendus exécutés dans Chrome, mais inventaire exhaustif de tous les boutons et erreurs du produit non terminé. Aucun accès manquant ne justifie de cacher ce travail restant en BLOCKED.'),
+}
+const externalCases = new Set([9, 41, 56, 57, 58, 59, 60, 61, 62, 63, 65, 66])
 export const scenarios = [
   [1, 'Installation neuve complète', 'Machine vierge et base neuve.', 'Installer, migrer puis ouvrir les cinq applications.', 'Premier démarrage sans données historiques ni manipulation manuelle cachée.', todo('Clone existant utilisé ; installation complète depuis une machine vierge non exécutée.')],
   [2, 'Restauration avec pièces jointes', 'Copie privée cohérente arrêtée, fichiers et base du même instant.', 'Sauvegarder, chiffrer, restaurer dans une nouvelle base et comparer.', 'Toutes tables, colonnes, lignes, fichiers et PDF égaux.', run(restore)],
@@ -108,4 +142,8 @@ export const scenarios = [
   [98, 'HACCP sans mesure inventée', 'Tâche de relevé et capteur absent.', 'Ouvrir une tâche sans mesure puis valider manuellement.', 'Valeur manquante explicite, auteur et source manuels.', todo('Parcours HACCP non exécuté ; aucune mesure de sonde annoncée.')],
   [99, 'Langues et responsive', 'Chrome neuf 375/768/1440 et langues proposées.', 'Utiliser clavier, zoom, tactile et chaque langue du périmètre.', 'Pas de débordement, focus visible et texte traduit.', todo('Responsive/clavier des nouvelles fenêtres testé ; multilingue complet, lecteur d’écran et zoom global non qualifiés.')],
   [100, 'Tous les boutons et modes dégradés', 'Inventaire exhaustif des écrans livrés et scénarios erreur/hors ligne.', 'Cliquer chaque contrôle et vérifier sa persistance.', 'Aucune action fantôme, erreurs honnêtes et droits respectés.', todo('Parcours critiques ciblés exécutés, pas d’inventaire exhaustif de toutes les actions du produit.')],
-].map(([n, title, prerequisites, actions, expected, execution]) => ({ id: 'T' + String(n).padStart(2, '0'), title, prerequisites, actions, expected, ...execution }))
+].map(([n, title, prerequisites, actions, expected, execution]) => {
+  const actual = currentLot[n] || execution
+  return { id: 'T' + String(n).padStart(2, '0'), title, prerequisites, actions, expected, ...actual,
+    ...(actual.blocked ? { blockerCategory: actual.blockerCategory || (n === 4 ? 'HISTORY_AUTHORIZATION' : externalCases.has(n) ? 'EXTERNAL' : 'UNIMPLEMENTED') } : {}) }
+})

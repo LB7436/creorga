@@ -1,0 +1,331 @@
+{
+  "before": {
+    "measuredAt": "2026-10-16T16:28:00.220Z",
+    "label": "before",
+    "mode": "transaction PostgreSQL de sauvegarde du seul agencement, hors HTTP/JSON miroir",
+    "dataset": {
+      "tables": 226,
+      "nativeCovers": 646,
+      "nativeLines": 1276
+    },
+    "n": 10,
+    "p95Ms": 1313.72,
+    "samples": [
+      {
+        "durationMs": 1257.55,
+        "queries": 1483,
+        "sqlDurationMs": 73,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 182,
+          "SELECT:ServiceSession": 647,
+          "INSERT:ServiceCover": 646,
+          "UPDATE:Order": 3,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 1194.44,
+        "queries": 1483,
+        "sqlDurationMs": 58,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 182,
+          "SELECT:ServiceSession": 647,
+          "INSERT:ServiceCover": 646,
+          "UPDATE:Order": 3,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 1239.74,
+        "queries": 1483,
+        "sqlDurationMs": 59,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 182,
+          "SELECT:ServiceSession": 647,
+          "INSERT:ServiceCover": 646,
+          "UPDATE:Order": 3,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 1313.72,
+        "queries": 1483,
+        "sqlDurationMs": 61,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 182,
+          "SELECT:ServiceSession": 647,
+          "INSERT:ServiceCover": 646,
+          "UPDATE:Order": 3,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 1252.86,
+        "queries": 1483,
+        "sqlDurationMs": 57,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 182,
+          "SELECT:ServiceSession": 647,
+          "INSERT:ServiceCover": 646,
+          "UPDATE:Order": 3,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 1248.52,
+        "queries": 1483,
+        "sqlDurationMs": 59,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 182,
+          "SELECT:ServiceSession": 647,
+          "INSERT:ServiceCover": 646,
+          "UPDATE:Order": 3,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 1237.56,
+        "queries": 1483,
+        "sqlDurationMs": 58,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 182,
+          "SELECT:ServiceSession": 647,
+          "INSERT:ServiceCover": 646,
+          "UPDATE:Order": 3,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 1243.77,
+        "queries": 1483,
+        "sqlDurationMs": 65,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 182,
+          "SELECT:ServiceSession": 647,
+          "INSERT:ServiceCover": 646,
+          "UPDATE:Order": 3,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 1237.94,
+        "queries": 1483,
+        "sqlDurationMs": 61,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 182,
+          "SELECT:ServiceSession": 647,
+          "INSERT:ServiceCover": 646,
+          "UPDATE:Order": 3,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 1264.64,
+        "queries": 1483,
+        "sqlDurationMs": 59,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 182,
+          "SELECT:ServiceSession": 647,
+          "INSERT:ServiceCover": 646,
+          "UPDATE:Order": 3,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      }
+    ]
+  },
+  "after": {
+    "measuredAt": "2026-10-16T16:28:59.267Z",
+    "label": "after",
+    "mode": "transaction PostgreSQL de sauvegarde du seul agencement, hors HTTP/JSON miroir",
+    "dataset": {
+      "tables": 226,
+      "nativeCovers": 646,
+      "nativeLines": 1276
+    },
+    "n": 10,
+    "p95Ms": 607.19,
+    "samples": [
+      {
+        "durationMs": 607.19,
+        "queries": 8,
+        "sqlDurationMs": 71,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 2,
+          "SELECT:ServiceSession": 1,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 576.15,
+        "queries": 8,
+        "sqlDurationMs": 60,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 2,
+          "SELECT:ServiceSession": 1,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 542.3,
+        "queries": 8,
+        "sqlDurationMs": 60,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 2,
+          "SELECT:ServiceSession": 1,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 530.43,
+        "queries": 8,
+        "sqlDurationMs": 58,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 2,
+          "SELECT:ServiceSession": 1,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 539.86,
+        "queries": 8,
+        "sqlDurationMs": 57,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 2,
+          "SELECT:ServiceSession": 1,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 543.08,
+        "queries": 8,
+        "sqlDurationMs": 58,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 2,
+          "SELECT:ServiceSession": 1,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 577.13,
+        "queries": 8,
+        "sqlDurationMs": 72,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 2,
+          "SELECT:ServiceSession": 1,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 542.94,
+        "queries": 8,
+        "sqlDurationMs": 58,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 2,
+          "SELECT:ServiceSession": 1,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 531.81,
+        "queries": 8,
+        "sqlDurationMs": 61,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 2,
+          "SELECT:ServiceSession": 1,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      },
+      {
+        "durationMs": 544.72,
+        "queries": 8,
+        "sqlDurationMs": 58,
+        "byOperation": {
+          "BEGIN:transaction/lock": 1,
+          "SELECT:transaction/lock": 1,
+          "UPDATE:FloorWorkspace": 1,
+          "SELECT:ServiceCover": 2,
+          "SELECT:ServiceSession": 1,
+          "INSERT:FloorChange": 1,
+          "COMMIT:transaction/lock": 1
+        }
+      }
+    ]
+  },
+  "limits": "Comparaison appariée de dix transactions d’agencement, même base/jeu ; hors HTTP, miroir et navigateur. Ne pas comparer directement ce temps au p95 HTTP historique de 2060 ms."
+}

@@ -2,7 +2,95 @@
 
 Mission en cours. **Matrice T01–T100 documentée, mais pas de recette intégralement exécutée ni de qualification de production.**
 
-## Lot courant — recette métier et corrections P0/P1
+## Lot courant — allocation financière et recette étendue
+
+16 octobre 2026. Base locale/distance vérifiée avant travaux :
+`7c08307ae4096e03027b5afcfbde7a3f38f66caf`, `LB7436/creorga`, branche
+[`codex/creorga-2-0-2026-10-08`](https://github.com/LB7436/creorga/tree/codex/creorga-2-0-2026-10-08).
+Commits de code validés :
+
+- `4a4824b5fd4cdfc8bbf28ef1a60cba87459e8fba` — sauvegarde de salle différentielle et test.
+- `2931739b2cd6e75283dbe67f3f6c2aa3e8c0f294` — allocation QR, corrections P0, quatre migrations
+  additives et tests unitaires/PostgreSQL/Chrome.
+
+Le commit documentaire qui suit contient les preuves et ce checkpoint. Aucune fusion vers master,
+aucun déploiement. Le SHA documentaire est donné par `git log -1` sur la branche publiée.
+
+### Implémenté et réellement testé
+
+- Répartition financière QR **v1** entre 2–10 groupes : quantités, remise globale historique,
+  centimes/TVA conservés, choix explicite de chaque acompte, consignes cuisine/bar distinctes.
+  Aperçu puis acceptation responsable, contrôle de révision, audit et reprise par même UUID.
+- Commande/tenders d'origine non clonés. Nouvelles visites QR par groupe, échéance héritée,
+  anciennes capacités révoquées, lecture limitée au groupe. Préparation d'origine non relancée.
+- Paiement partiel/mixte **manuellement déclaré**, un groupe à la fois. Stock et vente finale
+  uniques au règlement intégral de l'original. Réserves incertaines jamais libérées par allocation.
+- Gardes : original émis/remboursé, paiement en cours, réallocation ou transfert de portions
+  déjà allouées refusés. Le workflow documentaire/remboursement de ces cas n'est **pas** livré.
+- Corrections de recette : lecture périmée pendant verrou, réécritures inutiles de salle,
+  motif réel d'offert + reçu, température vide/100 % fictif, refus bancaire visible avec réserve,
+  annulation destructive après préparation bloquée, réception partielle dangereuse refusée.
+- Dernières régressions couvertes : ordre SQL faisant varier la TVA finale d'un centime,
+  ancien miroir JSON doublant l'affichage d'addition du personnel, original entièrement couvert
+  mais non clôturé, espaces/booléens/tableaux acceptés comme température. Aucun original supprimé.
+- Lien devis/facture durable et relecture idempotente ; produits inactifs refusés ; accès aux
+  congés et nouveaux PDF aux trois seuils contrôlés. Source MANUAL des nouvelles mesures HACCP.
+
+### Résultats actuels
+
+| Contrôle | Résultat réellement exécuté |
+|---|---|
+| Matrice T01–T100 | **54 PASS / 0 FAIL / 45 BLOCKED / 1 NOT RUN** |
+| Unités backend / web / POS | **418**, soit 271 / 91 / 56, aucune ignorée |
+| Intégrations PostgreSQL | **173**, 18 fichiers, aucune ignorée, prestataires remplacés |
+| Chrome neuf | **5 parcours réussis**, sans profils historiques |
+| Compilations | Cinq applications réussies ; avertissements de gros bundles conservés |
+| Autocontrôles | 23 comparateur ; 100 identifiants et 8 contrôles du générateur |
+| Ancienne copie migrée | 7 → 34 migrations, 47 tables / 341 lignes anciennes identiques |
+| Restauration réelle | **79 tables + 8 fichiers égaux**, 9 PDF facture + 8 PDF avoir |
+| Reprise après redémarrage | **17 assertions réussies**, allocations et PDF inclus |
+
+Les 29 anciens NOT RUN deviennent 12 PASS, 16 BLOCKED et 1 NOT RUN (T100). Les 29 anciens
+BLOCKED restent bloqués, sans qualification fictive. Total : 14 EXTERNAL, 1 HISTORY_AUTHORIZATION,
+30 UNIMPLEMENTED. Les défauts logiciels corrigés ont leurs tests ; fonctions absentes non inventées.
+
+Profilage apparié sur même copie (226 tables / 646 couverts / 1 276 lignes), dix transactions
+d'agencement : **1 483 → 8 requêtes ; p95 1 313,72 → 607,19 ms**, hors HTTP/miroir.
+Dernier HTTP Chrome p95 salle **2 420 ms**, sans builds/tests concurrents, sur un autre jeu cumulé
+(724 produits, 245 tables, 1 266 lignes). Série antérieure avec builds : 2 492 ms, autre jeu.
+**Aucun gain HTTP global démontré** face à l'ancien 2 060 ms. Le snapshot global reste à profiler.
+Dialogues ciblés à 375/768/1440, clavier/focus/erreurs/reconnexion ; minimum texte mesuré 7,44:1
+sur un seul dialogue. Pas de baseline visuelle, audit WCAG complet ou traduction intégrale.
+
+### Données, migrations et limites
+
+Windows, Node 22.19, Prisma 5.22, PostgreSQL 16.15 loopback:5450 ; applications
+3002/5174/5175/5177/5178. `creorga_local` et `creorga_tests`, données fictives de recette.
+Quatre migrations additives 20261018140000 / 141000 / 142000 / 150000, exécutées le 16 octobre,
+34 migrations au total. Nouvelles tables restaurées avec données : 5 allocations, 10 groupes,
+15 affectations de règlement. Archive v2, pg_dump/pg_restore natifs, AES-GCM et clé séparée.
+La restauration finale (17:22 UTC) prend 2 952 ms sur cette copie, **pas un RTO**.
+L'ancien cliché privé utilisé pour T03 est lu seulement et reste identique ; archives originales
+et profils historiques intacts. Aucun reset/seed/purge, paiement réel, DNS, VPS ou production.
+Le fichier `apps/guest/tsconfig.tsbuildinfo` déjà modifié reste hors commit.
+
+**Non testé/bloqué :** matériel, PayPal sandbox officiel, comptes marchands externes, installation
+vierge, restauration cloud et T04. Stripe Refunds et vidéo restent désactivés. Pas de redistribution
+de remboursement/document émis, de déplacement ultérieur de portions allouées, de réception
+partielle complète, de correction signée après préparation ou de modèle de consigne remboursable.
+T100 et les autres fonctions absentes ne permettent pas de déclarer CréOrga prêt pour production.
+
+Reprise : arrêter tous les écrivains, conserver l'état courant puis restaurer **dans une autre base**,
+avec fichiers du même instant. Garder les réserves, provenances, parts et décisions. Ancien code
+interdit en écriture ; correction en avant recommandée. Aucun down/reset ni suppression d'acompte.
+
+**Prochaine action concrète :** achever T100 et le profilage HTTP à jeu/processus figés ; ensuite
+étendre les cas financiers actuellement refusés avec workflow documentaire explicite, puis essais externes.
+Rapport complet : [ALLOCATION-FINANCIERE-ET-RECETTE.md](ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Preuves : [matrice](RECETTE-METIER-T01-T100.md), [profilage](preuves/profil-sauvegarde-comparaison-2026-10-16.json),
+[reprise](preuves/restauration-allocation-2026-10-16.json), [procédure](MIGRATION-REPRISE-ROLLBACK.md).
+
+## Historique — recette métier et corrections P0/P1 avant 7c08307
 
 16 octobre 2026. Base locale et GitHub relevée avant travaux : `3b02765820e4f7f452cb812be88af608870c1937`,
 incluant `23bba56`. Même dépôt et branche `codex/creorga-2-0-2026-10-08`.

@@ -1,46 +1,46 @@
 {
-  "generatedAt": "2026-10-16T15:30:30.098Z",
-  "since": "2026-10-16T14:45:00Z",
+  "generatedAt": "2026-10-16T17:22:34.577Z",
+  "since": "2026-10-16T16:20:00Z",
   "environment": "Laboratoire loopback privé ; sociétés fictives ; banque remplacée ; jamais production.",
   "counts": {
-    "PASS": 42,
+    "PASS": 54,
     "FAIL": 0,
-    "BLOCKED": 29,
-    "NOT RUN": 29
+    "BLOCKED": 45,
+    "NOT RUN": 1
   },
   "runs": [
     {
       "suite": "recipe-backend-unit.json",
-      "executedAt": "2026-10-16T15:21:51.923Z",
-      "passed": 267,
+      "executedAt": "2026-10-16T17:18:59.484Z",
+      "passed": 271,
       "failed": 0,
       "pending": 0
     },
     {
       "suite": "recipe-web-unit.json",
-      "executedAt": "2026-10-16T15:19:06.250Z",
+      "executedAt": "2026-10-16T17:19:06.539Z",
       "passed": 91,
       "failed": 0,
       "pending": 0
     },
     {
       "suite": "recipe-pos-unit.json",
-      "executedAt": "2026-10-16T15:19:02.327Z",
-      "passed": 52,
+      "executedAt": "2026-10-16T17:19:07.636Z",
+      "passed": 56,
       "failed": 0,
       "pending": 0
     },
     {
       "suite": "recipe-integration.json",
-      "executedAt": "2026-10-16T15:23:05.747Z",
-      "passed": 151,
+      "executedAt": "2026-10-16T17:19:08.745Z",
+      "passed": 173,
       "failed": 0,
       "pending": 0
     },
     {
       "suite": "Chrome",
-      "executedAt": "2026-10-16T15:25:07.687Z",
-      "passed": 3,
+      "executedAt": "2026-10-16T17:20:05.474Z",
+      "passed": 5,
       "failed": 0,
       "pending": 0
     }
@@ -52,9 +52,10 @@
       "prerequisites": "Machine vierge et base neuve.",
       "actions": "Installer, migrer puis ouvrir les cinq applications.",
       "expected": "Premier démarrage sans données historiques ni manipulation manuelle cachée.",
-      "notRun": "Clone existant utilisé ; installation complète depuis une machine vierge non exécutée.",
-      "status": "NOT RUN",
-      "observed": "Clone existant utilisé ; installation complète depuis une machine vierge non exécutée.",
+      "blocked": "Aucune machine Windows vierge / VM de recette disponible. Les cinq builds et la base migrée ne prouvent pas une installation complète sur machine vierge.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "Aucune machine Windows vierge / VM de recette disponible. Les cinq builds et la base migrée ne prouvent pas une installation complète sur machine vierge.",
       "evidence": []
     },
     {
@@ -69,14 +70,14 @@
         }
       ],
       "status": "PASS",
-      "observed": "76 tables, 8 fichiers, données et PDF comparés égaux ; AES-GCM vérifié, clé séparée. 2653 ms sur cette copie, pas un RTO.",
+      "observed": "79 tables, 8 fichiers, données et PDF comparés égaux ; AES-GCM vérifié, clé séparée. 2952 ms sur cette copie, pas un RTO.",
       "evidence": [
         {
           "file": "scripts/verify-restored-copy.mjs",
           "name": "restauration native chiffrée et comparaison exhaustive",
           "status": "passed",
-          "executedAt": "2026-10-16T15:27:43.555Z",
-          "observed": "76 tables, 8 fichiers, données et PDF comparés égaux ; AES-GCM vérifié, clé séparée. 2653 ms sur cette copie, pas un RTO."
+          "executedAt": "2026-10-16T17:22:29.988Z",
+          "observed": "79 tables, 8 fichiers, données et PDF comparés égaux ; AES-GCM vérifié, clé séparée. 2952 ms sur cette copie, pas un RTO."
         }
       ]
     },
@@ -86,10 +87,22 @@
       "prerequisites": "Archive ancienne immuable et nouvelle base dédiée.",
       "actions": "Restaurer une copie de la version ancienne puis appliquer toutes les migrations.",
       "expected": "Historique inchangé, parcours anciens encore lisibles.",
-      "notRun": "Migration courante incrémentale éprouvée, mais nouvel essai depuis l’archive ancienne non exécuté dans ce lot.",
-      "status": "NOT RUN",
-      "observed": "Migration courante incrémentale éprouvée, mais nouvel essai depuis l’archive ancienne non exécuté dans ce lot.",
-      "evidence": []
+      "proofs": [
+        {
+          "special": "old-migration"
+        }
+      ],
+      "status": "PASS",
+      "observed": "7 → 34 migrations, 47 tables / 341 lignes anciennes conservées à l’identique. Cliché lu seulement, pas archive originale ni profil historique.",
+      "evidence": [
+        {
+          "file": "docs/2.0/preuves/migration-ancienne-copie-2026-10-16.json",
+          "name": "migration réelle d’un cliché privé ancien vers une nouvelle base",
+          "status": "passed",
+          "executedAt": "2026-10-16T16:54:22.170Z",
+          "observed": "7 → 34 migrations, 47 tables / 341 lignes anciennes conservées à l’identique. Cliché lu seulement, pas archive originale ni profil historique."
+        }
+      ]
     },
     {
       "id": "T04",
@@ -98,6 +111,7 @@
       "actions": "Exporter les ventes de chaque origine sans effacement ni rejeu.",
       "expected": "Inventaire et empreintes conservés, aucune vente perdue.",
       "blocked": "Profils historiques hors autorisation ; aucun profil ouvert. Procédure T04 conservée.",
+      "blockerCategory": "HISTORY_AUTHORIZATION",
       "status": "BLOCKED",
       "observed": "Profils historiques hors autorisation ; aucun profil ouvert. Procédure T04 conservée.",
       "evidence": []
@@ -133,29 +147,29 @@
           "file": "apps/backend/src/routes/payments.integration.test.ts",
           "name": "refuse une commande appartenant à une autre société",
           "status": "passed",
-          "durationMs": 32.57219999999995,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 27.519999999999982,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/receipt-invoices.integration.test.ts",
           "name": "refuse le client étranger, le ticket étranger et le rôle salarié",
           "status": "passed",
-          "durationMs": 17.457200000000057,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 13.301600000000008,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/reservations.integration.test.ts",
           "name": "refuse une table ou un client d’une autre société, y compris à la modification",
           "status": "passed",
-          "durationMs": 68.40589999999997,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 50.29240000000004,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/reservations.integration.test.ts",
           "name": "la base refuse les relations intersociétés même sans passer par HTTP",
           "status": "passed",
-          "durationMs": 6.65059999999994,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 6.723099999999931,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -165,9 +179,10 @@
       "prerequisites": "Deux établissements et rôles affectés par site.",
       "actions": "Lire et modifier la session d’un autre site.",
       "expected": "Droits de site appliqués, pas seulement société.",
-      "notRun": "Isolation société testée, modèle complet de droits intersites non qualifié.",
-      "status": "NOT RUN",
-      "observed": "Isolation société testée, modèle complet de droits intersites non qualifié.",
+      "blocked": "Modèle de sites et adhésions par établissement non implémenté dans le schéma actuel. Le contrôle société ne remplace pas un contrôle intersites.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Modèle de sites et adhésions par établissement non implémenté dans le schéma actuel. Le contrôle société ne remplace pas un contrôle intersites.",
       "evidence": []
     },
     {
@@ -189,8 +204,8 @@
           "file": "apps/backend/src/middleware/requireCompany.test.ts",
           "name": "en PRODUCTION : refuse en 503 et n'accorde AUCUN rôle",
           "status": "passed",
-          "durationMs": 1.9842000000000155,
-          "executedAt": "2026-10-16T15:21:51.923Z"
+          "durationMs": 1.6914999999999907,
+          "executedAt": "2026-10-16T17:18:59.484Z"
         }
       ]
     },
@@ -200,10 +215,23 @@
       "prerequisites": "Appareil enregistré et révocable.",
       "actions": "Révoquer puis rejouer son ancien accès.",
       "expected": "Ancien appareil refusé sans affecter les autres.",
-      "notRun": "Jetons liés à société testés en unités ; parcours de révocation d’appareil non exécuté.",
-      "status": "NOT RUN",
-      "observed": "Jetons liés à société testés en unités ; parcours de révocation d’appareil non exécuté.",
-      "evidence": []
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "révoquer un jeton de caisse"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions exécutées et réussies : révoquer un jeton de caisse dans la configuration bloque immédiatement son ancien accès sans révoquer l’autre. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "révoquer un jeton de caisse dans la configuration bloque immédiatement son ancien accès sans révoquer l’autre",
+          "status": "passed",
+          "durationMs": 8.420200000000023,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        }
+      ]
     },
     {
       "id": "T09",
@@ -212,6 +240,7 @@
       "actions": "Récupérer depuis le stockage externe puis restaurer.",
       "expected": "Copie externe effectivement récupérable et état complet égal.",
       "blocked": "Restauration chiffrée locale exécutée en T02 ; aucun stockage externe/cloud de recette raccordé.",
+      "blockerCategory": "EXTERNAL",
       "status": "BLOCKED",
       "observed": "Restauration chiffrée locale exécutée en T02 ; aucun stockage externe/cloud de recette raccordé.",
       "evidence": []
@@ -228,14 +257,14 @@
         }
       ],
       "status": "PASS",
-      "observed": "76 tables, 8 fichiers, données et PDF comparés égaux ; AES-GCM vérifié, clé séparée. 2653 ms sur cette copie, pas un RTO.",
+      "observed": "79 tables, 8 fichiers, données et PDF comparés égaux ; AES-GCM vérifié, clé séparée. 2952 ms sur cette copie, pas un RTO.",
       "evidence": [
         {
           "file": "scripts/verify-restored-copy.mjs",
           "name": "restauration native chiffrée et comparaison exhaustive",
           "status": "passed",
-          "executedAt": "2026-10-16T15:27:43.555Z",
-          "observed": "76 tables, 8 fichiers, données et PDF comparés égaux ; AES-GCM vérifié, clé séparée. 2653 ms sur cette copie, pas un RTO."
+          "executedAt": "2026-10-16T17:22:29.988Z",
+          "observed": "79 tables, 8 fichiers, données et PDF comparés égaux ; AES-GCM vérifié, clé séparée. 2952 ms sur cette copie, pas un RTO."
         }
       ]
     },
@@ -262,15 +291,15 @@
           "file": "apps/backend/src/routes/cash-drawers.integration.test.ts",
           "name": "compte un acompte espèces même si la commande n’est pas encore payée entièrement",
           "status": "passed",
-          "durationMs": 80.36250000000007,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 75.61419999999998,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/service-sessions.integration.test.ts",
           "name": "un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock",
           "status": "passed",
-          "durationMs": 380.5239999999999,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 370.6622,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -293,8 +322,8 @@
           "file": "apps/backend/src/routes/payments.integration.test.ts",
           "name": "réserve et rapproche plusieurs tournées QR sans nouveau débit sur rejeu",
           "status": "passed",
-          "durationMs": 54.557000000000016,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 55.658500000000004,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -317,8 +346,8 @@
           "file": "apps/backend/src/routes/table-movements.integration.test.ts",
           "name": "conserve acompte, tentative en cours et affectations pendant un transfert puis un solde",
           "status": "passed",
-          "durationMs": 282.7859000000001,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 294.37480000000005,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -341,8 +370,8 @@
           "file": "apps/backend/src/routes/table-movements.integration.test.ts",
           "name": "sépare un groupe QR après fusion, sans déplacer l’acompte de l’autre groupe ni rouvrir les anciens QR",
           "status": "passed",
-          "durationMs": 255.11879999999996,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 221.7422999999999,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -369,15 +398,15 @@
           "file": "apps/backend/src/routes/table-movements.integration.test.ts",
           "name": "déplace une partie de ligne native à son prix historique sans nouvelle préparation ni débit de stock",
           "status": "passed",
-          "durationMs": 357.6786000000002,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 350.0466999999999,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "tests/browser-lab/service-separations.spec.ts",
           "name": "séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement",
           "status": "passed",
-          "durationMs": 21556,
-          "executedAt": "2026-10-16T15:26:16.307Z"
+          "durationMs": 21759,
+          "executedAt": "2026-10-16T17:21:43.635Z"
         }
       ]
     },
@@ -387,10 +416,78 @@
       "prerequisites": "Plusieurs groupes et montants non divisibles au centime.",
       "actions": "Répartir une addition entre groupes et moyens puis payer chaque solde.",
       "expected": "Somme exacte et répartition des centimes explicitement conservée.",
-      "notRun": "Paiements mixtes partiels testés en T32/T52 ; partage intergroupes avec centimes résiduels non exécuté de bout en bout.",
-      "status": "NOT RUN",
-      "observed": "Paiements mixtes partiels testés en T32/T52 ; partage intergroupes avec centimes résiduels non exécuté de bout en bout.",
-      "evidence": []
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "trois groupes partagent remise"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "un nouvel acompte invalide"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "vente finale conserve les centimes"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "ancien original entièrement"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "ancien miroir JSON fictif"
+        },
+        {
+          "file": "tests/browser-lab/financial-allocation.spec.ts",
+          "name": "allocation QR : décision responsable"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions exécutées et réussies : trois groupes partagent remise et acompte, règlent séparément sans nouvelle vente ni préparation et restent privés ; un nouvel acompte invalide l’aperçu, puis les paiements mixtes et concurrents conservent les parts exactes ; la vente finale conserve les centimes de TVA historiques même si PostgreSQL retourne les lignes dans un autre ordre ; refuse un ancien original entièrement couvert par ses règlements mais sans clôture, sans inventer de vente ; un ancien miroir JSON fictif ne réintroduit pas la commande répartie dans l’addition du personnel ; allocation QR : décision responsable, acomptes explicites, panne réseau, QR privés et paiement du groupe dans Chrome. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "trois groupes partagent remise et acompte, règlent séparément sans nouvelle vente ni préparation et restent privés",
+          "status": "passed",
+          "durationMs": 584.4313,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "un nouvel acompte invalide l’aperçu, puis les paiements mixtes et concurrents conservent les parts exactes",
+          "status": "passed",
+          "durationMs": 384.4214999999999,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "la vente finale conserve les centimes de TVA historiques même si PostgreSQL retourne les lignes dans un autre ordre",
+          "status": "passed",
+          "durationMs": 187.5373999999997,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "refuse un ancien original entièrement couvert par ses règlements mais sans clôture, sans inventer de vente",
+          "status": "passed",
+          "durationMs": 129.5869,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "un ancien miroir JSON fictif ne réintroduit pas la commande répartie dans l’addition du personnel",
+          "status": "passed",
+          "durationMs": 141.0589,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        },
+        {
+          "file": "tests/browser-lab/financial-allocation.spec.ts",
+          "name": "allocation QR : décision responsable, acomptes explicites, panne réseau, QR privés et paiement du groupe dans Chrome",
+          "status": "passed",
+          "durationMs": 11458,
+          "executedAt": "2026-10-16T17:20:14.536Z"
+        }
+      ]
     },
     {
       "id": "T17",
@@ -398,10 +495,23 @@
       "prerequisites": "Responsable puis serveur, article offert.",
       "actions": "Offrir, encaisser et contrôler le justificatif et le journal.",
       "expected": "Autorisation, motif, ventilation et stock traçables.",
-      "notRun": "Refus de séparation ambiguë testé ; parcours complet d’offert avec motif non exécuté.",
-      "status": "NOT RUN",
-      "observed": "Refus de séparation ambiguë testé ; parcours complet d’offert avec motif non exécuté.",
-      "evidence": []
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/pos.integration.test.ts",
+          "name": "un offert exige un motif responsable"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions exécutées et réussies : un offert exige un motif responsable, conserve son auteur, son ticket et un seul débit de stock. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/pos.integration.test.ts",
+          "name": "un offert exige un motif responsable, conserve son auteur, son ticket et un seul débit de stock",
+          "status": "passed",
+          "durationMs": 77.47379999999998,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        }
+      ]
     },
     {
       "id": "T18",
@@ -409,10 +519,25 @@
       "prerequisites": "Commande déjà transmise à la préparation.",
       "actions": "Annuler une ligne et traiter la correction.",
       "expected": "Correction visible sans suppression silencieuse de vente ou préparation.",
-      "notRun": "Routage de séparation testé ; annulation financière après envoi non qualifiée dans ce lot.",
-      "status": "NOT RUN",
-      "observed": "Routage de séparation testé ; annulation financière après envoi non qualifiée dans ce lot.",
-      "evidence": []
+      "blocked": "Parcours de correction signé après préparation non implémenté. Le risque d’annulation/effacement silencieux a été reproduit puis bloqué par 409, avec test orders ; cela ne livre pas la correction métier complète.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/orders.integration.test.ts",
+          "name": "annulation destructive"
+        }
+      ],
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Parcours de correction signé après préparation non implémenté. Le risque d’annulation/effacement silencieux a été reproduit puis bloqué par 409, avec test orders ; cela ne livre pas la correction métier complète.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/orders.integration.test.ts",
+          "name": "refuse l’effacement ou l’annulation destructive d’un QR déjà en préparation et garde le prix et la quantité",
+          "status": "passed",
+          "durationMs": 27.68679999999995,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        }
+      ]
     },
     {
       "id": "T19",
@@ -437,15 +562,15 @@
           "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
           "name": "un avoir intégral ne modifie pas la facture, son PDF, sa vente ou son règlement",
           "status": "passed",
-          "durationMs": 233.6948,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 221.30649999999991,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/refunds.integration.test.ts",
           "name": "un remboursement espèces déclaré garde le justificatif et une seule sortie de caisse",
           "status": "passed",
-          "durationMs": 354.7355,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 302.94669999999996,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -472,15 +597,15 @@
           "file": "apps/backend/src/routes/service-sessions.integration.test.ts",
           "name": "deux versions concurrentes ne perdent pas la modification confirmée",
           "status": "passed",
-          "durationMs": 31.90859999999998,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 28.26509999999996,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/table-movements.integration.test.ts",
           "name": "une séparation concurrente gagne une fois, reste rejouable et n’est pas lisible dans une autre société",
           "status": "passed",
-          "durationMs": 203.20260000000007,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 140.55409999999983,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -507,15 +632,15 @@
           "file": "apps/backend/src/routes/orders.integration.test.ts",
           "name": "un seul encaissement gagne parmi vingt demandes simultanées",
           "status": "passed",
-          "durationMs": 286.2033,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 289.8787,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/service-sessions.integration.test.ts",
           "name": "un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock",
           "status": "passed",
-          "durationMs": 380.5239999999999,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 370.6622,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -542,15 +667,15 @@
           "file": "tests/browser-lab/qr-movements.spec.ts",
           "name": "fusion POS/QR, acompte, réponse perdue et addition privée renouvelée",
           "status": "passed",
-          "durationMs": 17364,
-          "executedAt": "2026-10-16T15:25:58.925Z"
+          "durationMs": 17546,
+          "executedAt": "2026-10-16T17:21:22.913Z"
         },
         {
           "file": "tests/browser-lab/service-separations.spec.ts",
           "name": "séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement",
           "status": "passed",
-          "durationMs": 21556,
-          "executedAt": "2026-10-16T15:26:16.307Z"
+          "durationMs": 21759,
+          "executedAt": "2026-10-16T17:21:43.635Z"
         }
       ]
     },
@@ -577,15 +702,15 @@
           "file": "apps/backend/src/routes/table-movements.integration.test.ts",
           "name": "déplace une partie de ligne native à son prix historique sans nouvelle préparation ni débit de stock",
           "status": "passed",
-          "durationMs": 357.6786000000002,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 350.0466999999999,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "tests/browser-lab/service-separations.spec.ts",
           "name": "séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement",
           "status": "passed",
-          "durationMs": 21556,
-          "executedAt": "2026-10-16T15:26:16.307Z"
+          "durationMs": 21759,
+          "executedAt": "2026-10-16T17:21:43.635Z"
         }
       ]
     },
@@ -595,9 +720,10 @@
       "prerequisites": "Catalogue avec variantes tarifées serveur.",
       "actions": "Commander deux tailles et un supplément depuis la caisse.",
       "expected": "Tarif persistant et ticket cuisine correct.",
-      "notRun": "Les modificateurs locaux ne constituent pas une qualification de variantes tarifées serveur.",
-      "status": "NOT RUN",
-      "observed": "Les modificateurs locaux ne constituent pas une qualification de variantes tarifées serveur.",
+      "blocked": "Pas de variantes/suppléments tarifés par le serveur ; les modificateurs de note ne sont pas une preuve de cette fonction.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Pas de variantes/suppléments tarifés par le serveur ; les modificateurs de note ne sont pas une preuve de cette fonction.",
       "evidence": []
     },
     {
@@ -606,10 +732,23 @@
       "prerequisites": "Produit indisponible dans le catalogue du site.",
       "actions": "Tenter de le commander via POS et QR.",
       "expected": "Refus serveur cohérent avec l’affichage.",
-      "notRun": "Unité d’indicateur de stock disponible ; parcours combiné POS/QR non exécuté.",
-      "status": "NOT RUN",
-      "observed": "Unité d’indicateur de stock disponible ; parcours combiné POS/QR non exécuté.",
-      "evidence": []
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "un produit inactif"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions exécutées et réussies : un produit inactif ne peut être ajouté depuis un brouillon POS ni une commande QR. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "un produit inactif ne peut être ajouté depuis un brouillon POS ni une commande QR",
+          "status": "passed",
+          "durationMs": 171.95929999999998,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        }
+      ]
     },
     {
       "id": "T26",
@@ -634,15 +773,15 @@
           "file": "apps/backend/src/routes/cash-drawers.integration.test.ts",
           "name": "exige une justification de l’écart et ne réécrit pas une clôture",
           "status": "passed",
-          "durationMs": 26.973700000000008,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 20.96429999999998,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/cash-drawers.integration.test.ts",
           "name": "vingt reprises de clôture rendent exactement le même rapport sans réécriture",
           "status": "passed",
-          "durationMs": 62.90160000000003,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 63.37390000000005,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -669,15 +808,15 @@
           "file": "apps/backend/src/routes/pos.integration.test.ts",
           "name": "fige réellement un nouveau brouillon et encaisse son tarif malgré une modification de catalogue",
           "status": "passed",
-          "durationMs": 181.65080000000012,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 179.80830000000014,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/guest-visits.integration.test.ts",
           "name": "calcule TTC et TVA côté serveur et rejoue sans modifier la commande émise",
           "status": "passed",
-          "durationMs": 37.18489999999997,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 31.08420000000001,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -700,8 +839,8 @@
           "file": "apps/backend/src/routes/invoices.integration.test.ts",
           "name": "arrondit par taux sans inventer un centime entre deux groupes",
           "status": "passed",
-          "durationMs": 31.043499999999995,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 32.50810000000001,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -724,8 +863,8 @@
           "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
           "name": "un avoir partiel puis le solde reconstituent exactement chaque groupe fiscal historique",
           "status": "passed",
-          "durationMs": 179.50890000000004,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 165.3868,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -748,8 +887,8 @@
           "file": "apps/backend/src/routes/receipt-invoices.integration.test.ts",
           "name": "conserve TTC, remise et TVA, sans facturer à nouveau pourboire ou don",
           "status": "passed",
-          "durationMs": 51.16559999999993,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 48.29769999999996,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -776,15 +915,15 @@
           "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
           "name": "un avoir partiel puis le solde reconstituent exactement chaque groupe fiscal historique",
           "status": "passed",
-          "durationMs": 179.50890000000004,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 165.3868,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
           "name": "vingt demandes différentes ne dépassent jamais le montant original",
           "status": "passed",
-          "durationMs": 7247.7431,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 5861.6664,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -807,8 +946,8 @@
           "file": "apps/backend/src/routes/service-sessions.integration.test.ts",
           "name": "un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock",
           "status": "passed",
-          "durationMs": 380.5239999999999,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 370.6622,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -835,15 +974,15 @@
           "file": "apps/backend/src/routes/receipt-invoices.integration.test.ts",
           "name": "vingt demandes simultanées retrouvent une seule facture et un seul numéro",
           "status": "passed",
-          "durationMs": 218.35070000000007,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 190.39610000000005,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/receipt-invoices.integration.test.ts",
           "name": "émet un PDF avec l’émetteur historique et le règlement déclaré, sans nouvelle écriture",
           "status": "passed",
-          "durationMs": 145.72569999999996,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 114.1443999999999,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -866,8 +1005,8 @@
           "file": "apps/backend/src/routes/invoices.integration.test.ts",
           "name": "un PDF émis ne change pas après la modification de la société",
           "status": "passed",
-          "durationMs": 120.14869999999996,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 114.81709999999998,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -890,8 +1029,8 @@
           "file": "apps/backend/src/routes/invoices.integration.test.ts",
           "name": "vingt créations concurrentes obtiennent vingt numéros différents",
           "status": "passed",
-          "durationMs": 237.7127999999999,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 278.88610000000006,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -901,10 +1040,23 @@
       "prerequisites": "Profil légal et clients professionnels fictifs.",
       "actions": "Émettre les trois montants et examiner leurs mentions.",
       "expected": "Montants exacts et document complet sur demande, sans promesse légale.",
-      "notRun": "Jeu de trois seuils non exécuté ; validation comptable du régime également absente.",
-      "status": "NOT RUN",
-      "observed": "Jeu de trois seuils non exécuté ; validation comptable du régime également absente.",
-      "evidence": []
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/invoices.integration.test.ts",
+          "name": "émet les seuils 99,99"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions exécutées et réussies : émet les seuils 99,99, 100 et 100,01 avec document complet et PDF historique exact. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/invoices.integration.test.ts",
+          "name": "émet les seuils 99,99, 100 et 100,01 avec document complet et PDF historique exact",
+          "status": "passed",
+          "durationMs": 192.8958,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        }
+      ]
     },
     {
       "id": "T37",
@@ -925,8 +1077,8 @@
           "file": "apps/backend/src/lib/invoice-pdf.test.ts",
           "name": "produit un PDF ouvrable, paginé, avec noms accentués",
           "status": "passed",
-          "durationMs": 185.4663,
-          "executedAt": "2026-10-16T15:21:51.923Z"
+          "durationMs": 139.93379999999996,
+          "executedAt": "2026-10-16T17:18:59.484Z"
         }
       ]
     },
@@ -953,15 +1105,15 @@
           "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
           "name": "exporte les pièces signées séparément, sans créer une deuxième vente",
           "status": "passed",
-          "durationMs": 133.8230999999996,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 111.76419999999962,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/lib/financial-reconciliation.test.ts",
           "name": "la facture depuis ticket ne rajoute pas une vente ; avoir et remboursement restent distincts",
           "status": "passed",
-          "durationMs": 3.2172999999999945,
-          "executedAt": "2026-10-16T15:21:51.923Z"
+          "durationMs": 3.40209999999999,
+          "executedAt": "2026-10-16T17:18:59.484Z"
         }
       ]
     },
@@ -971,10 +1123,34 @@
       "prerequisites": "Devis fictif accepté.",
       "actions": "Convertir deux fois concurremment.",
       "expected": "Une seule facture et lien de provenance.",
-      "notRun": "Parcours complet et concurrence de devis non exécutés dans ce lot.",
-      "status": "NOT RUN",
-      "observed": "Parcours complet et concurrence de devis non exécutés dans ce lot.",
-      "evidence": []
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/invoices.integration.test.ts",
+          "name": "convertit un devis concurremment"
+        },
+        {
+          "file": "tests/browser-lab/business-extended.spec.ts",
+          "name": "gestion Chrome"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions exécutées et réussies : convertit un devis concurremment une seule fois, conserve son lien et retrouve la facture après réponse perdue ; gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/invoices.integration.test.ts",
+          "name": "convertit un devis concurremment une seule fois, conserve son lien et retrouve la facture après réponse perdue",
+          "status": "passed",
+          "durationMs": 79.15239999999994,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        },
+        {
+          "file": "tests/browser-lab/business-extended.spec.ts",
+          "name": "gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis",
+          "status": "passed",
+          "durationMs": 5593,
+          "executedAt": "2026-10-16T17:20:05.787Z"
+        }
+      ]
     },
     {
       "id": "T40",
@@ -983,6 +1159,7 @@
       "actions": "Valider XML correct puis incorrect et transmettre en test.",
       "expected": "Rejet clair et statut de canal distinct de génération.",
       "blocked": "Format/canal Peppol ou MyGuichet non qualifié ; aucun accès de recette disponible.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Format/canal Peppol ou MyGuichet non qualifié ; aucun accès de recette disponible.",
       "evidence": []
@@ -994,6 +1171,7 @@
       "actions": "Créer et capturer une transaction dans le sandbox officiel.",
       "expected": "Capture exacte vérifiée et affectée une seule fois.",
       "blocked": "Aucune clé sandbox fournie au laboratoire ; aucun appel PayPal distant effectué.",
+      "blockerCategory": "EXTERNAL",
       "status": "BLOCKED",
       "observed": "Aucune clé sandbox fournie au laboratoire ; aucun appel PayPal distant effectué.",
       "evidence": []
@@ -1004,10 +1182,23 @@
       "prerequisites": "Prestataire et tentative de paiement fictifs.",
       "actions": "Refuser l’autorisation/capture et revenir à la caisse.",
       "expected": "Refus explicite et aucun paiement confirmé.",
-      "notRun": "Refus de remboursement et réponses contradictoires testés, mais pas le parcours complet de paiement refusé.",
-      "status": "NOT RUN",
-      "observed": "Refus de remboursement et réponses contradictoires testés, mais pas le parcours complet de paiement refusé.",
-      "evidence": []
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "un refus bancaire simulé"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions exécutées et réussies : un refus bancaire simulé est visible à rapprocher sans fausse capture ni libération de réserve. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "un refus bancaire simulé est visible à rapprocher sans fausse capture ni libération de réserve",
+          "status": "passed",
+          "durationMs": 25.34829999999988,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        }
+      ]
     },
     {
       "id": "T43",
@@ -1015,10 +1206,23 @@
       "prerequisites": "Tentative en attente créée par un prestataire.",
       "actions": "Abandonner l’approbation puis revenir tardivement.",
       "expected": "Pas de fausse capture ; réserve libérée seulement sur preuve applicable.",
-      "notRun": "Parcours d’abandon acheteur complet non exécuté ; timeout et réserve testés séparément.",
-      "status": "NOT RUN",
-      "observed": "Parcours d’abandon acheteur complet non exécuté ; timeout et réserve testés séparément.",
-      "evidence": []
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "un abandon acheteur"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions exécutées et réussies : un abandon acheteur puis son retour tardif ne vaut jamais annulation bancaire ou paiement. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "un abandon acheteur puis son retour tardif ne vaut jamais annulation bancaire ou paiement",
+          "status": "passed",
+          "durationMs": 27.58459999999991,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        }
+      ]
     },
     {
       "id": "T44",
@@ -1043,15 +1247,15 @@
           "file": "apps/backend/src/routes/payments.integration.test.ts",
           "name": "après timeout une nouvelle référence ne déclenche pas un autre débit",
           "status": "passed",
-          "durationMs": 15.288700000000063,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 14.884800000000041,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/refunds.integration.test.ts",
           "name": "un timeout conserve la réservation et n’émet jamais un deuxième remboursement",
           "status": "passed",
-          "durationMs": 117.9840999999999,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 122.18209999999999,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -1074,8 +1278,8 @@
           "file": "apps/backend/src/routes/payments.integration.test.ts",
           "name": "deux notifications vérifiées du même événement produisent une seule affectation",
           "status": "passed",
-          "durationMs": 31.572299999999814,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 28.287500000000023,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -1085,10 +1289,23 @@
       "prerequisites": "Tentative, webhook vérifié et parcours de retour ouverts.",
       "actions": "Recevoir le webhook avant le retour, puis revenir et rejouer.",
       "expected": "Écriture unique, navigateur non source de vérité.",
-      "notRun": "Rapprochement idempotent et notifications doubles exécutés ; ordre complet webhook puis retour navigateur non exécuté dans ce lot.",
-      "status": "NOT RUN",
-      "observed": "Rapprochement idempotent et notifications doubles exécutés ; ordre complet webhook puis retour navigateur non exécuté dans ce lot.",
-      "evidence": []
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "un webhook vérifié avant le retour"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions exécutées et réussies : un webhook vérifié avant le retour puis deux retours navigateur ne créent qu’un seul règlement. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "un webhook vérifié avant le retour puis deux retours navigateur ne créent qu’un seul règlement",
+          "status": "passed",
+          "durationMs": 40.613000000000056,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        }
+      ]
     },
     {
       "id": "T47",
@@ -1113,15 +1330,15 @@
           "file": "apps/backend/src/routes/payments.integration.test.ts",
           "name": "rejette un webhook non vérifié sans marquer payé",
           "status": "passed",
-          "durationMs": 4.863599999999906,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 4.019700000000057,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/payments.integration.test.ts",
           "name": "vérifie la signature Stripe sur le corps brut et déduplique l’événement",
           "status": "passed",
-          "durationMs": 31.9070999999999,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 31.740600000000086,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -1152,22 +1369,22 @@
           "file": "apps/backend/src/routes/payments.integration.test.ts",
           "name": "refuse un prix navigateur différent du solde serveur",
           "status": "passed",
-          "durationMs": 10.469999999999914,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 8.913499999999999,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/payments.integration.test.ts",
           "name": "refuse la devise différente de la société",
           "status": "passed",
-          "durationMs": 8.190799999999967,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 7.354400000000055,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/payments.integration.test.ts",
           "name": "une capture sans montant ou marchand vérifié ne marque jamais payé",
           "status": "passed",
-          "durationMs": 18.234699999999975,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 17.16039999999998,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -1190,8 +1407,8 @@
           "file": "apps/backend/src/routes/refunds.integration.test.ts",
           "name": "un timeout de création tardif ne rétrograde pas une preuve déjà confirmée par rapprochement",
           "status": "passed",
-          "durationMs": 220.51690000000008,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 155.92380000000003,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -1218,15 +1435,15 @@
           "file": "apps/backend/src/routes/refunds.integration.test.ts",
           "name": "une demande ne signifie pas remboursé ; une preuve exacte confirme une seule fois",
           "status": "passed",
-          "durationMs": 277.4311,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 232.56180000000006,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/refunds.integration.test.ts",
           "name": "deux références concurrentes ne réservent pas plus que l’avoir",
           "status": "passed",
-          "durationMs": 142.0999999999999,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 145.54750000000013,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -1249,8 +1466,8 @@
           "file": "apps/backend/src/routes/payments.integration.test.ts",
           "name": "réserve le solde contre deux références concurrentes",
           "status": "passed",
-          "durationMs": 40.36620000000005,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 41.39269999999999,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -1273,8 +1490,8 @@
           "file": "apps/backend/src/routes/orders.integration.test.ts",
           "name": "un paiement mixte partiel conserve espèces et carte sans payer le reste",
           "status": "passed",
-          "durationMs": 38.64570000000003,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 22.276200000000017,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -1297,8 +1514,8 @@
           "file": "apps/backend/src/routes/refunds.integration.test.ts",
           "name": "une carte déclarée ne crée aucune sortie espèces, reste auditée et plafonnée",
           "status": "passed",
-          "durationMs": 165.05079999999998,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 154.48029999999994,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -1325,15 +1542,15 @@
           "file": "apps/backend/src/routes/orders.integration.test.ts",
           "name": "une tentative incertaine empêche un second encaissement manuel",
           "status": "passed",
-          "durationMs": 13.245599999999968,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 22.34039999999993,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/pos.integration.test.ts",
           "name": "une capture PayPal en cours empêche le règlement à une autre caisse",
           "status": "passed",
-          "durationMs": 63.23149999999998,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 62.847999999999956,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -1360,15 +1577,15 @@
           "file": "apps/backend/src/routes/bank-payouts.integration.test.ts",
           "name": "importe et rapproche manuellement une capture, ses frais et son net sans ajouter une vente",
           "status": "passed",
-          "durationMs": 127.77299999999991,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 115.99329999999998,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/refunds.integration.test.ts",
           "name": "rapproche capture, remboursement confirmé, frais, retenue et libération sans modifier la vente",
           "status": "passed",
-          "durationMs": 166.73889999999983,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 154.7487000000001,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -1379,6 +1596,7 @@
       "actions": "Tester onboarding et flux de règlement indépendants.",
       "expected": "Aucune recette client vers le marchand SaaS.",
       "blocked": "Onboarding multicommerçant officiel et comptes prestataires de recette non disponibles.",
+      "blockerCategory": "EXTERNAL",
       "status": "BLOCKED",
       "observed": "Onboarding multicommerçant officiel et comptes prestataires de recette non disponibles.",
       "evidence": []
@@ -1390,6 +1608,7 @@
       "actions": "Imprimer un ticket de vente et comparer au document.",
       "expected": "Lisible, complet et largeur réelle correcte.",
       "blocked": "Aucune imprimante thermique 58 mm raccordée et qualifiée.",
+      "blockerCategory": "EXTERNAL",
       "status": "BLOCKED",
       "observed": "Aucune imprimante thermique 58 mm raccordée et qualifiée.",
       "evidence": []
@@ -1401,6 +1620,7 @@
       "actions": "Imprimer un ticket de vente et comparer au document.",
       "expected": "Lisible, complet et massicot correct.",
       "blocked": "Aucune imprimante thermique 80 mm raccordée et qualifiée.",
+      "blockerCategory": "EXTERNAL",
       "status": "BLOCKED",
       "observed": "Aucune imprimante thermique 80 mm raccordée et qualifiée.",
       "evidence": []
@@ -1412,6 +1632,7 @@
       "actions": "Imprimer FR/DE/LU/EN/PT et symbole euro.",
       "expected": "Aucun caractère manquant.",
       "blocked": "PDF logiciel seul insuffisant ; imprimante/codepage absents.",
+      "blockerCategory": "EXTERNAL",
       "status": "BLOCKED",
       "observed": "PDF logiciel seul insuffisant ; imprimante/codepage absents.",
       "evidence": []
@@ -1423,6 +1644,7 @@
       "actions": "Imprimer puis scanner à plusieurs résolutions.",
       "expected": "QR résolu vers la bonne session et aucun accès permanent.",
       "blocked": "Aucun couple imprimante/lecteur disponible pour cet essai.",
+      "blockerCategory": "EXTERNAL",
       "status": "BLOCKED",
       "observed": "Aucun couple imprimante/lecteur disponible pour cet essai.",
       "evidence": []
@@ -1434,6 +1656,7 @@
       "actions": "Retirer le papier pendant une tâche.",
       "expected": "Erreur ou résultat inconnu honnête, tâche conservée.",
       "blocked": "Matériel et agent d’impression persistante non qualifiés.",
+      "blockerCategory": "EXTERNAL",
       "status": "BLOCKED",
       "observed": "Matériel et agent d’impression persistante non qualifiés.",
       "evidence": []
@@ -1445,6 +1668,7 @@
       "actions": "Débrancher puis rebrancher pendant l’envoi.",
       "expected": "Reprise explicite sans fausse preuve papier.",
       "blocked": "Aucun appareil pour cet essai physique.",
+      "blockerCategory": "EXTERNAL",
       "status": "BLOCKED",
       "observed": "Aucun appareil pour cet essai physique.",
       "evidence": []
@@ -1456,6 +1680,7 @@
       "actions": "Perdre l’accusé après envoi.",
       "expected": "Statut inconnu, vérification ou duplicata explicite.",
       "blocked": "File persistante et imprimante à qualifier ; pas assimilé à une perte de réponse HTTP métier.",
+      "blockerCategory": "EXTERNAL",
       "status": "BLOCKED",
       "observed": "File persistante et imprimante à qualifier ; pas assimilé à une perte de réponse HTTP métier.",
       "evidence": []
@@ -1466,9 +1691,10 @@
       "prerequisites": "Reçu déjà réglé et service d’impression.",
       "actions": "Réimprimer et comparer ventes/règlements.",
       "expected": "Même référence, aucune nouvelle écriture.",
-      "notRun": "Immutabilité documentaire éprouvée ; commande dédiée de duplicata thermique non exécutée.",
-      "status": "NOT RUN",
-      "observed": "Immutabilité documentaire éprouvée ; commande dédiée de duplicata thermique non exécutée.",
+      "blocked": "Réimpression thermique de duplicata non qualifiée : matériel et commande persistante absents. Les relectures HTML seules ne prouvent pas ce parcours physique.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "Réimpression thermique de duplicata non qualifiée : matériel et commande persistante absents. Les relectures HTML seules ne prouvent pas ce parcours physique.",
       "evidence": []
     },
     {
@@ -1478,6 +1704,7 @@
       "actions": "Réimprimer sans droit d’ouverture du tiroir.",
       "expected": "Aucune impulsion tiroir.",
       "blocked": "Aucun tiroir raccordé ; aucune impulsion déclenchée.",
+      "blockerCategory": "EXTERNAL",
       "status": "BLOCKED",
       "observed": "Aucun tiroir raccordé ; aucune impulsion déclenchée.",
       "evidence": []
@@ -1489,6 +1716,7 @@
       "actions": "Imprimer cent lignes et examiner coupe et totaux.",
       "expected": "Pas de troncature.",
       "blocked": "Multipage A4 testé ; ticket thermique de cent lignes non testé physiquement.",
+      "blockerCategory": "EXTERNAL",
       "status": "BLOCKED",
       "observed": "Multipage A4 testé ; ticket thermique de cent lignes non testé physiquement.",
       "evidence": []
@@ -1512,8 +1740,8 @@
           "file": "apps/backend/src/routes/invoice-email.integration.test.ts",
           "name": "reçoit le même PDF original dans la boîte locale, une fois malgré le rejeu",
           "status": "passed",
-          "durationMs": 78.94529999999997,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 94.58100000000002,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -1536,8 +1764,8 @@
           "file": "apps/backend/src/routes/invoice-email.integration.test.ts",
           "name": "ne réexpédie pas après perte de l’accusé, même si le serveur a reçu le message",
           "status": "passed",
-          "durationMs": 51.5634,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 45.56330000000003,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -1547,9 +1775,10 @@
       "prerequisites": "Lien temporaire de document actif puis expiré.",
       "actions": "Télécharger après échéance.",
       "expected": "Refus sans octets divulgués.",
-      "notRun": "Expiration des capacités QR testée ; lien temporaire documentaire distinct non qualifié.",
-      "status": "NOT RUN",
-      "observed": "Expiration des capacités QR testée ; lien temporaire documentaire distinct non qualifié.",
+      "blocked": "Pas de lien documentaire signé temporaire implémenté. Les documents restent soumis à authentification et société ; l’expiration d’un QR n’est pas celle d’un document.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Pas de lien documentaire signé temporaire implémenté. Les documents restent soumis à authentification et société ; l’expiration d’un QR n’est pas celle d’un document.",
       "evidence": []
     },
     {
@@ -1575,15 +1804,15 @@
           "file": "apps/backend/src/routes/hr-documents.integration.test.ts",
           "name": "refuse lecture, téléchargement et écriture hors de son propre dossier",
           "status": "passed",
-          "durationMs": 35.75710000000004,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 30.463799999999992,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
           "name": "télécharge un vrai PDF original figé de l’avoir et refuse le document étranger",
           "status": "passed",
-          "durationMs": 140.40270000000055,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 112.01760000000013,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -1593,9 +1822,10 @@
       "prerequisites": "Moteur d’alerte déterministe sans caméra.",
       "actions": "Déclarer un départ avec 24 € ouverts.",
       "expected": "Alerte prudente avec faits, délai et action humaine.",
-      "notRun": "Moteur de règles table 3 non implémenté/recetté dans ce lot.",
-      "status": "NOT RUN",
-      "observed": "Moteur de règles table 3 non implémenté/recetté dans ce lot.",
+      "blocked": "Moteur d’alertes déterministe de départ déclaré non implémenté. Aucun événement de départ fictif ne peut traverser ce parcours inexistant ; vidéo non activée.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Moteur d’alertes déterministe de départ déclaré non implémenté. Aucun événement de départ fictif ne peut traverser ce parcours inexistant ; vidéo non activée.",
       "evidence": []
     },
     {
@@ -1604,9 +1834,10 @@
       "prerequisites": "Alerte de départ active.",
       "actions": "Déclarer le retour du groupe.",
       "expected": "Alerte temporisée/clôturée sans action financière.",
-      "notRun": "Dépend du moteur T71, aucun résultat inventé.",
-      "status": "NOT RUN",
-      "observed": "Dépend du moteur T71, aucun résultat inventé.",
+      "blocked": "Consommateur de retour humain lié aux alertes T71 non implémenté.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Consommateur de retour humain lié aux alertes T71 non implémenté.",
       "evidence": []
     },
     {
@@ -1616,6 +1847,7 @@
       "actions": "Signaler une personne restante.",
       "expected": "Pas d’accusation ni de débit automatique.",
       "blocked": "Source d’occupation non qualifiée ; vidéo désactivée.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Source d’occupation non qualifiée ; vidéo désactivée.",
       "evidence": []
@@ -1626,9 +1858,10 @@
       "prerequisites": "Alerte et paiement sur une autre caisse.",
       "actions": "Régler puis rafraîchir l’alerte.",
       "expected": "Alerte ne confond pas solde payé et départ.",
-      "notRun": "Paiements concurrents testés, raccordement du moteur d’alerte non exécuté.",
-      "status": "NOT RUN",
-      "observed": "Paiements concurrents testés, raccordement du moteur d’alerte non exécuté.",
+      "blocked": "Raccordement paiement / résolution des alertes T71 non implémenté ; le paiement serveur est testé séparément.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Raccordement paiement / résolution des alertes T71 non implémenté ; le paiement serveur est testé séparément.",
       "evidence": []
     },
     {
@@ -1637,9 +1870,10 @@
       "prerequisites": "Alerte rattachée à une session, transfert en cours.",
       "actions": "Déplacer la session.",
       "expected": "Alerte suit la bonne identité sans doublon.",
-      "notRun": "Transferts testés ; consommateur d’alerte non implémenté/recetté.",
-      "status": "NOT RUN",
-      "observed": "Transferts testés ; consommateur d’alerte non implémenté/recetté.",
+      "blocked": "Identité et suivi des alertes lors des transferts non implémentés ; aucun transfert financier n’est présenté comme un test du moteur absent.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Identité et suivi des alertes lors des transferts non implémentés ; aucun transfert financier n’est présenté comme un test du moteur absent.",
       "evidence": []
     },
     {
@@ -1648,9 +1882,10 @@
       "prerequisites": "Crédit société approuvé avec échéance.",
       "actions": "Déclarer le départ sans encaissement immédiat.",
       "expected": "Créance explicite et non incident de départ.",
-      "notRun": "Parcours crédit entreprise/alertes non qualifié.",
-      "status": "NOT RUN",
-      "observed": "Parcours crédit entreprise/alertes non qualifié.",
+      "blocked": "Autorisation de crédit société et exemption d’alerte non modélisées / non implémentées ; une fiche client société seule ne vaut pas crédit approuvé.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Autorisation de crédit société et exemption d’alerte non modélisées / non implémentées ; une fiche client société seule ne vaut pas crédit approuvé.",
       "evidence": []
     },
     {
@@ -1660,6 +1895,7 @@
       "actions": "Couper le flux.",
       "expected": "État inconnu, caisse indépendante.",
       "blocked": "Vidéo désactivée ; aucune caméra ni finalité validée.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Vidéo désactivée ; aucune caméra ni finalité validée.",
       "evidence": []
@@ -1671,6 +1907,7 @@
       "actions": "Rejouer une image en retard.",
       "expected": "Rapprochement suspendu.",
       "blocked": "Pipeline vidéo non activé ni testé.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Pipeline vidéo non activé ni testé.",
       "evidence": []
@@ -1682,6 +1919,7 @@
       "actions": "Introduire une dérive connue.",
       "expected": "Incertitude visible et association refusée.",
       "blocked": "Aucun équipement/pipeline vidéo qualifié.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Aucun équipement/pipeline vidéo qualifié.",
       "evidence": []
@@ -1693,6 +1931,7 @@
       "actions": "Modifier le cadrage.",
       "expected": "Invalidation sans inventer une nouvelle association.",
       "blocked": "Vidéo désactivée et calibration inexistante.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Vidéo désactivée et calibration inexistante.",
       "evidence": []
@@ -1704,6 +1943,7 @@
       "actions": "Suivre le même contenant sur plusieurs images.",
       "expected": "Pas de double comptage ni vente supposée.",
       "blocked": "Recherche séparée, pas de modèle ou de scène qualifiés.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Recherche séparée, pas de modèle ou de scène qualifiés.",
       "evidence": []
@@ -1715,6 +1955,7 @@
       "actions": "Produire un événement de sortie.",
       "expected": "Événement général uniquement.",
       "blocked": "Module vidéo non raccordé ; aucune association personnelle créée.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Module vidéo non raccordé ; aucune association personnelle créée.",
       "evidence": []
@@ -1726,6 +1967,7 @@
       "actions": "Consulter l’extrait absent.",
       "expected": "Absence explicite, aucun contenu fabriqué.",
       "blocked": "Aucun stockage vidéo ni connecteur qualifié.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Aucun stockage vidéo ni connecteur qualifié.",
       "evidence": []
@@ -1737,6 +1979,7 @@
       "actions": "Vérifier l’occultation avant traitement dans chaque sortie.",
       "expected": "Pixels privés réellement absents.",
       "blocked": "Aucun pipeline vidéo activé ; masques non prouvés.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Aucun pipeline vidéo activé ; masques non prouvés.",
       "evidence": []
@@ -1748,6 +1991,7 @@
       "actions": "Examiner chaque piste et chaque sortie.",
       "expected": "Aucune piste audio collectée ou conservée.",
       "blocked": "Aucun flux multimédia utilisé ; absence de traitement ne vaut pas qualification technique.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Aucun flux multimédia utilisé ; absence de traitement ne vaut pas qualification technique.",
       "evidence": []
@@ -1759,6 +2003,7 @@
       "actions": "Dépasser l’échéance puis inspecter tous les dérivés.",
       "expected": "Clips et dérivés purgés selon politique.",
       "blocked": "Vidéo désactivée, aucune durée validée.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Vidéo désactivée, aucune durée validée.",
       "evidence": []
@@ -1770,6 +2015,7 @@
       "actions": "Ouvrir un extrait en salarié non habilité.",
       "expected": "Refus et journal de consultation.",
       "blocked": "Routes vidéo non déployées ; contrôle complet non exécuté.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Routes vidéo non déployées ; contrôle complet non exécuté.",
       "evidence": []
@@ -1781,6 +2027,7 @@
       "actions": "Remplir le volume de test.",
       "expected": "Vidéo suspendue avant impact sur la caisse.",
       "blocked": "Volumes vidéo et matériel de test absents ; pas de remplissage du disque du PC.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Volumes vidéo et matériel de test absents ; pas de remplissage du disque du PC.",
       "evidence": []
@@ -1792,6 +2039,7 @@
       "actions": "Proposer une URL de métadonnées ou un rebond.",
       "expected": "Rejet sans connexion interdite.",
       "blocked": "Connecteur caméra non implémenté/qualifié ; pas de scan réseau.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Connecteur caméra non implémenté/qualifié ; pas de scan réseau.",
       "evidence": []
@@ -1803,6 +2051,7 @@
       "actions": "Importer un média corrompu.",
       "expected": "Échec borné sans compromettre la caisse.",
       "blocked": "Aucun décodeur vidéo isolé en service.",
+      "blockerCategory": "UNIMPLEMENTED",
       "status": "BLOCKED",
       "observed": "Aucun décodeur vidéo isolé en service.",
       "evidence": []
@@ -1813,9 +2062,10 @@
       "prerequisites": "Import fournisseurs et document fictif.",
       "actions": "Importer deux fois la même pièce.",
       "expected": "Doublon détecté sans double stock/écriture.",
-      "notRun": "Import fournisseur/OCR non qualifié dans ce lot.",
-      "status": "NOT RUN",
-      "observed": "Import fournisseur/OCR non qualifié dans ce lot.",
+      "blocked": "Connecteur d’import de factures fournisseurs, pièce source et déduplication non raccordés. inventory-ai ancien n’est pas monté dans index.ts ; aucun OCR distant lancé.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Connecteur d’import de factures fournisseurs, pièce source et déduplication non raccordés. inventory-ai ancien n’est pas monté dans index.ts ; aucun OCR distant lancé.",
       "evidence": []
     },
     {
@@ -1824,10 +2074,25 @@
       "prerequisites": "Commande fournisseur fictive.",
       "actions": "Recevoir une partie puis joindre la facture.",
       "expected": "Stock augmenté seulement pour les quantités réellement reçues.",
-      "notRun": "Parcours achat/réception partielle non exécuté.",
-      "status": "NOT RUN",
-      "observed": "Parcours achat/réception partielle non exécuté.",
-      "evidence": []
+      "blocked": "Réception partielle et lien de facture non implémentés. Une requête partielle créditait tout le stock ; elle est maintenant refusée sans écriture. Ce garde-fou ne remplace pas la réception partielle.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "une demande de réception partielle"
+        }
+      ],
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Réception partielle et lien de facture non implémentés. Une requête partielle créditait tout le stock ; elle est maintenant refusée sans écriture. Ce garde-fou ne remplace pas la réception partielle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "une demande de réception partielle non prise en charge ne crédite jamais toute la commande fournisseur",
+          "status": "passed",
+          "durationMs": 25.025199999999927,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        }
+      ]
     },
     {
       "id": "T93",
@@ -1835,9 +2100,10 @@
       "prerequisites": "Ingrédients et unités configurés.",
       "actions": "Vendre une recette avec conversions.",
       "expected": "Débit exact et réversible avec provenance.",
-      "notRun": "Stock produit unitaire éprouvé ; recettes multi-unités non qualifiées.",
-      "status": "NOT RUN",
-      "observed": "Stock produit unitaire éprouvé ; recettes multi-unités non qualifiées.",
+      "blocked": "Recette enregistrable mais unités / conversions et journal de consommation d’ingrédients non unifiés avec debitOrderInventory (produits uniquement). Ne pas présenter cette chaîne comme livrée.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Recette enregistrable mais unités / conversions et journal de consommation d’ingrédients non unifiés avec debitOrderInventory (produits uniquement). Ne pas présenter cette chaîne comme livrée.",
       "evidence": []
     },
     {
@@ -1846,9 +2112,10 @@
       "prerequisites": "Comptage physique fictif indépendant.",
       "actions": "Déclarer une perte puis réaliser un inventaire.",
       "expected": "Écart explicite et historique de mouvements cohérent.",
-      "notRun": "Parcours complet inventaire/pertes non exécuté, unités anciennes insuffisantes pour PASS.",
-      "status": "NOT RUN",
-      "observed": "Parcours complet inventaire/pertes non exécuté, unités anciennes insuffisantes pour PASS.",
+      "blocked": "Comptage/pertes avec pièces, mouvements durables cloisonnés et rapprochement unifiés non livrés ; éditer Ingredient.currentStock ne constitue pas un inventaire traçable.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Comptage/pertes avec pièces, mouvements durables cloisonnés et rapprochement unifiés non livrés ; éditer Ingredient.currentStock ne constitue pas un inventaire traçable.",
       "evidence": []
     },
     {
@@ -1878,22 +2145,22 @@
           "file": "apps/backend/src/routes/reservations.integration.test.ts",
           "name": "une seule réservation gagne lors de vingt créations concurrentes sur le même créneau",
           "status": "passed",
-          "durationMs": 174.70510000000002,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 137.87290000000002,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/reservations.integration.test.ts",
           "name": "une modification ou réactivation ne peut pas contourner le conflit de table",
           "status": "passed",
-          "durationMs": 44.86480000000006,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 37.011699999999905,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/reservations.integration.test.ts",
           "name": "le filtre journalier suit Luxembourg, même lors du passage à l’heure d’été",
           "status": "passed",
-          "durationMs": 9.651299999999992,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 7.927099999999996,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         }
       ]
     },
@@ -1924,22 +2191,22 @@
           "file": "apps/backend/src/routes/guest-visits.integration.test.ts",
           "name": "refuse un lien expiré et permet une nouvelle visite sans réutiliser l’ancien lien",
           "status": "passed",
-          "durationMs": 29.725000000000023,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 35.02099999999996,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "apps/backend/src/routes/guest-visits.integration.test.ts",
           "name": "ferme les accès sans effacer une créance, puis isole la nouvelle visite",
           "status": "passed",
-          "durationMs": 78.67079999999999,
-          "executedAt": "2026-10-16T15:23:05.747Z"
+          "durationMs": 68.9683,
+          "executedAt": "2026-10-16T17:19:08.745Z"
         },
         {
           "file": "tests/browser-lab/qr-movements.spec.ts",
           "name": "fusion POS/QR, acompte, réponse perdue et addition privée renouvelée",
           "status": "passed",
-          "durationMs": 17364,
-          "executedAt": "2026-10-16T15:25:58.925Z"
+          "durationMs": 17546,
+          "executedAt": "2026-10-16T17:21:22.913Z"
         }
       ]
     },
@@ -1949,10 +2216,23 @@
       "prerequisites": "Propriétaire et deux salariés fictifs.",
       "actions": "Déposer, approuver et relire une demande avec chaque rôle.",
       "expected": "Salarié limité à sa demande, responsable habilité.",
-      "notRun": "Dossiers RH testés mais pas le parcours congés complet dans ce lot.",
-      "status": "NOT RUN",
-      "observed": "Dossiers RH testés mais pas le parcours congés complet dans ce lot.",
-      "evidence": []
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "un congé ne fuit pas"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions exécutées et réussies : un congé ne fuit pas vers le collègue ; seul le responsable approuve et l’état persiste. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "un congé ne fuit pas vers le collègue ; seul le responsable approuve et l’état persiste",
+          "status": "passed",
+          "durationMs": 47.930900000000065,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        }
+      ]
     },
     {
       "id": "T98",
@@ -1960,10 +2240,34 @@
       "prerequisites": "Tâche de relevé et capteur absent.",
       "actions": "Ouvrir une tâche sans mesure puis valider manuellement.",
       "expected": "Valeur manquante explicite, auteur et source manuels.",
-      "notRun": "Parcours HACCP non exécuté ; aucune mesure de sonde annoncée.",
-      "status": "NOT RUN",
-      "observed": "Parcours HACCP non exécuté ; aucune mesure de sonde annoncée.",
-      "evidence": []
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "une température manquante"
+        },
+        {
+          "file": "tests/browser-lab/business-extended.spec.ts",
+          "name": "gestion Chrome"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions exécutées et réussies : une température manquante ne devient ni zéro ni conforme ; la mesure saisie est identifiée manuelle ; gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "une température manquante ne devient ni zéro ni conforme ; la mesure saisie est identifiée manuelle",
+          "status": "passed",
+          "durationMs": 69.65840000000003,
+          "executedAt": "2026-10-16T17:19:08.745Z"
+        },
+        {
+          "file": "tests/browser-lab/business-extended.spec.ts",
+          "name": "gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis",
+          "status": "passed",
+          "durationMs": 5593,
+          "executedAt": "2026-10-16T17:20:05.787Z"
+        }
+      ]
     },
     {
       "id": "T99",
@@ -1971,9 +2275,10 @@
       "prerequisites": "Chrome neuf 375/768/1440 et langues proposées.",
       "actions": "Utiliser clavier, zoom, tactile et chaque langue du périmètre.",
       "expected": "Pas de débordement, focus visible et texte traduit.",
-      "notRun": "Responsive/clavier des nouvelles fenêtres testé ; multilingue complet, lecteur d’écran et zoom global non qualifiés.",
-      "status": "NOT RUN",
-      "observed": "Responsive/clavier des nouvelles fenêtres testé ; multilingue complet, lecteur d’écran et zoom global non qualifiés.",
+      "blocked": "Traductions complètes des écrans métier non implémentées (textes français codés dans les pages, sélecteur global partiel). Les fenêtres testées à 375/768/1440 et au clavier ne valident pas toutes les langues / le zoom global.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Traductions complètes des écrans métier non implémentées (textes français codés dans les pages, sélecteur global partiel). Les fenêtres testées à 375/768/1440 et au clavier ne valident pas toutes les langues / le zoom global.",
       "evidence": []
     },
     {
@@ -1982,9 +2287,9 @@
       "prerequisites": "Inventaire exhaustif des écrans livrés et scénarios erreur/hors ligne.",
       "actions": "Cliquer chaque contrôle et vérifier sa persistance.",
       "expected": "Aucune action fantôme, erreurs honnêtes et droits respectés.",
-      "notRun": "Parcours critiques ciblés exécutés, pas d’inventaire exhaustif de toutes les actions du produit.",
+      "notRun": "Parcours critiques étendus exécutés dans Chrome, mais inventaire exhaustif de tous les boutons et erreurs du produit non terminé. Aucun accès manquant ne justifie de cacher ce travail restant en BLOCKED.",
       "status": "NOT RUN",
-      "observed": "Parcours critiques ciblés exécutés, pas d’inventaire exhaustif de toutes les actions du produit.",
+      "observed": "Parcours critiques étendus exécutés dans Chrome, mais inventaire exhaustif de tous les boutons et erreurs du produit non terminé. Aucun accès manquant ne justifie de cacher ce travail restant en BLOCKED.",
       "evidence": []
     }
   ]

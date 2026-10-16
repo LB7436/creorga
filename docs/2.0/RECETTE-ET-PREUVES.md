@@ -1,6 +1,53 @@
 # Recette actuelle
 
-## Recette métier et corrections P0/P1 — 16 octobre 2026
+## Allocation financière et recette étendue — résultat courant
+
+16 octobre 2026, après `7c08307`, même branche dédiée. Références de livraison dans CHECKPOINT.
+**Laboratoire uniquement, pas de qualification de production.**
+
+- 418 unités (271 backend / 91 web / 56 POS), 173 intégrations PostgreSQL / 18 fichiers :
+  zéro échec ou ignoré dans la recette finale ; prestataires simulés. Un cas substitue seulement
+  la lecture d'un ancien miroir JSON par des données fictives, jamais un profil historique.
+- Cinq parcours Chrome réussis : gestion HACCP/devis, allocation financière QR,
+  performance/interface, fusion QR et séparations natives. Contextes neufs, aucune navigation
+  historique ; API privée redémarrée entre fichiers, limiteur normal non contourné.
+- Cinq applications compilées. 23 autocontrôles de comparaison de restauration ; 100 cas uniques
+  et 8 contrôles de statut/provenance de matrice. Aucun verdict fondé seulement sur l'existence d'un fichier.
+- **54 PASS / 0 FAIL / 45 BLOCKED / 1 NOT RUN**, avec préconditions/actions/attendu/observé/preuves.
+  Douze anciens NOT RUN exécutés, seize fonctions/prérequis absents classés BLOCKED, T100 non terminé.
+  Les anciens 29 BLOCKED ne sont pas déclarés résolus ; catégories et conditions dans le rapport.
+- Migration réelle d'une ancienne copie : 7 → 34 migrations, 47 tables / 341 lignes et colonnes
+  historiques identiques. Cliché privé source lu seulement ; aucun profil ni archive originale ouvert.
+- Restauration finale à 17:22 UTC : **79 tables et 8 fichiers égaux**, 9 PDF facture et 8 PDF avoir
+  intègres, trois nouvelles tables financières peuplées (5/10/15). AES-GCM / clé séparée, nouvelle
+  base, 2 952 ms sur cette copie, pas un RTO ; 17 assertions après redémarrage.
+
+Allocation v1 : trois groupes avec remise historique, quantités partielles, centimes résiduels,
+deux taux, décisions d'acompte, groupe payé sans clôture globale, paiement mixte, un seul stock/vente,
+conflit concurrent, aperçu périmé et attente réelle d'un verrou PostgreSQL. Anciennes capacités QR
+refusées ; nouveau groupe limité à son addition ; réponse perdue récupérée. Documents déjà émis
+et remboursements existants **refusés**, pas redistribués artificiellement.
+Neuf cas d'allocation incluent aussi la TVA finale indépendante de l'ordre SQL, le miroir JSON
+fictif ne réintroduisant pas l'original et le refus d'un ancien solde couvert mais non clôturé.
+
+Profilage apparié (même jeu, dix transactions hors HTTP/miroir) : 1 483 → 8 requêtes,
+p95 1 313,72 → 607,19 ms. Dernier HTTP global p95 2 420 ms sans builds/tests concurrents, sur un
+autre jeu cumulé (724 produits / 245 tables / 1 266 lignes). Série avec builds 2 492 ms également
+conservée, mais non appariée. Aucune amélioration HTTP globale démontrée face aux 2 060 ms anciens.
+Contrôles ciblés clavier/erreurs/reprise et largeurs
+375/768/1440 ; minimum texte 7,44:1 sur le dialogue mesuré, pas le site entier.
+
+Les simulations de refus/abandon/webhook ne sont pas des essais PayPal officiels. Thermique,
+terminal, sauvegarde externe, T04, traductions complètes et T100 restent non qualifiés.
+Stripe Refunds et vidéo non activés ; aucune production modifiée.
+
+Rapport et commandes : [ALLOCATION-FINANCIERE-ET-RECETTE.md](ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Preuves expurgées : [matrice JSON](preuves/recette-metier-2026-10-16.json),
+[profilage](preuves/profil-sauvegarde-comparaison-2026-10-16.json),
+[migration](preuves/migration-ancienne-copie-2026-10-16.json),
+[restauration](preuves/restauration-allocation-2026-10-16.json).
+
+## Historique — recette métier et corrections P0/P1 avant 7c08307
 
 Base `3b02765`, code `c55a987` (réservations) et `80a1c7e` (séparations), même branche dédiée.
 **Laboratoire privé seulement ; aucun déploiement ni prestataire bancaire réel.**

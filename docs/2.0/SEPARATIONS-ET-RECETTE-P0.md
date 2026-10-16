@@ -1,5 +1,19 @@
 # Séparations de service et recette P0
 
+## Complément courant — allocation financière après 7c08307
+
+Le [lot d'allocation v1](ALLOCATION-FINANCIERE-ET-RECETTE.md) complète les séparations natives
+ci-dessous : une commande QR ouverte peut désormais être répartie en 2–10 groupes sur décision
+responsable, avec quantités, remise historique, centimes et affectation explicite des acomptes.
+L'original, son ticket de préparation et ses règlements ne sont pas clonés ; nouveaux QR distincts.
+
+Le refus historique d'une partie de commande QR décrit plus bas est donc dépassé **dans ce seul
+périmètre**. Réallocation/transfert ultérieur de parts, facture émise, remboursement existant,
+paiement incertain et partage financier natif restent refusés. Pas de consigne remboursable livrée.
+Matrice courante : 54 PASS / 0 FAIL / 45 BLOCKED / 1 NOT RUN. Les nombres ci-dessous sont historiques.
+
+## Historique — séparations avant 7c08307
+
 16 octobre 2026. Base vérifiée locale et GitHub : `3b02765820e4f7f452cb812be88af608870c1937`,
 incluant `23bba56`. Branche dédiée inchangée. Laboratoire privé uniquement, aucune production.
 

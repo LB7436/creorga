@@ -1,0 +1,10 @@
+{
+  "testedAt": "2026-10-16T16:54:22.170Z",
+  "initialMigrations": 7,
+  "finalMigrations": 34,
+  "preservedTables": 47,
+  "preservedRows": 341,
+  "allOriginalColumnsAndRowsEqual": true,
+  "oldSnapshotUnchanged": true,
+  "limitations": "Migration réelle sur copie neuve avec données ; pas une machine Windows vierge, ni un accès à des profils historiques, ni une recette métier complète de toutes les lignes anciennes."
+}
