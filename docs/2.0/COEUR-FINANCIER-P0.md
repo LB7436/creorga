@@ -1,5 +1,15 @@
 # Cœur financier — lot local du 16 octobre 2026
 
+## Actualisation : lot suivant
+
+Le lot décrit ci-dessous est conservé comme historique. Après `163d70d`, le code
+`6080a6a90fe864ad24f7b4565ee6988e56469fd4` ajoute l'autorité PostgreSQL de salle, les acomptes
+directs dans la caisse, les déclarations de remboursement et un rapprochement explicite.
+Consulter `SESSIONS-ET-RAPPROCHEMENT-P0.md` et `CHECKPOINT.md` : 401 unités et 123 intégrations
+actuelles. Les transferts QR, versements et résolution des réservations restent partiels/non livrés.
+
+## Historique des lots précédents
+
 Code : `dfb708a4748d485e25cb40287281de4a6613069e`, après
 `a59916a415e4c3e5ac06d7d0ccb150d651306d43`, même branche
 `codex/creorga-2-0-2026-10-08`. Aucune modification de production.

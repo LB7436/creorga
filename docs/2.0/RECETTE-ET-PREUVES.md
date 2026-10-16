@@ -1,5 +1,48 @@
 # Recette actuelle
 
+## Dernière recette — sessions et rapprochement P0, 16 octobre 2026
+
+Code : `6080a6a90fe864ad24f7b4565ee6988e56469fd4`, branche dédiée publiée, sans production.
+
+- `run.mjs unit` : **401 / 401**, 264 backend, 89 web, 48 POS.
+- `run.mjs integration` : **123 / 123**, treize fichiers, PostgreSQL réel et banques simulées.
+  `service-sessions.integration.test.ts` (7) vérifie autorité, cache, concurrence, droits,
+  acompte natif, transfert avec acompte, solde mixte, vingt rejeux, rollback salle/stock/tenders
+  et QR réglé depuis sa commande. Les tests de remboursements passent de 9 à 12 ; les visites
+  passent à 11 avec un test de verrous fondé sur `pg_locks` et une barrière, pas un délai supposé.
+- `npm run build` : cinq applications compilées ; gros bundles existants non qualifiés en charge.
+- Comparateur de reprise `--self-test` : 23 / 23, lecture seule.
+- `BROWSER-P0-SUIVANT.json` : **15 observations**, Chrome neuf, loopback, comptes `.invalid`.
+  Acompte 1 € puis 2,50 € mixtes, pertes de réponses après commit, reconnexion, trois affectations
+  pour une commande et un reçu, monnaie exacte, remboursement motivé, HTML/CSV téléchargés,
+  PDF d'avoir réel, aucune exception JavaScript. Trois largeurs, aucun débordement du panneau POS.
+- PDF A4 d'avoir rendu avec Poppler et inspecté ; historique 3 %, références et montants lisibles.
+  Pas d'imprimante/terminal. Baseline visuelle absente : **INCONCLUSIVE** ; pas de verdict de
+  conformité d'accessibilité, aucune mesure Core Web Vitals complète ni de charge d'un service.
+- `RESTORATION-2.0.json` : écrivains arrêtés, archive v2 + AES-GCM puis base neuve, **70 tables
+  égales**, huit fichiers, huit PDF facture et sept d'avoirs valides. Avec données nouvelles :
+  workspace 1, changements 20, sessions/couverts 6, tenders 18, provenances 6, déclaration 1.
+  1 769 ms sur cette petite copie, pas un RTO ; médias absents, réserves PayPal vides dans l'archive.
+- Après redémarrage des cinq services locaux, six vérifications de lecture réussies : autorité
+  PostgreSQL, reçu retrouvé, couvert soldé absent, trois affectations exactes, remboursement
+  et rapprochement retrouvés. Preuve privée distincte `RESTART-P0-SUIVANT.json`.
+
+Échecs effectivement reproduits puis corrigés : autorité mémoire ancienne, sauvegarde concurrente
+écrasante, endpoint d'acompte absent, rejouabilité parallèle, modification après acompte,
+réinitialisation de préparation, nouvelle voie d'encaissement contournant le reçu POS, refus PayPal
+non distingué, absence de déclaration de remboursement, cycle de verrous société/table QR.
+Le parcours navigateur a révélé un couvert vide inclus dans la demande : il est désormais exclu.
+Des corrections du script de recette (route CRM, reconnexion obligatoire, émission au statut déjà
+réglé) ne sont pas présentées comme des corrections produit. Le limiteur de connexions a été observé,
+pas désactivé en production pour faciliter la recette.
+
+Non testé : sandbox PayPal/Stripe réel, banque, imprimante, panne électrique, charge en service,
+profils historiques T04, transferts de visites QR non implémentés et rapprochement des versements.
+La recette passée ne suffit pas à autoriser la mise en production. Détail et commandes :
+`SESSIONS-ET-RAPPROCHEMENT-P0.md`. Les sections qui suivent conservent les preuves des lots antérieurs.
+
+## Historique des lots précédents
+
 ## Référence du 16 octobre 2026
 
 Référence actuelle du lot financier `dfb708a` : **395 unités** (260 backend, 89 web, 46 POS),

@@ -1,5 +1,48 @@
 # Reprise et retour arrière
 
+## Complément — migrations de sessions et remboursements, 16 octobre 2026
+
+Code `6080a6a90fe864ad24f7b4565ee6988e56469fd4`, après `163d70d`. Appliqué seulement aux bases
+de laboratoire `creorga_local` / `creorga_tests`. Ne pas copier ces commandes sur une production.
+
+- `20261017090000_floor_workspace` : deux nouvelles tables, snapshot initial immuable côté API,
+  empreinte, révision et journal des deltas.
+- `20261017100000_service_sessions` : sessions/couverts, liens composites société/commande,
+  référence nullable `OrderItem.sourceLineId`. Aucun backfill de documents historiques.
+- `20261017110000_manual_refunds` : déclarations append-only, justificatif figé, liens avoir/tender
+  et mouvement espèces ; dernière preuve/horodatage de rapprochement PayPal nullable.
+- `20261017120000_refund_reconciliation_state` : élargit le contrôle d'états avec
+  `REFUSED_RECONCILIATION`. Remplacement d'une contrainte, aucune ligne historique réécrite.
+
+Le préfixe 20261017 est un identifiant de migration, pas la date d'exécution (16 octobre).
+Seul `prisma migrate deploy` via le lanceur privé a été utilisé, aucun seed/reset/purge.
+
+Avant activation sur une **autre copie isolée** : arrêter ses écrivains, inventorier/archiver
+base + fichiers du même instant, restaurer dans une nouvelle base, appliquer les migrations,
+générer Prisma, puis démarrer avec `CREORGA_FLOOR_AUTHORITY=postgres`. La première lecture adopte
+la copie exacte du plan et conserve son `initialSnapshot`/empreinte ; elle ne récupère pas les
+ventes enfouies dans un navigateur. Tester les lignes anciennes nécessitant une revue de prix.
+
+Une fois adoptée, PostgreSQL est l'autorité : ne pas désactiver l'option, ne pas réimporter un
+ancien JSON comme maître ni lancer deux versions indépendantes en écriture. Le fichier marqué
+PostgreSQL refuse le mode ancien ; ce garde-fou ne remplace pas une procédure opérateur si un
+miroir est lui-même perdu. En cas de panne, suspendre l'écriture et réparer/restaurer la copie.
+
+Rollback : arrêter **tous** les écrivains, conserver l'archive courante et les références de
+règlements incertains, restaurer dans une base différente. Garder sessions, provenances, tenders,
+avoirs et réservations. L'ancien code ignore ces états : ne pas l'autoriser en écriture sur la
+base migrée. Préférer un correctif en avant. Aucun down/reset ni suppression de réserve proposée.
+
+Reprise exécutée : AES-GCM, clé séparée, nouvelle base, 70 tables et huit fichiers égaux,
+huit PDF facture et sept d'avoirs intègres, 1 769 ms sur cette petite copie (pas un RTO).
+Les nouvelles sessions et une déclaration contiennent des données ; les tables PayPal restent
+vides dans l'archive, testées séparément en intégration. Originaux/profils préservés. La rétention
+normale a supprimé d'anciens dumps de travail, pas les archives originales.
+
+Les sections suivantes conservent la procédure et les observations des lots antérieurs.
+
+## Historique des lots précédents
+
 Les archives privées originales restent immuables. Le laboratoire crée une base snapshot,
 une base locale modifiable et une base de tests vide, puis restaure fichiers et base du même instant.
 La preuve de reprise et les configurations contenant des secrets restent hors dépôt.

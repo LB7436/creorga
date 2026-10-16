@@ -2,6 +2,76 @@
 
 Mission en cours. **Pas de qualification de production ni de recette complète T01–T100.**
 
+## Dernier lot — sessions et rapprochement, 16 octobre 2026
+
+- Base vérifiée locale/distante : `163d70dd7544dc4cf608da508cc849092ee87cba`.
+- Code publié : **`6080a6a90fe864ad24f7b4565ee6988e56469fd4`**, contrôlé par `git ls-remote`.
+  [Commit immuable](https://github.com/LB7436/creorga/commit/6080a6a90fe864ad24f7b4565ee6988e56469fd4).
+  [Branche GitHub exacte](https://github.com/LB7436/creorga/tree/codex/creorga-2-0-2026-10-08).
+- `master`, Contabo, DNS et production non modifiés. Le fichier généré guest déjà modifié
+  avant le lot est conservé hors commit. Aucun secret, archive privée ni clé publié.
+- Source de travail : sous-dossier `creorga-2.0`, pas le dépôt vide du dossier parent.
+  Environnement Windows/PG16.15/Node22.19/Prisma5.22, mêmes ports loopback qu'au lot précédent.
+- Autorité de salle PostgreSQL activée dans le **lanceur privé local uniquement**.
+  Copie initiale conservée, révisions/empreintes, cache non maître, fichier miroir, audit des
+  deltas. Nouveau lien session/couvert/commande ; transfert natif complet avec acompte testé.
+- POS : acompte, partiel, mixte et solde dans l'interface, restant dû serveur, référence
+  durable par compte, reçu final et retrait des lignes atomiques avec le règlement.
+  Cuisine native : lots différentiels au lieu de relancer toute la préparation.
+- Espèces/carte autonome : remboursement **déclaré**, lié à l'avoir/tender d'origine, droits,
+  motif, justificatif HTML, plafonds et mouvement espèces uniques. PayPal refusé/à rapprocher
+  avec preuve horodatée et réservation conservée ; aucun déblocage définitif livré.
+- Rapprochement et CSV v1 : ventes, documents, encaissements, remboursements, frais connus,
+  références de clôture séparés. Historiques sans tender signalés ; versements bancaires inconnus,
+  non intégrés. Pas de grand livre ni de conformité comptable revendiquée.
+- Migrations `20261017090000_floor_workspace`, `20261017100000_service_sessions`,
+  `20261017110000_manual_refunds`, `20261017120000_refund_reconciliation_state` appliquées
+  seulement à `creorga_local` / `creorga_tests`. Le préfixe 20261017 est un identifiant de
+  séquence : exécution réelle le **16 octobre**, pas une preuve d'exécution future.
+- Recette actuelle : **401 unités (264 backend, 89 web, 48 POS), 123 intégrations PostgreSQL
+  / 13 fichiers**, cinq applications compilées, 23 autocontrôles de restauration.
+  Banques simulées, pas sandbox prestataire réel. Concurrence, vingt rejeux, rollback global
+  sur conflit, droits/isolation, QR et ordre des verrous couverts. Toutes suites existantes conservées.
+- Chrome neuf : **15 observations**, réponse perdue après commit d'acompte puis solde mixte,
+  reconnexion, un reçu final, remboursement déclaré, HTML/CSV téléchargés et PDF réel.
+  Captures 375/768/1440, avoir A4 rendu/inspecté. Régression visuelle INCONCLUSIVE sans baseline ;
+  axe, clavier complet, lecteur d'écran, performance en service et matériel non qualifiés.
+- Reprise réelle applications arrêtées : **70 tables égales**, huit fichiers, huit PDF facture
+  et sept d'avoirs intègres, chiffrement AES-GCM vérifié, clé séparée, 1 769 ms sur petite copie
+  (pas un RTO). Avec données : workspace 1, changements 20, sessions/couverts 6, tenders 18,
+  provenances 6, remboursement déclaré 1. Réservations PayPal vides dans cette archive,
+  testées avec données en intégration. Originaux et profils historiques intacts.
+- Preuves privées : `BROWSER-P0-SUIVANT.json`, `p0-suivant-*`, `*-p0-suivant-final.log`,
+  `RESTORATION-2.0.json`. Écritures fictives interrompues conservées, pas de nettoyage réel.
+  La rétention normale a retiré d'anciens dumps de travail, **pas les archives originales**.
+- Les cinq services locaux ont été redémarrés. Six contrôles de lecture supplémentaires
+  confirment le reçu, les trois affectations, la session soldée et le remboursement conservés :
+  `RESTART-P0-SUIVANT.json`. La caisse est de nouveau accessible sur localhost:5175.
+
+### Limites et prochaine action concrète
+
+Les transferts/fusions QR restent **non implémentés** : le brouillon les refuse explicitement,
+sans fausse sauvegarde ; le paiement QR partiel en caisse utilise bien la commande d'origine.
+La séparation/édition de lignes après acompte, l'autorité de préparation native/QR complètement
+unifiée, la résolution probante des remboursements incertains, les relevés de versements et
+le format du logiciel comptable restent à faire. Pas de vente autonome sans connexion au serveur.
+Stripe Refunds est une **étude seulement**, aucun adaptateur activé. T04 réel non exécuté.
+
+Prochain lot sûr : rattacher les visites QR aux sessions lors de transferts/fusions sans
+révoquer le mauvais groupe ni dévoiler son addition, avec tests des anciens QR et paiements
+en cours ; conserver les identités et affectations existantes. Ne pas refaire les acomptes,
+avoirs, clôtures ou conversions ticket/facture déjà livrés. Pour rollback : arrêt des écrivains,
+archive courante puis restauration en **nouvelle base** ; jamais ancien code en écriture sur
+les réservations/sessions migrées. Voir les trois nouveaux documents et la procédure ci-dessous.
+
+Références : `SESSIONS-ET-RAPPROCHEMENT-P0.md`, `EXPORT-RAPPROCHEMENT-V1.md`,
+`STRIPE-REFUNDS-ETUDE.md`. Aucun passage en production autorisé par ces résultats.
+
+## État antérieur conservé — jusqu'à 163d70d
+
+Les nombres et priorités des sections suivantes sont historiques ; l'actualisation ci-dessus
+et les preuves de recette les complètent sans prétendre que toutes les exigences sont terminées.
+
 ## Références et environnement
 
 - Copie source `creorga-2.0`, branche `codex/creorga-2-0-2026-10-08`.
