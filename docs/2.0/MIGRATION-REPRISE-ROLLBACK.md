@@ -1,5 +1,34 @@
 # Reprise et retour arrière
 
+## Lot recette métier — 16 octobre 2026
+
+Base Git `3b02765820e4f7f452cb812be88af608870c1937`, même branche dédiée. Une migration nouvelle,
+`20261018130000_reservation_isolation`, appliquée **uniquement** à `creorga_local` et `creorga_tests`.
+Le préfixe est un identifiant de séquence, pas une exécution future.
+
+Deux index uniques `(companyId,id)` sur Table et Customer, deux FK composites sur Reservation
+et un index de recherche sont ajoutés. FK **NOT VALID** : anciennes relations préservées sans
+validation inventée ; nouvelles écritures contrôlées, même hors HTTP. Aucune vente, facture,
+réservation ancienne ou règlement réécrit. Les FK SQL supplémentaires sont intentionnelles,
+en complément des relations Prisma historiques ; ne pas les supprimer par une resynchronisation automatique.
+
+Les séparations de groupes/lignes sont stockées dans TableMovement et FloorWorkspace avec les
+provenances de portions et bases de demandes cuisine. Une restauration doit conserver ces champs,
+les quotes, l'audit et les réserves. Ne pas reconstituer une séparation par copie de lignes dans un ancien JSON.
+Les comptes/appareils, fichiers métier et pièces du même instant restent nécessaires.
+
+Retour arrière : arrêter tous les écrivains, conserver un nouvel export de l'état courant,
+restaurer dans une **autre base**, puis faire un correctif en avant. Ancien binaire interdit en
+écriture sur des portions séparées : il pourrait relancer la préparation. Aucun reset/down/purge.
+Un schéma conservé n'autorise pas un retour de code qui ignore les nouvelles projections.
+
+Pour la nouvelle vérification de reprise, le lanceur privé prépare une nouvelle entrée de sauvegarde
+par copie de travail, hors des anciens répertoires de dumps. La rétention ne touche ainsi ni les
+dumps de travail précédents, ni les archives originales. Les clés AES-GCM restent séparées et hors Git.
+Résultat effectivement exécuté et compteurs courants : voir CHECKPOINT et RECETTE-ET-PREUVES.
+
+Les profils historiques restent fermés. Pas de production, banque réelle, DNS ou déploiement.
+
 ## Complément courant — QR, rapprochements et versements
 
 16 octobre 2026, code `23bba568ec54c7c0acc3861f3ba639f155c1dd3d`, après `879155d`.

@@ -1,5 +1,102 @@
 # Recette actuelle
 
+## Recette métier et corrections P0/P1 — 16 octobre 2026
+
+Base `3b02765`, code `c55a987` (réservations) et `80a1c7e` (séparations), même branche dédiée.
+**Laboratoire privé seulement ; aucun déploiement ni prestataire bancaire réel.**
+
+La [matrice T01–T100](RECETTE-METIER-T01-T100.md) contient pour chaque cas données/préconditions,
+actions, attendu, observé, preuve et statut. Résultat : **42 PASS, 0 FAIL restant, 29 BLOCKED,
+29 NOT RUN**. Les numéros de l'annexe originale sont conservés, y compris vidéo non activée.
+Les PASS sont logiciels dans le périmètre déclaré : API/PostgreSQL, unités ou Chrome selon la preuve.
+Un webhook remplacé n'est pas un échange PayPal sandbox ; un PDF n'est pas du papier.
+
+| Exécution actuelle | Résultat et portée |
+|---|---|
+| Unités complètes | 410 : 267 backend, 91 web, 52 POS ; aucune unité en échec/ignorée |
+| PostgreSQL complet | 151 / 16 fichiers, creorga_tests seulement ; banques remplacées |
+| Chrome versionné | 3 / 3, contextes neufs sans profil persistant, loopback et compte fictif |
+| Builds | web, backend, POS, guest, superadmin ; avertissements de gros bundles conservés |
+| Comparateur de restauration | 23 autocontrôles réussis |
+| Matrice | 100 cas uniques, 7 contrôles du générateur, aucune déduction de PASS depuis le code |
+| Restauration de copie | 76 tables et 8 fichiers identiques, 9 PDF facture + 8 PDF avoir intègres |
+| Redémarrage | 8 lectures/assertions réussies sur portions, provenance, préparation, réservation et FK restaurées |
+
+Échecs red/green : endpoint de séparation absent ; déplacement non audité via brouillon accepté ;
+routage périmé après nouveau transfert ; suppression de portion sans correction ; relation de réservation
+étrangère acceptée ; huit réservations sur vingt appels simultanés ; modification/réactivation contournant
+le conflit ; entrée de prototype acceptée ; limite 200/300 incohérente ; sélection clavier impossible ;
+absence de rôle/focus modal ; contraste de texte 3,58:1. Corrections et limites :
+[SEPARATIONS-ET-RECETTE-P0.md](SEPARATIONS-ET-RECETTE-P0.md).
+
+Le nouveau fichier de réservations possède cinq cas. Les mouvements passent de six à treize cas,
+les sessions de sept à huit, le POS ajoute deux cas de récupération/scope, et la préparation un cas
+de portion supprimée versus réglée. Le validateur de groupes possède un test de clés réservées.
+Les suites antérieures restent présentes. Le test de quantité règle deux portions à 23,40 € + 11,70 €,
+rejoue, vérifie deux ventes pour 35,10 €, une réduction de stock de trois et la TVA historique 17 %,
+alors que le catalogue a changé. Les groupes QR gardent leurs acomptes/soldes distincts.
+
+Chrome : fusion + acompte et réponse perdue, renouvellement de deux QR isolés ; séparation d'une
+portion préparée, réponse perdue puis rechargement/reconnexion, déplacement du groupe ; clavier,
+focus contenu, Échap/retour au bouton et trois tailles. API de réservation également écrite/relue
+dans cette session, sans prétendre avoir livré une interface complète de réservation.
+
+Mesures : 20 lectures, 10 sauvegardes, 10 règlements **manuels fictifs**, 10 ouvertures de fenêtre
+jusqu'à opacité >= 0,99. Jeu cumulé conservé de 712 produits / 221 tables / 1 308 lignes au point mesuré.
+Voir [données de mesure](preuves/performance-2026-10-16.json). p95 : 275 / 2 060 / 1 633 / 366 ms,
+respectivement. Pas de seuil inventé, baseline ou charge multi-utilisateur. Coût du snapshot global
+à profiler avant un vrai service. Contraste minimal 7,44:1 sur les seuls textes contrôlés ; trois
+captures stables inspectées. Comparaison visuelle **INCONCLUSIVE** sans baseline ; pas d'audit axe,
+lecteur d'écran, zoom global ou certification WCAG. Première capture transitoire pendant l'animation
+écartée de la revue ; le script attend désormais l'opacité stable.
+
+Sauvegarde : applications arrêtées, nouvelle copie d'entrée sans toucher aux dumps existants,
+pg_dump natif, archive v2 et AES-GCM/clé séparée, pg_restore transactionnel dans une base neuve.
+Comparaison exhaustive des lignes/colonnes et octets PDF. Tables peuplées : mouvements 16,
+réservations 3, changements de salle 263, couverts 727, sessions 210. Les deux FK NOT VALID sont
+retrouvées après restauration. 2 653 ms mesurées sur cette copie, **pas un RTO**. Aucun nettoyage
+d'archives originales ou de profils. Services privés redémarrés et huit vérifications de reprise réussies.
+
+Incidents de scripts distincts des défauts produit : compteur de fixture, sélecteur et statut HTTP
+attendu, reconnexion nécessaire après rechargement, cache Vitest refusé par sandbox et cible `.at()`
+TypeScript. Le limiteur a produit HTTP 429 pendant une répétition : backend **privé** redémarré,
+pas de désactivation de protection. Données des essais interrompus conservées ; jeu de charge réutilisé.
+
+### Reproduction
+
+Sur ce PC, lanceurs privés (secrets hors dépôt) depuis le dépôt réel :
+
+```powershell
+node ../local-2.0/run.mjs backend-unit --reporter=json --outputFile=../../../local-2.0/recipe-backend-unit.json
+node node_modules/vitest/vitest.mjs run --root apps/web --reporter=json --outputFile=../../../local-2.0/recipe-web-unit.json
+node node_modules/vitest/vitest.mjs run --root apps/pos --reporter=json --outputFile=../../../local-2.0/recipe-pos-unit.json
+node ../local-2.0/run.mjs integration --reporter=json --outputFile=../../../local-2.0/recipe-integration.json
+node ../local-2.0/run-browser-lab.mjs
+node scripts/verify-restored-copy.mjs --self-test
+node scripts/render-business-recipe.mjs --self-test
+```
+
+Puis arrêt des cinq écrivains, `restore-current-copy.mjs`, redémarrage et
+`verify-restart-business-recipe.mjs` du laboratoire privé. Ne pas transposer ces chemins vers une
+production. Pour générer la matrice à partir de **preuves réellement exécutées et fraîches** :
+
+```powershell
+node scripts/render-business-recipe.mjs --reports=../local-2.0 --since=2026-10-16T14:45:00Z
+```
+
+Changer `--since` au début d'une nouvelle recette, pas pour recycler une ancienne preuve.
+Un autre clone doit préparer sa propre base **creorga_tests**, clé JWT de test, services loopback
+et compte `.invalid` propriétaire d'une société marquée fictive. Les suites sont versionnées,
+les configurations et sauvegardes privées ne le sont pas. La matrice publique JSON ne contient
+ni mots de passe, ni jetons, ni dump, ni QR. Les rapports bruts et captures restent privés.
+
+**Bloqué/non exécuté :** voir chaque ligne de la matrice et le protocole matériel. En particulier,
+pas d'allocation arbitraire de lignes QR/acomptes/remises, pas de matériel thermique/tiroir/terminal,
+PayPal sandbox officiel, banque réelle, coupure électrique, T04 historique ou vidéo. Les 0 FAIL
+restants ne signifient pas absence de défaut dans les 58 scénarios bloqués/non exécutés.
+
+## Preuves des lots antérieurs
+
 ## Dernière recette — fusions QR, remboursements et versements
 
 16 octobre 2026. Code `23bba568ec54c7c0acc3861f3ba639f155c1dd3d`, après `879155d`.

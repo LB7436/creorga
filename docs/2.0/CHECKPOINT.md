@@ -1,6 +1,94 @@
 # Checkpoint CréOrga 2.0 — 16 octobre 2026
 
-Mission en cours. **Pas de qualification de production ni de recette complète T01–T100.**
+Mission en cours. **Matrice T01–T100 documentée, mais pas de recette intégralement exécutée ni de qualification de production.**
+
+## Lot courant — recette métier et corrections P0/P1
+
+16 octobre 2026. Base locale et GitHub relevée avant travaux : `3b02765820e4f7f452cb812be88af608870c1937`,
+incluant `23bba56`. Même dépôt et branche `codex/creorga-2-0-2026-10-08`.
+
+- **Code : `c55a987`** — réservations isolées et sérialisées, migration additive.
+- **Code : `80a1c7e`** — séparations natives et groupes QR entiers, préparation, reprise et interface.
+  [Branche exacte](https://github.com/LB7436/creorga/tree/codex/creorga-2-0-2026-10-08).
+  Le commit de recette/documentation qui suit ces deux commits contient ce checkpoint et les preuves.
+- Environnement : Windows, Node 22.19, Prisma 5.22, PostgreSQL 16.15 loopback:5450 ; applications
+  loopback 3002/5174/5175/5177/5178. Données fictives de laboratoire, copie privée et `creorga_tests`.
+  Aucune production, VPS, DNS, branche master, vraie carte, archive originale ou profil historique modifié.
+  Le `apps/guest/tsconfig.tsbuildinfo` déjà modifié avant la mission reste hors commit.
+
+### Livré et réellement testé
+
+- Séparer une visite QR entière après fusion, avec toutes ses tournées, acompte et solde conservés.
+  Déplacer un couvert natif complet avec acompte. Séparer une ou plusieurs lignes/quantités natives
+  **avant matérialisation financière**, vers un groupe existant ou nouveau, même table ou autre table.
+- Historique de prix/TVA et provenances conservés. Transaction PostgreSQL + CAS + audit idempotent,
+  reprise après réponse perdue, anciennes capacités QR révoquées et renouvellement par groupe.
+- Préparation d'origine conservée ; routage des portions explicite, sans doublon ni remise à zéro.
+  Un transfert ultérieur suit les portions. Supprimer une portion émet une correction distincte ;
+  la payer n'annule pas la préparation. Brouillon non audité ne déplace plus les lignes entre groupes.
+- Réservations : table/client étrangers refusés, deux FK SQL composites, une seule réservation au
+  créneau sur vingt demandes concurrentes, modification/réactivation également protégées. Jour
+  Luxembourg testé au changement d'heure. Les anciennes relations ne sont pas réécrites.
+- Interface : sélection clavier des lignes, fenêtres identifiées, focus encadré, Échap/retour au
+  déclencheur, arrière-plan inerte et erreurs visibles. Contraste secondaire corrigé après mesure
+  3,58:1 ; minimum courant 7,44:1 sur les textes du seul dialogue contrôlé. Largeurs 375/768/1440.
+- Limite de création de table alignée sur les 300 déjà validées par le brouillon ; ce nombre n'est
+  pas une capacité de production certifiée. Identifiants de prototype réservés refusés en entrée.
+
+### Résultats courants, pas les nombres historiques ci-dessous
+
+| Contrôle exécuté | Résultat |
+|---|---|
+| Matrice métier versionnée | **42 PASS / 0 FAIL / 29 BLOCKED / 29 NOT RUN** |
+| Unités backend / web / POS | **410 réussites** : 267 / 91 / 52 |
+| Intégrations PostgreSQL | **151 réussites**, 16 fichiers, prestataires remplacés |
+| Chrome neuf | **3 parcours réussis**, fusion QR, séparation/reprise et performance/interface |
+| Compilations | Cinq applications réussies ; avertissements gros bundles POS/superadmin conservés |
+| Comparateur restauration | 23 autocontrôles réussis, distincts de la restauration ci-dessous |
+| Générateur de matrice | 100 identifiants uniques, 7 contrôles de statut réussis ; preuves anciennes refusées |
+| Restauration réelle de copie | **76 tables + 8 fichiers égaux**, 9 PDF facture et 8 PDF avoir intègres |
+| Reprise après redémarrage | **8 lectures/assertions réussies**, y compris contraintes de la nouvelle base restaurée |
+
+Restauration : écrivains arrêtés, nouvelle entrée de sauvegarde privée sans rétention sur les anciens
+dumps, pg_dump natif, archive v2, AES-GCM et clé séparée, pg_restore transactionnel en nouvelle base.
+Toutes lignes/colonnes et empreintes PDF comparées. Nouvelles données présentes : TableMovement 16,
+Reservation 3, FloorChange 263, ServiceCover 727, ServiceSession 210. Les deux contraintes NOT VALID
+restaurées sont présentes ; **pas** une validation de toutes les anciennes relations. 2 653 ms sur
+cette copie, pas un RTO. Aucune ancienne archive supprimée par cette vérification. Cinq services privés redémarrés.
+
+### Performance observée
+
+Jeu cumulé fictif conservé : **712 produits, 221 tables, 1 308 lignes ouvertes** au moment de la mesure,
+65 ventes au journal ; pas une journée réelle. Ryzen 7600X, 12 processeurs logiques, 63 Gio, Chrome 155,
+loopback sans ralentissement artificiel. p95 : lecture bootstrap **275 ms** (20 essais), sauvegarde
+confirmée **2 060 ms** (10), règlement manuel fictif **1 633 ms** (10), fenêtre opaque après animation
+**366 ms** (10). Source : [mesures brutes](preuves/performance-2026-10-16.json).
+Ces temps révèlent un coût de sauvegarde globale à profiler : aucune promesse de service rapide,
+baseline comparative, charge multi-postes ou Core Web Vitals. Captures stables inspectées ; comparaison
+visuelle **INCONCLUSIVE**, baseline absente. Pas de lecteur d'écran ni qualification globale WCAG.
+
+### Non terminé / bloqué
+
+- Découpe financière d'une commande QR, d'un acompte ou d'une remise globale/article offert : refus
+  explicite avec procédure, pas allocation arbitraire. Consignes globales différentes ou client société
+  différent : refus à destination occupée. Notes individuelles conservées ; pas de moteur séparé bar/cuisine livré.
+- Bouteilles/emballages : pas de modèle de consigne remboursable configuré. Autonomie sans serveur non livrée.
+- Les 29 NOT RUN sont détaillés dans la matrice : devis/conversion, seuils de facture, certains parcours
+  stock/achats/RH/HACCP, alertes, multilingue complet et inventaire exhaustif des boutons notamment.
+- Imprimantes thermiques/tiroir/terminal, sandbox PayPal officiel et banque réelle bloqués ; inventaire
+  Windows lu, aucune impression lancée. Protocole préparé. Stripe Refunds reste désactivé. Vidéo désactivée.
+- Profils historiques T04 fermés, récupération externe/cloud non réalisée. Qualification métier/comptable
+  et bancaire réelle absente : **ne pas mettre CréOrga en production**.
+
+Reprise concrète : lire [Séparations et recette P0](SEPARATIONS-ET-RECETTE-P0.md),
+[la matrice](RECETTE-METIER-T01-T100.md) et la migration/rollback. Concevoir d'abord une allocation
+financière explicite des découpes QR/acompte/remise, puis exécuter les parcours NOT RUN et qualifier
+matériel/prestataires dans un pilote autorisé. Les fonctions déjà livrées ci-dessous ne sont pas à recréer.
+
+Preuves privées : rapports Vitest JSON, rapport Chrome et captures, RESTORATION-2.0.json,
+RESTART-RECETTE-METIER.json. Aucun secret publié. Les preuves publiques sont des résultats expurgés.
+
+## Lots antérieurs conservés
 
 ## Dernier lot — fusions QR, remboursements et versements, 16 octobre 2026
 

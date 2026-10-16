@@ -52,3 +52,11 @@ Limites volontaires : pas de fusion des gestes commerciaux globaux ni de consign
 refus explicite et aucune révocation en cas d'échec. Pas de redistribution fine des groupes/lignes
 après fusion, ni association implicite d'une ligne native à un client QR. Les modules cuisine natif/QR
 restent deux adaptateurs. Aucune autonomie de caisse sans serveur, aucune qualification de production.
+
+## Complément de recette du 16 octobre 2026
+
+La séparation après fusion est désormais décrite dans
+[Séparations et recette P0](SEPARATIONS-ET-RECETTE-P0.md). Les visites QR entières et les
+portions natives non matérialisées peuvent être déplacées séparément. Les découpes financières
+QR/acompte/remise ambiguës restent refusées explicitement, pas annoncées comme livrées.
+Les résultats historiques ci-dessus ne remplacent pas la matrice courante T01–T100.
