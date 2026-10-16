@@ -6,9 +6,10 @@ import {
   Menu, Plus, Archive, Trash2, MessageSquare, Paperclip, Video, Edit2,
 } from 'lucide-react'
 import AssistantMascot from '@/components/AssistantMascot'
-import { useAssistant, type AssistantAttachment } from '@/stores/assistantStore'
+import { useAssistant, type AssistantAttachment, type AssistantContext } from '@/stores/assistantStore'
 import { useTheme } from '@/lib/theme'
 import { fetchAuth } from '@/lib/fetchAuth'
+import { AssistantConfirmationError, confirmAssistantPreview } from '@/lib/assistantConfirmation'
 
 function getBackend() {
   if (typeof window === 'undefined') return 'http://localhost:3002'
@@ -36,17 +37,30 @@ export default function MobileRobi() {
   const themeStore = useTheme()
   const [input, setInput] = useState('')
   const [pendingPreview, setPendingPreview] = useState<any>(null)
+  const [confirming, setConfirming] = useState(false)
+  const [confirmationUnknown, setConfirmationUnknown] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   const recognitionRef = useRef<any>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const requestRef = useRef<AssistantContext | null>(null)
+  const confirmingRef = useRef(false)
+
+  useEffect(() => {
+    setInput('')
+    setPendingPreview(null)
+    setConfirmationUnknown(false)
+    window.speechSynthesis?.cancel()
+    try { recognitionRef.current?.stop() } catch { /* déjà interrompu */ }
+    recognitionRef.current = null
+  }, [a.scopeKey, a.sessionVersion, a.currentConversationId])
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [a.messages])
 
-  function speak(text: string) {
-    if (!a.voiceEnabled) return
+  function speak(text: string, context = a.captureContext()) {
+    if (!useAssistant.getState().voiceEnabled || !a.isCurrentContext(context)) return
     const synth = window.speechSynthesis
     if (!synth) return
     synth.cancel()
@@ -55,12 +69,15 @@ export default function MobileRobi() {
     u.lang = 'fr-FR'
     u.rate = a.voiceSpeed
     a.setMode('speaking')
-    u.onend = () => a.setMode('idle')
-    u.onerror = () => a.setMode('idle')
+    const ended = () => { if (a.isCurrentContext(context) && useAssistant.getState().mode === 'speaking') a.setMode('idle') }
+    u.onend = ended
+    u.onerror = ended
     synth.speak(u)
   }
 
   function startListening() {
+    const context = a.captureContext()
+    if (!context || useAssistant.getState().mode === 'thinking') return
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SR) {
       alert('Reconnaissance vocale non disponible sur cet appareil. Utilise le clavier.')
@@ -70,6 +87,7 @@ export default function MobileRobi() {
     const rec = new SR()
     rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = false
     rec.onresult = (e: any) => {
+      if (!a.isCurrentContext(context)) return
       let txt = ''
       for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript
       setInput(txt)
@@ -79,8 +97,8 @@ export default function MobileRobi() {
         if (txt.trim()) ask(txt)
       }
     }
-    rec.onerror = () => a.setMode('idle')
-    rec.onend = () => { if (a.mode === 'listening') a.setMode('idle') }
+    rec.onerror = () => { if (a.isCurrentContext(context)) a.setMode('idle') }
+    rec.onend = () => { if (a.isCurrentContext(context) && useAssistant.getState().mode === 'listening') a.setMode('idle') }
     recognitionRef.current = rec
     a.setMode('listening')
     rec.start()
@@ -92,10 +110,12 @@ export default function MobileRobi() {
 
   // ─── SEND ─────────────────────────────────────────────────────────────
   async function ask(text: string) {
-    if (!text.trim()) return
+    const context = a.captureContext()
+    if (!context || !text.trim() || requestRef.current && a.isCurrentContext(requestRef.current)) return
+    requestRef.current = context
 
     const finalText = text.trim()
-    a.addMessage({ role: 'user', text: finalText })
+    a.addMessageForContext(context, { role: 'user', text: finalText })
     setInput('')
     a.setMode('thinking')
 
@@ -103,6 +123,7 @@ export default function MobileRobi() {
       const r = await fetchAuth(`${getBackend()}/api/agent/workflow`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: finalText, currentPath: location.pathname, userId: 'default' }),
+        signal: AbortSignal.timeout(180_000),
       })
       if (!r.ok) {
         const error = await r.json().catch(() => ({}))
@@ -111,48 +132,55 @@ export default function MobileRobi() {
       const data = await r.json()
       if (data.kind === 'workflow') {
         const stepCount = data.steps?.length || 0
-        a.addMessage({
+        a.addMessageForContext(context, {
           role: 'bot',
           text: `🔗 Workflow ${stepCount} étapes :\n` + (data.steps || []).map((s: any, i: number) => `${i+1}. ${s.summary || s.text || '?'}`).join('\n'),
           action: { intent: 'workflow', success: data.success, summary: data.summary },
         })
-        speak(data.summary)
+        speak(data.summary || '', context)
       } else if (data.kind === 'action') {
-        a.addMessage({
+        a.addMessageForContext(context, {
           role: 'bot', text: data.summary, ui: data.details,
           action: { intent: data.intent, success: data.success, summary: data.summary },
         })
-        speak(data.summary)
-        if (data.uiAction?.type === 'preview') setPendingPreview(data.uiAction)
-        else if (data.uiAction?.type === 'navigate') setTimeout(() => navigate(data.uiAction.to), 800)
+        speak(data.summary || '', context)
+        if (!a.isCurrentContext(context)) return
+        if (data.uiAction?.type === 'preview') { setConfirmationUnknown(false); setPendingPreview({ ...data.uiAction, context }) }
+        else if (data.uiAction?.type === 'navigate') setTimeout(() => { if (a.isCurrentContext(context)) navigate(data.uiAction.to) }, 800)
         else if (data.uiAction?.type === 'theme') themeStore.setTheme(data.uiAction.value)
         else if (data.uiAction?.type === 'mode') localStorage.setItem('creorga.assistant.context-mode', data.uiAction.value)
       } else {
         const txt = data.text || 'Pas de réponse.'
-        a.addMessage({ role: 'bot', text: txt })
-        speak(txt)
+        a.addMessageForContext(context, { role: 'bot', text: txt })
+        speak(txt, context)
       }
     } catch (e: any) {
-      a.addMessage({ role: 'bot', text: `❌ ${e?.message || 'erreur'}` })
+      a.addMessageForContext(context, { role: 'bot', text: `❌ ${e?.message || 'erreur'}` })
     } finally {
-      if (a.mode === 'thinking') a.setMode('idle')
+      if (requestRef.current === context) requestRef.current = null
+      if (a.isCurrentContext(context) && useAssistant.getState().mode === 'thinking') a.setMode('idle')
     }
   }
 
   async function confirmPreview() {
-    if (!pendingPreview) return
+    const preview = pendingPreview
+    const context: AssistantContext | null = preview?.context ?? null
+    if (!preview || confirmingRef.current || confirmationUnknown || !a.isCurrentContext(context)) return
+    confirmingRef.current = true
+    setConfirming(true)
     try {
-      const r = await fetchAuth(`${getBackend()}${pendingPreview.confirmEndpoint}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(pendingPreview.confirmPayload),
-      })
-      if (!r.ok) throw new Error(`Validation refusée (HTTP ${r.status})`)
-      const data = await r.json()
-      a.addMessage({ role: 'bot', text: data.summary || '✅ Action validée.' })
-      speak(data.summary || 'Action validée')
-    } catch {
-      a.addMessage({ role: 'bot', text: '❌ Erreur de validation.' })
-    } finally { setPendingPreview(null) }
+      const summary = await confirmAssistantPreview(getBackend(), preview, fetchAuth)
+      a.addMessageForContext(context, { role: 'bot', text: summary })
+      speak(summary, context)
+      if (a.isCurrentContext(context)) setPendingPreview(null)
+    } catch (error: any) {
+      const uncertain = error instanceof AssistantConfirmationError && error.uncertain
+      if (uncertain && a.isCurrentContext(context)) setConfirmationUnknown(true)
+      a.addMessageForContext(context, { role: 'bot', text: `❌ ${error?.message || 'Erreur de validation.'}${uncertain ? ' Résultat inconnu : vérifiez les données avant toute nouvelle tentative.' : ''}` })
+    } finally {
+      confirmingRef.current = false
+      setConfirming(false)
+    }
   }
 
   const activeConvs = a.conversations.filter((c) => !c.archived)
@@ -247,15 +275,16 @@ export default function MobileRobi() {
                 {pendingPreview.confirmText || 'Action proposée'}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => setPendingPreview(null)}
+                <button disabled={confirming} onClick={() => setPendingPreview(null)}
                   style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.15)', color: '#fca5a5', fontWeight: 700, cursor: 'pointer' }}>
                   <X size={14} /> Annuler
                 </button>
-                <button onClick={confirmPreview}
+                <button disabled={confirming || confirmationUnknown} onClick={confirmPreview}
                   style={{ flex: 2, padding: 12, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>
-                  <Check size={14} /> Valider
+                  <Check size={14} /> {confirming ? 'Validation en cours…' : confirmationUnknown ? 'Résultat à vérifier' : 'Valider'}
                 </button>
               </div>
+              {confirmationUnknown && <div role="alert" style={{ marginTop: 8, color: '#fcd34d', fontSize: 12 }}>Résultat non confirmé. Vérifiez les données métier avant de créer une nouvelle demande ; aucune répétition automatique.</div>}
             </motion.div>
           )}
         </AnimatePresence>
@@ -299,7 +328,7 @@ export default function MobileRobi() {
               color: '#fff', fontSize: 14, outline: 'none',
             }}
           />
-          <button type="submit" disabled={!input.trim()}
+          <button type="submit" aria-label="Envoyer la demande" disabled={!input.trim() || a.mode === 'thinking'}
             style={{
               width: 48, borderRadius: 12, border: 'none', cursor: 'pointer',
               background: !input.trim() ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#8b5cf6,#ec4899)',

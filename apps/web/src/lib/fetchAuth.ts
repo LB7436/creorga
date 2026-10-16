@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/stores/authStore'
 import { assertAuthScope, refreshSession } from './api'
 import { authDataScope } from './authScope'
+import { assertApiDestination, CONFIGURED_BACKEND_URL } from './apiDestination'
 
 /**
  * `fetch` qui porte le jeton — pour les appels que `lib/api.ts` (axios) ne
@@ -17,14 +18,14 @@ import { authDataScope } from './authScope'
  * appels dans le silence que ce correctif supprime.
  */
 
-export const BACKEND_URL =
-  (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
+export const BACKEND_URL = CONFIGURED_BACKEND_URL
 
 const avecJeton = (init: RequestInit, jeton: string | null, companyId: string | null): RequestInit => {
   const headers = new Headers(init.headers)
   if (jeton) headers.set('Authorization', `Bearer ${jeton}`)
   if (companyId && !headers.has('x-company-id')) headers.set('x-company-id', companyId)
-  return { ...init, headers, credentials: init.credentials ?? 'include' }
+  // Ne jamais laisser une réponse rediriger une requête privée hors de son API.
+  return { ...init, headers, credentials: init.credentials ?? 'include', redirect: 'error' }
 }
 
 /** Partage la rotation avec axios ; un échec temporaire ne déconnecte pas le compte. */
@@ -41,6 +42,7 @@ export async function fetchAuth(
   entree: RequestInfo | URL,
   init: RequestInit = {},
 ): Promise<Response> {
+  assertApiDestination(entree)
   const state = useAuthStore.getState()
   const scope = authDataScope(state)
   const { accessToken: jeton, companyId } = state

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { AlertTriangle, Check, PackagePlus, RefreshCw, Trash2, Truck } from 'lucide-react'
 import api from '@/lib/api'
 import { toastError, toastSuccess } from '@/lib/toast'
@@ -14,6 +14,9 @@ export default function InventoryOperationsPage({ view = 'stock' }: { view?: Vie
   const [orders, setOrders] = useState<PurchaseOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [stockDrafts, setStockDrafts] = useState<Record<string, string>>({})
+  const [stockSaving, setStockSaving] = useState<Record<string, boolean>>({})
+  const stockRequests = useRef(new Set<string>())
   const [ingredientForm, setIngredientForm] = useState({ name: '', unit: 'pièce', currentStock: '0', minStockLevel: '0', costPerUnit: '0', supplierId: '' })
   const [supplierForm, setSupplierForm] = useState({ name: '', contactName: '', email: '', phone: '' })
   const [orderForm, setOrderForm] = useState({ supplierId: '', ingredientId: '', quantity: '1', unitCost: '0' })
@@ -53,13 +56,24 @@ export default function InventoryOperationsPage({ view = 'stock' }: { view?: Vie
   }
 
   async function updateStock(item: Ingredient, value: string) {
+    if (stockRequests.current.has(item.id)) return
+    const clearDraft = () => setStockDrafts(previous => { const next = { ...previous }; delete next[item.id]; return next })
     const amount = Number(value)
-    if (!Number.isFinite(amount) || amount < 0) return toastError('Le stock doit être un nombre positif')
+    if (!value.trim() || !Number.isFinite(amount) || amount < 0) { clearDraft(); return toastError('Le stock doit être un nombre positif') }
+    // Un simple passage du focus ne doit pas réécrire un ancien stock.
+    if (amount === item.currentStock) { clearDraft(); return }
+    stockRequests.current.add(item.id)
+    setStockSaving(previous => ({ ...previous, [item.id]: true }))
     try {
       await api.put(`/inventory/ingredients/${item.id}`, { currentStock: amount })
       setIngredients((list) => list.map((entry) => entry.id === item.id ? { ...entry, currentStock: amount, lowStock: amount <= entry.minStockLevel } : entry))
       toastSuccess('Stock enregistré sur le serveur')
     } catch (error: any) { toastError(error?.response?.data?.message || 'Modification impossible') }
+    finally {
+      clearDraft()
+      stockRequests.current.delete(item.id)
+      setStockSaving(previous => ({ ...previous, [item.id]: false }))
+    }
   }
 
   async function removeIngredient(item: Ingredient) {
@@ -92,7 +106,14 @@ export default function InventoryOperationsPage({ view = 'stock' }: { view?: Vie
     {view === 'stock' && <>
       <section style={stats}><Stat label="Articles" value={ingredients.length} /><Stat label="Alertes de stock" value={lowStock.length} warn={lowStock.length > 0} /><Stat label="Valeur estimée" value={`${ingredients.reduce((sum, item) => sum + item.currentStock * item.costPerUnit, 0).toFixed(2)} €`} /></section>
       <form onSubmit={createIngredient} style={card}><h2 style={h2}><PackagePlus size={19} /> Ajouter un article</h2><div style={formGrid}><Field label="Nom"><input required value={ingredientForm.name} onChange={(e) => setIngredientForm({ ...ingredientForm, name: e.target.value })} style={input} /></Field><Field label="Unité"><input required value={ingredientForm.unit} onChange={(e) => setIngredientForm({ ...ingredientForm, unit: e.target.value })} style={input} /></Field><Field label="Stock actuel"><input required type="number" min="0" step="0.01" value={ingredientForm.currentStock} onChange={(e) => setIngredientForm({ ...ingredientForm, currentStock: e.target.value })} style={input} /></Field><Field label="Seuil d’alerte"><input required type="number" min="0" step="0.01" value={ingredientForm.minStockLevel} onChange={(e) => setIngredientForm({ ...ingredientForm, minStockLevel: e.target.value })} style={input} /></Field><Field label="Coût unitaire"><input required type="number" min="0" step="0.01" value={ingredientForm.costPerUnit} onChange={(e) => setIngredientForm({ ...ingredientForm, costPerUnit: e.target.value })} style={input} /></Field><Field label="Fournisseur"><select value={ingredientForm.supplierId} onChange={(e) => setIngredientForm({ ...ingredientForm, supplierId: e.target.value })} style={input}><option value="">Aucun</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></Field></div><button disabled={busy} style={primary}>Enregistrer l’article</button></form>
-      <section style={card}><h2 style={h2}>Articles en stock</h2>{loading ? <Empty text="Chargement…" /> : ingredients.length === 0 ? <Empty text="Aucun article. Ajoutez votre premier ingrédient ci-dessus." /> : <div style={{ overflowX: 'auto' }}><table style={table}><thead><tr>{['Article', 'Fournisseur', 'Coût', 'Stock', 'Seuil', 'État', ''].map((cell) => <th key={cell} style={th}>{cell}</th>)}</tr></thead><tbody>{ingredients.map((item) => <tr key={item.id}><td style={td}><strong>{item.name}</strong><small style={small}> / {item.unit}</small></td><td style={td}>{item.supplier?.name || '—'}</td><td style={td}>{item.costPerUnit.toFixed(2)} €</td><td style={td}><input aria-label={`Stock de ${item.name}`} type="number" min="0" step="0.01" defaultValue={item.currentStock} onBlur={(e) => void updateStock(item, e.target.value)} style={{ ...input, width: 95 }} /></td><td style={td}>{item.minStockLevel}</td><td style={td}>{item.currentStock <= item.minStockLevel ? <span style={warning}><AlertTriangle size={14} /> Bas</span> : <span style={ok}><Check size={14} /> OK</span>}</td><td style={td}><button onClick={() => void removeIngredient(item)} aria-label={`Supprimer ${item.name}`} style={icon}><Trash2 size={16} /></button></td></tr>)}</tbody></table></div>}</section>
+      <section style={card}><h2 style={h2}>Articles en stock</h2>{loading ? <Empty text="Chargement…" /> : ingredients.length === 0 ? <Empty text="Aucun article. Ajoutez votre premier ingrédient ci-dessus." /> : <div style={{ overflowX: 'auto' }}><table style={table}><thead><tr>{['Article', 'Fournisseur', 'Coût', 'Stock', 'Seuil', 'État', ''].map((cell) => <th key={cell} style={th}>{cell}</th>)}</tr></thead><tbody>{ingredients.map((item) => <tr key={item.id}>
+        <td style={td}><strong>{item.name}</strong><small style={small}> / {item.unit}</small></td><td style={td}>{item.supplier?.name || '—'}</td><td style={td}>{item.costPerUnit.toFixed(2)} €</td>
+        <td style={td}><input aria-label={`Stock de ${item.name}`} type="number" min="0" step="0.01"
+          value={stockDrafts[item.id] ?? String(item.currentStock)} disabled={stockSaving[item.id] === true}
+          onChange={e => setStockDrafts(previous => ({ ...previous, [item.id]: e.target.value }))}
+          onBlur={e => void updateStock(item, e.target.value)} style={{ ...input, width: 95 }} /></td>
+        <td style={td}>{item.minStockLevel}</td><td style={td}>{item.currentStock <= item.minStockLevel ? <span style={warning}><AlertTriangle size={14} /> Bas</span> : <span style={ok}><Check size={14} /> OK</span>}</td><td style={td}><button disabled={stockSaving[item.id] === true} onClick={() => void removeIngredient(item)} aria-label={`Supprimer ${item.name}`} style={icon}><Trash2 size={16} /></button></td>
+      </tr>)}</tbody></table></div>}</section>
     </>}
     {view === 'suppliers' && <><form onSubmit={createSupplier} style={card}><h2 style={h2}><Truck size={19} /> Nouveau fournisseur</h2><div style={formGrid}><Field label="Société"><input required value={supplierForm.name} onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })} style={input} /></Field><Field label="Contact"><input value={supplierForm.contactName} onChange={(e) => setSupplierForm({ ...supplierForm, contactName: e.target.value })} style={input} /></Field><Field label="Email"><input type="email" value={supplierForm.email} onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })} style={input} /></Field><Field label="Téléphone"><input value={supplierForm.phone} onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })} style={input} /></Field></div><button disabled={busy} style={primary}>Enregistrer le fournisseur</button></form><section style={card}>{suppliers.length === 0 ? <Empty text="Aucun fournisseur enregistré." /> : suppliers.map((supplier) => <article key={supplier.id} style={row}><strong>{supplier.name}</strong><span style={small}>{supplier.contactName || 'Aucun contact'} · {supplier.email || supplier.phone || 'coordonnées non renseignées'}</span></article>)}</section></>}
     {view === 'orders' && <><form onSubmit={createOrder} style={card}><h2 style={h2}>Créer un bon de commande</h2>{suppliers.length === 0 || ingredients.length === 0 ? <Empty text="Ajoutez d’abord un fournisseur et un article de stock." /> : <><div style={formGrid}><Field label="Fournisseur"><select required value={orderForm.supplierId} onChange={(e) => setOrderForm({ ...orderForm, supplierId: e.target.value })} style={input}><option value="">Choisir…</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></Field><Field label="Article"><select required value={orderForm.ingredientId} onChange={(e) => setOrderForm({ ...orderForm, ingredientId: e.target.value })} style={input}><option value="">Choisir…</option>{ingredients.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Quantité"><input required type="number" min="0.01" step="0.01" value={orderForm.quantity} onChange={(e) => setOrderForm({ ...orderForm, quantity: e.target.value })} style={input} /></Field><Field label="Coût unitaire"><input required type="number" min="0" step="0.01" value={orderForm.unitCost} onChange={(e) => setOrderForm({ ...orderForm, unitCost: e.target.value })} style={input} /></Field></div><button disabled={busy} style={primary}>Enregistrer le bon</button></>}</form><section style={card}>{orders.length === 0 ? <Empty text="Aucun bon de commande." /> : orders.map((order) => <article key={order.id} style={row}><div><strong>{order.supplier.name} · {order.total.toFixed(2)} €</strong><div style={small}>{order.items.map((item) => `${item.ingredient.name} × ${item.quantity}`).join(', ')}</div></div>{order.status === 'RECEIVED' ? <span style={ok}><Check size={14} /> Réceptionné</span> : <button onClick={() => void receiveOrder(order)} style={primary}>Réceptionner</button>}</article>)}</section></>}

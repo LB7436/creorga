@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Bell, Volume2, Settings, User, Palette, ChevronRight, Fingerprint, Car, MapPin, Mic, Server, RefreshCw, LogOut, Wifi } from 'lucide-react'
 import { useAssistant } from '@/stores/assistantStore'
 import AssistantMascot from '@/components/AssistantMascot'
-import { biometricChallenge, getLocationStatus, enablePushNotifications } from '@/lib/assistantFeatures'
 import { useAuthStore } from '@/stores/authStore'
+import { assertApiDestination } from '@/lib/apiDestination'
 
 const ENV_BACKEND = (import.meta as any).env?.VITE_REMOTE_BACKEND
                  || (import.meta as any).env?.VITE_BACKEND_URL
@@ -27,6 +27,8 @@ export default function MobileSettings() {
   const saveBackend = () => {
     const url = backendUrl.trim().replace(/\/$/, '')
     if (!url) return
+    try { assertApiDestination(`${url}/api/agent/commands`) }
+    catch (error: any) { setPingState('fail'); setPingMsg(error?.message || 'Serveur non autorisé.'); return }
     localStorage.setItem('creorga.backend.remote', url)
     setBackendUrl(url)
     alert(`✅ URL serveur enregistrée :\n${url}\n\nL'app va recharger pour appliquer.`)
@@ -37,6 +39,7 @@ export default function MobileSettings() {
     setPingState('testing'); setPingMsg('')
     try {
       const url = backendUrl.trim().replace(/\/$/, '')
+      assertApiDestination(`${url}/api/agent/commands`)
       const r = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(8000) })
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       const j = await r.json()
@@ -65,7 +68,7 @@ export default function MobileSettings() {
       setPushEnabled(result === 'granted')
       if (result === 'granted') {
         new Notification(`Bonjour ${a.name} 👋`, {
-          body: 'Notifications activées. Vous serez prévenu des alertes critiques.',
+          body: 'Autorisation locale accordée. Ce test ne valide pas un service de notifications en arrière-plan.',
           icon: '/icon-192.png',
         })
       }
@@ -85,8 +88,7 @@ export default function MobileSettings() {
       <Section title="🌐 Serveur (URL backend)">
         <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 10, color: '#94a3b8', lineHeight: 1.4 }}>
-            URL du backend Creorga. Change-la quand le tunnel Cloudflare bouge.
-            Format : <code style={{ color: '#fbbf24' }}>https://xxx.trycloudflare.com</code>
+            Seul le serveur configuré pour cette installation est autorisé. Une URL saisie ici ne peut pas devenir une nouvelle destination de connexion.
           </div>
           <input value={backendUrl} onChange={(e) => setBackendUrl(e.target.value)}
             placeholder="https://xxx.trycloudflare.com"
@@ -150,8 +152,8 @@ export default function MobileSettings() {
           <Toggle on={a.autoListen} onChange={a.setAutoListen} />
         </Row>
         {/* v3.12 #7 — Voix par mascotte */}
-        <Row icon={Volume2} label={`Profil voix · ${a.voiceProfile}`}>
-          <select value={a.voiceProfile} onChange={(e) => a.setVoiceProfile(e.target.value as any)}
+        <Row icon={Volume2} label="Profil de voix avancé — indisponible" value="La vitesse et la voix système ci-dessus restent utilisables.">
+          <select disabled aria-label="Profil de voix avancé indisponible" value={a.voiceProfile}
             style={selectStyle}>
             <option value="auto">Auto (mascotte)</option>
             <option value="masculine">Masculine</option>
@@ -162,43 +164,34 @@ export default function MobileSettings() {
           </select>
         </Row>
         {/* v3.12 #1 — Wake word */}
-        <Row icon={Mic} label={`Wake word "Hey ${a.name}"`}>
-          <Toggle on={a.wakeWordEnabled} onChange={a.setWakeWordEnabled} />
-        </Row>
+        <Row icon={Mic} label="Mot d’activation — indisponible" value="La dictée se lance manuellement depuis l’assistant." />
       </Section>
 
       {/* Modes */}
       <Section title="Modes">
         {/* v3.12 #17 — Mode conduite */}
-        <Row icon={Car} label="Mode conduite (mains-libres)">
-          <Toggle on={a.drivingMode} onChange={a.setDrivingMode} />
-        </Row>
+        <Row icon={Car} label="Mode conduite — indisponible" value="Aucun fonctionnement mains-libres continu n’est activé." />
         {/* v3.12 #14 — Garde biométrique */}
-        <Row icon={Fingerprint} label="Confirmer biométrie pour > 200 €">
-          <Toggle on={a.biometricGuard} onChange={a.setBiometricGuard} />
-        </Row>
+        <Row icon={Fingerprint} label="Biométrie financière — indisponible" value="Aucune protection biométrique des paiements n’est mise en œuvre. Les droits serveur restent obligatoires." />
       </Section>
 
       {/* Notifications */}
       <Section title="Notifications">
-        <Row icon={Bell} label="Push (alertes critiques)" onClick={requestPush}>
+        <Row icon={Bell} label="Autorisation locale de notification" value="Ne valide pas un envoi d’alertes en arrière-plan.">
           <Toggle on={pushEnabled} onChange={() => requestPush()} />
         </Row>
         {/* v3.12 #18 — Géolocalisation */}
-        <Row icon={MapPin} label="Géolocalisation (resto vs distant)" onClick={async () => {
-          const loc = await getLocationStatus()
-          alert(loc.available
-            ? `📍 ${loc.isAtRestaurant ? 'Au restaurant' : 'À distance'} (${loc.distanceMeters} m)`
-            : `❌ ${loc.reason || 'Indisponible'}`)
-        }}>
-          <ChevronRight size={14} />
-        </Row>
+        <Row icon={MapPin} label="Localisation de l’établissement — indisponible" value="Aucune adresse géographique vérifiée n’est configurée pour ce site." />
       </Section>
 
       {/* Tests */}
       <Section title="Tests rapides">
         <Row icon={Settings} label="Tester voix"
           onClick={() => {
+            if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') {
+              alert('Synthèse vocale non disponible sur cet appareil.')
+              return
+            }
             const u = new SpeechSynthesisUtterance(`Bonjour, je suis ${a.name}. Test de la synthèse vocale.`)
             u.lang = 'fr-FR'; u.rate = a.voiceSpeed
             window.speechSynthesis.speak(u)
@@ -215,13 +208,6 @@ export default function MobileSettings() {
               new Notification('🚨 Test notification', { body: 'Si vous voyez ceci, tout fonctionne.', icon: '/icon-192.png' })
             else
               alert('Activez les notifications d\'abord ↑')
-          }}>
-          <ChevronRight size={14} />
-        </Row>
-        <Row icon={Fingerprint} label="Tester biométrie (Face ID / empreinte)"
-          onClick={async () => {
-            const ok = await biometricChallenge('Confirmer votre identité')
-            alert(ok ? '✅ Biométrie validée' : '❌ Biométrie refusée')
           }}>
           <ChevronRight size={14} />
         </Row>

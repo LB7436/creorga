@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Globe, Wifi, Server, AlertCircle, CheckCircle2, Copy, ExternalLink } from 'lucide-react'
+import { Globe, Wifi, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { fetchAuth } from '@/lib/fetchAuth'
+import { assertApiDestination } from '@/lib/apiDestination'
 
 const BACKEND_DEFAULT = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -18,6 +19,8 @@ const BACKEND_DEFAULT = (import.meta as any).env?.VITE_BACKEND_URL || 'http://lo
 
 export default function MobileWorld() {
   const [backend, setBackend] = useState(localStorage.getItem('creorga.backend.remote') || BACKEND_DEFAULT)
+  const [connectedBackend, setConnectedBackend] = useState(BACKEND_DEFAULT)
+  const [configurationError, setConfigurationError] = useState('')
   const [status, setStatus] = useState<'checking' | 'online' | 'offline'>('checking')
   const [latency, setLatency] = useState<number | null>(null)
   const [serverInfo, setServerInfo] = useState<any>(null)
@@ -27,7 +30,7 @@ export default function MobileWorld() {
       setStatus('checking')
       const start = Date.now()
       try {
-        const r = await fetchAuth(`${backend}/api/agent/commands`, { signal: AbortSignal.timeout(8000) })
+        const r = await fetchAuth(`${connectedBackend}/api/agent/commands`, { signal: AbortSignal.timeout(8000) })
         if (!r.ok) throw new Error('not ok')
         const data = await r.json()
         setLatency(Date.now() - start)
@@ -42,11 +45,19 @@ export default function MobileWorld() {
     check()
     const id = setInterval(check, 15_000)
     return () => clearInterval(id)
-  }, [backend])
+  }, [connectedBackend])
 
   const setRemote = (url: string) => {
-    localStorage.setItem('creorga.backend.remote', url)
-    setBackend(url)
+    try {
+      const normalized = url.trim().replace(/\/+$/, '')
+      assertApiDestination(`${normalized}/api/agent/commands`)
+      localStorage.setItem('creorga.backend.remote', normalized)
+      setBackend(normalized)
+      setConnectedBackend(normalized)
+      setConfigurationError('')
+    } catch {
+      setConfigurationError('Adresse non autorisée. Aucun jeton n’a été envoyé. Un accès distant doit être configuré par votre administrateur ; ce champ ne connecte pas un autre serveur.')
+    }
   }
 
   return (
@@ -95,6 +106,7 @@ export default function MobileWorld() {
           🔌 URL du serveur
         </div>
         <input
+          aria-label="URL du serveur"
           value={backend} onChange={(e) => setBackend(e.target.value)}
           placeholder="https://creorga.example.com:3002"
           style={{
@@ -103,6 +115,7 @@ export default function MobileWorld() {
             color: '#fff', fontSize: 12, fontFamily: 'monospace', outline: 'none', boxSizing: 'border-box',
           }}
         />
+        {configurationError && <p role="alert" style={{ color: '#fca5a5', fontSize: 12 }}>{configurationError}</p>}
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
           <button onClick={() => setRemote(backend)}
             style={{
@@ -111,7 +124,7 @@ export default function MobileWorld() {
             }}>
             Sauvegarder & connecter
           </button>
-          <button onClick={() => setBackend('http://localhost:3002')}
+          <button onClick={() => { setBackend(BACKEND_DEFAULT); setRemote(BACKEND_DEFAULT) }}
             style={{
               padding: '10px 12px', borderRadius: 8,
               border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)',
@@ -133,21 +146,12 @@ export default function MobileWorld() {
           <div style={{ fontWeight: 800, fontSize: 13, color: '#a78bfa' }}>Vous êtes à l'étranger ?</div>
         </div>
         <div style={{ fontSize: 11, color: '#cbd5e1', lineHeight: 1.6 }}>
-          Pour accéder à votre restaurant depuis le Portugal (ou n'importe où) :
+          La connexion distante nécessite une installation configurée et sécurisée par votre administrateur.
         </div>
-        <ol style={{ margin: '8px 0 0 0', paddingLeft: 20, fontSize: 11, color: '#e2e8f0', lineHeight: 1.7 }}>
-          <li>Sur l'ordi du restaurant, installez <code style={codeStyle}>cloudflared</code> (gratuit)</li>
-          <li>Lancez : <code style={codeStyle}>cloudflared tunnel --url http://localhost:3002</code></li>
-          <li>Cloudflare donne une URL <code style={codeStyle}>https://xxx.trycloudflare.com</code></li>
-          <li>Collez-la ci-dessus → tap "Sauvegarder"</li>
-        </ol>
-        <a href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/" target="_blank" rel="noopener noreferrer"
-          style={{
-            marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 4,
-            color: '#a78bfa', fontSize: 11, textDecoration: 'none',
-          }}>
-          Documentation Cloudflare Tunnel <ExternalLink size={10} />
-        </a>
+        <p style={{ fontSize: 11, color: '#cbd5e1', lineHeight: 1.6 }}>
+          Ne publiez pas le serveur de caisse à partir de cet écran. Le jeton actuel ne peut être
+          transmis qu’à l’origine de l’application ou au backend configuré lors de son installation.
+        </p>
       </div>
 
       {/* Quick access tips */}
@@ -160,16 +164,11 @@ export default function MobileWorld() {
         </div>
         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11, color: '#cbd5e1', lineHeight: 1.7 }}>
           <li><b>Installer cette app</b> : menu Chrome → "Ajouter à l'écran d'accueil"</li>
-          <li><b>Mode hors-ligne</b> : les KPIs sont mis en cache 5 min</li>
-          <li><b>Voix à distance</b> : le micro fonctionne, Robi répond comme local</li>
-          <li><b>Confidentiel</b> : tunnel chiffré HTTPS automatique avec Cloudflare</li>
+          <li><b>Hors ligne</b> : une valeur en cache ne prouve pas l’état actuel du restaurant.</li>
+          <li><b>Micro et son</b> : dépendent des permissions et du matériel ; non vérifiés par cette page.</li>
+          <li><b>Confidentialité</b> : aucun tunnel ou chiffrement distant n’est créé automatiquement ici.</li>
         </ul>
       </div>
     </div>
   )
-}
-
-const codeStyle: React.CSSProperties = {
-  padding: '1px 5px', borderRadius: 3, background: 'rgba(0,0,0,0.4)',
-  fontFamily: 'monospace', fontSize: 10, color: '#fcd34d',
 }

@@ -1,6 +1,7 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import { authDataScope, authSessionKey } from './authScope'
+import { assertApiDestination } from './apiDestination'
 
 type ScopedRequest = InternalAxiosRequestConfig & { _creorgaScope?: string; _retry?: boolean }
 
@@ -50,6 +51,7 @@ export const traiterSessionExpiree = () => {
 
 // Ajouter le token aux requêtes
 api.interceptors.request.use((config) => {
+  assertApiDestination(api.getUri(config))
   const scoped = config as ScopedRequest
   if (scoped._creorgaScope === undefined) scoped._creorgaScope = authDataScope(useAuthStore.getState())
   else assertAuthScope(scoped._creorgaScope)

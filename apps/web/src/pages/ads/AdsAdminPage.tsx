@@ -31,38 +31,52 @@ export default function AdsAdminPage() {
   const [editing, setEditing] = useState<Ad | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [aiBusy, setAiBusy] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const busyRef = useRef(false)
 
   const fetchAds = async () => {
     try {
       const r = await fetchAuth(`${BACKEND}/api/ads`)
+      if (!r.ok) throw new Error('Chargement des publicités impossible')
       const data = await r.json()
       setAds(data.ads || [])
-    } catch { /* offline */ }
+    } catch (e: any) { setError(e?.message || 'Chargement des publicités impossible') }
   }
   useEffect(() => { fetchAds() }, [companyId])
 
   const save = async (ad: Partial<Ad>) => {
-    if (editing) {
-      await fetchAuth(`${BACKEND}/api/ads/${editing.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    if (busyRef.current) return
+    busyRef.current = true; setBusy(true); setError('')
+    try {
+      const response = await fetchAuth(editing ? `${BACKEND}/api/ads/${editing.id}` : `${BACKEND}/api/ads`, {
+        method: editing ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ad),
       })
-    } else {
-      await fetchAuth(`${BACKEND}/api/ads`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(ad),
-      })
-    }
-    setShowForm(false); setEditing(null); fetchAds()
+      await requireSuccess(response)
+      setShowForm(false); setEditing(null); await fetchAds()
+    } catch (e: any) { setError(e?.message || 'Enregistrement impossible. Saisie conservée.') }
+    finally { busyRef.current = false; setBusy(false) }
   }
   const remove = async (id: string) => {
+    if (busyRef.current) return
     if (!confirm('Supprimer cette pub ?')) return
-    await fetchAuth(`${BACKEND}/api/ads/${id}`, { method: 'DELETE' })
-    fetchAds()
+    await mutate(`${BACKEND}/api/ads/${id}`, 'DELETE')
   }
   const toggleLive = async (id: string) => {
-    await fetchAuth(`${BACKEND}/api/ads/${id}/toggle-live`, { method: 'POST' })
-    fetchAds()
+    await mutate(`${BACKEND}/api/ads/${id}/toggle-live`, 'POST')
+  }
+  async function requireSuccess(response: Response) {
+    if (response.ok) return
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.message || data.error || `Action refusée (HTTP ${response.status}).`)
+  }
+  async function mutate(url: string, method: string) {
+    if (busyRef.current) return
+    busyRef.current = true; setBusy(true); setError('')
+    try { await requireSuccess(await fetchAuth(url, { method })); await fetchAds() }
+    catch (e: any) { setError(e?.message || 'Action impossible. Aucune confirmation obtenue.') }
+    finally { busyRef.current = false; setBusy(false) }
   }
 
   return (
@@ -78,11 +92,12 @@ export default function AdsAdminPage() {
           <button onClick={() => navigate(`/ads/tv?companyId=${encodeURIComponent(companyId || '')}`)} style={btnSecondary}>
             🖥 Ouvrir l'écran TV
           </button>
-          <button onClick={() => { setEditing(null); setShowForm(true) }} style={btnPrimary}>
+          <button disabled={busy} onClick={() => { setEditing(null); setError(''); setShowForm(true) }} style={btnPrimary}>
             + Nouvelle pub
           </button>
         </div>
       </header>
+      {!showForm && error && <p role="alert" style={{ color: '#b91c1c' }}>{error}</p>}
 
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
         {ads.length === 0 ? (
@@ -133,12 +148,12 @@ export default function AdsAdminPage() {
                 {ad.cta && <Pill color="#f59e0b">CTA</Pill>}
               </div>
               <div style={{ display: 'flex', gap: 4, marginTop: 10 }}>
-                <button onClick={() => toggleLive(ad.id)}
+                <button disabled={busy} onClick={() => toggleLive(ad.id)}
                   style={{ ...miniBtn, background: ad.isLive ? '#10b981' : '#e2e8f0', color: ad.isLive ? '#fff' : '#475569', flex: 1 }}>
                   {ad.isLive ? '🔴 En direct' : '⊝ Hors ligne'}
                 </button>
-                <button onClick={() => { setEditing(ad); setShowForm(true) }} style={miniBtn}>✏</button>
-                <button onClick={() => remove(ad.id)} style={{ ...miniBtn, color: '#ef4444' }}>🗑</button>
+                <button disabled={busy} onClick={() => { setEditing(ad); setError(''); setShowForm(true) }} aria-label={`Modifier ${ad.title}`} style={miniBtn}>✏</button>
+                <button disabled={busy} onClick={() => remove(ad.id)} aria-label={`Supprimer ${ad.title}`} style={{ ...miniBtn, color: '#ef4444' }}>🗑</button>
               </div>
             </div>
           </div>
@@ -150,9 +165,11 @@ export default function AdsAdminPage() {
           <AdForm
             ad={editing}
             onSave={save}
-            onClose={() => { setShowForm(false); setEditing(null) }}
+            onClose={() => { if (!busyRef.current) { setShowForm(false); setEditing(null) } }}
             aiBusy={aiBusy}
             setAiBusy={setAiBusy}
+            busy={busy}
+            error={error}
           />
         )}
       </AnimatePresence>
@@ -167,7 +184,7 @@ export default function AdsAdminPage() {
   )
 }
 
-function AdForm({ ad, onSave, onClose, aiBusy, setAiBusy }: any) {
+function AdForm({ ad, onSave, onClose, aiBusy, setAiBusy, busy, error }: any) {
   const [title, setTitle] = useState(ad?.title || '')
   const [subtitle, setSubtitle] = useState(ad?.subtitle || '')
   const [price, setPrice] = useState(ad?.price || '')
@@ -217,10 +234,11 @@ function AdForm({ ad, onSave, onClose, aiBusy, setAiBusy }: any) {
         }}>
         <header style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{ad ? '✏ Modifier la pub' : '+ Nouvelle pub'}</h2>
-          <button onClick={onClose} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, width: 32, height: 32, cursor: 'pointer' }}>✕</button>
+          <button disabled={busy} onClick={onClose} aria-label="Fermer le formulaire" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, width: 32, height: 32, cursor: 'pointer' }}>✕</button>
         </header>
 
-        <div style={{ padding: 20, overflowY: 'auto', display: 'grid', gap: 12 }}>
+        <fieldset disabled={busy} style={{ margin: 0, border: 0, padding: 20, overflowY: 'auto', display: 'grid', gap: 12 }}>
+          {error && <p role="alert" style={{ margin: 0, color: '#b91c1c' }}>{error}</p>}
           <Field label="Titre *" value={title} onChange={setTitle} placeholder="Ex: Plat du jour : entrecôte" />
           <Field label="Sous-titre" value={subtitle} onChange={setSubtitle} placeholder="Ex: Servie avec frites maison & sauce poivre" />
 
@@ -267,13 +285,13 @@ function AdForm({ ad, onSave, onClose, aiBusy, setAiBusy }: any) {
             <input type="checkbox" checked={isLive} onChange={(e) => setIsLive(e.target.checked)} />
             <span style={{ flex: 1, fontWeight: 700 }}>{isLive ? '🔴 Diffuser maintenant en direct sur la TV' : '⊝ Hors ligne (ne s\'affiche pas)'}</span>
           </label>
-        </div>
+        </fieldset>
 
         <footer style={{ padding: 14, borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button onClick={onClose} style={btnSecondary}>Annuler</button>
+          <button disabled={busy} onClick={onClose} style={btnSecondary}>Annuler</button>
           <button onClick={() => onSave({ title, subtitle, price: price ? Number(price) : undefined, cta, durationSec, bgColor, textColor, imageDataUrl, isLive })}
-            disabled={!title} style={btnPrimary}>
-            ✓ {ad ? 'Mettre à jour' : 'Créer la pub'}
+            disabled={busy || aiBusy || !title.trim()} style={btnPrimary}>
+            {busy ? 'Enregistrement…' : `✓ ${ad ? 'Mettre à jour' : 'Créer la pub'}`}
           </button>
         </footer>
       </motion.div>

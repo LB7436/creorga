@@ -47,7 +47,7 @@ describe('ouvrirFluxAuthentifie', () => {
     useAuthStore.getState().setAccessToken('jeton-valide')
 
     const recus: string[] = []
-    const fermer = ouvrirFluxAuthentifie('http://x/api/agent/operator/stream', {
+    const fermer = ouvrirFluxAuthentifie('/api/agent/operator/stream', {
       onMessage: (d) => recus.push(d),
     })
     await vi.waitFor(() => expect(recus.length).toBe(1))
@@ -64,7 +64,7 @@ describe('ouvrirFluxAuthentifie', () => {
     const { ouvrirFluxAuthentifie } = await import('./sseAuth')
 
     const recus: string[] = []
-    const fermer = ouvrirFluxAuthentifie('http://x/api/agent/operator/stream', {
+    const fermer = ouvrirFluxAuthentifie('/api/agent/operator/stream', {
       onMessage: (d) => recus.push(d),
     })
     await vi.waitFor(() => expect(recus.length).toBe(2))

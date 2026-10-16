@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { MascotVariant } from '@/components/AssistantMascot'
+import { useAuthStore } from './authStore'
+import { authDataScope } from '@/lib/authScope'
 
 /**
  * Assistant store v3.18 — multi-conversations + multimodal attachments
@@ -44,6 +46,24 @@ export interface AssistantConversation {
   archived: boolean
 }
 
+export interface AssistantContext {
+  scopeKey: string
+  sessionVersion: number
+  conversationId: string
+  dataScope: string
+}
+
+interface AssistantHistory {
+  conversations: AssistantConversation[]
+  currentConversationId: string | null
+}
+
+function authScopeKey(): string | null {
+  const auth = useAuthStore.getState()
+  return auth.isAuthenticated && auth.user?.id && auth.companyId
+    ? JSON.stringify([auth.user.id, auth.companyId]) : null
+}
+
 const newId = () => Math.random().toString(36).slice(2, 12)
 
 function autoTitle(firstUserText: string): string {
@@ -54,6 +74,14 @@ function autoTitle(firstUserText: string): string {
 }
 
 interface AssistantState {
+  // L'historique non attribuable n'est jamais ouvert automatiquement.
+  histories: Record<string, AssistantHistory>
+  quarantinedHistory?: unknown
+  scopeKey: string | null
+  sessionVersion: number
+  captureContext: () => AssistantContext | null
+  isCurrentContext: (context: AssistantContext | null) => boolean
+  addMessageForContext: (context: AssistantContext | null, msg: Omit<AssistantMessage, 'id' | 'ts'>) => boolean
   // ─── Persisted settings ──────────────────────────────────────────────
   mascot: MascotVariant
   name: string
@@ -119,6 +147,37 @@ const DEFAULT_CONV: AssistantConversation = {
 export const useAssistant = create<AssistantState>()(
   persist(
     (set, get) => ({
+      histories: {},
+      scopeKey: authScopeKey(),
+      sessionVersion: useAuthStore.getState().sessionVersion,
+      captureContext: () => {
+        const s = get()
+        return s.scopeKey && s.currentConversationId
+          ? { scopeKey: s.scopeKey, sessionVersion: s.sessionVersion, conversationId: s.currentConversationId, dataScope: authDataScope(useAuthStore.getState()) } : null
+      },
+      isCurrentContext: (context) => {
+        const s = get()
+        return !!context && context.scopeKey === s.scopeKey && context.sessionVersion === s.sessionVersion
+          && context.dataScope === authDataScope(useAuthStore.getState())
+          && context.conversationId === s.currentConversationId
+      },
+      addMessageForContext: (context, msg) => {
+        const s = get()
+        if (!context || context.scopeKey !== s.scopeKey || context.sessionVersion !== s.sessionVersion
+          || context.dataScope !== authDataScope(useAuthStore.getState())
+          || !s.conversations.some(c => c.id === context.conversationId)) return false
+        const ts = Date.now()
+        const fullMsg: AssistantMessage = { ...msg, id: newId(), ts }
+        set(state => {
+          const conversations = state.conversations.map(c => c.id !== context.conversationId ? c : {
+            ...c,
+            title: c.messages.length === 0 && msg.role === 'user' ? autoTitle(msg.text) : c.title,
+            messages: [...c.messages, fullMsg], updatedAt: ts,
+          })
+          return { conversations, messages: conversations.find(c => c.id === state.currentConversationId)?.messages ?? [] }
+        })
+        return true
+      },
       // settings
       mascot: 'robot',
       name: 'Robi',
@@ -159,13 +218,14 @@ export const useAssistant = create<AssistantState>()(
           currentConversationId: id,
           attachments: [],
           messages: [],
+          mode: 'idle',
         }))
         return id
       },
       selectConversation: (id) => set((s) => {
         const conv = s.conversations.find((c) => c.id === id)
         if (!conv) return s
-        return { currentConversationId: id, attachments: [], messages: conv.messages }
+        return { currentConversationId: id, attachments: [], messages: conv.messages, mode: 'idle' }
       }),
       archiveConversation: (id) => set((s) => {
         const conversations = s.conversations.map((c) => c.id === id ? { ...c, archived: true } : c)
@@ -251,34 +311,22 @@ export const useAssistant = create<AssistantState>()(
     }),
     {
       name: 'creorga-assistant',
-      version: 2, // bump pour forcer migration
+      version: 3,
       migrate: (persistedState: any, version) => {
-        // v1 → v2 : ancien store avait juste `messages: []` au top niveau
-        if (version < 2 && persistedState) {
-          const oldMessages = (persistedState.messages || []) as AssistantMessage[]
-          const conv: AssistantConversation = {
-            id: newId(),
-            title: oldMessages.length > 0 ? autoTitle(oldMessages[0]?.text || 'Discussion') : 'Nouvelle discussion',
-            messages: oldMessages,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-            archived: false,
-          }
-          return {
-            ...persistedState,
-            conversations: [conv],
-            currentConversationId: conv.id,
-            attachments: [],
-            messages: oldMessages,
-          }
+        if (version < 3 && persistedState) {
+          const { conversations, currentConversationId, messages, attachments: _attachments, ...preferences } = persistedState
+          return { ...preferences, histories: {}, quarantinedHistory: { conversations, currentConversationId, messages } }
         }
         return persistedState
       },
-      onRehydrateStorage: () => (state) => {
-        // sync messages from currentConversation après rehydration
-        if (state) {
-          const conv = state.conversations.find((c) => c.id === state.currentConversationId)
-          state.messages = conv?.messages || []
+      merge: (persisted: any, current) => {
+        const scopeKey = authScopeKey()
+        const history = scopeKey ? persisted?.histories?.[scopeKey] : null
+        const conversations = history?.conversations ?? [{ ...DEFAULT_CONV, id: newId(), messages: [] }]
+        const currentConversationId = history?.currentConversationId ?? conversations[0]?.id ?? null
+        return { ...current, ...persisted, scopeKey, sessionVersion: useAuthStore.getState().sessionVersion,
+          conversations, currentConversationId, attachments: [], mode: 'idle', open: false,
+          messages: conversations.find((c: AssistantConversation) => c.id === currentConversationId)?.messages ?? [],
         }
       },
       // v3.18.1 fix H1 : strip dataUrl des messages avant persist (sinon quota localStorage exploded
@@ -290,17 +338,35 @@ export const useAssistant = create<AssistantState>()(
         panelSize: s.panelSize, launcherSize: s.launcherSize,
         voiceProfile: s.voiceProfile, wakeWordEnabled: s.wakeWordEnabled,
         drivingMode: s.drivingMode, biometricGuard: s.biometricGuard,
-        conversations: s.conversations.map((c) => ({
-          ...c,
-          messages: c.messages.map((m) => ({
-            ...m,
-            attachments: m.attachments?.map((att) => ({
-              ...att, dataUrl: undefined,  // strip base64 avant écriture localStorage
-            })),
-          })),
-        })),
-        currentConversationId: s.currentConversationId,
+        histories: Object.fromEntries(Object.entries({ ...s.histories,
+          ...(s.scopeKey ? { [s.scopeKey]: { conversations: s.conversations, currentConversationId: s.currentConversationId } } : {}),
+        }).map(([key, history]) => [key, {
+          ...history,
+          conversations: history.conversations.map(c => ({ ...c, messages: c.messages.map(m => ({
+            ...m, attachments: m.attachments?.map(({ dataUrl: _dataUrl, ...attachment }) => attachment),
+          })) })),
+        }])),
+        quarantinedHistory: s.quarantinedHistory,
       }),
     }
   )
 )
+
+// La portée change avant le prochain rendu, pas seulement au montage du panneau.
+const unsubscribeAuthScope = useAuthStore.subscribe((auth, previous) => {
+  if (auth.sessionVersion === previous.sessionVersion && auth.companyId === previous.companyId
+    && auth.user?.id === previous.user?.id && auth.isAuthenticated === previous.isAuthenticated) return
+  const state = useAssistant.getState()
+  const histories = { ...state.histories }
+  if (state.scopeKey) histories[state.scopeKey] = { conversations: state.conversations, currentConversationId: state.currentConversationId }
+  const scopeKey = authScopeKey()
+  const history = scopeKey ? histories[scopeKey] : null
+  const conversations = history?.conversations ?? [{ ...DEFAULT_CONV, id: newId(), messages: [] }]
+  const currentConversationId = history?.currentConversationId ?? conversations[0]?.id ?? null
+  useAssistant.setState({ histories, scopeKey, sessionVersion: auth.sessionVersion, conversations, currentConversationId,
+    messages: conversations.find(c => c.id === currentConversationId)?.messages ?? [], attachments: [], mode: 'idle', open: false,
+  })
+})
+
+// Le laboratoire Vite ne doit pas conserver un ancien abonné après remplacement.
+;(import.meta as any).hot?.dispose(unsubscribeAuthScope)

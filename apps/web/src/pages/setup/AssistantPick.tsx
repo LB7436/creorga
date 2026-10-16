@@ -3,18 +3,20 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Check, Volume2, MicIcon } from 'lucide-react'
 import AssistantMascot, { MASCOT_OPTIONS, type MascotVariant } from '@/components/AssistantMascot'
+import { useAssistant } from '@/stores/assistantStore'
 
 const Mic: any = MicIcon || Volume2
 
 export default function AssistantPick() {
   const navigate = useNavigate()
-  const [picked, setPicked] = useState<MascotVariant>('robot')
-  const [name, setName] = useState('Robi')
+  const assistant = useAssistant()
+  const [picked, setPicked] = useState<MascotVariant>(assistant.mascot)
+  const [name, setName] = useState(assistant.name)
   const [demoState, setDemoState] = useState<'idle' | 'listening' | 'speaking'>('idle')
 
   const save = () => {
-    localStorage.setItem('creorga.assistant.mascot', picked)
-    localStorage.setItem('creorga.assistant.name', name.trim() || 'Robi')
+    assistant.setMascot(picked)
+    assistant.setName(name)
     navigate('/modules')
   }
 
@@ -34,8 +36,7 @@ export default function AssistantPick() {
             Choisissez votre robot assistant
           </h1>
           <p style={{ color: '#94a3b8', fontSize: 14, maxWidth: 600, margin: '0 auto' }}>
-            Il vous aidera dans toutes vos tâches : créer factures, commandes, planning…
-            Donnez-lui un nom — vous l'appellerez à la voix.
+            Personnalisez son apparence et son nom. La disponibilité des actions dépend des modules connectés ; la dictée se lance manuellement.
           </p>
         </header>
 
@@ -64,15 +65,16 @@ export default function AssistantPick() {
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
             <button onClick={() => setDemoState('listening')} style={demoBtn(demoState === 'listening')}>
-              🎤 Tester écoute
+              🎤 Animation écoute
             </button>
             <button onClick={() => setDemoState('speaking')} style={demoBtn(demoState === 'speaking')}>
-              💬 Tester parole
+              💬 Animation parole
             </button>
             <button onClick={() => setDemoState('idle')} style={demoBtn(false)}>
-              😊 Idle
+              😊 Animation repos
             </button>
           </div>
+          <div style={{ fontSize: 11, color: '#cbd5e1' }}>Aperçu visuel uniquement : ces animations ne testent ni le microphone ni les haut-parleurs.</div>
         </div>
 
         {/* Grid des 6 mascottes */}

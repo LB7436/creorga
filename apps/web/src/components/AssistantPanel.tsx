@@ -6,9 +6,10 @@ import {
   Plus, Menu, Archive, Trash2, MessageSquare, Image as ImageIcon, Paperclip, Camera, Edit2, Video,
 } from 'lucide-react'
 import AssistantMascot from './AssistantMascot'
-import { useAssistant, type AssistantAttachment } from '@/stores/assistantStore'
+import { useAssistant, type AssistantAttachment, type AssistantContext } from '@/stores/assistantStore'
 import { useTheme } from '@/lib/theme'
 import { fetchAuth } from '@/lib/fetchAuth'
+import { AssistantConfirmationError, confirmAssistantPreview } from '@/lib/assistantConfirmation'
 
 // v3.18 — backend dynamique (localStorage > env > localhost)
 function getBackend(): string {
@@ -17,18 +18,6 @@ function getBackend(): string {
       || (import.meta as any).env?.VITE_REMOTE_BACKEND
       || (import.meta as any).env?.VITE_BACKEND_URL
       || 'http://localhost:3002'
-}
-const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
-
-// Les routes /api/agent exigent un token — on l'ajoute à chaque appel Robi.
-function authHeaders(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem('creorga-auth')
-    const token = raw ? JSON.parse(raw)?.state?.accessToken : null
-    return token ? { Authorization: `Bearer ${token}` } : {}
-  } catch {
-    return {}
-  }
 }
 
 async function fileToDataUrl(file: File): Promise<string> {
@@ -61,6 +50,8 @@ export default function AssistantPanel() {
   const [showDrawer, setShowDrawer] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   const [pendingPreview, setPendingPreview] = useState<any>(null)
+  const [confirming, setConfirming] = useState(false)
+  const [confirmationUnknown, setConfirmationUnknown] = useState(false)
   const [viewport, setViewport] = useState(() => ({
     width: typeof window === 'undefined' ? 1280 : window.innerWidth,
     height: typeof window === 'undefined' ? 900 : window.innerHeight,
@@ -70,6 +61,17 @@ export default function AssistantPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scanInputRef = useRef<HTMLInputElement>(null)
   const docInputRef = useRef<HTMLInputElement>(null)
+  const requestRef = useRef<AssistantContext | null>(null)
+  const confirmingRef = useRef(false)
+
+  useEffect(() => {
+    setInput('')
+    setPendingPreview(null)
+    setConfirmationUnknown(false)
+    window.speechSynthesis?.cancel()
+    try { recognitionRef.current?.stop() } catch { /* déjà interrompu */ }
+    recognitionRef.current = null
+  }, [a.scopeKey, a.sessionVersion, a.currentConversationId])
 
   useEffect(() => {
     const onResize = () => setViewport({ width: window.innerWidth, height: window.innerHeight })
@@ -79,14 +81,26 @@ export default function AssistantPanel() {
 
   // v3.18 — handle file attachment
   async function handleAttach(file: File, kind: AssistantAttachment['kind']) {
+    const context = a.captureContext()
+    if (!context) return
+    if (useAssistant.getState().attachments.length > 0) {
+      alert('Une seule image ou un seul PDF par demande. Retirez la pièce jointe actuelle avant d’en ajouter une autre.')
+      return
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(file.type)) {
+      alert('Formats pris en charge : JPEG, PNG, WebP et PDF. Les vidéos et autres fichiers ne sont pas analysés.')
+      return
+    }
     if (file.size > 20 * 1024 * 1024) {
       alert('Fichier trop volumineux (max 20 MB)')
       return
     }
-    const dataUrl = file.type.startsWith('image') || file.type.startsWith('video')
-      ? await fileToDataUrl(file)
-      : undefined
-    a.addAttachment({ kind, name: file.name, mimeType: file.type, size: file.size, dataUrl })
+    try {
+      const dataUrl = await fileToDataUrl(file)
+      if (useAssistant.getState().isCurrentContext(context) && useAssistant.getState().attachments.length === 0) a.addAttachment({ kind, name: file.name, mimeType: file.type, size: file.size, dataUrl })
+    } catch {
+      if (useAssistant.getState().isCurrentContext(context)) alert('Lecture du fichier impossible. Aucune pièce jointe ajoutée.')
+    }
   }
 
   const activeConvs = a.conversations.filter((c) => !c.archived)
@@ -94,19 +108,23 @@ export default function AssistantPanel() {
   const currentConv = a.conversations.find((c) => c.id === a.currentConversationId)
 
   async function confirmPreview() {
-    if (!pendingPreview) return
+    const preview = pendingPreview
+    const context: AssistantContext | null = preview?.context ?? null
+    if (!preview || confirmingRef.current || confirmationUnknown || !a.isCurrentContext(context)) return
+    confirmingRef.current = true
+    setConfirming(true)
     try {
-      const r = await fetch(`${BACKEND}${pendingPreview.confirmEndpoint}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify(pendingPreview.confirmPayload),
-      })
-      const data = await r.json()
-      a.addMessage({ role: 'bot', text: data.summary || '✅ Action validée.' })
-      speak(data.summary || 'Action validée')
-    } catch {
-      a.addMessage({ role: 'bot', text: '❌ Erreur de validation.' })
+      const summary = await confirmAssistantPreview(getBackend(), preview, fetchAuth)
+      a.addMessageForContext(context, { role: 'bot', text: summary })
+      speak(summary, context)
+      if (a.isCurrentContext(context)) setPendingPreview(null)
+    } catch (error: any) {
+      const uncertain = error instanceof AssistantConfirmationError && error.uncertain
+      if (uncertain && a.isCurrentContext(context)) setConfirmationUnknown(true)
+      a.addMessageForContext(context, { role: 'bot', text: `❌ ${error?.message || 'Erreur de validation.'}${uncertain ? ' Résultat inconnu : vérifiez les données avant toute nouvelle tentative.' : ''}` })
     } finally {
-      setPendingPreview(null)
+      confirmingRef.current = false
+      setConfirming(false)
     }
   }
 
@@ -133,8 +151,8 @@ export default function AssistantPanel() {
     return () => window.removeEventListener('keydown', handler)
   }, [a])
 
-  function speak(text: string) {
-    if (!a.voiceEnabled) return
+  function speak(text: string, context = a.captureContext()) {
+    if (!useAssistant.getState().voiceEnabled || !a.isCurrentContext(context)) return
     const synth = window.speechSynthesis
     if (!synth) return
     synth.cancel()
@@ -144,22 +162,25 @@ export default function AssistantPanel() {
     u.rate = a.voiceSpeed
     u.pitch = 1.05
     a.setMode('speaking')
-    u.onend = () => a.setMode('idle')
-    u.onerror = () => a.setMode('idle')
+    const ended = () => { if (a.isCurrentContext(context) && useAssistant.getState().mode === 'speaking') a.setMode('idle') }
+    u.onend = ended
+    u.onerror = ended
     synth.speak(u)
   }
 
   function startListening() {
+    const context = a.captureContext()
+    if (!context || useAssistant.getState().mode === 'thinking') return
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SR) {
-      a.addMessage({ role: 'bot', text: '🎤 Reconnaissance vocale non disponible. Utilise Chrome ou Edge sur HTTPS / localhost.' })
+      a.addMessageForContext(context, { role: 'bot', text: '🎤 Reconnaissance vocale non disponible. Utilise Chrome ou Edge sur HTTPS / localhost.' })
       return
     }
     // v3.18.2 — vérifie permission micro AVANT de lancer SR (sinon échoue silencieusement)
     if (typeof navigator !== 'undefined' && navigator.permissions) {
       navigator.permissions.query({ name: 'microphone' as any }).then((p: any) => {
-        if (p.state === 'denied') {
-          a.addMessage({ role: 'bot', text: '🎤 Micro bloqué dans Chrome. Va sur l\'icône 🔒 dans la barre d\'adresse → Site settings → Microphone → Allow, puis recharge la page.' })
+        if (p.state === 'denied' && a.isCurrentContext(context)) {
+          a.addMessageForContext(context, { role: 'bot', text: '🎤 Micro bloqué dans Chrome. Va sur l\'icône 🔒 dans la barre d\'adresse → Site settings → Microphone → Allow, puis recharge la page.' })
           a.setMode('idle')
         }
       }).catch(() => { /* ignore — older browsers */ })
@@ -173,6 +194,7 @@ export default function AssistantPanel() {
     rec.interimResults = true
     rec.continuous = false
     rec.onresult = (e: any) => {
+      if (!a.isCurrentContext(context)) return
       let txt = ''
       for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript
       setInput(txt)
@@ -182,8 +204,8 @@ export default function AssistantPanel() {
         if (txt.trim()) ask(txt)
       }
     }
-    rec.onerror = () => a.setMode('idle')
-    rec.onend = () => { if (a.mode === 'listening') a.setMode('idle') }
+    rec.onerror = () => { if (a.isCurrentContext(context)) a.setMode('idle') }
+    rec.onend = () => { if (a.isCurrentContext(context) && useAssistant.getState().mode === 'listening') a.setMode('idle') }
     recognitionRef.current = rec
     a.setMode('listening')
     rec.start()
@@ -195,20 +217,20 @@ export default function AssistantPanel() {
     a.setMode('idle')
   }
 
-  // v3.18.2 — ask() route les attachments vers les bons endpoints LOCAUX
-  // Image/scan → /photo-magic (gemma3:4b vision)
-  // PDF → /process-pdf (pdf-parse + gemma3:4b texte)
-  // Texte seul → /workflow (intents structurés)
-  // 100% LOCAL : aucun appel cloud, tout passe par http://localhost:3002
+  // L'image/PDF est traité uniquement par le serveur configuré. Sa configuration
+  // décide du moteur IA ; le navigateur ne promet pas un traitement local.
   async function ask(text: string) {
+    const context = a.captureContext()
+    if (!context || requestRef.current && a.isCurrentContext(requestRef.current)) return
     const attached = [...a.attachments]
     const hasText = !!text.trim()
     const hasAttachments = attached.length > 0
     if (!hasText && !hasAttachments) return
+    requestRef.current = context
 
     // Add user message with attachments preview
     const userText = hasText ? text : `[${attached.length} pièce(s) jointe(s)]`
-    a.addMessage({ role: 'user', text: userText, attachments: attached })
+    a.addMessageForContext(context, { role: 'user', text: userText, attachments: attached })
     setInput('')
     a.clearAttachments()
     a.setMode('thinking')
@@ -221,7 +243,7 @@ export default function AssistantPanel() {
       if (firstImage && firstImage.dataUrl) {
         const b64 = firstImage.dataUrl.replace(/^data:image\/\w+;base64,/, '')
         const r = await fetchAuth(`${BE}/api/agent/photo-magic`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ imageBase64: b64, hint: text || '', currentPath: location.pathname }),
           signal: AbortSignal.timeout(180_000),
         })
@@ -230,90 +252,89 @@ export default function AssistantPanel() {
           const summary = d.title
             ? `${d.emoji || '📋'} ${d.title}\n${d.summary}`
             : `${d.emoji || '📋'} ${d.summary || 'Image analysée'}`
-          a.addMessage({ role: 'bot', text: summary, ui: d })
-          speak(summary)
-          if (d.cta?.route) setTimeout(() => navigate(d.cta.route), 1500)
+          a.addMessageForContext(context, { role: 'bot', text: summary, ui: d })
+          speak(summary, context)
+          if (d.cta?.route) setTimeout(() => { if (a.isCurrentContext(context)) navigate(d.cta.route) }, 1500)
           return
         }
         const errText = await r.text()
-        a.addMessage({ role: 'bot', text: `❌ Vision IA indisponible : ${errText.slice(0, 200)}` })
+        a.addMessageForContext(context, { role: 'bot', text: `❌ Vision IA indisponible : ${errText.slice(0, 200)}` })
         return
       }
 
       // ─── ROUTING : PDF → process-pdf ──────────────────────────────────
       const firstPdf = attached.find((att) => att.kind === 'file' && att.mimeType === 'application/pdf')
       if (firstPdf) {
-        // PDF doesn't have dataUrl in the persisted form (we stripped it for quota).
-        // For runtime sends, we need to re-read the original file. The store doesn't
-        // hold the File object, so use what we have: dataUrl was stripped, need workaround.
-        // Workaround: force-read from a fresh FileReader call before clearing.
-        // For now, ask user to re-attach if dataUrl missing.
         if (!firstPdf.dataUrl) {
-          a.addMessage({ role: 'bot', text: `❌ PDF non lisible (re-joins-le). Bug v3.18.2 : on garde le data URL en RAM uniquement maintenant.` })
+          a.addMessageForContext(context, { role: 'bot', text: '❌ PDF non lisible. Joignez à nouveau le fichier ; son contenu n’est pas conservé après rechargement.' })
           return
         }
         const b64 = firstPdf.dataUrl.replace(/^data:application\/pdf;base64,/, '')
         const r = await fetchAuth(`${BE}/api/agent/process-pdf`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pdfBase64: b64, hint: text || '', currentPath: location.pathname }),
           signal: AbortSignal.timeout(180_000),
         })
         if (r.ok) {
           const d = await r.json()
-          a.addMessage({ role: 'bot', text: d.text || 'PDF analysé.', ui: d })
-          speak(d.summary || d.text || '')
-          if (d.uiAction?.type === 'navigate') setTimeout(() => navigate(d.uiAction.to), 2000)
+          a.addMessageForContext(context, { role: 'bot', text: d.text || 'PDF analysé.', ui: d })
+          speak(d.summary || d.text || '', context)
+          if (d.uiAction?.type === 'navigate') setTimeout(() => { if (a.isCurrentContext(context)) navigate(d.uiAction.to) }, 2000)
           return
         }
         const errText = await r.text()
-        a.addMessage({ role: 'bot', text: `❌ PDF non analysable : ${errText.slice(0, 200)}` })
+        a.addMessageForContext(context, { role: 'bot', text: `❌ PDF non analysable : ${errText.slice(0, 200)}` })
         return
       }
 
       // v3.18.8 — DEFAULT : texte seul → super-ask (agent tool-loop avec Gemma)
       // Le super-agent essaie 3 niveaux : parseIntent → Gemma intent pick → smart-query
       const r = await fetchAuth(`${BE}/api/agent/super-ask`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: hasText ? text : userText, currentPath: location.pathname, userId: 'default' }),
+        signal: AbortSignal.timeout(180_000),
       })
       const data = await r.json()
+      if (!r.ok) throw new Error(data.message || data.error || `Assistant indisponible (HTTP ${r.status}).`)
 
       if (data.kind === 'workflow') {
         const stepCount = data.steps?.length || 0
-        a.addMessage({
+        a.addMessageForContext(context, {
           role: 'bot',
           text: `🔗 Workflow ${stepCount} étapes :\n` + (data.steps || []).map((s: any, i: number) => `${i+1}. ${s.summary || s.text || '?'}`).join('\n'),
           action: { intent: 'workflow', success: data.success, summary: data.summary },
         })
-        speak(data.summary)
+        speak(data.summary || '', context)
         return
       }
 
       if (data.kind === 'action') {
-        a.addMessage({
+        a.addMessageForContext(context, {
           role: 'bot',
           text: data.summary,
           ui: data.details,
           action: { intent: data.intent, success: data.success, summary: data.summary },
         })
-        speak(data.summary)
+        speak(data.summary || '', context)
+        if (!a.isCurrentContext(context)) return
         if (data.uiAction?.type === 'preview') {
-          setPendingPreview(data.uiAction)
+          setConfirmationUnknown(false)
+          setPendingPreview({ ...data.uiAction, context })
         } else if (data.uiAction?.type === 'navigate') {
-          setTimeout(() => navigate(data.uiAction.to), 800)
+          setTimeout(() => { if (a.isCurrentContext(context)) navigate(data.uiAction.to) }, 800)
         } else if (data.uiAction?.type === 'theme') {
           themeStore.setTheme(data.uiAction.value)
         }
       } else {
         const txt = data.text || 'Pas de réponse.'
-        a.addMessage({ role: 'bot', text: txt })
-        speak(txt)
+        a.addMessageForContext(context, { role: 'bot', text: txt })
+        speak(txt, context)
       }
     } catch (e: any) {
-      a.addMessage({ role: 'bot', text: `❌ Erreur : ${e?.message || 'inconnue'}` })
-      a.setMode('idle')
+      a.addMessageForContext(context, { role: 'bot', text: `❌ Erreur : ${e?.message || 'inconnue'}` })
     } finally {
-      if (a.mode === 'thinking') a.setMode('idle')
+      if (requestRef.current === context) requestRef.current = null
+      if (a.isCurrentContext(context) && useAssistant.getState().mode === 'thinking') a.setMode('idle')
     }
   }
 
@@ -463,7 +484,7 @@ export default function AssistantPanel() {
                 <AssistantMascot variant={a.mascot} size={80} animated />
                 <div style={{ fontWeight: 800, fontSize: 16, marginTop: 8 }}>Bonjour, je suis {a.name} !</div>
                 <div style={{ fontSize: 12, color: '#cbd5e1', marginTop: 4 }}>
-                  Donnez-moi un ordre à la voix ou écrit. Je peux <b>vraiment agir</b> sur l'app.
+                  Posez une question par texte ou dictée. Les actions indisponibles sont signalées ; une proposition n’est pas une confirmation.
                 </div>
               </div>
               <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginTop: 6 }}>
@@ -531,21 +552,22 @@ export default function AssistantPanel() {
                   {pendingPreview.confirmText || 'Action proposée'}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => setPendingPreview(null)}
+                  <button disabled={confirming} onClick={() => setPendingPreview(null)}
                     style={{
                       flex: 1, padding: '10px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.4)',
                       background: 'rgba(239,68,68,0.15)', color: '#fca5a5', fontWeight: 700, cursor: 'pointer',
                     }}>
                     ❌ Annuler
                   </button>
-                  <button onClick={confirmPreview}
+                  <button onClick={confirmPreview} disabled={confirming || confirmationUnknown}
                     style={{
                       flex: 2, padding: '10px', borderRadius: 8, border: 'none',
                       background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', fontWeight: 800, cursor: 'pointer',
                     }}>
-                    ✅ Valider
+                    {confirming ? 'Validation en cours…' : confirmationUnknown ? 'Résultat à vérifier' : '✅ Valider'}
                   </button>
                 </div>
+                {confirmationUnknown && <div role="alert" style={{ marginTop: 8, color: '#fcd34d', fontSize: 12 }}>Résultat non confirmé. Vérifiez les données métier avant de créer une nouvelle demande ; aucune répétition automatique.</div>}
               </motion.div>
             )}
           </AnimatePresence>
@@ -574,13 +596,13 @@ export default function AssistantPanel() {
         <div style={{ padding: 12, borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.3)' }}>
           {/* v3.18 — multimodal toolbar */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-            <button type="button" onClick={() => fileInputRef.current?.click()} style={modalityBtn} title="Ajouter image / vidéo">
+            <button type="button" onClick={() => fileInputRef.current?.click()} style={modalityBtn} title="Ajouter une image (JPEG, PNG, WebP)">
               <ImageIcon size={14} />
             </button>
             <button type="button" onClick={() => scanInputRef.current?.click()} style={modalityBtn} title="Scanner / Photo via caméra">
               <Camera size={14} />
             </button>
-            <button type="button" onClick={() => docInputRef.current?.click()} style={modalityBtn} title="Joindre un fichier (PDF/doc/csv/xlsx)">
+            <button type="button" onClick={() => docInputRef.current?.click()} style={modalityBtn} title="Joindre un PDF">
               <Paperclip size={14} />
             </button>
             <div style={{ flex: 1 }} />
@@ -591,19 +613,19 @@ export default function AssistantPanel() {
             </button>
           </div>
 
-          <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }}
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
             onChange={async (e) => {
               const files = Array.from(e.target.files || [])
-              for (const f of files) await handleAttach(f, f.type.startsWith('video') ? 'video' : 'image')
+              for (const f of files) await handleAttach(f, 'image')
               e.target.value = ''
             }} />
-          <input ref={scanInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+          <input ref={scanInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" style={{ display: 'none' }}
             onChange={async (e) => {
               const f = e.target.files?.[0]
               if (f) await handleAttach(f, 'scan')
               e.target.value = ''
             }} />
-          <input ref={docInputRef} type="file" accept=".pdf,.doc,.docx,.txt,.csv,.xlsx" style={{ display: 'none' }}
+          <input ref={docInputRef} type="file" accept=".pdf,application/pdf" style={{ display: 'none' }}
             onChange={async (e) => {
               const f = e.target.files?.[0]
               if (f) await handleAttach(f, 'file')
@@ -636,7 +658,7 @@ export default function AssistantPanel() {
                 color: '#fff', fontSize: 13, outline: 'none',
               }}
             />
-            <button type="submit" disabled={(!input.trim() && a.attachments.length === 0) || a.mode === 'thinking'}
+            <button type="submit" aria-label="Envoyer la demande" disabled={(!input.trim() && a.attachments.length === 0) || a.mode === 'thinking'}
               style={{
                 padding: '0 16px', borderRadius: 12, border: 'none', cursor: 'pointer',
                 background: (!input.trim() && a.attachments.length === 0) ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#8b5cf6,#ec4899)',
@@ -774,7 +796,7 @@ function ConvRow({ c, active, onSelect, onArchive, onDelete, onRename, archived 
 
 function AttachThumb({ att }: { att: AssistantAttachment }) {
   const size = 48
-  if (att.dataUrl && att.kind !== 'video') {
+  if (att.dataUrl && att.mimeType.startsWith('image/')) {
     return <img src={att.dataUrl} alt={att.name} style={{ width: size, height: size, objectFit: 'cover', borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)' }} />
   }
   if (att.dataUrl && att.kind === 'video') {
