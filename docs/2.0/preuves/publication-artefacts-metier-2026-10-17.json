@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-17T19:46:24.253Z",
+  "campaignStatus": "IN_PROGRESS_NOT_DELIVERED",
+  "sourceCommit": "fab22e0c83e19c3fd6bef251e9bfe0c6c000e7d0",
+  "branch": "codex/creorga-2-0-2026-10-08",
+  "profile": "CREORGA_BUSINESS_ONLY",
+  "build": {
+    "startedAt": "2026-10-17T19:42:34.776Z",
+    "finishedAt": "2026-10-17T19:43:38.321Z",
+    "elapsedMs": 63545,
+    "applications": 5,
+    "resultByteSha256": "470f8539152d4bd0111974c0cbfacdb38ef3e370f413b8a45937722c6e116c3e",
+    "sourceFingerprint": {
+      "algorithm": "sha256",
+      "files": 921,
+      "digest": "41c293ed2f14f8944bfaeffa03ecf64409e20faa79c0d9e3b6b056867adad95f",
+      "includesUntrackedSource": true
+    },
+    "manifestByteSha256": "b72979216ccf84d46a60fb4a166ad4425fa9bd154a08c8f2637f2c065e97bd6f",
+    "gameModuleCount": 0,
+    "profileManifestByteSha256": "03b9f4a892edda45bf26eab1444fef47d1c30dcbc5ca1c2b82ba9a350447188e"
+  },
+  "localFixtures": {
+    "startedAt": "2026-10-17T19:44:21.741Z",
+    "finishedAt": "2026-10-17T19:44:23.533Z",
+    "counts": {
+      "tests": 47,
+      "pass": 47,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "resultByteSha256": "4e07558a7ed9a7f9063f42b3ada0bc3be71b4bd0060b7c5076f15624ce2758b3"
+  },
+  "closure": {
+    "ownedLabTabsClosed": 12,
+    "normalTabCloseOnly": true,
+    "historicalProfileOpened": false,
+    "journalFile": "intensive-journal-2026-10-17-2145-fermeture.json",
+    "journalByteSha256": "07d736003c9a3cfd3e3bd5ab4f9b5a0a39a9c6f21c08a234ae42602add1db3b6",
+    "counts": {
+      "uiAttempts": 1131,
+      "uiToolReturned": 1108,
+      "uiToolErrors": 23,
+      "pointerClicksToolReturned": 731,
+      "filledFieldsToolReturned": 368,
+      "allUiToolElapsedMs": 3755960,
+      "confirmedUiToolElapsedMs": 3664365,
+      "wallSpanMs": 34892360
+    }
+  },
+  "shortcut": {
+    "unchanged": true,
+    "sha256": "5c62aea646c4cef22305808d827b2c51165e7d8c9f72b7b17d2e205be27e0371",
+    "launcherParseErrors": 0,
+    "nativeDoubleClickTested": false,
+    "launcherIsPrivateNotInGit": true
+  },
+  "limits": [
+    "Recompilation of the published source, not another business UI acceptance run.",
+    "Whole business campaign/T100/five active hours remain unqualified.",
+    "Private database, archive and local launcher are not published. No production deployment or master update."
+  ]
+}

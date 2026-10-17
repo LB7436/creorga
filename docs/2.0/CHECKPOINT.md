@@ -6,6 +6,52 @@ Reprise à partir de `475f67ac1357e07af478f4f237a1f6bb001bb93a`, branche dédié
 inchangée. Le lot précédent ci-dessous reste historique. La campagne trois clients
 n'est **pas terminée** et les cinq heures de tests actifs ne sont **pas attestées**.
 
+### Publication du correctif validé — 17 octobre 2026
+
+Code et preuves publiés avec succès sur la seule branche 2.0 :
+[`fab22e0c83e19c3fd6bef251e9bfe0c6c000e7d0`](https://github.com/LB7436/creorga/commit/fab22e0c83e19c3fd6bef251e9bfe0c6c000e7d0).
+122 fichiers source/tests/documents, dont les preuves expurgées ; aucune base,
+archive, clé, capture MIME ou identité de connexion privée ajoutée. Le fichier
+préexistant `apps/guest/tsconfig.tsbuildinfo` reste modifié localement, **hors commit**.
+Le nom de branche est `codex/creorga-2-0-2026-10-08` ; un commit documentaire
+ultérieur peut compléter ce checkpoint sans changer ce SHA du correctif source.
+Vérifier le HEAD courant par `git rev-parse HEAD` et `git ls-remote` avant reprise.
+
+Dernière copie privée du travail avant commit : **123 fichiers identiques**, index
+et diff conservés, manifeste SHA
+`d44302e306c9e672e61afe0bc62e7ced900b951182480fce0ba93117b60bc8e3`,
+dossier `worktree-preserved-2026-10-17T19-40-41-947Z-2a87a439` hors dépôt.
+Le premier essai de lecture du gros diff indexé avait dépassé le buffer du helper ;
+seule cette limite d'instrumentation privée a été augmentée, puis la copie a réussi.
+Les copies 80/100/112/122 fichiers et les archives restent présentes.
+Deux fins de fichier ont été normalisées sans modifier les données ; leurs octets
+antérieurs sont dans la copie 122 fichiers. `.gitattributes` empêche désormais la
+conversion CRLF des preuves JSON. Les **20 JSON publiés ont été comparés octet par
+octet avec l'index Git** ; aucun contenu réseau brut n'est publié.
+
+**Cette publication n'est pas la livraison complète de la campagne.** T100 partiel,
+droits fins absents, Robi métier indisponible, parcours restants et qualifications
+externes ouverts. Le [rapport de traçabilité](TRACABILITE-UI-API-PG-2026-10-17.md)
+sépare 25 PASS ciblés, deux RED historiques conservés et cinq BLOCKED ; ce ne sont
+pas 32 écrans ou scénarios globaux entièrement qualifiés. Les skills d'audit de
+parcours, de diagnostic/TDD, d'architecture et de vérification ont conduit à garder
+les preuves d'échec, aux corrections limitées et à l'absence de réécriture générale.
+
+Après publication du source, recompilation métier locale réussie avec ce SHA dans
+le manifeste (19:43:38 UTC), **zéro module de jeu** ; nouvelle relance **47/47**
+des fixtures/artefacts à 19:44:23 UTC. Pas une nouvelle recette UI. [Preuve](preuves/publication-artefacts-metier-2026-10-17.json).
+Les douze onglets fictifs de campagne sont ensuite fermés normalement, seul onglet
+vierge laissé ; aucun profil historique ouvert et aucune application tierce arrêtée. [Journal de fermeture](preuves/intensive-journal-2026-10-17-2145-fermeture.json) :
+1 131 tentatives / 1 108 retours / 23 erreurs, toujours 731 clics retournés et 368
+champs ; les douze fermetures ne sont pas douze nouveaux parcours métier PASS.
+Services applicatifs métier laissés arrêtés ; PostgreSQL reste disponible. Le
+récepteur SMTP fictif identifié a ensuite été arrêté normalement par sa commande
+`STOP`, avec retour `LOCAL_CAPTURE_STOPPED` / `archivesPreserved: true`, sans arrêt
+forcé ni suppression de messages. Raccourci de nouveau vérifié sur empreinte et cible,
+parsing du lanceur sans erreur, pas de double-clic natif revendiqué. Les 99 fichiers
+de jeux restent récupérables depuis l'ancêtre immuable `962c01b2767a06db510c6b0aa3e22d521da77534`,
+conservé dans l'historique publié ; aucun fichier de jeu supprimé par ce lot.
+
 ### Consolidation après les rejoués du 17 octobre — preuves jusqu'à 19:31:36 UTC
 
 **CAMPAGNE NON LIVRÉE / pilote non qualifié.** Les trois établissements fictifs
