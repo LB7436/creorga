@@ -3,6 +3,8 @@ import prisma from '../lib/prisma'
 import { authenticate, type AuthRequest } from '../middleware/auth'
 import { requireCompany } from '../middleware/requireCompany'
 import logger from '../lib/logger'
+import { floorSchema } from '../lib/floor-validation'
+import { floorHash } from '../lib/floor-workspace'
 
 const router = Router()
 router.use(authenticate)
@@ -34,26 +36,40 @@ router.get('/today', async (req: AuthRequest, res: Response) => {
     const orderCount = paidOrders.length
     const avgTicket = orderCount > 0 ? revenue / orderCount : 0
 
-    const tablesTotal = await prisma.table.count({
-      where: { companyId, isActive: true },
+    // Le workspace courant est l'autorité de salle, y compris lorsqu'il est vide.
+    // Lecture seule : ne pas adopter le miroir ni recréer son occupation depuis les commandes.
+    const workspace = await prisma.floorWorkspace.findUnique({
+      where: { companyId }, select: { revision: true, snapshot: true, snapshotHash: true },
     })
-
-    const tablesOccupied = await prisma.order.groupBy({
-      by: ['tableId'],
-      where: {
-        companyId,
-        status: { in: ['OPEN', 'IN_PROGRESS', 'READY'] },
-        tableId: { not: null },
-      },
-    })
+    let tableStats: { tablesTotal: number; tablesOccupied: number | null; tablesFree: number | null;
+      tablesUnavailable: number | null; tablesSource: 'postgres-workspace' | 'legacy-sql-configuration' }
+    if (workspace) {
+      const parsed = floorSchema.safeParse(workspace.snapshot)
+      if (!parsed.success || !Number.isSafeInteger(parsed.data.updatedAt) || parsed.data.updatedAt < 0
+        || BigInt(parsed.data.updatedAt) !== workspace.revision || floorHash(workspace.snapshot) !== workspace.snapshotHash) {
+        res.status(503).json({ message: 'Occupation de la salle indisponible : le workspace doit être vérifié.', code: 'FLOOR_WORKSPACE_INVALID' })
+        return
+      }
+      const tables = parsed.data.tables
+      tableStats = {
+        tablesTotal: tables.length,
+        tablesOccupied: tables.filter(table => table.status === 'OCCUPEE').length,
+        tablesFree: tables.filter(table => table.status === 'LIBRE').length,
+        tablesUnavailable: tables.filter(table => table.status === 'RESERVEE' || table.status === 'NETTOYAGE').length,
+        tablesSource: 'postgres-workspace',
+      }
+    } else {
+      // L'ancien modèle Table décrit la capacité, pas la présence de personnes.
+      // Une commande impayée n'est pas non plus une preuve d'occupation physique.
+      tableStats = { tablesTotal: await prisma.table.count({ where: { companyId, isActive: true } }),
+        tablesOccupied: null, tablesFree: null, tablesUnavailable: null, tablesSource: 'legacy-sql-configuration' }
+    }
 
     res.json({
       revenue,
       orderCount,
       avgTicket,
-      tablesTotal,
-      tablesOccupied: tablesOccupied.length,
-      tablesFree: tablesTotal - tablesOccupied.length,
+      ...tableStats,
     })
   } catch (error) {
     logger.error('Erreur GET /stats/today:', error)

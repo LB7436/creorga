@@ -1,0 +1,454 @@
+{
+  "version": 3,
+  "generatedAt": "2026-10-17T19:33:15.604Z",
+  "campaignStatus": "IN_PROGRESS_NOT_DELIVERED",
+  "metadataCorrection": {
+    "previousFile": "intensive-validation-finale-2026-10-17-2135.json",
+    "previousByteSha256": "807222cd8b60577d787505172279581d9656e8ea1dff3e1c788905bcef21aca2",
+    "change": "Read the actual duplicateOpenByUser key instead of the absent duplicateOpenGroups key. Same executed inputs, no new UI/SQL/test/restore and no source proof overwritten."
+  },
+  "baseCommit": "475f67ac1357e07af478f4f237a1f6bb001bb93a",
+  "branch": "codex/creorga-2-0-2026-10-08",
+  "profile": "CREORGA_BUSINESS_ONLY",
+  "suites": [
+    {
+      "mode": "backend-unit",
+      "startedAt": "2026-10-17T19:29:50.956Z",
+      "finishedAt": "2026-10-17T19:30:05.707Z",
+      "total": 391,
+      "passed": 391,
+      "failed": 0,
+      "skipped": 0,
+      "files": 56,
+      "elapsedMs": 14751,
+      "sourceStableDuringRun": true,
+      "sourceSha256DuringRun": "6bc6f3ee36132f8e7dff03085d5d0df010f4aebfb1c017061690b814deaccf45",
+      "resultByteSha256": "82f09fed96b6edd14f546ffa663422f41f61f1f4692e0756428ac98e45685faa",
+      "rawReportByteSha256": "772d9e39ea325e5bb4f56c35d01b5bc4640cdd063eaa5de3c609370ea4504c80"
+    },
+    {
+      "mode": "web-unit",
+      "startedAt": "2026-10-17T19:29:51.303Z",
+      "finishedAt": "2026-10-17T19:30:06.882Z",
+      "total": 349,
+      "passed": 349,
+      "failed": 0,
+      "skipped": 0,
+      "files": 41,
+      "elapsedMs": 15578,
+      "sourceStableDuringRun": true,
+      "sourceSha256DuringRun": "6bc6f3ee36132f8e7dff03085d5d0df010f4aebfb1c017061690b814deaccf45",
+      "resultByteSha256": "4162324e23d1855de8f2f7eaa9913cee1c75242cb28abcc4b083b4f60722fb40",
+      "rawReportByteSha256": "684c8aeded2a88a6f7c70a71cedb75a373108e512d403c058dbb0c2d7fd63edd"
+    },
+    {
+      "mode": "pos-unit",
+      "startedAt": "2026-10-17T19:29:52.276Z",
+      "finishedAt": "2026-10-17T19:29:57.103Z",
+      "total": 121,
+      "passed": 121,
+      "failed": 0,
+      "skipped": 0,
+      "files": 12,
+      "elapsedMs": 4826,
+      "sourceStableDuringRun": true,
+      "sourceSha256DuringRun": "6bc6f3ee36132f8e7dff03085d5d0df010f4aebfb1c017061690b814deaccf45",
+      "resultByteSha256": "7c59b8bdbcba0496ac34dcc5816e4ea571d4be977ec78b4ca3cfc41bef5450cd",
+      "rawReportByteSha256": "4f260eb7c79b999b1b58a772d9b2d19b2a795f869b6afae1bd69c933fac3d567"
+    },
+    {
+      "mode": "integration",
+      "startedAt": "2026-10-17T19:08:54.533Z",
+      "finishedAt": "2026-10-17T19:10:25.484Z",
+      "total": 295,
+      "passed": 295,
+      "failed": 0,
+      "skipped": 0,
+      "files": 28,
+      "elapsedMs": 90950,
+      "sourceStableDuringRun": true,
+      "sourceSha256DuringRun": "6bc6f3ee36132f8e7dff03085d5d0df010f4aebfb1c017061690b814deaccf45",
+      "resultByteSha256": "d459db82dac44ebd2dd721f98ddc3d4a013c1690b71722be53786f6085291241",
+      "rawReportByteSha256": "4da2b81890414753a42c7a87cdc20c9e472d4359e7b7f4e1735f3b2d516744f9"
+    }
+  ],
+  "unitTotal": 861,
+  "postgresTotal": 295,
+  "localFixtures": {
+    "tests": 47,
+    "passed": 47,
+    "failed": 0,
+    "startedAt": "2026-10-17T19:14:59.723Z",
+    "finishedAt": "2026-10-17T19:15:01.590Z",
+    "resultByteSha256": "06d36dcc01bc8ccb3b835186539a4b43617e8d60166f9a0f6dd396c23c626ccd",
+    "note": "Local guards and artifact fixtures; not Chrome business journeys."
+  },
+  "builds": [
+    {
+      "profile": "business",
+      "applications": 5,
+      "startedAt": "2026-10-17T19:09:08.090Z",
+      "finishedAt": "2026-10-17T19:10:38.380Z",
+      "elapsedMs": 90289,
+      "status": "COMPILATION_SUCCEEDED_NOT_UI_PASS",
+      "resultByteSha256": "997c812d52565f14cc06e1b36335d32bc263a5a5b868fe22b6f2ee65ca20f7ee",
+      "stdoutByteSha256": "0b9f50047ce56318ada843ee3045639a95b367d132dd3ea6277c5f4b60c4e29d",
+      "stderrByteSha256": "9eb7966a8185ecfd0bd5a47a598b73a326244330a271ac70ca19b4baab4d913a"
+    },
+    {
+      "profile": "full",
+      "applications": 5,
+      "startedAt": "2026-10-17T19:13:31.345Z",
+      "finishedAt": "2026-10-17T19:14:50.352Z",
+      "elapsedMs": 79006,
+      "status": "COMPILATION_SUCCEEDED_NOT_UI_PASS",
+      "resultByteSha256": "950909098ce433eb760f4b162ca916fbc2b2ad4603d48fd5860a94d0421561d3",
+      "stdoutByteSha256": "c90067b9f2b2a535c8bd013ffa1d2ae0b92ec7c3c9c544b89799c6ff7cab12e2",
+      "stderrByteSha256": "9eb7966a8185ecfd0bd5a47a598b73a326244330a271ac70ca19b4baab4d913a"
+    }
+  ],
+  "restoration": {
+    "testedAt": "2026-10-17T19:31:36.908Z",
+    "tableCount": 81,
+    "rowCount": 10083,
+    "fileCount": 14,
+    "pdfTables": [
+      {
+        "table": "CreditNote",
+        "status": "checked",
+        "count": 11,
+        "totalBytes": 136514,
+        "storedHashMismatches": 0,
+        "nonPdfHeaders": 0,
+        "missingBinaryWithHash": 0,
+        "sha256": "937e75251d643b5c0416f65698bd44c138ddcfc5960947e83080384c62b8a6b8"
+      },
+      {
+        "table": "Invoice",
+        "status": "checked",
+        "count": 15,
+        "totalBytes": 173069,
+        "storedHashMismatches": 0,
+        "nonPdfHeaders": 0,
+        "missingBinaryWithHash": 0,
+        "sha256": "ab1e78459aed0169b08bbacfd3ff75a2561877a8ecd90da2b399458e2bf0e876"
+      }
+    ],
+    "differences": 0,
+    "comparisonStatus": "equal",
+    "encryptedCopyVerified": true,
+    "keyIncludedInArchive": false,
+    "archiveSha256": "372728371f2f262541e5bf3151555b1b2c3be62e3a13cf81db10f6be7fc92d48",
+    "resultByteSha256": "f68122913050418e76ef78b70ddaa6a6f86c7951c86f2d317163e1d8657a6baa",
+    "elapsedMs": 5342,
+    "condition": "Normal runtime stop confirmed at 19:31:18 UTC, five owned ports freed; no forced stop, purge or source migration. Warm-cache elapsed time is not an RTO."
+  },
+  "companies": [
+    {
+      "key": "cafe",
+      "companyId": "cmvc8gnip0002w9f19kmcwds0",
+      "observedAt": "2026-10-17T19:28:23.937Z",
+      "proofFile": "cafe-relecture-finale-1.json",
+      "proofByteSha256": "d8750eeca5485b26e06f091dcd2d6a389b01fdc580fa5e60112940a7dad178d4",
+      "saleCount": 4,
+      "orderCount": 4,
+      "totals": {
+        "charityCents": 0,
+        "confirmedProviderRefundCents": 0,
+        "creditDocumentCents": 1025,
+        "declaredRefundCents": 1025,
+        "finalizedBaseCents": 2003,
+        "finalizedSalesCents": 2110,
+        "finalizedTaxCents": 107,
+        "heldProviderRefundCents": 0,
+        "issuedInvoiceDocumentCents": 1025,
+        "knownProviderFeesCents": 0,
+        "openOrdersCents": 0,
+        "outstandingCents": 0,
+        "providerGrossCents": 0,
+        "receiptsFoodCents": 2110,
+        "tipsCents": 0,
+        "unknownProviderFeesCount": 0
+      },
+      "financialAnomalies": 0,
+      "drawers": [
+        {
+          "id": "240752bb-ca38-417a-bf20-926d1d6f0436",
+          "openingCents": 10000,
+          "cashReceiptsCents": 1310,
+          "movementInCents": 0,
+          "movementOutCents": 625,
+          "expectedCents": 10685,
+          "frozenExpectedCents": 10685,
+          "countedCents": 10680,
+          "discrepancyCents": -5,
+          "closedAt": "2026-10-17T13:11:37.673Z",
+          "snapshotHash": "d25167bc66b57c4f3b77a5d154f6420d1750d7849a0ba0f684b01ece989dc89f"
+        }
+      ],
+      "stockProducts": [
+        {
+          "name": "Espresso centre",
+          "stock": 97
+        },
+        {
+          "name": "Bière centre 25 cl",
+          "stock": 59
+        },
+        {
+          "name": "Eau plate centre",
+          "stock": 46
+        },
+        {
+          "name": "Sandwich centre",
+          "stock": 19
+        },
+        {
+          "name": "Gobelet centre",
+          "stock": 100
+        }
+      ],
+      "issuedDocuments": [
+        {
+          "kind": "INVOICE",
+          "number": "INV-2026-0001",
+          "totalCents": 1025,
+          "storedPdfSha256": "3007ab4fc7629364fdfdea24f907b688631ef950dbbcb040aaad80edcf038f8f",
+          "actualPdfSha256": "3007ab4fc7629364fdfdea24f907b688631ef950dbbcb040aaad80edcf038f8f",
+          "snapshotHash": "2308b8d966363731de3bc71a8637879908554ee41291fc40464fa3aad600b7aa"
+        },
+        {
+          "kind": "CREDIT",
+          "number": "AVO-2026-0002",
+          "totalCents": 775,
+          "storedPdfSha256": "f2a4cc09e99d9b7f36c70ec76179abd5d37c6784436e815aaf305a28a84ae407",
+          "actualPdfSha256": "f2a4cc09e99d9b7f36c70ec76179abd5d37c6784436e815aaf305a28a84ae407",
+          "snapshotHash": "1a72794f98728df3dbd3bd3aa7b2b3c8166e06f9007412dcb07172ee47124955"
+        },
+        {
+          "kind": "CREDIT",
+          "number": "AVO-2026-0001",
+          "totalCents": 250,
+          "storedPdfSha256": "0ef5ce080ed75929b7edf5ebcb4b7b21cc4fd7ec3a421f3702edeeda4d18ab9f",
+          "actualPdfSha256": "0ef5ce080ed75929b7edf5ebcb4b7b21cc4fd7ec3a421f3702edeeda4d18ab9f",
+          "snapshotHash": "2a23627c72e13b39ef42b3b1cb5caa13f155ea29ed84cfbaf7f7db8dfe96f543"
+        }
+      ],
+      "timePunchDiagnostics": {
+        "openDuplicateGroups": 1,
+        "openCount": 2,
+        "limitation": "Historical duplicate Cafe open punches preserved; this is not a new write or an automatic repair."
+      }
+    },
+    {
+      "key": "restaurant",
+      "companyId": "cmvcf4lij000214ojmhli4029",
+      "observedAt": "2026-10-17T19:28:23.359Z",
+      "proofFile": "restaurant-cloture-finale-1.json",
+      "proofByteSha256": "e70ed37e583577a7a37b563951316aaa332d4421a3771c5f28aecfaf84286de8",
+      "saleCount": 4,
+      "orderCount": 5,
+      "totals": {
+        "charityCents": 0,
+        "confirmedProviderRefundCents": 0,
+        "creditDocumentCents": 610,
+        "declaredRefundCents": 610,
+        "finalizedBaseCents": 8142,
+        "finalizedSalesCents": 8450,
+        "finalizedTaxCents": 308,
+        "heldProviderRefundCents": 0,
+        "issuedInvoiceDocumentCents": 3150,
+        "knownProviderFeesCents": 0,
+        "openOrdersCents": 0,
+        "outstandingCents": 0,
+        "providerGrossCents": 0,
+        "receiptsFoodCents": 8450,
+        "tipsCents": 0,
+        "unknownProviderFeesCount": 0
+      },
+      "financialAnomalies": 0,
+      "drawers": [
+        {
+          "id": "d2978913-3b27-48ab-b350-b06478b31606",
+          "openingCents": 20000,
+          "cashReceiptsCents": 8220,
+          "movementInCents": 0,
+          "movementOutCents": 610,
+          "expectedCents": 27610,
+          "frozenExpectedCents": 27610,
+          "countedCents": 27605,
+          "discrepancyCents": -5,
+          "closedAt": "2026-10-17T19:26:13.944Z",
+          "snapshotHash": "8d67c9021c88f9f12d93d2d013f7501756332a432b34cdbe4039f54662af7b07"
+        }
+      ],
+      "stockProducts": [
+        {
+          "name": "Soupe Jardins",
+          "stock": 26
+        },
+        {
+          "name": "Plat végétarien Jardins",
+          "stock": 23
+        },
+        {
+          "name": "Dessert Jardins",
+          "stock": 18
+        },
+        {
+          "name": "Vin Jardins",
+          "stock": 39
+        },
+        {
+          "name": "Eau Jardins",
+          "stock": 59
+        },
+        {
+          "name": "Supplément légumes Jardins",
+          "stock": 25
+        }
+      ],
+      "issuedDocuments": [
+        {
+          "kind": "INVOICE",
+          "number": "INV-2026-0001",
+          "totalCents": 3150,
+          "storedPdfSha256": "ed178cbb0dcb6886b8d7f3fa0ec46d474bfb41d67280f0b0165a84781aed6e74",
+          "actualPdfSha256": "ed178cbb0dcb6886b8d7f3fa0ec46d474bfb41d67280f0b0165a84781aed6e74",
+          "snapshotHash": "fb4dd7435cfc427cff87483edbe9e1f5062b3f6cdcba1b4c9562cfa36111b5ba"
+        },
+        {
+          "kind": "CREDIT",
+          "number": "AVO-2026-0001",
+          "totalCents": 610,
+          "storedPdfSha256": "74289691d6f4651569f183d0383bc5b605aa4b7228b639e11cd10408eff6014c",
+          "actualPdfSha256": "74289691d6f4651569f183d0383bc5b605aa4b7228b639e11cd10408eff6014c",
+          "snapshotHash": "8f5569eedd80f3cffd602688332501948d5e0a26e015c54d069ab390e6e2fc5d"
+        }
+      ],
+      "timePunchDiagnostics": {
+        "openDuplicateGroups": 0,
+        "openCount": 0,
+        "limitation": "Historical duplicate Cafe open punches preserved; this is not a new write or an automatic repair."
+      }
+    },
+    {
+      "key": "bar",
+      "companyId": "cmvcopg6q008jkmr5nwuk3q4l",
+      "observedAt": "2026-10-17T19:28:23.651Z",
+      "proofFile": "bar-cloture-conge-nuit-final-1.json",
+      "proofByteSha256": "bd90cdccd5e5190191e0e51a5b70a151a383cd6c7e9169c303d51742b4252a83",
+      "saleCount": 3,
+      "orderCount": 3,
+      "totals": {
+        "charityCents": 0,
+        "confirmedProviderRefundCents": 0,
+        "creditDocumentCents": 0,
+        "declaredRefundCents": 0,
+        "finalizedBaseCents": 3417,
+        "finalizedSalesCents": 3804,
+        "finalizedTaxCents": 387,
+        "heldProviderRefundCents": 0,
+        "issuedInvoiceDocumentCents": 0,
+        "knownProviderFeesCents": 0,
+        "openOrdersCents": 0,
+        "outstandingCents": 0,
+        "providerGrossCents": 0,
+        "receiptsFoodCents": 3804,
+        "tipsCents": 0,
+        "unknownProviderFeesCount": 0
+      },
+      "financialAnomalies": 0,
+      "drawers": [
+        {
+          "id": "3e4e3a53-5149-4bf4-bb00-4c63f090b369",
+          "openingCents": 10000,
+          "cashReceiptsCents": 1900,
+          "movementInCents": 0,
+          "movementOutCents": 0,
+          "expectedCents": 11900,
+          "frozenExpectedCents": 11900,
+          "countedCents": 11890,
+          "discrepancyCents": -10,
+          "closedAt": "2026-10-17T19:26:35.752Z",
+          "snapshotHash": "709bc3887d7a844a4a41751a7680555ab986a89a5d6420aad33c1dd70c4c5da3"
+        }
+      ],
+      "stockProducts": [
+        {
+          "name": "Pils Amis 25 cl",
+          "stock": 96
+        },
+        {
+          "name": "Pils Amis 50 cl",
+          "stock": 79
+        },
+        {
+          "name": "Tonic Amis",
+          "stock": 58
+        },
+        {
+          "name": "Planche Amis",
+          "stock": 19
+        }
+      ],
+      "issuedDocuments": [],
+      "timePunchDiagnostics": {
+        "openDuplicateGroups": 0,
+        "openCount": 0,
+        "limitation": "Historical duplicate Cafe open punches preserved; this is not a new write or an automatic repair."
+      }
+    }
+  ],
+  "planningEmail": {
+    "proofByteSha256": "d6f6b2ff08a33a284f6e5bc981331ad511422e7e79d6d97f21e243852ff16022",
+    "rawBytes": 3478,
+    "rawSha256": "d58aab9d52d30a8afcc63a1bc2243ad295268485fe4e268d1633e6f3ca1195ef",
+    "checks": {
+      "hashMatchesMetadata": true,
+      "byteLengthMatchesMetadata": true,
+      "reservedInvalidEnvelopeAndTo": true,
+      "mimeVersionOne": true,
+      "utf8DecodedStrictly": true,
+      "exactRegisteredCompany": true,
+      "greetingMatchesExpectedFirstName": true,
+      "greetingMatchesRegisteredFullName": true,
+      "sameRowDateHoursRoleSection": true,
+      "endAnnotationMatchesWhenPresent": true,
+      "overnightEndDateUnambiguous": true,
+      "pgShiftConfirmed": true
+    },
+    "explicitness": {
+      "yearOnShiftRow": true,
+      "timeZoneStated": false,
+      "overnightExpectedFromPg": true,
+      "nextDayMarkerOnMatchedRow": false,
+      "nextDayMarkerConsistentWithPg": false,
+      "endDateExplicitOnMatchedRow": true,
+      "endDateMatchesExpectedOnMatchedRow": true,
+      "fullEmployeeIdentityProvenFromGreeting": false,
+      "endDateEstablishedFromPgNotEmailWhenMissing": false
+    },
+    "providerDeliveryProven": false,
+    "mailboxReceptionProven": false
+  },
+  "journal": {
+    "file": "intensive-journal-2026-10-17-2132.json",
+    "byteSha256": "79e3c932a5e6a119fa0f292aa6ee5ddce6a36710e70d3b2fda4d005b52548d31",
+    "uiAttempts": 1119,
+    "uiToolReturned": 1096,
+    "uiToolErrors": 23,
+    "pointerClicksToolReturned": 731,
+    "filledFieldsToolReturned": 368,
+    "allUiToolElapsedMs": 3724979,
+    "confirmedUiToolElapsedMs": 3633384,
+    "wallSpanMs": 33927987
+  },
+  "limits": [
+    "No business scenario PASS is generated by this exporter; UI, HTTP and PG must be considered together.",
+    "Historical failed runs remain preserved. These are the final fresh successful suite reports, not added counts across reruns.",
+    "All three establishments have partial journeys; no whole role, T100 coverage or five active hours attested.",
+    "Manual payment declarations only; no real bank/provider, physical printer or Internet mailbox qualification.",
+    "Private source snapshots, bases and archives are retained outside Git. No production deployment or master change."
+  ]
+}

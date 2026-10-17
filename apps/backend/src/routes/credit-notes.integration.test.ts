@@ -2,6 +2,7 @@ import express from 'express'
 import request from 'supertest'
 import jwt from 'jsonwebtoken'
 import { randomUUID } from 'node:crypto'
+import { writeFileSync } from 'node:fs'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import prisma from '../lib/prisma'
 import { deviceOrUserAuth } from '../middleware/deviceAuth'
@@ -12,6 +13,18 @@ const app = express(); app.use(express.json()); app.use('/api/invoices', deviceO
 app.use('/api/accounting', deviceOrUserAuth, requireCompany, accounting)
 const companyId = 'integration-credit', userId = `${companyId}-owner`, otherId = `${companyId}-other`
 let token: string
+const databaseErrors: Array<{ action: string; code: string; postgresCode?: string; elapsedMs: number; expired: boolean }> = []
+// Diagnostic boundary only: retain real Prisma/PG behavior and the exact errors,
+// without logging SQL parameters, credentials, tokens or documents.
+prisma.$use(async (params, next) => {
+  const started = performance.now()
+  try { return await next(params) }
+  catch (error: any) {
+    databaseErrors.push({ action: `${params.model || 'raw'}.${params.action}`, code: String(error?.code || 'UNKNOWN'), postgresCode: error?.meta?.code,
+      elapsedMs: Math.round(performance.now() - started), expired: /expired|timeout/i.test(String(error?.message || '')) })
+    throw error
+  }
+})
 const auth = (r: any) => r.set('Authorization', `Bearer ${token}`).set('x-company-id', companyId)
 const input = (amountCents?: number) => ({ requestId: randomUUID(), reason: 'Correction commerciale fictive', ...(amountCents ? { amountCents } : {}) })
 async function issued() {
@@ -71,12 +84,41 @@ describe('Avoirs séparés, TVA historique, sans remboursement implicite', () =>
   }, 60000)
   it('vingt demandes différentes ne dépassent jamais le montant original', async () => {
     const invoice = await issued()
+    databaseErrors.length = 0
+    const started = performance.now()
     const results = await Promise.all(Array.from({ length: 20 }, () => auth(request(app).post(`/api/invoices/${invoice.id}/credit-notes`)).send(input(200))))
-    expect(results.filter(r => r.status === 201)).toHaveLength(11)
-    expect(results.filter(r => r.status === 409)).toHaveLength(9)
+    const diagnostics = { elapsedMs: Math.round(performance.now() - started), counts: Object.fromEntries([...new Set(results.map(r => r.status))].map(status => [status, results.filter(r => r.status === status).length])),
+      outcomes: results.map((r, index) => ({ index, status: r.status, code: r.body.code, outcome: r.body.outcome, message: r.body.message })), databaseErrors: [...databaseErrors] }
+    if (process.env.CREORGA_CREDIT_DIAGNOSTICS_FILE) writeFileSync(process.env.CREORGA_CREDIT_DIAGNOSTICS_FILE, JSON.stringify(diagnostics, null, 2), { flag: 'wx', mode: 0o600 })
+    expect(results.filter(r => r.status === 201), JSON.stringify(diagnostics)).toHaveLength(11)
+    expect(results.filter(r => r.status === 409), JSON.stringify(diagnostics)).toHaveLength(9)
     const listed = await auth(request(app).get(`/api/invoices/${invoice.id}/credit-notes`)).expect(200)
     expect(listed.body.reduce((s: number, r: any) => s + r.totalCents, 0)).toBe(2200)
     expect(new Set(listed.body.map((r: any) => r.number)).size).toBe(11)
+  }, 60000)
+  it('deux factures concurrentes gardent leurs plafonds et partagent une série AVO unique sans modifier les originaux', async () => {
+    const first = await issued(), second = await issued()
+    databaseErrors.length = 0
+    const started = performance.now()
+    const results = await Promise.all(Array.from({ length: 20 }, () => [first, second].map(invoice =>
+      auth(request(app).post(`/api/invoices/${invoice.id}/credit-notes`)).send(input(200)))).flat())
+    const diagnostics = { elapsedMs: Math.round(performance.now() - started), counts: Object.fromEntries([...new Set(results.map(r => r.status))].map(status => [status, results.filter(r => r.status === status).length])),
+      outcomes: results.map((r, index) => ({ index, status: r.status, code: r.body.code, message: r.body.message })), databaseErrors: [...databaseErrors] }
+    if (process.env.CREORGA_CREDIT_DIAGNOSTICS_FILE) writeFileSync(process.env.CREORGA_CREDIT_DIAGNOSTICS_FILE.replace(/\.json$/, '-multiple.json'), JSON.stringify(diagnostics, null, 2), { flag: 'wx', mode: 0o600 })
+    expect(results.filter(r => r.status === 201), JSON.stringify(diagnostics)).toHaveLength(22)
+    expect(results.filter(r => r.status === 409), JSON.stringify(diagnostics)).toHaveLength(18)
+    const documents = await prisma.creditNote.findMany({ where: { companyId, invoiceId: { in: [first.id, second.id] } } })
+    expect(documents).toHaveLength(22)
+    expect(new Set(documents.map(document => document.number)).size).toBe(22)
+    for (const invoice of [first, second]) {
+      const own = documents.filter(document => document.invoiceId === invoice.id)
+      expect(own.reduce((sum, document) => sum + document.totalCents, 0)).toBe(2200)
+      expect(own.reduce((sum, document) => sum + document.baseCents, 0)).toBe(2000)
+      expect(own.reduce((sum, document) => sum + document.taxCents, 0)).toBe(200)
+      expect(await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } })).toEqual(invoice)
+    }
+    expect(await prisma.order.count({ where: { companyId } })).toBe(0)
+    expect(await prisma.paymentSettlement.count({ where: { companyId } })).toBe(0)
   }, 60000)
   it('refuse salarié, autre société et document non émis', async () => {
     const draft = await prisma.invoice.create({ data: { companyId, number: 'UNISSUED', total: 22 } })

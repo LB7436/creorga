@@ -1,5 +1,80 @@
 # Recette actuelle
 
+## Campagne intensive après 475f67a — 17 octobre, EN COURS / NON LIVRÉ
+
+### Consolidation après les rejoués — 19:31:36 UTC
+
+Trois établissements fictifs réellement parcourus, aucun rôle intégral ni T100
+entièrement qualifié. [Validation finale v3](preuves/intensive-validation-finale-2026-10-17-2135-v3.json) :
+**861 unités / 295 PostgreSQL / 47 fixtures locales**, deux profils compilés
+(5 applications chacun). Les suites historiques ci-dessous ne s'y ajoutent pas.
+[HTTP ciblés après clics](preuves/intensive-http-rejeux-2026-10-17-2130.json) et
+[traçabilité](TRACABILITE-UI-API-PG-2026-10-17.md) distinguent toujours UI/API/PG.
+
+Restauration finale : **81 tables / 10 083 lignes / 14 fichiers / 26 PDF identiques**,
+copie chiffrée vérifiée, aucune purge. Restaurant 84,50 € TTC, avoir/remboursement 6,10
+séparés, caisse comptée 276,05 € (−0,05). Bar 38,04 € TTC, acompte/solde mixtes déclarés,
+caisse 118,90 € (−0,10). Café inchangé, caisse 106,80 € (−0,05).
+Ancien QR effectivement refusé après paiement final ; visite Bar encore active
+pendant l'acompte, nouveau groupe à zéro. Planning nocturne : nouvelle capture locale
+avec date de fin explicite, pas réception externe. Voir [checkpoint](CHECKPOINT.md).
+
+[Journal 21:32](preuves/intensive-journal-2026-10-17-2132.json) : 1 119 tentatives UI,
+1 096 retours, 23 erreurs, 731 clics retournés et 368 champs. Pas un nombre de scénarios
+PASS ni cinq heures actives. CSV cliqués, fichiers téléchargés non rapprochés ; aucun
+essai physique ou bancaire. Robi métier, droits fins et parcours restants bloquent
+toujours une déclaration de livraison intégrale ou de préparation au pilote.
+
+### Point courant — vers14:05UTC
+
+Café partiel : quatre ventes21,10€ TTC, avoirs et remboursements déclarés10,25€
+séparés, caisse comptée/clôturée106,80€ avec écart-0,05€ justifié. Restaurant créé :
+cinq membres/six produits/quatre catégories/quatre tables, planning et congés/HACCP,
+une commandeQR25,40€ impayée (HT24,66/TVA0,74), zéro vente/stock débité. Boulangerie
+NOT RUN. Aucun rôle entier qualifié ni cinq heures actives attestées.
+
+Dernières exécutions **801unités et277PG**, cinq compilations métier ; nouveaux
+tests locaux de drainage **41/41**, dont sept fixtures nouvelles. [Preuve agrégée](preuves/intensive-validation-2026-10-17-1405.json).
+Restauration14:00:46UTC :81tables/12fichiers/24PDF égaux, AES-GCM/clé séparée,
+aucune purge. API arrêtée et base sans autre client observé, mais runtime statique
+non entièrement arrêté : préconnexion frontend résiduelle. Reprise UI **BLOCKED**
+en attente de la décision d'arrêt du seul processus local ; aucun arrêt forcé effectué.
+Correctifs récents table vide, double congé et libellés compilés/testés, Chrome encore
+à rejouer. [Checkpoint exact](CHECKPOINT.md), [couverture par rôle](INTENSIVE-COUVERTURE-PAR-ROLE.md).
+
+[Journal nommé14:05](preuves/intensive-journal-2026-10-17-1405.json) :713tentatives,
+700retours d'outil,13erreurs,466clics retournés ; ni700PASS ni couverture uniqueT100.
+Les anciens IDs répétés restent intacts et sont désambiguïsés par position+hash.
+
+### Historique du relevé précédent
+
+[Rapport courant](RECETTE-INTENSIVE-2026-10-17.md),
+[résultats intermédiaires](preuves/intensive-resultats-2026-10-17-1150.json),
+[journal officiel expurgé12:30](preuves/intensive-journal-2026-10-17-1230.json).
+Un seul café fictif partiellement parcouru, B/C NOT RUN ; cinq identités réelles
+dans des contextes neufs, pas cinq rôles entièrement qualifiés. Les retours d'outil ne
+sont pas des assertions de réussite et les attentes bloquées ne sont pas du temps actif.
+
+Sauvegarde/restauration supplémentaire à 11:29:28 UTC : **81 tables, 10 fichiers,
+13 PDF facture et 8 PDF avoir égaux**, avant les encaissements fictifs. Vente de
+10,25 € ensuite rapprochée UI/HTTP/SQL : HT 9,50 €, TVA 0,75 €, espèces déclarées
+6,25 €, carte déclarée 4 €, une vente et stock débité une fois. Aucun paiement bancaire,
+une facture depuis ticket ensuite émise pour ce café sans seconde vente. Deux devis
+brouillons sans encaissement. Une demande d'avoir excessif refusée, aucune pièce créée.
+
+Les validations unitaires/PG ciblées nouvelles sont rapportées avec leurs dates dans
+le checkpoint :734unités et257PostgreSQL fraîchement exécutés après correctifs.
+Trois captures SMTP strictement locales : planning avec Bar, puis facture dont le
+PDF joint est identique à l'original SQL. Copies API A4/58/80 rendues et inspectées ;
+aucune identité du téléchargement Chrome ou impression physique déduite.
+QR : deux commandes201, total9,60€, double clic sans seconde commande ; révocation403,
+nouveau groupe0€ tandis que les impayés restent conservés. Vues375/390/768 parcourues,
+chevauchement mobile reproduit puis correctif compilé, rejeu géométrique restant.
+Clôture Chrome page3 BLOCKED sur retour natif ; refus serveur403 et zéroPosClosure
+établis indépendamment dans ActivityEvent/PostgreSQL, pas fausse preuve UI.
+Nouvelle restauration12:31:06UTC :81tables/10fichiers/22PDF égaux, aucune purge.
+Aucune qualification de production, cinq heures actives non atteintes.
+
 ## Fiabilité et finalisation après f198c98 — 17 octobre 2026
 
 Code/tests `23316e37547c46bb03176a63e3c7b16a1f082d2e` ;

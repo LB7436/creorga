@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { usePOS, type Cloture } from '../store/posStore'
 import { closeServerDay } from '../lib/floorBridge'
+import { sessionCompany, sessionGeneration } from '../lib/server'
 
 /**
  * Journal des ventes et clôture de journée (ticket Z).
@@ -33,10 +34,23 @@ const NOM_METHODE: Record<string, string> = {
   GIFT_CARD: 'Carte cadeau prépayée',
 }
 
-export default function JournalPage({ onExit }: { onExit: () => void }) {
+const journalScope = () => {
+  const staff = usePOS.getState().currentStaff
+  return JSON.stringify([sessionGeneration(), sessionCompany(), staff?.id, staff?.role])
+}
+
+export default function JournalPage(props: { onExit: () => void }) {
+  // Les confirmations, tickets et erreurs appartiennent à cette identité seulement.
+  const staff = usePOS(s => s.currentStaff)
+  const scope = JSON.stringify([sessionGeneration(), sessionCompany(), staff?.id, staff?.role])
+  return <ScopedJournalPage key={scope} scope={scope} {...props} />
+}
+
+function ScopedJournalPage({ onExit, scope }: { onExit: () => void; scope: string }) {
   const ventes = usePOS(s => s.ventes)
   const clotures = usePOS(s => s.clotures)
   const role = usePOS(s => s.currentStaff?.role)
+  const canClose = role === 'OWNER' || role === 'MANAGER'
   // Sans URL de gestion configurée, seul le laboratoire local connaît son port.
   const backoffice = import.meta.env.VITE_BACKOFFICE_URL || (['localhost', '127.0.0.1'].includes(window.location.hostname) ? `${window.location.protocol}//${window.location.hostname}:5174` : '')
   const invoiceUrl = (id: string) => {
@@ -47,19 +61,49 @@ export default function JournalPage({ onExit }: { onExit: () => void }) {
       return url.href
     } catch { return null }
   }
+  const reconciliationUrl = (() => {
+    try {
+      const url = new URL('/accounting/rapports', backoffice)
+      return url.protocol === 'https:' || url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname) ? url.href : null
+    } catch { return null }
+  })()
   const [closing, setClosing] = useState(false)
   const [confirmation, setConfirmation] = useState(false)
   const [ticket, setTicket] = useState<Cloture | null>(null)
+  const [closeError, setCloseError] = useState<string | null>(null)
+  const closingRef = useRef(false)
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  const isCurrent = () => mounted.current && scope === journalScope()
 
   const totalTTC = ventes.reduce((s, v) => s + v.total - v.pourboire - (v.arrondiCaritatif || 0), 0)
   const totalPourboires = ventes.reduce((s, v) => s + v.pourboire, 0)
   const totalTva = ventes.reduce((s, v) => s + v.tva, 0)
+  const financialNotice = <aside aria-label="Périmètre financier du journal" style={{ ...carte, color: '#94a3b8', fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
+    <p style={{ margin: '0 0 8px' }}>Ventes finalisées, hors pourboires et arrondis caritatifs, avant les avoirs. Ce journal n’est pas le solde de trésorerie : acomptes, avoirs et remboursements sont à rapprocher séparément.</p>
+    {canClose && reconciliationUrl ? <a href={reconciliationUrl} target="_blank" rel="noreferrer" style={{ color: '#a5b4fc' }}>Ouvrir le rapprochement financier</a>
+      : <span>Demandez au responsable de consulter Comptabilité → Rapports → Rapprochement financier.</span>}
+  </aside>
 
   async function cloturer() {
-    if (closing) return
+    const currentRole = usePOS.getState().currentStaff?.role
+    if (closingRef.current || !isCurrent() || (currentRole !== 'OWNER' && currentRole !== 'MANAGER')) return
+    // Un second clic peut arriver avant le prochain rendu React.
+    closingRef.current = true
+    setCloseError(null)
     setClosing(true)
-    try { const z = await closeServerDay(); setConfirmation(false); setTicket(z) }
-    catch (e: any) { window.alert(e.message) } finally { setClosing(false) }
+    try {
+      const z = await closeServerDay()
+      if (isCurrent()) { setConfirmation(false); setTicket(z) }
+    } catch (e: unknown) {
+      if (isCurrent()) {
+        setCloseError(e instanceof Error ? e.message : 'Le serveur n’a pas confirmé la clôture.')
+        setConfirmation(false)
+      }
+    } finally {
+      closingRef.current = false
+      if (isCurrent()) setClosing(false)
+    }
   }
 
   // ─── Ticket Z affiché après clôture ───────────────────────────────────────
@@ -77,8 +121,8 @@ export default function JournalPage({ onExit }: { onExit: () => void }) {
             </div>
           </div>
 
-          <Ligne libelle="Total hors taxes" valeur={euro(ticket.totalHT)} />
-          <Ligne libelle="dont TVA" valeur={euro(ticket.totalTva)} />
+          <Ligne libelle="Ventes HT avant avoirs" valeur={euro(ticket.totalHT)} />
+          <Ligne libelle="TVA des ventes" valeur={euro(ticket.totalTva)} />
           {/* Les remises sont visibles sur le Z : sans cette ligne, un CA
               inférieur à la somme des additions paraît inexplicable. Elles
               n'apparaissent que si elles existent — pas de ligne à 0,00 €
@@ -86,7 +130,7 @@ export default function JournalPage({ onExit }: { onExit: () => void }) {
           {(ticket.totalRemises ?? 0) > 0 && (
             <Ligne libelle="dont remises accordées" valeur={`− ${euro(ticket.totalRemises)}`} />
           )}
-          <Ligne libelle="Chiffre d'affaires TTC" valeur={euro(ticket.totalTTC)} fort />
+          <Ligne libelle="Ventes TTC avant avoirs" valeur={euro(ticket.totalTTC)} fort />
           <div style={separateur} />
           <Ligne libelle="Espèces" valeur={euro(ticket.parMethode.cash)} />
           <Ligne libelle="Carte" valeur={euro(ticket.parMethode.card)} />
@@ -97,6 +141,7 @@ export default function JournalPage({ onExit }: { onExit: () => void }) {
           {(ticket.totalArrondisCaritatifs ?? 0) > 0 && (
             <Ligne libelle="Arrondis caritatifs (à reverser)" valeur={euro(ticket.totalArrondisCaritatifs)} />
           )}
+          {financialNotice}
 
           <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
             <button onClick={() => window.print()} style={{ ...bouton, flex: 1 }}>Imprimer</button>
@@ -119,11 +164,12 @@ export default function JournalPage({ onExit }: { onExit: () => void }) {
 
       {/* Totaux */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 20 }}>
-        <Tuile libelle="Encaissé" valeur={euro(totalTTC)} accent="#22c55e" />
-        <Tuile libelle="dont TVA" valeur={euro(totalTva)} />
+        <Tuile libelle="Ventes TTC avant avoirs" valeur={euro(totalTTC)} accent="#22c55e" />
+        <Tuile libelle="TVA des ventes" valeur={euro(totalTva)} />
         <Tuile libelle="Pourboires" valeur={euro(totalPourboires)} />
         <Tuile libelle="Ventes" valeur={String(ventes.length)} />
       </div>
+      {financialNotice}
 
       {ventes.length === 0 ? (
         <div style={{ ...carte, textAlign: 'center', padding: '48px 24px', color: '#64748b' }}>
@@ -157,8 +203,14 @@ export default function JournalPage({ onExit }: { onExit: () => void }) {
                   {v.lignes.map(l => `${l.qty}× ${l.name}`).join(', ')}
                 </div>
                 <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
-                  {heure(v.horodatage)} · {NOM_METHODE[v.methode] || v.methode} · {v.vendeur}
+                  {heure(v.horodatage)} · {v.vendeur}
                   {v.pourboire > 0 && ` · pourboire ${euro(v.pourboire)}`}
+                </div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+                  {Array.isArray(v.reglements) && v.reglements.length > 0 ? <>
+                    <div>Ventilation enregistrée : {v.reglements.map(part => `${NOM_METHODE[part.methode] || part.methode} ${euro(part.montant)}`).join(' · ')}</div>
+                    {v.reglements.some(part => part.methode === 'card' || part.methode === 'contactless') && <div>Confirmation bancaire non vérifiée ici</div>}
+                  </> : <div>Ventilation non renseignée · Moyen principal historique : {NOM_METHODE[v.methode] || v.methode}</div>}
                 </div>
                 {['OWNER', 'MANAGER'].includes(role || '') && invoiceUrl(v.id) && <a href={invoiceUrl(v.id)!} aria-label={`Facture société du ticket ${v.numero}`} style={{ color: '#a5b4fc', display: 'inline-block', padding: '10px 0', fontSize: 13 }}>Facture société →</a>}
               </div>
@@ -169,7 +221,12 @@ export default function JournalPage({ onExit }: { onExit: () => void }) {
       )}
 
       {/* Clôture */}
-      <div style={{ marginTop: 20 }}>
+      {canClose && <div style={{ marginTop: 20 }}>
+        {closeError && <div role="alert" style={{ ...carte, borderColor: '#f87171', marginBottom: 12 }}>
+          <div style={{ fontWeight: 700 }}>Clôture non confirmée</div>
+          <div style={{ marginTop: 6 }}>{closeError}</div>
+          <div style={{ fontSize: 13, color: '#cbd5e1', marginTop: 6 }}>Vérifiez le résultat serveur avant de réessayer. La référence de reprise est conservée.</div>
+        </div>}
         {confirmation ? (
           <div style={{ ...carte, borderColor: 'rgba(245,158,11,0.4)' }}>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Clôturer la journée ?</div>
@@ -178,13 +235,13 @@ export default function JournalPage({ onExit }: { onExit: () => void }) {
               dans un ticket Z conservé, et le journal repartira à zéro. Rien n'est supprimé.
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setConfirmation(false)} style={bouton}>Annuler</button>
-              <button onClick={cloturer} style={{ ...bouton, ...boutonPlein }}>Clôturer</button>
+              <button disabled={closing} onClick={() => setConfirmation(false)} style={bouton}>Annuler</button>
+              <button disabled={closing} onClick={cloturer} style={{ ...bouton, ...boutonPlein }}>{closing ? 'Clôture en cours…' : 'Clôturer'}</button>
             </div>
           </div>
         ) : (
           <button
-            onClick={() => setConfirmation(true)}
+            onClick={() => { if (isCurrent()) { setCloseError(null); setConfirmation(true) } }}
             disabled={ventes.length === 0}
             style={{
               ...bouton,
@@ -195,7 +252,7 @@ export default function JournalPage({ onExit }: { onExit: () => void }) {
             Clôturer la journée (ticket Z)
           </button>
         )}
-      </div>
+      </div>}
 
       {/* Clôtures passées */}
       {clotures.length > 0 && (

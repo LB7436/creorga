@@ -38,8 +38,8 @@ import ModuleTabs from '@/components/ModuleTabs'
 import { lockPos } from '@/components/PosLockScreen'
 import { Lock } from 'lucide-react'
 import { useOfflineStatus, startOfflineSync } from '@/lib/offlineQueue'
+import { useFloorState } from '@/hooks/useFloorState'
 import { io } from 'socket.io-client'
-import { fetchAuth } from '@/lib/fetchAuth'
 
 function OfflineQueueBadge() {
   const { online, pendingCount } = useOfflineStatus()
@@ -84,49 +84,29 @@ function OfflineQueueBadge() {
 
 function LiveCustomerCount() {
   const navigate = useNavigate()
-  const companyId = useAuthStore((state) => state.companyId)
-  const [count, setCount] = useState(0)
+  const companyId = useAuthStore(state => state.companyId)
+  // Même lecture validée et cloisonnée que le plan ; aucune capacité de table
+  // n'est convertie en nombre de clients. Une panne n'est pas un zéro connu.
+  const { state, error, refresh } = useFloorState(60_000)
+  const count = state?.tables.filter(table => table.status === 'OCCUPEE').length
+  const label = error ? 'Occupation indisponible' : count === undefined ? 'Occupation non renseignée'
+    : `${count} table${count > 1 ? 's' : ''} occupée${count > 1 ? 's' : ''}`
 
   useEffect(() => {
-    let alive = true
-    const load = async () => {
-      try {
-        const res = await fetchAuth('/api/floor-state')
-        if (!res.ok) return
-        const data = await res.json()
-        const tables = Array.isArray(data.tables) ? data.tables : Array.isArray(data) ? data : []
-        const next = tables.reduce((sum: number, table: any) => {
-          const occupied = String(table.status || table.state || '').toLowerCase().includes('occup')
-          if (!occupied) return sum
-          return sum + Number(table.guests || table.covers || table.people || table.seats || 1)
-        }, 0)
-        if (alive) setCount(next)
-      } catch {
-        if (alive) setCount(0)
-      }
-    }
-    load()
-
-    // Canal par société : une mise à jour d'une autre enseigne ne déclenche
-    // jamais le rechargement de ce compteur.
-    // le poll passe en simple filet de sécurité à 60s.
-    let socket: any
+    let socket: ReturnType<typeof io> | undefined
     try {
       socket = io('/live', { transports: ['websocket', 'polling'] })
-      socket.on('connect', () => {
-        if (companyId) socket.emit('subscribe', [`floor-${companyId}`])
-      })
-      socket.on('floor-updated', load)
-    } catch { /* socket indisponible — le poll suffira */ }
-
-    const id = window.setInterval(load, 60_000)
-    return () => { alive = false; window.clearInterval(id); socket?.disconnect() }
-  }, [companyId])
+      socket.on('connect', () => { if (companyId) socket?.emit('subscribe', [`floor-${companyId}`]) })
+      socket.on('floor-updated', refresh)
+    } catch { /* Le poll validé reste le filet de sécurité. */ }
+    return () => { socket?.disconnect() }
+  }, [companyId, refresh])
 
   return (
     <button
       onClick={() => navigate('/pos/floor')}
-      title="Clients en salle"
+      title={error ? 'Lecture de salle indisponible — ouvrir le plan pour vérifier' : 'Tables occupées — le nombre de personnes n’est pas renseigné'}
+      aria-label={label}
       style={{
         height: 36,
         padding: '0 12px',
@@ -139,7 +119,7 @@ function LiveCustomerCount() {
         cursor: 'pointer',
       }}
     >
-      {'\u{1F465}'} {count}
+      {'\u{1F465}'} {label}
     </button>
   )
 }

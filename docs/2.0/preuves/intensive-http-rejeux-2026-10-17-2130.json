@@ -1,0 +1,164 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-17T19:29:46.722Z",
+  "source": "OFFICIAL_CHROME_NETWORK_METADATA_AFTER_REAL_UI_ACTIONS",
+  "metadataObservationIsNotRequestEmissionTime": true,
+  "profile": "CREORGA_BUSINESS_ONLY",
+  "rows": [
+    {
+      "pageId": 14,
+      "company": "restaurant",
+      "role": "MANAGER",
+      "reqid": 43,
+      "method": "POST",
+      "urlWithoutQuery": "http://localhost:3002/api/pos/checkout",
+      "status": 200,
+      "observedAt": "2026-10-17T19:29:11.325Z"
+    },
+    {
+      "pageId": 9,
+      "company": "bar",
+      "role": "MANAGER",
+      "reqid": 580,
+      "method": "POST",
+      "urlWithoutQuery": "http://localhost:3002/api/pos/payments",
+      "status": 200,
+      "observedAt": "2026-10-17T19:29:12.836Z"
+    },
+    {
+      "pageId": 9,
+      "company": "bar",
+      "role": "MANAGER",
+      "reqid": 598,
+      "method": "POST",
+      "urlWithoutQuery": "http://localhost:3002/api/pos/payments",
+      "status": 200,
+      "observedAt": "2026-10-17T19:29:12.836Z"
+    },
+    {
+      "pageId": 7,
+      "company": "bar",
+      "role": "OWNER",
+      "reqid": 405,
+      "method": "POST",
+      "urlWithoutQuery": "http://localhost:5174/api/hr/planning/publish",
+      "status": 200,
+      "observedAt": "2026-10-17T19:29:14.415Z"
+    },
+    {
+      "pageId": 7,
+      "company": "bar",
+      "role": "OWNER",
+      "reqid": 419,
+      "method": "PUT",
+      "urlWithoutQuery": "http://localhost:5174/api/hr/leave-requests/cmvcqulp3006tfbpistk432wh/status",
+      "status": 200,
+      "observedAt": "2026-10-17T19:29:14.415Z"
+    },
+    {
+      "pageId": 7,
+      "company": "bar",
+      "role": "OWNER",
+      "reqid": 453,
+      "method": "PUT",
+      "urlWithoutQuery": "http://localhost:5174/api/accounting/cash-drawers/3e4e3a53-5149-4bf4-bb00-4c63f090b369/close",
+      "status": 200,
+      "observedAt": "2026-10-17T19:29:14.415Z"
+    },
+    {
+      "pageId": 2,
+      "company": "restaurant",
+      "role": "OWNER",
+      "reqid": 295,
+      "method": "PUT",
+      "urlWithoutQuery": "http://localhost:5174/api/accounting/cash-drawers/d2978913-3b27-48ab-b350-b06478b31606/close",
+      "status": 422,
+      "observedAt": "2026-10-17T19:29:15.846Z"
+    },
+    {
+      "pageId": 2,
+      "company": "restaurant",
+      "role": "OWNER",
+      "reqid": 299,
+      "method": "PUT",
+      "urlWithoutQuery": "http://localhost:5174/api/accounting/cash-drawers/d2978913-3b27-48ab-b350-b06478b31606/close",
+      "status": 200,
+      "observedAt": "2026-10-17T19:29:15.846Z"
+    },
+    {
+      "pageId": 13,
+      "company": "bar",
+      "role": "EMPLOYEE",
+      "reqid": 230,
+      "method": "GET",
+      "urlWithoutQuery": "http://localhost:5174/api/accounting/cash-drawers",
+      "status": 403,
+      "observedAt": "2026-10-17T19:29:17.425Z"
+    },
+    {
+      "pageId": 13,
+      "company": "bar",
+      "role": "EMPLOYEE",
+      "reqid": 235,
+      "method": "GET",
+      "urlWithoutQuery": "http://localhost:5174/api/accounting/cash-drawers",
+      "status": 403,
+      "observedAt": "2026-10-17T19:29:17.425Z"
+    },
+    {
+      "pageId": 6,
+      "company": "restaurant",
+      "role": "QR",
+      "reqid": 2721,
+      "method": "GET",
+      "urlWithoutQuery": "http://localhost:3002/api/guest/bill/table-wxzz7mof",
+      "status": 403,
+      "observedAt": "2026-10-17T19:29:18.957Z"
+    },
+    {
+      "pageId": 12,
+      "company": "bar",
+      "role": "QR",
+      "reqid": 1097,
+      "method": "GET",
+      "urlWithoutQuery": "http://localhost:3002/api/guest/bill/table-l93yvgfv",
+      "status": 403,
+      "observedAt": "2026-10-17T19:29:20.502Z"
+    },
+    {
+      "pageId": 12,
+      "company": "bar",
+      "role": "QR",
+      "reqid": 1154,
+      "method": "GET",
+      "urlWithoutQuery": "http://localhost:3002/api/guest/bill/table-l93yvgfv",
+      "status": 403,
+      "observedAt": "2026-10-17T19:29:20.502Z"
+    },
+    {
+      "pageId": 15,
+      "company": "bar",
+      "role": "QR",
+      "reqid": 19,
+      "method": "GET",
+      "urlWithoutQuery": "http://localhost:3002/api/guest/bill/table-l93yvgfv",
+      "status": 200,
+      "observedAt": "2026-10-17T19:29:22.012Z"
+    },
+    {
+      "pageId": 6,
+      "company": "restaurant",
+      "role": "QR",
+      "reqid": 2771,
+      "method": "POST",
+      "urlWithoutQuery": "http://localhost:3002/api/guest/orders",
+      "status": 403,
+      "observedAt": "2026-10-17T19:29:34.000Z"
+    }
+  ],
+  "limits": [
+    "HTTP statuses supplement actual journaled UI actions; no full screen or role PASS inferred.",
+    "Only local laboratory origins, fictitious entities, no headers, body or private visit URL exported.",
+    "No banking/provider transaction, physical printing or external mailbox delivery attested."
+  ]
+}

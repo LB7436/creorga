@@ -145,7 +145,7 @@ function GuestHomeContent() {
   const [announcements] = useState<Announcement[]>([])
   const [guestClient, setGuestClient] = useState<GuestClientProfile | null>(() => loadGuestClient(portalCompanyId))
   const [registrationOpen, setRegistrationOpen] = useState(false)
-  const [registrationReason, setRegistrationReason] = useState('Creorga crée votre fiche client pour les commandes et les avis.')
+  const [registrationReason, setRegistrationReason] = useState('La fiche client est facultative. Vous pouvez commander avec le QR de votre visite sans inscription.')
 
   // Cart state shared with menu
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -234,12 +234,12 @@ function GuestHomeContent() {
   const activeTab = visibleTabs.some((item) => item.id === tab) ? tab : (visibleTabs[0]?.id ?? 'menu')
 
   return (
-    <div className="flex min-h-screen flex-col" style={{ background: theme.bg, color: theme.text }}>
+    <div className="flex flex-col" style={{ height: '100dvh', overflow: 'hidden', background: theme.bg, color: theme.text }}>
 
       {/* Header */}
       <header
         className="sticky top-0 z-30 flex items-center justify-between border-b px-4 py-3"
-        style={{ background: theme.bg, borderColor: theme.border }}
+        style={{ flexShrink: 0, background: theme.bg, borderColor: theme.border }}
       >
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ background: accent }}>
@@ -258,7 +258,7 @@ function GuestHomeContent() {
       </header>
 
       {/* Main */}
-      <main className="flex-1 overflow-y-auto px-4 py-4 pb-24">
+      <main tabIndex={0} aria-label="Contenu du portail client" className="flex-1 px-4 py-4 pb-24" style={{ minHeight: 0, overflowY: 'auto' }}>
         <AnnouncementsBanner items={announcements} />
         {guestClient?.phone && <GuestLoyaltyCard phone={guestClient.phone} companyId={portalCompanyId} />}
 
@@ -301,8 +301,8 @@ function GuestHomeContent() {
 
       {/* Bottom nav */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-40 flex items-center border-t"
-        style={{ background: theme.surface, borderColor: theme.border }}
+        className="z-40 flex items-center border-t"
+        style={{ position: 'relative', flexShrink: 0, background: theme.surface, borderColor: theme.border }}
       >
         {visibleTabs.map((t) => (
           <button
@@ -633,15 +633,15 @@ function GuestMenu({
         <div>
           <p style={{ fontSize: 12, fontWeight: 800, color: TEXT }}>Carte publiée par l'établissement</p>
           <p style={{ fontSize: 10.5, color: MUTED, marginTop: 2 }}>
-            Profil: {guestClient ? guestDisplayName(guestClient) : 'inscription requise pour commander'}
+            {guestClient ? `Profil : ${guestDisplayName(guestClient)}` : 'Commande sans inscription avec le QR de votre visite'}
           </p>
         </div>
         {!guestClient && (
           <button
-            onClick={() => requireGuestClient('Inscrivez-vous pour commander et retrouver vos commandes dans Creorga.')}
+            onClick={() => requireGuestClient('La fiche client est facultative. Vous pouvez commander avec le QR de votre visite sans inscription.')}
             style={{ border: 'none', borderRadius: 10, padding: '8px 10px', background: ACCENT, color: '#fff', fontSize: 11, fontWeight: 800 }}
           >
-            Inscription
+            Inscription facultative
           </button>
         )}
       </div>

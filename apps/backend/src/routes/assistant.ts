@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { internalHeaders } from '../lib/security'
 import { currentFloorCompanyId } from './floorState'
+import { AssistantBudget, withAssistantBudget } from '../lib/assistant-budget'
 
 /**
  * Personal Assistant intent engine — parses natural language requests
@@ -484,7 +485,7 @@ function parseIntent(text: string): IntentMatch | null {
 // INTENT EXECUTION
 // ═══════════════════════════════════════════════════════════════════════
 
-async function executeIntent(intent: IntentMatch): Promise<{ success: boolean; summary: string; details?: any; uiAction?: any }> {
+async function executeIntent(intent: IntentMatch, budget: AssistantBudget): Promise<{ success: boolean; summary: string; details?: any; uiAction?: any }> {
   const safeIntents = new Set([
     'ui.dark-mode', 'ui.navigate', 'web.search', 'help.tutorial', 'help.show-commands',
     'assistant.set-mode', 'pos.table-summary', 'pos.free-tables', 'pos.occupancy',
@@ -639,9 +640,7 @@ async function executeIntent(intent: IntentMatch): Promise<{ success: boolean; s
     }
 
     case 'web.search': {
-      const r = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/web-search?q=${encodeURIComponent(intent.params.query)}`, { headers: internalHeaders() })
-      if (!r.ok) return { success: false, summary: '❌ Recherche web indisponible.' }
-      const data = await r.json() as { results?: any[] }
+      const data = await budget.internalJson(`http://localhost:${process.env.PORT || 3002}/api/agent/web-search?q=${encodeURIComponent(intent.params.query)}`, { headers: internalHeaders() }) as { results?: any[] }
       const results = data.results || []
       if (results.length === 0) return { success: true, summary: `🔍 Aucun résultat pour "${intent.params.query}".` }
       return {
@@ -1867,13 +1866,15 @@ Tape ou parle naturellement, je comprends !`,
 // ROUTES
 // ═══════════════════════════════════════════════════════════════════════
 
-router.post('/intent', async (req, res) => {
+router.post('/intent', (req, res) => withAssistantBudget(req, res, async budget => {
   const { text, currentPath, userId } = req.body || {}
   if (!text) return res.status(400).json({ kind: 'error', text: 'text required' })
 
   const intent = parseIntent(text)
   if (intent) {
-    const result = await executeIntent(intent)
+    budget.check()
+    const result = await budget.wait(() => executeIntent(intent, budget))
+    budget.check()
     return res.json({
       kind: 'action',
       intent: intent.intent,
@@ -1883,24 +1884,23 @@ router.post('/intent', async (req, res) => {
   }
 
   // Fall back to smart-query
-  const r = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/smart-query`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders() },
+  const data = await budget.internalJson(`http://localhost:${process.env.PORT || 3002}/api/agent/smart-query`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders(), ...budget.internalDeadlineHeaders() },
     body: JSON.stringify({ question: text, currentPath, userId: userId || 'default' }),
   })
-  const data = await r.json() as any
   res.json({ kind: 'answer', ...data })
-})
+}))
 
 // Web search via DuckDuckGo HTML scrape (no API key, free) — uses matchAll
-router.get('/web-search', async (req, res) => {
+router.get('/web-search', (req, res) => withAssistantBudget(req, res, async budget => {
   const q = String(req.query.q || '').trim()
   if (!q) return res.status(400).json({ error: 'q required' })
   try {
-    const r = await fetch(`https://duckduckgo.com/html/?q=${encodeURIComponent(q)}`, {
+    const r = await budget.fetch(`https://duckduckgo.com/html/?q=${encodeURIComponent(q)}`, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CreorgaBot/1.0)' },
     })
     if (!r.ok) return res.json({ results: [], error: `DuckDuckGo ${r.status}` })
-    const html = await r.text()
+    const html = await budget.wait(() => r.text())
     const linkRe = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([^<]+)<\/a>/g
     const snipRe = /<a[^>]+class="result__snippet"[^>]*>([^<]+)<\/a>/g
     const titles = [...html.matchAll(linkRe)].slice(0, 10).map((mm) => {
@@ -1913,9 +1913,10 @@ router.get('/web-search', async (req, res) => {
     const results = titles.map((t, i) => ({ ...t, snippet: snippets[i] || '' }))
     res.json({ q, results })
   } catch (e: any) {
+    budget.rethrowIfFatal(e)
     res.json({ q, results: [], error: e?.message })
   }
-})
+}))
 
 // Phase B v3.10 — Confirm a previewed action
 router.post('/intent/confirm', async (req, res) => {

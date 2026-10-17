@@ -13,9 +13,9 @@ import FinancialReconciliationPanel from './FinancialReconciliationPanel'
  * mensuel — sans le moindre appel au serveur. Les chiffres ne bougeaient
  * jamais, quel que soit l'établissement ou la période.
  *
- * Elle interroge maintenant les commandes réellement encaissées, sur la
- * période demandée, à la minute près. La route serveur est réservée au
- * propriétaire.
+ * Elle interroge les commandes finalisées (PAID), sur la période demandée,
+ * sans constituer un journal des encaissements, acomptes ou corrections.
+ * La route serveur est réservée au propriétaire.
  */
 
 // ─── Périodes ───────────────────────────────────────────────────────────────
@@ -92,6 +92,7 @@ const NOM_METHODE: Record<string, string> = {
   'non précisé': 'Non précisé',
 }
 const nomMethode = (m: string) => NOM_METHODE[m] || m
+const PERIMETRE_VENTES = 'Ces totaux représentent les ventes finalisées avant avoirs, pas la trésorerie nette ni les encaissements de la période. Les acomptes, avoirs et remboursements sont à consulter dans le rapprochement financier.'
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
@@ -125,7 +126,7 @@ export default function RapportsPage() {
     if (!data) return
     downloadCsv(
       `extrait-caisse-${data.debut.slice(0, 10)}_${data.fin.slice(0, 10)}.csv`,
-      ['N°', 'Date et heure', 'Table', 'Vendeur', 'Paiement', 'Total HT', 'TVA', 'Total TTC', 'Détail'],
+      ['N°', 'Date et heure', 'Table', 'Vendeur', 'Moyen déclaré de la vente', 'Ventes HT avant avoirs', 'TVA des ventes', 'Ventes TTC avant avoirs', 'Détail'],
       data.ventes.map((v) => [
         v.numero,
         dateHeure(v.horodatage),
@@ -150,13 +151,15 @@ export default function RapportsPage() {
       `Extrait de caisse`,
       `Période : ${libellePeriode}`,
       ``,
-      `Ventes encaissées : ${data.nbVentes}`,
-      `Total TTC : ${euro(data.totalTTC)}`,
-      `Dont TVA : ${euro(data.totalTva)}`,
-      `Total HT : ${euro(data.totalHT)}`,
+      `Ventes finalisées : ${data.nbVentes}`,
+      `Ventes TTC avant avoirs : ${euro(data.totalTTC)}`,
+      `TVA des ventes : ${euro(data.totalTva)}`,
+      `Ventes HT avant avoirs : ${euro(data.totalHT)}`,
       `Panier moyen : ${euro(data.panierMoyen)}`,
       ``,
-      `Répartition par moyen de paiement :`,
+      PERIMETRE_VENTES,
+      ``,
+      `Répartition des ventes par moyen déclaré :`,
       ...Object.entries(data.parMethode).map(([m, v]) => `  ${nomMethode(m)} : ${euro(v.total)} (${v.nb})`),
       ``,
       `Le détail ligne à ligne est dans le fichier CSV téléchargé avec ce message.`,
@@ -199,12 +202,14 @@ export default function RapportsPage() {
       <div className="sans-impression" style={{ marginBottom: 18 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>Extraits de caisse</h1>
         <p style={{ fontSize: 13, color: '#94a3b8', margin: '4px 0 0' }}>
-          Ventes réellement encaissées, à la minute près. Réservé au propriétaire.
+          Ventes finalisées TTC avant avoirs, à la minute près. Réservé au propriétaire.
         </p>
       </div>
 
       {/* Sélecteur de période */}
-      <FinancialReconciliationPanel start={debut?.toISOString()} end={fin?.toISOString()} />
+      <div id="rapprochement-financier" className="sans-impression">
+        <FinancialReconciliationPanel start={debut?.toISOString()} end={fin?.toISOString()} />
+      </div>
       <div className="sans-impression" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
         {PRESETS.map((p) => (
           <button
@@ -260,6 +265,10 @@ export default function RapportsPage() {
 
       {/* Contenu */}
       <div className="rapport">
+        <div className="carte" style={{ ...carte, marginBottom: 14, fontSize: 13, lineHeight: 1.6 }}>
+          <p style={{ margin: 0 }}>{PERIMETRE_VENTES}</p>
+          <a className="sans-impression" href="#rapprochement-financier" style={{ color: '#a5b4fc' }}>Consulter le rapprochement financier</a>
+        </div>
         <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
           <CalendarRange size={15} /> {libellePeriode}
         </div>
@@ -288,9 +297,9 @@ function Contenu({ data }: { data: RapportCaisse }) {
     return (
       <div style={{ ...carte, textAlign: 'center', padding: '44px 24px' }}>
         <div style={{ fontSize: 32, marginBottom: 10 }}>🧾</div>
-        <div style={{ fontSize: 15, fontWeight: 700 }}>Aucune vente sur cette période</div>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>Aucune vente finalisée sur cette période</div>
         <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 6 }}>
-          Rien n'a été encaissé entre ces deux dates.
+          Des acomptes ou autres mouvements peuvent exister : consultez le rapprochement financier.
         </div>
       </div>
     )
@@ -301,16 +310,16 @@ function Contenu({ data }: { data: RapportCaisse }) {
   return (
     <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 12, marginBottom: 20 }}>
-        <Tuile libelle="Total encaissé" valeur={euro(data.totalTTC)} accent="#22c55e" />
-        <Tuile libelle="Total hors taxes" valeur={euro(data.totalHT)} />
-        <Tuile libelle="dont TVA" valeur={euro(data.totalTva)} />
+        <Tuile libelle="Ventes TTC avant avoirs" valeur={euro(data.totalTTC)} accent="#22c55e" />
+        <Tuile libelle="Ventes HT avant avoirs" valeur={euro(data.totalHT)} />
+        <Tuile libelle="TVA des ventes" valeur={euro(data.totalTva)} />
         <Tuile libelle="Ventes" valeur={String(data.nbVentes)} />
         <Tuile libelle="Panier moyen" valeur={euro(data.panierMoyen)} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 14, marginBottom: 20 }}>
         <div className="carte" style={carte}>
-          <Titre>Par moyen de paiement</Titre>
+          <Titre>Ventes par moyen déclaré</Titre>
           {Object.entries(data.parMethode).map(([m, v]) => (
             <LigneCle key={m} gauche={`${nomMethode(m)} (${v.nb})`} droite={euro(v.total)} />
           ))}
@@ -359,7 +368,7 @@ function Contenu({ data }: { data: RapportCaisse }) {
                 <th style={cellule}>Date et heure</th>
                 <th style={cellule}>Table</th>
                 <th style={cellule}>Vendeur</th>
-                <th style={cellule}>Paiement</th>
+                <th style={cellule}>Moyen déclaré de la vente</th>
                 <th style={{ ...cellule, textAlign: 'right' }}>HT</th>
                 <th style={{ ...cellule, textAlign: 'right' }}>TVA</th>
                 <th style={{ ...cellule, textAlign: 'right' }}>TTC</th>

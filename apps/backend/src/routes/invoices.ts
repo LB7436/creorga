@@ -273,12 +273,13 @@ router.post('/quotes/:id/convert', async (req: any, res: Response) => {
 // ─── INVOICES ─────────────────────────────────────────
 
 router.post('/:id/credit-notes', async (req: any, res) => {
+  res.set('Cache-Control', 'private, no-store')
   try {
     const result = await createCreditNote(req.companyId, req.user.userId, req.params.id, req.body)
     res.status(result.created ? 201 : 200).json(creditDto(result.credit))
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ message: 'Référence, montant en centimes et motif de cinq caractères minimum requis.' })
-    if (error instanceof CreditError) return res.status(error.status).json({ message: error.message })
+    if (error instanceof CreditError) return res.status(error.status).json({ message: error.message, ...error.notIssuedProof })
     if (error instanceof NumerotationIndisponibleError) return res.status(503).json({ message: error.message })
     logger.warn('[documents] avoir non confirmé')
     res.status(503).json({ message: 'Émission non confirmée. Réessayez la même référence avant toute nouvelle demande.' })

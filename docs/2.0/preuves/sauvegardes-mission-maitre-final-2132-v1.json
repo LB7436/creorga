@@ -1,0 +1,110 @@
+{
+  "format": "creorga-master-mission-final-replay-backup-review-v1",
+  "checkedAt": "2026-10-17T19:33:49.633Z",
+  "campaignStatus": "NON LIVREE",
+  "scope": "read-only copies, manifest hashes and existing restoration evidence; not a new SQL or restore execution",
+  "existingPrivateReport": {
+    "identifier": "RESTORATION-2.0-mission-maitre-fin-rejeux-20261017-2132-v1.json",
+    "bytes": 49293,
+    "sha256": "f68122913050418e76ef78b70ddaa6a6f86c7951c86f2d317163e1d8657a6baa",
+    "testedAt": "2026-10-17T19:31:36.908Z",
+    "comparisonAt": "2026-10-17T19:31:36.871Z",
+    "status": "equal",
+    "tables": 81,
+    "totalRows": 10083,
+    "columnFingerprintPairsCompared": 81,
+    "rowMultisetFingerprintPairsCompared": 81,
+    "sourceRestoredTableDescriptorsIdentical": true,
+    "differences": 0,
+    "comparisonReadonly": true,
+    "sourceReadonly": true,
+    "restoredReadonly": true,
+    "loopbackOnly": true,
+    "canonicalization": "PostgreSQL JSONB / UTC / ISO dates / hex bytea; SHA-256 per row then sorted multiset",
+    "checkedFiles": 14,
+    "mediaStatus": "absent",
+    "archiveVersion": 2,
+    "encryptedCopyVerified": true,
+    "keyIncludedInArchive": false,
+    "elapsedMsWarmLocal": 5342,
+    "operationalRtoQualified": false,
+    "issuedPdfs": [
+      {
+        "kind": "invoice",
+        "count": 15,
+        "totalBytes": 173069,
+        "storedHashMismatches": 0,
+        "nonPdfHeaders": 0,
+        "missingBinaryWithHash": 0,
+        "sha256SortedMultiset": "ab1e78459aed0169b08bbacfd3ff75a2561877a8ecd90da2b399458e2bf0e876"
+      },
+      {
+        "kind": "credit-note",
+        "count": 11,
+        "totalBytes": 136514,
+        "storedHashMismatches": 0,
+        "nonPdfHeaders": 0,
+        "missingBinaryWithHash": 0,
+        "sha256SortedMultiset": "937e75251d643b5c0416f65698bd44c138ddcfc5960947e83080384c62b8a6b8"
+      }
+    ]
+  },
+  "independentlyReadBackupCopy": {
+    "identifier": "backup-input-recette-lyz2It/data/backups/full/creorga-full-2026-10-17-1792265492042-70485.zip",
+    "bytes": 2992945,
+    "sha256": "372728371f2f262541e5bf3151555b1b2c3be62e3a13cf81db10f6be7fc92d48",
+    "manifestBytes": 3467,
+    "manifestSha256": "70fb5960121c76c7c1455631bd503546c86ad10f6782b2b2c5a94ffbb64263fa",
+    "businessFilesVerifiedInZipAndExistingStagedCopy": 14,
+    "businessFileBytes": 22985550,
+    "sizesAndSha256MatchManifest": true,
+    "archiveHashUnchangedAfterSelectedEntryReads": true,
+    "originalRuntimeRead": false,
+    "archiveExtractionExecuted": false,
+    "businessEntryNamesOrContentPublished": false
+  },
+  "shutdownContextReportedByCoordinator": {
+    "repeatedByThisVerifier": false,
+    "observationsStartUtc": "2026-10-17T19:31:17.257Z",
+    "observationsEndUtc": "2026-10-17T19:31:18.468Z",
+    "observationWindowMs": 1211,
+    "reportedInternalShutdownMs": 406,
+    "windowAndInternalCounterAreDistinct": true,
+    "reportedOwnedProcessAbsent": true,
+    "reportedBusinessListeners": 0,
+    "reportedCheckedPorts": 5,
+    "reportedForcedTerminations": 0
+  },
+  "latestKnownCodePreservation": {
+    "contextOnlyNotReinventoriedHere": true,
+    "identifier": "worktree-preserved-2026-10-17T19-00-20-256Z-9d7a7693",
+    "manifestSha256": "2466d436d0882c8929c61d9a3d97d28e74ac67b5058d9f7463a26ad54b13e685",
+    "previouslyVerifiedFiles": 112,
+    "includesFinalDocumentationAndAnnotations": false,
+    "newWorktreePreservationExecuted": false,
+    "gitStatusOrPublicationEstablished": false
+  },
+  "limits": {
+    "newSqlOrRestoreExecution": false,
+    "originalDataOrProtectedArchivesAccessed": false,
+    "apiNetworkRuntimeChromeOrGitAccess": false,
+    "existingArchiveOrProofWrittenOrDeleted": false,
+    "newRetentionOrPurgeAuthorized": false,
+    "historicalRecoveredDumpsRestoredIndividually": false,
+    "twoOldUnnamedDeletedDumpsIdentified": false,
+    "rpoRtoAgreed": false,
+    "fiveHourServiceQualified": false,
+    "t100Complete": false,
+    "productionQualified": false,
+    "futureWritesCoveredByThisFixedPoint": false
+  },
+  "notes": [
+    "The coordinator restored a new database before this review; equality of rows, columns and issued PDFs is the recorded result, checked here on the report without SQL.",
+    "Selected business ZIP entries and the existing staged backup files were hashed without extraction; original runtime and original protected archives were not read.",
+    "AES-GCM and separate-key verification are recorded in the private report, not rerun by this verifier.",
+    "The warm local 5342 ms is not an operational RTO. Shutdown measurements likewise are not recovery-time objectives.",
+    "The previously verified 112-file worktree copy predates the final documentation and annotations. It must not be described as a complete final code delivery.",
+    "Earlier restore points remain preserved and retention stays frozen; the two old unnamed rotation deletions are still not attributable.",
+    "This fixed point does not cover later writes or establish a five-hour service, exhaustive T100, external-provider test or production qualification."
+  ]
+}

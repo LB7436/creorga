@@ -1,0 +1,32 @@
+{
+  "executedAt": "2026-10-17 18:04:39 UTC",
+  "command": "npm audit --omit=dev --json --ignore-scripts",
+  "exitCode": 0,
+  "baseCommit": "475f67ac1357e07af478f4f237a1f6bb001bb93a",
+  "branch": "codex/creorga-2-0-2026-10-08",
+  "workingTreeDirty": true,
+  "scope": "Production dependencies; development advisories excluded. Registry response only, not code security certification.",
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "dependencies": {
+      "prod": 468,
+      "dev": 361,
+      "optional": 117,
+      "peer": 26,
+      "peerOptional": 0,
+      "total": 866
+    }
+  },
+  "vulnerabilities": {},
+  "limits": [
+    "No npm audit fix, package installation, dependency update or lifecycle script executed.",
+    "No claim that application authorization, business logic, historical or unknown vulnerabilities are safe."
+  ]
+}

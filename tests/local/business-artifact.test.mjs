@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
+import { assertLocalInstallationManifest } from '../../scripts/local/local-origin-policy.mjs'
 const root = path.resolve(import.meta.dirname, '../..')
 
 test('le livrable business ne contient aucun jeu ; le livrable complet les conserve', () => {
@@ -20,7 +21,7 @@ test('le livrable business ne contient aucun jeu ; le livrable complet les conse
   for (const app of ['pos', 'guest', 'superadmin']) assert.ok(fs.existsSync(path.join(root, 'apps', app, 'dist-business/index.html')))
   for (const profile of ['business', 'full']) for (const app of ['web', 'pos', 'guest', 'superadmin']) {
     const installation = JSON.parse(fs.readFileSync(path.join(root, 'apps', app, `dist-${profile}`, 'local-installation.json'), 'utf8'))
-    assert.equal(installation.apiOrigin, 'http://127.0.0.1:3002'); assert.equal(installation.profile, profile)
+    assertLocalInstallationManifest(installation, profile)
     const assets = path.join(root, 'apps', app, `dist-${profile}`, 'assets')
     const chunks = fs.readdirSync(assets).filter(name => name.endsWith('.js')).map(name => fs.readFileSync(path.join(assets, name), 'utf8'))
     const productionEnv = path.join(root, 'apps', app, '.env.production')
@@ -29,6 +30,9 @@ test('le livrable business ne contient aucun jeu ; le livrable complet les conse
     for (const match of destinations) if (/^https?:/.test(match[2].trim()) && !/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::|\/|$)/.test(match[2].trim())) {
       assert.equal(chunks.some(chunk => chunk.includes(match[2].trim())), false, `${app}/${profile} ne doit pas conserver ${match[1]} de production`)
     }
-    if (app === 'web' || app === 'pos') assert.ok(chunks.some(chunk => chunk.includes('http://127.0.0.1:3002')), `${app}/${profile} doit utiliser l’API locale`)
+    if (app === 'web' || app === 'pos') {
+      assert.ok(chunks.some(chunk => chunk.includes('http://localhost:3002')), `${app}/${profile} doit utiliser l’API locale de même hostname`)
+      assert.equal(chunks.some(chunk => chunk.includes('http://127.0.0.1:3002')), false, `${app}/${profile} ne doit pas garder l’ancienne destination de session`)
+    }
   }
 })

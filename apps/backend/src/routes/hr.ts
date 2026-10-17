@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
-import { emailConfigured, emailTemplates, sendEmail } from '../lib/email'
+import { emailConfigured, emailTemplates, planningShiftLabels, sendEmail } from '../lib/email'
 import { requireRole } from '../middleware/requireCompany'
 import { withShiftSlot, ShiftConflict, validateShiftTimes } from '../lib/shift-slot'
 
@@ -13,6 +13,12 @@ function canManageTeam(req: any) {
 
 function requestedUserAllowed(req: any, userId: unknown) {
   return canManageTeam(req) || String(userId || '') === req.user?.userId
+}
+
+/** Lire uniquement le marqueur métier existant, jamais publier les notes libres. */
+function planningSectionFromNotes(notes: string | null): string | undefined {
+  const section = notes?.match(/(?:^|;)section:(Salle|Bar|Terrasse)(?:;|$)/i)?.[1]
+  return section ? section[0].toUpperCase() + section.slice(1).toLowerCase() : undefined
 }
 
 // ─── SHIFTS ───────────────────────────────────────────
@@ -190,10 +196,9 @@ router.post('/planning/publish', requireRole('OWNER', 'MANAGER'), async (req: an
         companyName: société,
         period: période,
         shifts: personnels.map((shift) => ({
-          date: shift.startTime.toLocaleDateString('fr-LU', { weekday: 'long', day: '2-digit', month: '2-digit' }),
-          start: shift.startTime.toLocaleTimeString('fr-LU', { hour: '2-digit', minute: '2-digit' }),
-          end: shift.endTime.toLocaleTimeString('fr-LU', { hour: '2-digit', minute: '2-digit' }),
+          ...planningShiftLabels(shift.startTime, shift.endTime),
           role: shift.role,
+          section: planningSectionFromNotes(shift.notes),
         })),
       })
       const résultat = await sendEmail({
@@ -245,24 +250,42 @@ router.post('/planning/publish', requireRole('OWNER', 'MANAGER'), async (req: an
 
 // ─── TIME PUNCHES ─────────────────────────────────────
 
+/** Les deux écrivains partagent le même verrou transactionnel par société/salarié.
+ * Pas de nettoyage implicite : plusieurs entrées historiques ouvertes exigent une revue. */
+async function mutateTimePunch(req: any, userId: string, direction: 'in' | 'out') {
+  const companyId = req.companyId as string
+  const actorId = req.user?.userId as string | undefined
+  return prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'creorga:time-punch:' + companyId}), hashtext(${userId}))`
+    // L'attente du verrou peut dépasser une révocation : ne pas croire l'ancien req.role.
+    const actor = actorId ? await tx.userCompany.findFirst({ where: { companyId, userId: actorId, isActive: true }, select: { userId: true, role: true } }) : null
+    if (!actor || !requestedUserAllowed({ role: actor.role, user: { userId: actorId } }, userId)) {
+      return { status: 403, body: { message: 'Accès au pointage refusé : vérifiez votre adhésion et vos droits actuels.' } }
+    }
+    const member = actorId === userId ? actor : await tx.userCompany.findFirst({ where: { companyId, userId, isActive: true }, select: { userId: true } })
+    if (!member) return { status: 400, body: { message: 'Collaborateur actif introuvable dans cette société' } }
+    const opened = await tx.timePunch.findMany({ where: { companyId, userId, clockOut: null }, orderBy: [{ clockIn: 'asc' }, { id: 'asc' }], take: 2 })
+    if (opened.length > 1) return { status: 409, body: {
+      message: 'Plusieurs pointages ouverts existent. Aucune ligne n’a été modifiée ; un responsable doit vérifier cet historique.', code: 'TIME_PUNCH_HISTORY_CONFLICT',
+    } }
+    if (direction === 'in') {
+      if (opened.length) return { status: 409, body: { message: 'Déjà pointé - veuillez d’abord pointer la sortie', code: 'TIME_PUNCH_ALREADY_OPEN' } }
+      return { status: 201, body: await tx.timePunch.create({ data: { companyId, userId, clockIn: new Date() } }) }
+    }
+    if (!opened.length) return { status: 404, body: { message: 'Aucun pointage en cours trouvé' } }
+    const result = await tx.timePunch.updateMany({ where: { id: opened[0].id, companyId, userId, clockOut: null }, data: { clockOut: new Date() } })
+    if (result.count !== 1) return { status: 409, body: { message: 'Ce pointage a changé. Rechargez sans répéter une fermeture.', code: 'TIME_PUNCH_CHANGED' } }
+    return { status: 200, body: await tx.timePunch.findUniqueOrThrow({ where: { id: opened[0].id } }) }
+  }, { maxWait: 15000, timeout: 10000 })
+}
+
 router.post('/punch/in', async (req: any, res: Response) => {
   try {
     const { userId } = req.body
     if (!requestedUserAllowed(req, userId)) return res.status(403).json({ message: 'Vous ne pouvez pointer que votre propre compte' })
-    const member = await prisma.userCompany.findFirst({ where: { userId: String(userId || ''), companyId: req.companyId, isActive: true } })
-    if (!member) return res.status(400).json({ message: 'Collaborateur actif introuvable dans cette société' })
-    // Check if already clocked in
-    const open = await prisma.timePunch.findFirst({
-      where: { userId, companyId: req.companyId, clockOut: null },
-    })
-    if (open) {
-      res.status(409).json({ message: 'Déjà pointé - veuillez d\'abord pointer la sortie' })
-      return
-    }
-    const punch = await prisma.timePunch.create({
-      data: { companyId: req.companyId, userId, clockIn: new Date() },
-    })
-    res.status(201).json(punch)
+    if (typeof userId !== 'string' || !userId) return res.status(400).json({ message: 'Identifiant du collaborateur requis' })
+    const result = await mutateTimePunch(req, userId, 'in')
+    res.status(result.status).json(result.body)
   } catch (error) {
     logger.error('Erreur POST /punch/in:', error)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -273,21 +296,9 @@ router.post('/punch/out', async (req: any, res: Response) => {
   try {
     const { userId } = req.body
     if (!requestedUserAllowed(req, userId)) return res.status(403).json({ message: 'Vous ne pouvez pointer que votre propre compte' })
-    const member = await prisma.userCompany.findFirst({ where: { userId: String(userId || ''), companyId: req.companyId, isActive: true } })
-    if (!member) return res.status(400).json({ message: 'Collaborateur actif introuvable dans cette société' })
-    const open = await prisma.timePunch.findFirst({
-      where: { userId, companyId: req.companyId, clockOut: null },
-      orderBy: { clockIn: 'desc' },
-    })
-    if (!open) {
-      res.status(404).json({ message: 'Aucun pointage en cours trouvé' })
-      return
-    }
-    const punch = await prisma.timePunch.update({
-      where: { id: open.id },
-      data: { clockOut: new Date() },
-    })
-    res.json(punch)
+    if (typeof userId !== 'string' || !userId) return res.status(400).json({ message: 'Identifiant du collaborateur requis' })
+    const result = await mutateTimePunch(req, userId, 'out')
+    res.status(result.status).json(result.body)
   } catch (error) {
     logger.error('Erreur POST /punch/out:', error)
     res.status(500).json({ message: 'Erreur serveur' })

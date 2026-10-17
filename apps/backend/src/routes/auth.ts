@@ -22,6 +22,13 @@ function authUnavailable(res: Response): void {
   })
 }
 
+function noActiveCompany(res: Response): void {
+  res.status(403).json({
+    code: 'NO_ACTIVE_COMPANY',
+    message: 'Aucun accès actif à un établissement. Contactez le propriétaire pour réactiver votre accès.',
+  })
+}
+
 /** Jamais l'email en clair dans LoginEvent : empreinte sha256 normalisée. */
 function hachageEmail(email: string): string {
   return crypto.createHash('sha256').update(String(email).trim().toLowerCase()).digest('hex')
@@ -189,16 +196,19 @@ router.post('/login', validate(loginSchema), async (req, res) => {
         return
       }
 
+      const companies = await prisma.userCompany.findMany({
+        where: { userId: user.id, isActive: true },
+        include: { company: true },
+      })
+      if (!companies.length) { noActiveCompany(res); return }
+
+      // L'identité seule ne donne pas accès à l'ERP. Vérifier les adhésions
+      // avant tout jeton évite aussi un refresh orphelin si leur lecture échoue.
       const accessToken = generateAccessToken(user.id, user.email)
       const refreshToken = generateRefreshToken()
 
       await prisma.refreshToken.create({
         data: { token: refreshToken, userId: user.id, expiresAt: getRefreshExpiry() },
-      })
-
-      const companies = await prisma.userCompany.findMany({
-        where: { userId: user.id, isActive: true },
-        include: { company: true },
       })
 
       res.cookie('refreshToken', refreshToken, {
@@ -284,6 +294,12 @@ router.post('/refresh', async (req, res) => {
       res.status(401).json({ message: 'Votre session a expiré. Reconnectez-vous.', code: 'SESSION_EXPIRED' })
       return
     }
+
+    const companies = await prisma.userCompany.findMany({
+      where: { userId: stored.userId, isActive: true },
+      include: { company: true },
+    })
+    if (!companies.length) { noActiveCompany(res); return }
 
     const newRefreshToken = generateRefreshToken()
     // Consommation unique et création atomique : un échec ne détruit pas la session.
@@ -378,6 +394,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
       where: { userId: user.id, isActive: true },
       include: { company: true },
     })
+    if (!companies.length) { noActiveCompany(res); return }
 
     res.json({ user, companies })
   } catch (error: any) {

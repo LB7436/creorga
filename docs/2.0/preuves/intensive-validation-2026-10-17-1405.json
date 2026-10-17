@@ -1,0 +1,139 @@
+{
+  "generatedAt": "2026-10-17T14:03:06.936Z",
+  "campaignStatus": "IN_PROGRESS_NOT_DELIVERED",
+  "baseCommit": "475f67ac1357e07af478f4f237a1f6bb001bb93a",
+  "profile": "CREORGA_BUSINESS_ONLY",
+  "suites": [
+    {
+      "mode": "backend-unit",
+      "startedAt": "2026-10-17T13:46:18.252Z",
+      "finishedAt": "2026-10-17T13:46:29.830Z",
+      "total": 348,
+      "passed": 348,
+      "failed": 0,
+      "skipped": 0,
+      "files": 53,
+      "elapsedMs": 11578,
+      "sourceStableDuringRun": true,
+      "sourceSha256DuringRun": "429b812a719f9df6f80b2fc392f0e88930a40f761c4a0e816323f30644f2efdf",
+      "resultSha256": "b780cabfcd76cba98a2af35bda6c50d801830621ea93ad4d9ab26dd7441a61cd",
+      "rawReportSha256": "bcbacd52c7a53d84ce7b898e92bb3fbc0fae31a1e7e036a01fab10d600b770ce"
+    },
+    {
+      "mode": "web-unit",
+      "startedAt": "2026-10-17T13:46:17.822Z",
+      "finishedAt": "2026-10-17T13:46:30.596Z",
+      "total": 336,
+      "passed": 336,
+      "failed": 0,
+      "skipped": 0,
+      "files": 39,
+      "elapsedMs": 12774,
+      "sourceStableDuringRun": true,
+      "sourceSha256DuringRun": "429b812a719f9df6f80b2fc392f0e88930a40f761c4a0e816323f30644f2efdf",
+      "resultSha256": "46dcc938b68e2ae697af016aff3bb25d0287f25e8797f052976c93a90c953b27",
+      "rawReportSha256": "eef7eb3aa1a766996719406e85cd4c7a98ef1d103c50fbbd8e15cfb70141aacc"
+    },
+    {
+      "mode": "pos-unit",
+      "startedAt": "2026-10-17T13:46:17.822Z",
+      "finishedAt": "2026-10-17T13:46:21.501Z",
+      "total": 117,
+      "passed": 117,
+      "failed": 0,
+      "skipped": 0,
+      "files": 11,
+      "elapsedMs": 3678,
+      "sourceStableDuringRun": true,
+      "sourceSha256DuringRun": "429b812a719f9df6f80b2fc392f0e88930a40f761c4a0e816323f30644f2efdf",
+      "resultSha256": "e66bc240f2307dabcdf4be043e7c993cd662f74f02294e2f895c955a592082ea",
+      "rawReportSha256": "fa18ad3b48637725d6882684f0804fb0964935cf1b7935c7a04f8db9e96e3acf"
+    },
+    {
+      "mode": "integration",
+      "startedAt": "2026-10-17T13:53:56.665Z",
+      "finishedAt": "2026-10-17T13:54:46.791Z",
+      "total": 277,
+      "passed": 277,
+      "failed": 0,
+      "skipped": 0,
+      "files": 27,
+      "elapsedMs": 50126,
+      "sourceStableDuringRun": true,
+      "sourceSha256DuringRun": "429b812a719f9df6f80b2fc392f0e88930a40f761c4a0e816323f30644f2efdf",
+      "resultSha256": "503a187fae2c8c001dddf459e5c272b48626b6a92015d23a1d714d1e7d61b477",
+      "rawReportSha256": "8ff26e31e978764eef949a1f15908763fc0392faf4942d2f301cfd44478f68fb"
+    }
+  ],
+  "unitTotal": 801,
+  "postgresTotal": 277,
+  "build": {
+    "profile": "business",
+    "applications": 5,
+    "logSha256": "4f988683b104cc32644a03e98423e2ddbdc99bbe6bffceff57448ec560b9c2c5",
+    "latestCompiledChangesNotReplayedInChrome": true
+  },
+  "staticHostDrain": {
+    "tests": 41,
+    "passed": 41,
+    "failed": 0,
+    "includesNewDrainFixtures": 7,
+    "logSha256": "f9e528df198ea7c645c8defbb55f305ba1518440570183ad9cafee104499b61f",
+    "runningOldRuntimeUnaffected": true,
+    "forcedStopPerformed": false,
+    "realRuntimeRestartVerified": false
+  },
+  "restoration": {
+    "testedAt": "2026-10-17T14:00:46.896Z",
+    "comparisonStatus": "equal",
+    "tableCount": 81,
+    "fileCount": 12,
+    "pdfTables": [
+      {
+        "table": "CreditNote",
+        "status": "checked",
+        "count": 10,
+        "totalBytes": 123476,
+        "storedHashMismatches": 0,
+        "nonPdfHeaders": 0,
+        "missingBinaryWithHash": 0,
+        "sha256": "ece23b3a73bd2cb6cc55cbc6007f74a46133b233925970918ac6a7013d114a57"
+      },
+      {
+        "table": "Invoice",
+        "status": "checked",
+        "count": 14,
+        "totalBytes": 159940,
+        "storedHashMismatches": 0,
+        "nonPdfHeaders": 0,
+        "missingBinaryWithHash": 0,
+        "sha256": "93f1822fcea3abac7bea0daa9b21a65eea0e9f48c9eb677ae1a53430c6b7b4aa"
+      }
+    ],
+    "differences": 0,
+    "encryptedCopyVerified": true,
+    "keyIncludedInArchive": false,
+    "archiveSha256": "1e2d7b41bfae4fa784d45538ae84b2997af78d6df736f2c82819542764ccf001",
+    "proofSha256": "a62024e9fe31b10a2e40041c2f961898b2b58a1143b1258e78fa6ad398ca8ed0",
+    "elapsedMs": 4083,
+    "conditions": "API stopped, scheduling frozen by shutdown, zero other source-DB clients observed; static runtime process not fully stopped. Warm-cache measurement, not an RTO."
+  },
+  "journal": {
+    "file": "intensive-journal-2026-10-17-1405.json",
+    "sha256": "1a2cd1a28865199cac2c0c573f0a9924c250add0f3b68922d5feadefe88ff73f",
+    "uiAttempts": 713,
+    "uiToolReturned": 700,
+    "uiToolErrors": 13,
+    "pointerClicksToolReturned": 466,
+    "filledFieldsToolReturned": 255,
+    "allUiToolElapsedMs": 2297150,
+    "confirmedUiToolElapsedMs": 2253335,
+    "wallSpanMs": 13587770
+  },
+  "limits": [
+    "No new browser action or business scenario PASS inferred by this exporter.",
+    "Three-establishment campaign and T100 incomplete; five active hours not attested.",
+    "Unit/PG source fingerprints refer to their execution times; later lifecycle-only changes are covered separately by local fixtures.",
+    "No bank, physical printing, production, historical browser profile or external SMTP qualification."
+  ]
+}

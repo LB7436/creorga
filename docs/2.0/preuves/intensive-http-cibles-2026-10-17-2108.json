@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "createdAt": "2026-10-17T19:08:09.262Z",
+  "campaignStatus": "IN_PROGRESS_NOT_DELIVERED",
+  "baseCommit": "475f67ac1357e07af478f4f237a1f6bb001bb93a",
+  "profile": "CREORGA_BUSINESS_ONLY",
+  "source": "Official Chrome DevTools recorded requests read retrospectively during a planned laboratory stop.",
+  "noNewUiClickOrRequestInferred": true,
+  "noScenarioPassInferred": true,
+  "limits": [
+    "Only metadata from specific observed browser request IDs, not request or response bodies.",
+    "No headers, credentials, QR links or tokens exported.",
+    "HTTP statuses must be paired with the separate UI journal and PostgreSQL observations; they are not full T100 coverage."
+  ],
+  "requests": [
+    {
+      "pageId": 10,
+      "reqid": 163,
+      "method": "POST",
+      "origin": "http://localhost:5174",
+      "route": "/api/hr/leave-requests",
+      "status": 201,
+      "company": "bar",
+      "role": "EMPLOYEE",
+      "observedFrom": "2026-10-17T19:07:09.433Z",
+      "observedTo": "2026-10-17T19:07:14.094Z",
+      "evidenceKind": "OFFICIAL_CHROME_RECORDED_NETWORK_METADATA_NO_NEW_REQUEST"
+    },
+    {
+      "pageId": 12,
+      "reqid": 118,
+      "method": "POST",
+      "origin": "http://localhost:3002",
+      "route": "/api/guest/orders",
+      "status": 201,
+      "company": "bar",
+      "role": "QR",
+      "observedFrom": "2026-10-17T19:07:14.094Z",
+      "observedTo": "2026-10-17T19:07:23.471Z",
+      "evidenceKind": "OFFICIAL_CHROME_RECORDED_NETWORK_METADATA_NO_NEW_REQUEST"
+    },
+    {
+      "pageId": 12,
+      "reqid": 303,
+      "method": "POST",
+      "origin": "http://localhost:3002",
+      "route": "/api/guest/orders",
+      "status": 201,
+      "company": "bar",
+      "role": "QR",
+      "observedFrom": "2026-10-17T19:07:14.094Z",
+      "observedTo": "2026-10-17T19:07:23.471Z",
+      "evidenceKind": "OFFICIAL_CHROME_RECORDED_NETWORK_METADATA_NO_NEW_REQUEST"
+    },
+    {
+      "pageId": 7,
+      "reqid": 298,
+      "method": "POST",
+      "origin": "http://localhost:5174",
+      "route": "/api/hr/shifts",
+      "status": 201,
+      "company": "bar",
+      "role": "OWNER",
+      "observedFrom": "2026-10-17T19:07:38.790Z",
+      "observedTo": "2026-10-17T19:07:42.800Z",
+      "evidenceKind": "OFFICIAL_CHROME_RECORDED_NETWORK_METADATA_NO_NEW_REQUEST"
+    },
+    {
+      "pageId": 7,
+      "reqid": 306,
+      "method": "POST",
+      "origin": "http://localhost:5174",
+      "route": "/api/hr/planning/publish",
+      "status": 200,
+      "company": "bar",
+      "role": "OWNER",
+      "observedFrom": "2026-10-17T19:07:38.790Z",
+      "observedTo": "2026-10-17T19:07:42.800Z",
+      "evidenceKind": "OFFICIAL_CHROME_RECORDED_NETWORK_METADATA_NO_NEW_REQUEST"
+    },
+    {
+      "pageId": 13,
+      "reqid": 55,
+      "method": "POST",
+      "origin": "http://localhost:5174",
+      "route": "/api/haccp/logs",
+      "status": 201,
+      "company": "bar",
+      "role": "EMPLOYEE",
+      "observedFrom": "2026-10-17T19:07:42.800Z",
+      "observedTo": "2026-10-17T19:07:46.398Z",
+      "evidenceKind": "OFFICIAL_CHROME_RECORDED_NETWORK_METADATA_NO_NEW_REQUEST"
+    },
+    {
+      "pageId": 9,
+      "reqid": 294,
+      "method": "POST",
+      "origin": "http://localhost:3002",
+      "route": "/api/auth/refresh",
+      "status": 200,
+      "company": "bar",
+      "role": "MANAGER",
+      "observedFrom": "2026-10-17T19:07:46.398Z",
+      "observedTo": "2026-10-17T19:07:51.543Z",
+      "evidenceKind": "OFFICIAL_CHROME_RECORDED_NETWORK_METADATA_NO_NEW_REQUEST"
+    }
+  ]
+}

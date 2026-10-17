@@ -10,7 +10,7 @@ import { syncKitchenTickets } from '../lib/kitchen-tickets'
 import { importedProductId } from '../lib/catalog-import'
 import { createHash } from 'node:crypto'
 import { moneyMinor, totalsFromTtc, allocateMinor } from '../lib/money'
-import { activePaymentExists, lockOrderPayment } from '../lib/payments/ledger'
+import { activePaymentExists } from '../lib/payments/ledger'
 import { floorLines, pricedItem, quoteFor, PosPricingError } from '../lib/pos-pricing'
 import type { Prisma } from '@prisma/client'
 import { recordPosTenders, orderPaymentBalance, orderPaymentBalances } from '../lib/order-tenders'
@@ -19,6 +19,8 @@ import { WorkspaceError, postgresFloorEnabled, floorHash } from '../lib/floor-wo
 import { tableMovementSchema, previousMovement, moveTable } from '../lib/table-movements'
 import { separationSchema, previousSeparation, separateService } from '../lib/service-separations'
 import { MAX_FLOOR_TABLES } from '../lib/floor-validation'
+import { assertSeatProjection } from '../lib/pos-seat-projection'
+import { lockCheckoutGuestVisits, closeCheckoutGuestVisits } from '../lib/checkout-guest-visits'
 import { SHARE_PREFIX, allocationSchema, allocationConfirmation, previousFinancialAllocation, previewFinancialAllocation, confirmFinancialAllocation, serviceSharesFor, shareBalance } from '../lib/financial-allocations'
 
 const router = Router()
@@ -27,11 +29,16 @@ const posStatus = Object.fromEntries(Object.entries(stateStatus).map(([a, b]) =>
 function editorFor(companyId?: string) {
   const floor = getFloorState(companyId)
   const saved = floor.posEditor || { fixtures: [], scenes: [], background: null }
-  return { ...saved, rooms: floor.zones.map((zone, i) => ({
-    x: 20 + i * 360, y: 20, w: 600, h: 636,
-    ...saved.rooms?.find((r: any) => r.id === zone.id || r.id === zone.name),
-    id: zone.id, label: zone.name, color: zone.color || '#6366f1',
-  })) }
+  return { ...saved, rooms: floor.zones.map((zone, i) => {
+    // Un ancien nom ne remplace jamais un ID exact, ni n'attribue le même
+    // cadre à plusieurs salles. Projection de lecture : le plan stocké reste intact.
+    const exact = saved.rooms?.find((room: any) => room.id === zone.id)
+    const uniqueAlias = floor.zones.filter(candidate => candidate.name === zone.name).length === 1
+      && !floor.zones.some(candidate => candidate.id === zone.name)
+    const legacy = uniqueAlias ? saved.rooms?.find((room: any) => room.id === zone.name) : undefined
+    return { x: 20 + i * 360, y: 20, w: 600, h: 636, ...(exact || legacy),
+      id: zone.id, label: zone.name, color: zone.color || '#6366f1' }
+  }) }
 }
 const lock = (tx: any, companyId: string) => tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext('pos-ledger'))::text`
 const wrap = (fn: (req: any, res: any) => Promise<any>) => async (req: any, res: any) => {
@@ -79,8 +86,14 @@ async function tablesFor(companyId: string, db: Prisma.TransactionClient = prism
         return { id, label: c.customerName || c.label, items: toItems(c.items, id) }
       }),
     ]
-    const unpaid = covers.filter((c: any) => !paidIds.has(c.id) && !c.id.startsWith('guest:')).map((c: any) => ({ ...c, paidAt: undefined, paidMethod: undefined,
-      items: c.items.filter((i: any) => !consumedIds.has(i.id)).map((i: any) => pricedItem(getFloorState(companyId), i)) })).filter((c: any) => c.items.length)
+    const unpaid = covers.filter((c: any) => !paidIds.has(c.id) && c.paidAt === undefined && c.paidMethod === undefined && !c.id.startsWith('guest:')).flatMap((c: any) => {
+      const items = c.items.filter((i: any) => !consumedIds.has(i.id)).map((i: any) => pricedItem(getFloorState(companyId), i))
+      // Un groupe natif ouvert attend sa première commande : son identité ne
+      // disparaît pas au prochain poll. Ne jamais ressusciter un groupe rendu
+      // vide par le retrait de lignes déjà vendues/rattachées à une commande.
+      const waitingForFirstOrder = c.items.length === 0 && !c.id.startsWith('seat:') && t.status === 'OCCUPEE'
+      return items.length || waitingForFirstOrder ? [{ ...c, paidAt: undefined, paidMethod: undefined, items }] : []
+    })
     const fromGuest = guests.filter(g => g.externalTableId === t.id && !allocatedOrders.has(g.id)).map(g => ({
       id: `guest:${g.id}`, label: `QR #${g.orderNumber}`, items: g.items.map(i => ({ id: i.id, menuItemId: i.productId,
         name: i.productName || i.product.name, price: i.unitPrice, taxRate: i.taxRate, pricingStatus: 'confirmed' as const, pricingSource: 'guest-order', qty: i.quantity, note: i.notes || '', coverId: `guest:${g.id}` })),
@@ -108,7 +121,10 @@ router.get('/bootstrap', wrap(async (req, res) => {
   const reservations = await prisma.reservation.findMany({ where: { companyId, status: { in: ['PENDING', 'CONFIRMED'] }, date: { gte: new Date() } }, select: { id: true, tableId: true, guestName: true, date: true }, take: 100 })
   const staff = members.map(m => ({ id: m.userId, name: `${m.user.firstName} ${m.user.lastName}`, role: m.role === 'EMPLOYEE' ? 'WAITER' : m.role, pin: '', color: '#6366f1' }))
   const editor = editorFor(companyId)
-  res.json({ companyId, revision: getFloorState(companyId).updatedAt, tables: tables.filter(t => !t.id.startsWith('standalone-seat:')).map(t => ({ ...t, section: editor.rooms.find((r: any) => r.label === t.section)?.id || t.section })),
+  res.json({ companyId, revision: getFloorState(companyId).updatedAt, tables: tables.filter(t => !t.id.startsWith('standalone-seat:')).map(t => {
+    const matches = editor.rooms.filter((room: any) => room.label === t.section)
+    return { ...t, section: editor.rooms.some((room: any) => room.id === t.section) ? t.section : matches.length === 1 ? matches[0].id : t.section }
+  }),
     seats: getFloorState(companyId).chairs.map((c: any) => ({ ...c, position: c.position, createdAt: c.createdAt || c.openedAt || 0, status: c.status === 'RESERVEE' ? 'reserved' : c.items.length ? 'occupied' : 'free',
       items: c.items.map((i: any) => ({ ...pricedItem(getFloorState(companyId), i), menuItemId: i.productId || i.menuItemId || 'produit-a-verifier', note: i.note || '', coverId: `seat:${c.id}:${c.createdAt || c.openedAt || 0}` })) })),
     reservations,
@@ -213,21 +229,34 @@ router.put('/draft', wrap(async (req, res) => {
   }
   if (seats && (new Set(seats.map(s => s.id)).size !== seats.length || seats.some(s => s.tableId && !tables.some(t => t.id === s.tableId)))) throw new PosError('Chaises dupliquées ou table inconnue.')
   if (seats && floor.chairs.some(c => c.items.length && !seats.some(s => s.id === c.id))) throw new PosError('Une chaise non vide ne peut pas être supprimée.', 409)
+  let editorChanged = false
   if (req.body.editor !== undefined) {
-    const editor = z.object({ rooms: z.array(z.object({ id: z.string().min(1).max(100), label: z.string().min(1).max(100), color: z.string().regex(/^#[0-9a-f]{6}$/i), x: z.number().finite(), y: z.number().finite(), w: z.number().positive().max(10000), h: z.number().positive().max(10000) })).max(100),
+    const editorSchema = z.object({ rooms: z.array(z.object({ id: z.string().min(1).max(100), label: z.string().min(1).max(100), color: z.string().regex(/^#[0-9a-f]{6}$/i), x: z.number().finite(), y: z.number().finite(), w: z.number().positive().max(10000), h: z.number().positive().max(10000) })).max(100),
       fixtures: z.array(z.object({ id: z.string().max(100), type: z.string().max(100), x: z.number().finite(), y: z.number().finite(), rotation: z.number().finite(), label: z.string().max(160).optional(), room: z.string().max(100).optional() })).max(1000),
       scenes: z.array(z.object({ id: z.string(), label: z.string().max(100), tables: z.array(posTableSchema).max(300), fixtures: z.array(z.record(z.unknown())).max(1000), rooms: z.array(z.record(z.unknown())).max(100), createdAt: z.number() })).max(30),
       background: z.string().max(3_000_000).regex(/^data:image\/(png|jpeg|webp);base64,[a-zA-Z0-9+/=]+$/).nullable(),
-    }).parse(req.body.editor)
-    const current = editorFor()
-    if (new Set(editor.rooms.map(r => r.id)).size !== editor.rooms.length || new Set(editor.rooms.map(r => r.label.trim().toLocaleLowerCase())).size !== editor.rooms.length) throw new PosError('Les identifiants et noms des salles doivent être uniques.')
-    if (!['OWNER', 'MANAGER'].includes(req.role) && JSON.stringify(editor) !== JSON.stringify(current)) throw new PosError('La configuration des salles est réservée aux responsables.', 403)
-    floor.posEditor = editor
+    })
+    const editor = editorSchema.parse(req.body.editor), current = editorSchema.parse(editorFor())
+    // Zod et JSONB réordonnent les clés. Une projection identique n'est pas
+    // une édition et ne doit ni bloquer le service, ni matérialiser des défauts.
+    editorChanged = floorHash(editor) !== floorHash(current)
+    if (editorChanged) {
+      if (!['OWNER', 'MANAGER'].includes(req.role)) throw new PosError('La configuration des salles est réservée aux responsables.', 403)
+      if (new Set(editor.rooms.map(r => r.id)).size !== editor.rooms.length || new Set(editor.rooms.map(r => r.label.trim().toLocaleLowerCase())).size !== editor.rooms.length) throw new PosError('Les identifiants et noms des salles doivent être uniques.')
+      floor.posEditor = editor
+    }
   }
-  // La caisse manipule des identifiants stables ; le plan partagé utilise les noms.
+  const rooms = editorFor().rooms
+  const roomFor = (section: string) => {
+    const exact = rooms.find((room: any) => room.id === section), aliases = rooms.filter((room: any) => room.label === section)
+    return exact || (aliases.length === 1 ? aliases[0] : undefined)
+  }
+  // Le bootstrap expose des IDs ; un aller-retour de service conserve la
+  // représentation historique du plan (ID ou libellé), sans réassociation.
   for (const t of tables) {
-    const room = editorFor().rooms.find((r: any) => r.id === t.section || r.label === t.section)
-    if (room) t.section = room.label
+    const old = floor.tables.find(previous => previous.id === t.id), room = roomFor(t.section)
+    if (old && (t.section === old.section || room && roomFor(old.section)?.id === room.id)) t.section = old.section
+    else if (room) t.section = room.label
   }
   if (String(req.get('If-Match')) !== String(floor.updatedAt)) throw new PosError('Une autre session a modifié la salle. Rechargez avant de sauvegarder.', 409)
   if (new Set(tables.map(t => t.id)).size !== tables.length || new Set(tables.flatMap(t => t.covers.map(c => c.id))).size !== tables.flatMap(t => t.covers).length) throw new PosError('Identifiants de table ou couvert en double.')
@@ -240,15 +269,28 @@ router.put('/draft', wrap(async (req, res) => {
     const old: any = floor.tables.find(old => old.id === t.id)
     if (!['OWNER', 'MANAGER'].includes(req.role) && JSON.stringify([t.orderDiscount || null, t.offeredItemIds || []]) !== JSON.stringify([old?.orderDiscount || null, old?.offeredItemIds || []])) throw new PosError('Les gestes commerciaux nécessitent une connexion responsable.', 403)
   }
-  if (!['OWNER', 'MANAGER'].includes(req.role) && JSON.stringify(tables.map(config)) !== JSON.stringify(floor.tables.map(config))) throw new PosError('La configuration des salles est réservée au propriétaire et au responsable.', 403)
+  const layoutChanged = JSON.stringify(tables.map(config)) !== JSON.stringify(floor.tables.map(config))
+  if (!['OWNER', 'MANAGER'].includes(req.role) && layoutChanged) throw new PosError('La configuration des salles est réservée au propriétaire et au responsable.', 403)
+  assertSeatProjection(tables, seats)
   for (const old of floor.tables) if (!tables.some(t => t.id === old.id) && (old.items.length || floor.chairs.some(c => c.tableId === old.id && c.items.length))) throw new PosError('Une table non vide ne peut pas être supprimée.', 409)
-  floor.tables = tables.map(t => ({ ...floor.tables.find(old => old.id === t.id), ...t, status: stateStatus[t.status] as any,
-    posCovers: t.covers.filter(c => !c.id.startsWith('guest:') && !c.id.startsWith('seat:')), items: t.covers.filter(c => !c.id.startsWith('guest:') && !c.id.startsWith('seat:') && !c.paidAt).flatMap(c => c.items.map(i => ({ ...i, productId: i.menuItemId, addedAt: Date.now() }))),
-  }))
-  for (const t of tables) if (!floor.zones.some(z => z.name === t.section)) floor.zones.push({ id: `pos-${t.id}`, name: t.section })
-  if (floor.posEditor?.rooms?.length) floor.zones = floor.posEditor.rooms.map((r: any) => ({ id: r.id, name: r.label, color: r.color }))
+  const previousLines = new Map(floorLines(floor).map(item => [item.id, item]))
+  const mirrors = new Map(floor.tables.flatMap(table => table.items).map(item => [item.id, item]))
+  const serviceAt = Date.now()
+  const datedLine = (item: PosTable['covers'][number]['items'][number]) => {
+    const previous = previousLines.get(item.id)
+    const known = previous?.addedAt ?? mirrors.get(item.id)?.addedAt
+    if (previous && (typeof known !== 'number' || !Number.isFinite(known))) throw new PosError('Date historique de ligne introuvable. Conservez le brouillon : une récupération contrôlée est nécessaire, aucun horaire n’a été inventé.', 409)
+    return { ...item, productId: item.menuItemId, addedAt: previous ? known : serviceAt }
+  }
+  floor.tables = tables.map(t => {
+    const posCovers = t.covers.filter(c => !c.id.startsWith('guest:') && !c.id.startsWith('seat:')).map(cover => ({ ...cover, items: cover.items.map(datedLine) }))
+    return { ...floor.tables.find(old => old.id === t.id), ...t, status: stateStatus[t.status] as any, posCovers,
+      items: posCovers.filter(cover => !cover.paidAt).flatMap(cover => cover.items) }
+  })
+  if (layoutChanged) for (const t of tables) if (!floor.zones.some(z => z.id === t.section || z.name === t.section)) floor.zones.push({ id: `pos-${t.id}`, name: t.section })
+  if (editorChanged && floor.posEditor?.rooms?.length) floor.zones = floor.posEditor.rooms.map((r: any) => ({ id: r.id, name: r.label, color: r.color }))
   if (seats) floor.chairs = seats.map(s => ({ ...s, label: `Place ${(s.position ?? 0) + 1}`, status: s.status === 'reserved' ? 'RESERVEE' : s.items.length ? 'OCCUPEE' : 'LIBRE',
-    items: s.items.map(i => ({ ...i, productId: i.menuItemId, addedAt: Date.now() })) }))
+    items: s.items.map(datedLine) }))
   await prepareFloorPricing()
   const paidTickets = new Set((await prisma.posCoverPayment.findMany({ where: { companyId: req.companyId }, select: { coverId: true } })).map(p => p.coverId))
   const activeTickets = syncKitchenTickets(floor, await tablesFor(req.companyId), req.user.userId, Date.now(), paidTickets)
@@ -321,7 +363,19 @@ router.post('/payments', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
   try {
     const result = await prisma.$transaction(async tx => {
       await lock(tx, req.companyId)
-      return payPosPart(tx, req.companyId, req.user.userId, input, (await tablesFor(req.companyId, tx)).find(t => t.id === input.tableId))
+      // Nouvelle vérification SOUS verrou : une seconde caisse peut avoir gagné
+      // après le précontrôle. Le rejeu ne termine jamais une visite plus récente.
+      const existing = await tx.paymentAttempt.findUnique({ where: { companyId_requestId: { companyId: req.companyId, requestId: input.requestId } } })
+      if (existing) return payPosPart(tx, req.companyId, req.user.userId, input, undefined)
+      const visitScope = await lockCheckoutGuestVisits(tx, req.companyId, input.tableId,
+        input.coverIds.filter(id => id.startsWith('guest:') && !id.startsWith(SHARE_PREFIX)).map(id => id.slice(6)))
+      const result = await payPosPart(tx, req.companyId, req.user.userId, input, (await tablesFor(req.companyId, tx)).find(t => t.id === input.tableId))
+      if (result && (result as any).status === 'SETTLED') {
+        const remaining = (await tablesFor(req.companyId, tx)).find(t => t.id === input.tableId)
+        if (!remaining) throw new PosError('Table absente après règlement : aucune fin de visite confirmée.', 409)
+        if (!remaining.covers.some(c => c.items.length)) await closeCheckoutGuestVisits(tx, visitScope, req.user.userId, input.requestId)
+      }
+      return result
     }, { maxWait: 15000, timeout: 20000 })
     res.json(result)
   } finally { release() }
@@ -344,6 +398,8 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
         || JSON.stringify([...previous.coverIds].sort()) !== JSON.stringify([...input.coverIds].sort())) throw new PosError('Cette référence désigne un autre règlement.', 409)
       return existing.snapshot as any
     }
+    const visitScope = await lockCheckoutGuestVisits(tx, companyId, input.tableId,
+      input.coverIds.filter(id => id.startsWith('guest:') && !id.startsWith(SHARE_PREFIX)).map(id => id.slice(6)))
     const table = (await tablesFor(companyId, tx)).find(t => t.id === input.tableId)
     const covers = table?.covers.filter(c => input.coverIds.includes(c.id)) || []
     if (input.coverIds.some(c => c.startsWith(SHARE_PREFIX))) throw new PosError('Créance répartie : utilisez Acompte / solde pour le groupe choisi. Aucun encaissement global implicite.', 409)
@@ -355,7 +411,7 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
     const guestIds = covers.filter(c => c.id.startsWith('guest:')).map(c => c.id.slice(6))
     // Le même verrou est partagé avec commandes, captures et rapprochements.
     // Ordre stable indispensable lorsqu'une addition regroupe plusieurs commandes.
-    for (const id of [...guestIds].sort()) await lockOrderPayment(tx, companyId, id)
+    // Verrous société → table → commandes connues triées pris par visitScope.
     if (await activePaymentExists(tx, companyId, guestIds)) throw new PosError('Paiement en cours ou résultat incertain : vérifiez-le avant de régler cette addition en caisse.', 409)
     const guests = await tx.order.findMany({ where: { companyId, id: { in: guestIds }, paidAt: null, status: { not: 'CANCELLED' } }, include: { items: true } })
     if (guests.length !== guestIds.length) throw new PosError('Une commande QR a déjà été réglée.', 409)
@@ -461,8 +517,12 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
       covers: { create: input.coverIds.map(coverId => ({ companyId, coverId })) },
       origins: { create: [...native.map(l => ({ kind: 'LINE', sourceId: l.sourceLineId })), ...orderIds.map(sourceId => ({ kind: 'ORDER', sourceId }))] } } })
     await recordPosTenders(tx, companyId, req.user.userId, snapshot)
+    const remainingTable = (await tablesFor(companyId, tx)).find(t => t.id === input.tableId)
+    if (!remainingTable) throw new PosError('Table absente après règlement : aucune fin de visite confirmée.', 409)
+    const stillUnpaid = remainingTable.covers.some(c => c.items.length)
+    if (!stillUnpaid) await closeCheckoutGuestVisits(tx, visitScope, req.user.userId, input.requestId)
     if (postgresFloorEnabled()) {
-      await clearPaidFloor(snapshot, companyId, tx)
+      await clearPaidFloor(snapshot, companyId, tx, stillUnpaid)
       await commitCurrentFloor(tx, req.user.userId, 'pos:checkout')
     }
     return snapshot
@@ -473,7 +533,7 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
   } finally { release() }
 }))
 
-async function clearPaidFloor(sale: any, companyId: string, db: Prisma.TransactionClient) {
+async function clearPaidFloor(sale: any, companyId: string, db: Prisma.TransactionClient, knownStillUnpaid?: boolean) {
   const floor = getFloorState()
   for (const chair of floor.chairs as any[]) if (sale.coverIds.includes(`seat:${chair.id}:${chair.createdAt || chair.openedAt || 0}`)) {
     chair.items = []; chair.status = 'LIBRE'; chair.customerName = undefined; chair.createdAt = Date.now()
@@ -486,7 +546,7 @@ async function clearPaidFloor(sale: any, companyId: string, db: Prisma.Transacti
     }
     table.posCovers = (table.posCovers || []).filter((c: any) => !sale.coverIds.includes(c.id))
     table.items = table.posCovers.flatMap((c: any) => c.items.map((i: any) => ({ ...i, productId: i.menuItemId, addedAt: Date.now() })))
-    const stillUnpaid = (await tablesFor(companyId, db)).find(t => t.id === table.id)?.covers.some(c => c.items.length)
+    const stillUnpaid = knownStillUnpaid ?? (await tablesFor(companyId, db)).find(t => t.id === table.id)?.covers.some(c => c.items.length)
     if (!stillUnpaid) { table.posCovers = []; table.status = 'NETTOYAGE'; table.openedAt = undefined; table.orderDiscount = null; table.offeredItemIds = []; table.customerId = null; table.orderNote = ''; table.kitchenNote = ''; table.vip = false }
   }
 }

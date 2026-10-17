@@ -58,6 +58,7 @@ interface SeatState {
   addItem: (seatId: string, item: Omit<OrderItem, 'id' | 'coverId'>) => void
   removeItem: (seatId: string, itemId: string) => void
   setItemQty: (seatId: string, itemId: string, qty: number) => void
+  setItemNote: (seatId: string, itemId: string, note: string) => void
   clearItems: (seatId: string) => void
 
   // Bulk
@@ -152,6 +153,11 @@ export const useSeats = create<SeatState>()(
               : seat.items.map((i) => i.id !== itemId ? i : { ...i, qty }),
           }),
         })),
+
+      setItemNote: (seatId, itemId, note) =>
+        set((s) => ({ seats: s.seats.map((seat) => seat.id !== seatId ? seat : {
+          ...seat, items: seat.items.map((item) => item.id === itemId ? { ...item, note } : item),
+        }) })),
 
       clearItems: (seatId) =>
         set((s) => ({

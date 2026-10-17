@@ -4,6 +4,7 @@ import path from 'path'
 import { currentFloorCompanyId, getFloorState } from './floorState'
 import { internalHeaders } from '../lib/security'
 import prisma from '../lib/prisma'
+import { AssistantBudget, withAssistantBudget } from '../lib/assistant-budget'
 
 /**
  * Agent execution endpoint — runs commands defined in the Help Center catalog.
@@ -688,22 +689,22 @@ function saveMemory(userId: string, q: string, a: string) {
 /** Detect "complex" questions to auto-route to gemma2:9b (Phase 2B#2)
  *  with graceful fallback to 2b if 9b not installed. */
 let _gemma9bAvailable: boolean | null = null
-async function isGemma9bAvailable(): Promise<boolean> {
+async function isGemma9bAvailable(budget?: AssistantBudget): Promise<boolean> {
   if (_gemma9bAvailable !== null) return _gemma9bAvailable
   try {
-    const r = await fetch(`${OLLAMA_URL}/api/tags`)
+    const r = budget ? await budget.fetch(`${OLLAMA_URL}/api/tags`) : await fetch(`${OLLAMA_URL}/api/tags`)
     if (!r.ok) { _gemma9bAvailable = false; return false }
-    const data = await r.json() as { models?: any[] }
+    const data = (budget ? await budget.json(r) : await r.json()) as { models?: any[] }
     _gemma9bAvailable = !!(data.models || []).find((m: any) => String(m.name).startsWith('gemma2:9b'))
     return _gemma9bAvailable
-  } catch { _gemma9bAvailable = false; return false }
+  } catch (error) { budget?.rethrowIfFatal(error); _gemma9bAvailable = false; return false }
 }
 
-async function pickModel(question: string, contextSize: number): Promise<string> {
+async function pickModel(question: string, contextSize: number, budget?: AssistantBudget): Promise<string> {
   const q = (question || '').toLowerCase()
   const complex = /\banalyse?\b|\boptimise?\b|\bcompare?\b|\bpr[ée]vois?\b|\bplanifie?\b|\brecommande?\b|\bsuggest|complexe/i.test(q)
   if (complex || question.length > 200 || contextSize > 2500) {
-    if (await isGemma9bAvailable()) return 'gemma2:9b'
+    if (await isGemma9bAvailable(budget)) return 'gemma2:9b'
   }
   // v3.18.2 — gemma3:4b remplace gemma2:2b (vision-capable, plus fiable)
   return 'gemma3:4b'
@@ -725,7 +726,7 @@ function isContextEmpty(slice: SmartContext): boolean {
   return keys.length === 0
 }
 
-router.post('/smart-query', async (req, res) => {
+router.post('/smart-query', (req, res) => withAssistantBudget(req, res, async budget => {
   const { question, currentPath } = req.body || {}
   const userId = authenticatedUserId(req)
   if (!question) return res.status(400).json({ kind: 'error', text: 'Question requise.' })
@@ -768,7 +769,7 @@ router.post('/smart-query', async (req, res) => {
   }
 
   const contextSize = JSON.stringify(slice).length
-  const model = await pickModel(question, contextSize)
+  const model = await pickModel(question, contextSize, budget)
 
   const prompt = `Tu es l'agent IA Creorga, assistant intelligent pour restaurants.
 
@@ -796,7 +797,7 @@ Format de réponse :
 - Si la question est hors-sujet par rapport aux données : dis "Cette information n'est pas dans cette page. Essayez le module XX."`
 
   try {
-    const ollamaRes = await fetch(`${OLLAMA_URL}/api/generate`, {
+    const ollamaRes = await budget.fetch(`${OLLAMA_URL}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -809,11 +810,13 @@ Format de réponse :
     if (!ollamaRes.ok) {
       return res.json({ kind: 'error', text: `❌ Ollama indisponible (${ollamaRes.status}). Vérifiez qu'Ollama tourne.` })
     }
-    const data = await ollamaRes.json() as { response?: string }
+    const data = await budget.json(ollamaRes) as { response?: string }
     const text = (data.response || '').trim() || 'Pas de réponse Gemma.'
     const payload = { kind: 'text', text, debug: { entities, contextSize, model, memoryUsed: memory.length } }
     // Update cache + memory
+    budget.check()
     responseCache.set(cacheKey, { ts: Date.now(), payload })
+    budget.check()
     saveMemory(userId, question, text)
     if (responseCache.size > 200) {
       // Evict oldest
@@ -822,9 +825,10 @@ Format de réponse :
     }
     res.json(payload)
   } catch (e: any) {
+    budget.rethrowIfFatal(e)
     res.json({ kind: 'error', text: '❌ ' + (e?.message || 'Erreur smart-query') })
   }
-})
+}))
 
 // Phase 1 — Vision : analyze restaurant photos to generate floor plan
 router.post('/analyze-photos', async (req, res) => {
@@ -1306,16 +1310,16 @@ const ROBI_INTENT_CATALOG = [
 
 // v3.19 E1 — vérifie si llama3.1 est dispo (cache 1 min)
 let _llamaAvailable: { ts: number; available: boolean } = { ts: 0, available: false }
-async function isLlama31Available(): Promise<boolean> {
+async function isLlama31Available(budget: AssistantBudget): Promise<boolean> {
   if (Date.now() - _llamaAvailable.ts < 60_000) return _llamaAvailable.available
   try {
-    const r = await fetch(`${OLLAMA_URL}/api/tags`)
+    const r = await budget.fetch(`${OLLAMA_URL}/api/tags`)
     if (!r.ok) { _llamaAvailable = { ts: Date.now(), available: false }; return false }
-    const data = await r.json() as { models?: any[] }
+    const data = await budget.json(r) as { models?: any[] }
     const has = !!(data.models || []).find((m: any) => String(m.name).startsWith('llama3.1'))
     _llamaAvailable = { ts: Date.now(), available: has }
     return has
-  } catch { _llamaAvailable = { ts: Date.now(), available: false }; return false }
+  } catch (error) { budget.rethrowIfFatal(error); _llamaAvailable = { ts: Date.now(), available: false }; return false }
 }
 
 // v3.19 E1 — Convertit un intent du catalogue en tool schema OpenAI-compatible
@@ -1339,7 +1343,7 @@ function intentToToolSchema(catalogEntry: typeof ROBI_INTENT_CATALOG[number]) {
   }
 }
 
-router.post('/super-ask', async (req, res) => {
+router.post('/super-ask', (req, res) => withAssistantBudget(req, res, async budget => {
   const { text, currentPath = '/' } = req.body as { text: string; currentPath?: string }
   const userId = authenticatedUserId(req)
   if (!text) return res.status(400).json({ error: 'text required' })
@@ -1349,12 +1353,11 @@ router.post('/super-ask', async (req, res) => {
 
   // Étape 1 : tentative parseIntent direct (rapide)
   try {
-    const intentRes = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/intent`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders() },
+    const data = await budget.internalJson(`http://localhost:${process.env.PORT || 3002}/api/agent/intent`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders(), ...budget.internalDeadlineHeaders() },
       body: JSON.stringify({ text, currentPath, userId }),
     })
-    const data = await intentRes.json() as any
-    if (data.kind === 'action' && data.success) {
+    if (data.kind === 'action' || data.kind === 'error') {
       return res.json({
         ...data,
         suggestions: pickSuggestions(data.intent),
@@ -1362,36 +1365,36 @@ router.post('/super-ask', async (req, res) => {
         path: 'direct-intent',
       })
     }
-  } catch { /* continue */ }
+  } catch (error) { budget.rethrowIfFatal(error) }
 
   // v3.19 E1 — Étape 1.5 : function calling natif si llama3.1 dispo
-  if (await isLlama31Available()) {
+  if (await isLlama31Available(budget)) {
     try {
       const tools = ROBI_INTENT_CATALOG.map(intentToToolSchema)
       const messages = [
         { role: 'system', content: `Tu es Robi, l'assistant Creorga (POS Luxembourg). Tu choisis automatiquement la bonne action via function calling. Page courante : ${currentPath}.${memoryHints.length ? '\n\nMÉMOIRE PERTINENTE :\n' + memoryHints.join('\n') : ''}` },
         { role: 'user', content: text },
       ]
-      const chatRes = await fetch(`${OLLAMA_URL}/api/chat`, {
+      const chatRes = await budget.fetch(`${OLLAMA_URL}/api/chat`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'llama3.1:8b', messages, tools, stream: false, options: { temperature: 0.1 } }),
       })
       if (chatRes.ok) {
-        const chatData = await chatRes.json() as any
+        const chatData = await budget.json(chatRes)
         const toolCalls = chatData.message?.tool_calls || []
         if (toolCalls.length > 0) {
           // Exécute toutes les tool calls retournées (multi-intent natif!)
           const results = []
           for (const call of toolCalls) {
+            budget.check()
             const intentId = String(call.function?.name || '').replace(/_/g, '.')
             const phrase = call.function?.arguments?.natural_language_phrase
               || ROBI_INTENT_CATALOG.find((c) => c.id === intentId)?.ex
             if (!phrase) continue
-            const intentRes = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/intent`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders() },
+            const data = await budget.internalJson(`http://localhost:${process.env.PORT || 3002}/api/agent/intent`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders(), ...budget.internalDeadlineHeaders() },
               body: JSON.stringify({ text: phrase, currentPath, userId }),
             })
-            const data = await intentRes.json() as any
             results.push({ intent: intentId, phrase, ...data })
           }
           if (results.length === 1) {
@@ -1403,7 +1406,7 @@ router.post('/super-ask', async (req, res) => {
               path: 'llama-tool-call',
             })
           } else if (results.length > 1) {
-            const successCount = results.filter((r) => r.success || r.kind === 'action').length
+            const successCount = results.filter((r) => r.success === true).length
             return res.json({
               kind: 'workflow',
               workflow: true,
@@ -1427,7 +1430,7 @@ router.post('/super-ask', async (req, res) => {
           })
         }
       }
-    } catch { /* fall through to Gemma */ }
+    } catch (error) { budget.rethrowIfFatal(error) }
   }
 
   // Étape 2 : Demander à Gemma quel intent appeler (semantic match via LLM)
@@ -1445,7 +1448,7 @@ Réponds UNIQUEMENT avec ce JSON :
 {"intent":"<id ou NONE>","reasoning":"<raisonnement court 1 phrase>","extracted_args":{}}`
 
   try {
-    const pickRes = await fetch(`${OLLAMA_URL}/api/generate`, {
+    const pickRes = await budget.fetch(`${OLLAMA_URL}/api/generate`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'gemma3:4b',
@@ -1455,16 +1458,15 @@ Réponds UNIQUEMENT avec ce JSON :
       }),
     })
     if (pickRes.ok) {
-      const pickData = await pickRes.json() as { response?: string }
+      const pickData = await budget.json(pickRes) as { response?: string }
       const pick = JSON.parse((pickData.response || '{}').match(/\{[\s\S]*\}/)?.[0] || '{}')
       if (pick.intent && pick.intent !== 'NONE' && ROBI_INTENT_CATALOG.find((c) => c.id === pick.intent)) {
         // Reconstruit la phrase exemple pour faire matcher parseIntent
         const example = ROBI_INTENT_CATALOG.find((c) => c.id === pick.intent)!.ex
-        const intentRes = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/intent`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders() },
+        const data = await budget.internalJson(`http://localhost:${process.env.PORT || 3002}/api/agent/intent`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders(), ...budget.internalDeadlineHeaders() },
           body: JSON.stringify({ text: example, currentPath, userId }),
         })
-        const data = await intentRes.json() as any
         if (data.kind === 'action') {
           return res.json({
             ...data,
@@ -1475,24 +1477,24 @@ Réponds UNIQUEMENT avec ce JSON :
         }
       }
     }
-  } catch { /* continue */ }
+  } catch (error) { budget.rethrowIfFatal(error) }
 
   // Étape 3 : fallback smart-query avec FULL context (pas filtré)
   try {
-    const sqRes = await fetch(`http://localhost:${process.env.PORT || 3002}/api/agent/smart-query`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders() },
+    const sqData = await budget.internalJson(`http://localhost:${process.env.PORT || 3002}/api/agent/smart-query`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders(), ...budget.internalDeadlineHeaders() },
       body: JSON.stringify({ question: text, currentPath, userId }),
     })
-    const sqData = await sqRes.json() as any
     return res.json({
       ...sqData,
       suggestions: pickSuggestions(),
       path: 'smart-query-fallback',
     })
   } catch (e: any) {
+    budget.rethrowIfFatal(e)
     return res.json({ kind: 'error', text: '❌ Robi a eu un problème : ' + (e?.message || 'inconnu') })
   }
-})
+}))
 
 function pickSuggestions(intent?: string): string[] {
   // Suggestions de suivi contextuelles selon l'intent qu'on vient de servir

@@ -361,3 +361,38 @@ L'ancien code ignore les acomptes et les mouvements v2 : **ne pas le réactiver 
 sur cette base migrée. Un correctif en avant est préférable. Aucun down/reset proposé.
 La sauvegarde doit inclure les nouvelles références navigateur incertaines avant tout changement
 d'origine ; T04 réel reste distinct et non exécuté (`T04-REPRISE-HISTORIQUE.md`).
+
+## Complément mission maître — 17 octobre 2026
+
+Ce lot n'ajoute **aucune migration Prisma ni modification de schéma**. Il corrige
+des projections, verrouillages et contrats UI/API existants. Les visites désormais
+fermées et accès révoqués sont des événements métier conservés, pas un nettoyage.
+Les ventes/prix/TVA/tenders et documents émis antérieurement ne sont pas réécrits.
+
+Dernier point de reprise réellement exécuté : `RESTORATION-2.0-mission-maitre-fin-rejeux-20261017-2132-v1.json`,
+privé hors Git, terminé à **19:31:36.908 UTC** après arrêt normal du laboratoire.
+81 tables/10 083 lignes/14 fichiers/26 PDF identiques, copie AES-GCM vérifiée,
+clé séparée, aucune différence. Archive SHA
+`372728371f2f262541e5bf3151555b1b2c3be62e3a13cf81db10f6be7fc92d48`.
+[Contre-vérification expurgée](preuves/sauvegardes-mission-maitre-final-2132-v1.json).
+La durée chaude de 5 342 ms ne définit pas un RTO ou une garantie d'atomicité sous
+écritures concurrentes. Toutes les copies précédentes restent présentes.
+
+Pour reprendre : vérifier la branche/diff, lire le checkpoint et les empreintes de
+la dernière copie ; utiliser les comptes/sociétés fictifs déjà enregistrés. Ne pas
+rejouer leurs anciennes demandes pour générer une deuxième vente, un deuxième
+remboursement ou une deuxième demande de congé. Un redémarrage normal utilise le
+lanceur privé et le profil métier. Ne pas réouvrir un ancien QR en modifiant SQL :
+créer une nouvelle visite explicitement depuis l'interface si le service reprend.
+
+Retour arrière du **code** uniquement : arrêter normalement le runtime, conserver
+une nouvelle copie de l'état et restaurer une autre base ; ouvrir le code de
+l'instant choisi dans une copie distincte. Ne pas remettre l'ancien writer en
+service sur la base courante : il pourrait rouvrir une visite déjà soldée ou perdre
+les protections de projection/admission. Préférer un correctif en avant. Aucun
+reset/down/purge ni suppression de tables/réserves ne fait partie de cette procédure.
+
+Les deux anciens pointages simultanément ouverts du Café restent inchangés : le
+code refuse ce cas ambigu, il ne choisit pas silencieusement une heure rétroactive.
+Les profils historiques, archives originales, banque réelle et production restent
+hors de cette reprise ; T04 n'est pas présenté comme réalisé.

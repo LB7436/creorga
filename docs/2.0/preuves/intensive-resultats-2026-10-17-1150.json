@@ -1,0 +1,114 @@
+{
+  "kind": "CURATED_INTERMEDIATE_RESULTS_NOT_FULL_ACCEPTANCE",
+  "at": "2026-10-17T11:45:01.856Z",
+  "timestampScope": "Dernier relevé PostgreSQL de ce bilan ; consolidation ultérieure, pas horodatage des clics.",
+  "campaign": "creorga-intensive-2026-10-17",
+  "basePlan": "intensive-plan-2026-10-17.json",
+  "deliveryStatus": "NON LIVRÉ",
+  "productionQualified": false,
+  "journal": "intensive-journal-2026-10-17-1145.json",
+  "defaultStatusForUnlistedScenario": "NOT RUN",
+  "limits": [
+    "Qualification intermédiaire par scénario préparé ; aucun PASS T01–T100 global déduit.",
+    "Les scénarios non listés peuvent avoir des actions partielles, mais restent NOT RUN tant que leur attente complète n'est pas vérifiée.",
+    "Les identifiants du journal sont des références de preuve, pas un comptage exhaustif des actions du scénario.",
+    "B/C et tous les scénarios QR sont NOT RUN. Aucun des cinq parcours internes n'est intégralement terminé.",
+    "Cinq heures actives non attestées ; contrôle navigateur actuellement bloqué sur dialogue natif."
+  ],
+  "preparation": {
+    "PREP-1": "PASS",
+    "PREP-2": "PASS",
+    "PREP-3": "PASS",
+    "PREP-4": "PASS",
+    "PREP-5": "PASS",
+    "PREP-6": "PASS",
+    "evidence": "Sauvegarde préalable 10:01, relevés Git/services et nouveaux contextes vérifiés ; journal chaîné et baseline en lecture seule privés."
+  },
+  "results": [
+    {
+      "id": "INT-A-OWNER-01", "status": "PASS",
+      "journalEvidenceIds": [8, 9, 10, 12, 13, 14],
+      "observed": "Inscription invalide refusée, puis nouvelle société et nouveau propriétaire créés par le formulaire ; données métier initiales vides.",
+      "storage": "Company, User, UserCompany ; cafe-onboarding-1.json / cafe-initial-reconciliation-1.json privés."
+    },
+    {
+      "id": "INT-A-OWNER-02", "status": "PASS",
+      "journalEvidenceIds": [102, 103, 104, 105],
+      "observed": "Fiche société explicitement fictive enregistrée puis rechargée ; profil émetteur également retrouvé dans la vente ultérieure.",
+      "storage": "Company, CompanySettings ; profil de PosSale figé. Aucun document déjà émis dans ce nouveau café au moment de la modification."
+    },
+    {
+      "id": "INT-A-OWNER-03", "status": "PASS",
+      "journalEvidenceIds": [75, 77, 79, 81, 87, 90, 93, 96, 99, 100],
+      "observed": "Trois catégories et cinq produits ; prix TTC/TVA/stock enregistrés, relus puis visibles dans les connexions responsable et caissier distinctes.",
+      "storage": "Category, Product ; cafe-catalogue-1.json et cafe-pricing-rh-readonly-1.json privés. Taux utilisés fictifs, aucune validation fiscale annoncée."
+    },
+    {
+      "id": "INT-A-OWNER-05", "status": "PASS",
+      "journalEvidenceIds": [56, 57, 58, 61, 62, 64, 65, 67, 68, 72],
+      "observed": "Quatre comptes fictifs distincts créés via UI puis cinq membres dont propriétaire relus ; chaque identité a réellement connecté un contexte neuf.",
+      "storage": "User, UserCompany ; cafe-membres-1.json privé. Rôles OWNER/MANAGER/EMPLOYEE uniquement, aucune ACL fine inventée."
+    },
+    {
+      "id": "INT-A-OWNER-09", "status": "PASS",
+      "journalEvidenceIds": [333, 334, 336, 337, 339],
+      "observed": "Bon fournisseur de 3,5 kg à 18 euros/kg puis réception au double clic ; commande RECEIVED unique et stock 1,5 → 5 kg après reload.",
+      "storage": "PurchaseOrder, PurchaseOrderItem, Ingredient ; cafe-stock-reception-1.json privé. Bon de 63 euros, pas une facture ni un paiement fournisseur."
+    },
+    {
+      "id": "INT-A-CASHIER-02", "status": "PASS",
+      "journalEvidenceIds": [409, 410, 411, 412],
+      "observed": "Après correctif et refus de l'ancien import divergent, trois vrais clics ajoutent les articles au bon groupe de la bonne table ; 2,50 + 2,60 + 3,90 + 1,25 = 10,25 euros.",
+      "storage": "FloorWorkspace / chaises et projection POS cohérentes ; cafe-seat-reprise-green-1.json privé. Reprise manuelle déclarée, pas récupération automatique."
+    },
+    {
+      "id": "INT-A-CASHIER-06", "status": "PASS",
+      "journalEvidenceIds": [436, 440, 443, 444],
+      "observed": "Transfert Table 1 → Table 2 confirmé ; source vide/en nettoyage, destination occupée, quatre lignes et prix conservés.",
+      "storage": "TableMovement, FloorWorkspace ; cafe-pointages-transfert-readonly-1.json privé. Aucune visite QR créée : révocation QR hors de ce PASS."
+    },
+    {
+      "id": "INT-A-CASHIER-08", "status": "PASS",
+      "journalEvidenceIds": [463, 465, 466, 467, 468, 469],
+      "observed": "Acompte supérieur au solde refusé ; 4 euros fictifs acceptés, monnaie 1 euro sur 5 remis, reste 6,25 euros visible et conservé en base.",
+      "storage": "Order, OrderTender, PosPaymentAttempt ; POST payments 467 200, cafe-acompte-ui-1.json privé. manual_declaration, aucune banque."
+    },
+    {
+      "id": "INT-A-CASHIER-09", "status": "PASS",
+      "journalEvidenceIds": [471, 472, 473, 474, 475, 476, 477, 478, 479, 480, 481],
+      "observed": "Solde 6,25 euros ventilé 2,25 espèces + 4 carte déclarée ; reprise réseau même référence, retour SETTLED et restant nul.",
+      "storage": "Une PosSale 1 025 c, HT 950 c, TVA 75 c ; OrderTender cumulés espèces 625 c/carte 400 c ; cafe-reglement-mixte-ui-1.json privé. Défaut d'en-tête à zéro suivi séparément INT-15."
+    },
+    {
+      "id": "INT-A-CASHIER-10", "status": "PASS",
+      "journalEvidenceIds": [468, 479, 481],
+      "observed": "Doubles clics réels sur acompte puis solde ; une demande serveur acceptée pour chacun et une seule vente après reprise.",
+      "storage": "Deux tentatives distinctes, trois ventilations, une vente ; stocks 98/59/49/20/100 ; aucun double débit de stock. Preuves HTTP et cafe-reglement-mixte-ui-1.json privé."
+    },
+    {
+      "id": "INT-A-CASHIER-13", "status": "PASS",
+      "journalEvidenceIds": [276, 484, 485, 486, 487, 488, 489],
+      "observed": "Fermeture impayée refusée plus tôt dans le journal ; après solde confirmé, Table 2 à zéro puis fermeture et statut à nettoyer. Journal conserve une vente de 10,25 euros.",
+      "storage": "FloorWorkspace, Order, PosSale ; cafe-apres-cloture-bloquee-1.json privé. Fermeture physique distincte de la clôture comptable, celle-ci non effectuée."
+    },
+    {
+      "id": "INT-A-RES-03", "status": "PASS",
+      "journalEvidenceIds": [393, 395, 396, 399, 400],
+      "observed": "Arrêt propre du profil laboratoire, nouvelle sauvegarde/restauration puis redémarrage ; données rechargées et reprises explicites, sans arrêt de PostgreSQL réel.",
+      "storage": "Restauration cohérente 11:29:28 UTC,81 tables/10 fichiers/21 PDF égaux, puis runtime prêt 11:29:42. Ce PASS ne couvre ni panne PostgreSQL ni fermeture inattendue du navigateur."
+    },
+    {
+      "id": "INT-A-CASHIER-15", "status": "BLOCKED",
+      "journalEvidenceIds": [491, 492, 495],
+      "observed": "Employé a ouvert la confirmation du ticket Z ; clic de confirmation puis fermeture officielle du dialogue sans retour. Aucune clôture réussie déclarée.",
+      "storage": "Observation495 ; contrôle SQL ciblé à11:53:25 UTC : ActivityEvent POST /pos/close EMPLOYEE403, zéro PosClosure, caisse ouverte10625c et une vente. Preuve privée cafe-closure-refusal-readonly-1.json. Fermer sûrement l'alerte puis tester le comptage avec un rôle autorisé."
+    },
+    {
+      "id": "INT-A-NOFIN-02", "status": "BLOCKED",
+      "observed": "NOT IMPLEMENTED : aucune ACL financière fine distincte pour l'identité SansFinance. Accès caisse refusé mais lecture factures/devis possible au rôle EMPLOYEE ; mutation devis403.",
+      "storage": "UserCompany.role EMPLOYEE ; ne pas présenter cette identité comme un rôle sans finances qualifié."
+    }
+  ],
+  "openDefects": ["INT-12", "INT-13", "INT-14-rejeu", "INT-15", "INT-16", "INT-17"],
+  "next": "Résoudre sûrement le dialogue officiel, rejouer les correctifs et poursuivre documents/QR/clôture du café avant création de B puis C."
+}

@@ -2,7 +2,7 @@ import express from 'express'
 import cookieParser from 'cookie-parser'
 import request from 'supertest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-const db = vi.hoisted(() => ({ refreshToken: { findUnique: vi.fn(), deleteMany: vi.fn(), create: vi.fn() }, $transaction: vi.fn() }))
+const db = vi.hoisted(() => ({ refreshToken: { findUnique: vi.fn(), deleteMany: vi.fn(), create: vi.fn() }, userCompany: { findMany: vi.fn() }, $transaction: vi.fn() }))
 vi.mock('../lib/prisma', () => ({ default: db }))
 vi.mock('../lib/eventSink', () => ({ push: vi.fn() }))
 vi.mock('../lib/security', () => ({ fallbackAdminAllowed: () => false }))
@@ -13,6 +13,8 @@ beforeEach(() => {
   process.env.JWT_SECRET = 'cle-uniquement-test-rotation-jamais-production'
   db.refreshToken.findUnique.mockResolvedValue({ id: 'r1', userId: 'u1', expiresAt: new Date(Date.now() + 60000), user: { id: 'u1', email: 'test@creorga.test' } })
   db.refreshToken.deleteMany.mockResolvedValue({ count: 1 })
+  db.userCompany.findMany.mockResolvedValue([{ id: 'membership-fixture', userId: 'u1', companyId: 'company-fixture', role: 'EMPLOYEE', isActive: true,
+    company: { id: 'company-fixture', name: 'Société fictive' } }])
   db.$transaction.mockImplementation((callback) => callback(db))
 })
 describe('Renouvellement de session', () => {

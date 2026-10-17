@@ -13,6 +13,8 @@ import toast from 'react-hot-toast'
 import { useAuthStore } from '@/stores/authStore'
 import api from '@/lib/api'
 import { useLogout } from '@/hooks/api/useAuth'
+import type { UserCompany } from '@/types'
+import { GAMES_ENABLED } from '@/optional/entertainment'
 
 /**
  * Creorga OS — Login / landing page.
@@ -86,6 +88,8 @@ const PRE_REMPLISSAGE = import.meta.env.DEV
 const STATS = [
   { value: 'Email', label: 'connexion' },
   { value: 'QR',  label: 'portail client' },
+]
+const GAME_STATS = [
   { value: '16', label: 'jeux retenus' },
   { value: '5 max', label: 'par catégorie' },
 ]
@@ -106,7 +110,7 @@ export default function Login() {
     return () => clearInterval(id)
   }, [])
 
-  const { register, handleSubmit, getValues, reset, setError, formState: { errors, isSubmitting } } = useForm<LoginForm>({
+  const { register, handleSubmit, getValues, reset, setError, clearErrors, formState: { errors, isSubmitting } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: PRE_REMPLISSAGE,
   })
@@ -120,6 +124,7 @@ export default function Login() {
   }
 
   const onSubmit = async (data: LoginForm) => {
+    clearErrors('root.server')
     try {
       if (useAuthStore.getState().logoutRevocationPending) throw new Error('Révocation serveur non confirmée. Réessayez la déconnexion avant de vous connecter.')
       if (mode === 'register') {
@@ -156,7 +161,17 @@ export default function Login() {
           })
         : await api.post('/auth/login', { email: data.email, password: data.password })
       const { accessToken, user, companies } = res.data
-      setAuth({ accessToken, user, companies })
+      // Un ancien serveur peut encore répondre 200 avec companies[]. Cela ne
+      // donne ni établissement par défaut, ni rôle propriétaire, ni admission.
+      const activeCompanies: UserCompany[] = Array.isArray(companies)
+        ? companies.filter((membership: UserCompany) => membership?.isActive === true && Boolean(membership.company?.id)) : []
+      if (!activeCompanies.length) {
+        const message = 'Aucun accès actif à un établissement. Contactez le propriétaire pour réactiver votre accès.'
+        setError('root.server', { type: 'server', message })
+        toast.error(message)
+        return
+      }
+      setAuth({ accessToken, user, companies: activeCompanies })
       toast.success(mode === 'register' ? 'Votre espace Creorga est prêt !' : `Bienvenue ${user.firstName} !`, { icon: '🎉' })
       // Retour volontairement limité à ce parcours interne, jamais une URL externe.
       const from = location.state?.from
@@ -164,7 +179,9 @@ export default function Login() {
       const target = receipt && receipt.length <= 200 ? `/invoices/factures?receipt=${encodeURIComponent(receipt)}` : '/welcome'
       navigate(mode === 'register' ? '/setup' : target, { replace: true })
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || err?.response?.data?.error || (mode === 'register' ? 'Inscription impossible' : 'Identifiants incorrects'))
+      const message = err?.response?.data?.message || err?.response?.data?.error || (mode === 'register' ? 'Inscription impossible' : 'Identifiants incorrects')
+      setError('root.server', { type: 'server', message })
+      toast.error(message)
     }
   }
 
@@ -239,7 +256,7 @@ export default function Login() {
 
             {/* Stats row */}
             <div className="creorga-login-stats" style={statsRowStyle}>
-              {STATS.map((s) => (
+              {[...STATS, ...(GAMES_ENABLED ? GAME_STATS : [])].map((s) => (
                 <div key={s.label} style={statBlock}>
                   <div style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9', letterSpacing: -1 }}>{s.value}</div>
                   <div style={{ fontSize: 10, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginTop: 2 }}>{s.label}</div>
@@ -308,6 +325,7 @@ export default function Login() {
             </div>}
 
             <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {errors.root?.server?.message && <div role="alert" style={{ ...errorStyle, fontSize: 13 }}>{errors.root.server.message}</div>}
               {mode === 'register' && (
                 <>
                   <div className="creorga-login-name-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

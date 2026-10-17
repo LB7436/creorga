@@ -1,0 +1,157 @@
+{
+  "format": "creorga-backup-master-mission-evidence-v1",
+  "generatedAt": "2026-10-17T18:03:27.427Z",
+  "campaignStatus": "NON LIVREE",
+  "mode": "read-only review and new sanitized evidence only",
+  "scope": {
+    "databaseConnectionExecuted": false,
+    "restoreExecuted": false,
+    "archiveExtractionExecuted": false,
+    "runtimeOrApiAccessExecuted": false,
+    "gitCommandExecuted": false,
+    "originalArchiveWrittenOrDeleted": false,
+    "customerDataPublished": false,
+    "historicalBrowserProfilesAccessed": false
+  },
+  "recoveredInventory": {
+    "report": "sauvegardes-mission-maitre-inventaire-2026-10-17-v1.json",
+    "checkedAt": "2026-10-17T18:01:47.191Z",
+    "reportBytes": 31212,
+    "reportSha256": "7fee503353e4893e209aebc93a5123c91296168c0ef700ffb1d1f2a0e67c2ebc",
+    "verifiedDumps": 27,
+    "totalDumpBytes": 30025952,
+    "uniqueSourceArchives": 27,
+    "sourceArchiveLogicalBytes": 42690676,
+    "recoveryIndexSha256": "0a966a2baac58179529017d6d7af2344e9cb1e0aa4131ea09176e511805b1358",
+    "checks": [
+      "PGDMP signature, bytes and SHA-256 of each recovered dump",
+      "same dump bytes in the selected database entry of its source ZIP",
+      "manifest declaration, size and SHA-256 match",
+      "source ZIP fingerprint before and after reading",
+      "recovery index fingerprint unchanged"
+    ],
+    "eachDumpRestored": false,
+    "unidentifiedPriorRotationDeletions": 2,
+    "deletedDumpNamesEstablished": false
+  },
+  "preservedWorktrees": {
+    "checkedAt": "2026-10-17T18:02:31.467Z",
+    "verification": "preserved files and patch/status artifacts read and compared with their own manifests; current worktree not compared",
+    "copies": [
+      {
+        "identifier": "worktree-preserved-2026-10-17T16-49-29-912Z-dfb2755a",
+        "createdAt": "2026-10-17T16:49:30.686Z",
+        "manifestBytes": 18153,
+        "manifestSha256": "18684279242af5b4bec50eb6960f35354981a2550bc78e26c79216aae08efee2",
+        "verifiedFiles": 80,
+        "totalPreservedFileBytes": 3624699,
+        "verifiedArtifacts": 3,
+        "totalArtifactBytes": 232191,
+        "privateOnly": true
+      },
+      {
+        "identifier": "worktree-preserved-2026-10-17T17-56-18-112Z-b77920fe",
+        "createdAt": "2026-10-17T17:56:19.378Z",
+        "manifestBytes": 22390,
+        "manifestSha256": "c2307d06d622dbabef30f2e15577c3206a958e36dced978718920034a4fd0464",
+        "verifiedFiles": 100,
+        "totalPreservedFileBytes": 4070551,
+        "verifiedArtifacts": 3,
+        "totalArtifactBytes": 293262,
+        "privateOnly": true
+      }
+    ]
+  },
+  "existingRestorations": {
+    "verification": "existing private report fingerprints and equal source/restored manifests checked; matching source ZIPs rehashed without extraction; no new SQL verification",
+    "sourceArchiveRehashCheckedAt": "2026-10-17T18:02:33.951Z",
+    "reports": [
+      {
+        "reportIdentifier": "RESTORATION-2.0-mission-maitre-avant-tests-20261017-1652.json",
+        "reportBytes": 49293,
+        "reportSha256": "dfc04a7bde2bb5add252d7bd3c9bebd7a6f2f203507fc29c3026150b7f7540d3",
+        "testedAt": "2026-10-17T16:50:50.285Z",
+        "archiveIdentifier": "backup-input-recette-AIuyZp/data/backups/full/creorga-full-2026-10-17-1792255845416-85455.zip",
+        "archiveBytes": 2918700,
+        "archiveSha256": "d840f77d28b9574cf002c31066d4860396f7e85f2baa8a6e23860a8dcfe14a37",
+        "archiveVersion": 2,
+        "encryptedCopyVerified": true,
+        "keyIncludedInArchive": false,
+        "checkedFiles": 12,
+        "mediaStatus": "absent",
+        "tables": 81,
+        "sourceRestoredTableManifestsIdentical": true,
+        "differenceCount": 0,
+        "comparisonReadonly": true,
+        "comparisonLoopbackOnly": true,
+        "canonicalization": "PostgreSQL JSONB / UTC / ISO dates / hex bytea; SHA-256 per row then sorted multiset",
+        "verifiedInvoicePdfs": 14,
+        "verifiedCreditNotePdfs": 10,
+        "pdfIntegrityErrors": 0,
+        "elapsedMs": 5463,
+        "operationalRtoQualified": false
+      },
+      {
+        "reportIdentifier": "RESTORATION-2.0-mission-maitre-avant-build-20261017-1957.json",
+        "reportBytes": 49293,
+        "reportSha256": "8f6bee8da00555bf5f948b427cb2abaf7d5c76161a02a0da344dd8991dc95a8f",
+        "testedAt": "2026-10-17T17:57:26.591Z",
+        "archiveIdentifier": "backup-input-recette-sH9l5l/data/backups/full/creorga-full-2026-10-17-1792259837936-60648.zip",
+        "archiveBytes": 2938702,
+        "archiveSha256": "c6fedfe177d7ad3136981b360580ad96a2059ffac9caa3f41270b03815d4ac7d",
+        "archiveVersion": 2,
+        "encryptedCopyVerified": true,
+        "keyIncludedInArchive": false,
+        "checkedFiles": 14,
+        "mediaStatus": "absent",
+        "tables": 81,
+        "sourceRestoredTableManifestsIdentical": true,
+        "differenceCount": 0,
+        "comparisonReadonly": true,
+        "comparisonLoopbackOnly": true,
+        "canonicalization": "PostgreSQL JSONB / UTC / ISO dates / hex bytea; SHA-256 per row then sorted multiset",
+        "verifiedInvoicePdfs": 14,
+        "verifiedCreditNotePdfs": 10,
+        "pdfIntegrityErrors": 0,
+        "elapsedMs": 9361,
+        "operationalRtoQualified": false
+      }
+    ]
+  },
+  "shutdownContext": {
+    "source": "coordinator observation, not repeated by this read-only review",
+    "reportedConfirmedAtUtc": "2026-10-17T17:56:26Z",
+    "reportedElapsedMs": 685,
+    "reportedOwnedProcessAndPortsAbsent": true,
+    "reportedForcedTerminations": 0,
+    "automaticBackupWhileWritersActiveQualified": false
+  },
+  "retentionFreeze": {
+    "reviewKind": "source inspection, no new test run",
+    "pruneBackupsAllProfiles": false,
+    "creatorRetentionAllProfiles": false,
+    "directDumpPruneNoop": true,
+    "directCreatorPurgeNoop": true,
+    "restoreResourcesRetained": true,
+    "releaseMechanismImplemented": false,
+    "newDeletionAuthorized": false,
+    "sourceFingerprints": [
+      { "name": "apps/backend/src/jobs/backup-worker.ts", "bytes": 16122, "sha256": "0a707066c71a4bb5bdbf331b1d722a7912a6bc5ba0e24c5ed95db357c496ec45" },
+      { "name": "apps/backend/src/jobs/pg-dump.ts", "bytes": 7335, "sha256": "a7a270c62651c03005d30569a8883912da919cc5e8797faf6e43730e573a51c4" },
+      { "name": "apps/backend/src/jobs/verifier-restauration.ts", "bytes": 14123, "sha256": "780d7106193bccd6c059bd7cce9229576df01dd5726f8822a5af241a0085f804" },
+      { "name": "apps/backend/src/jobs/creator-retention.ts", "bytes": 1814, "sha256": "b18a14f12fdcb5ebb547060c7b189e23d519baa71dfe600e905f7daa02630e59" },
+      { "name": "apps/backend/src/lib/runtime-profile.ts", "bytes": 837, "sha256": "91c540381f53e4fe7a3d9d078e65462c807a9b9309468e56bf2b121f94652311" },
+      { "name": "scripts/local/backup-recovery-inventory.mjs", "bytes": 10722, "sha256": "f602a514e7d5183ff41a60233cd2f7d5b31dce6e8fa06c3e1f679f2f5dd232d8" }
+    ]
+  },
+  "limits": [
+    "This is not a new restore, live database inspection, release or production qualification.",
+    "The preserved worktree manifests do not establish current Git status or remote publication.",
+    "The 27 recovered dump states were not individually restored and the other business entries of their ZIPs were not reverified.",
+    "Two prior unnamed rotation deletions cannot be assigned to two of the recovered files.",
+    "Filename/manifest timestamps are application-clock declarations, not independent evidence of content time or continuous coverage.",
+    "The recorded warm local restoration durations are not an operational RTO; RPO and RTO remain to be agreed.",
+    "No active-writer automatic job, power loss, external disaster recovery or absent media was qualified.",
+    "Private worktree files, patches, original detailed reports, database names and secrets are not included in this public evidence."
+  ]
+}

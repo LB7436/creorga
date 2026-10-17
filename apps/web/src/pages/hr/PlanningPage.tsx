@@ -748,22 +748,13 @@ function WeekView({ days, shifts, reservations, sickLeaves, vacations, getHolida
           </div>
           {days.map((day, di) => {
             const holiday = getHoliday(day)
-            const dayShifts = shifts(day).filter(s => s.startHour <= hour && s.endHour > hour)
+            const dayShifts = shifts(day).filter(s => s.startHour * 60 + s.startMin < (hour + 1) * 60 && s.endHour * 60 + s.endMin > hour * 60)
             const dayRes = reservations(day).filter(r => r.startHour <= hour && r.endHour > hour)
             const daySick = hour === 8 ? sickLeaves(day) : []
             const dayVac = hour === 6 ? vacations(day) : []
             return (
               <div
                 key={`c-${hour}-${di}`}
-                role="button"
-                tabIndex={0}
-                aria-label={`Ajouter un shift ${format(day, 'dd/MM/yyyy')} ${String(hour).padStart(2, '0')}:00`}
-                onClick={() => onCellClick(day, hour)}
-                onKeyDown={event => {
-                  if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
-                    event.preventDefault(); onCellClick(day, hour)
-                  }
-                }}
                 style={{
                   position: 'relative', height: CELL_H, cursor: 'pointer',
                   borderTop: `1px solid ${C.borderSoft}`,
@@ -774,10 +765,19 @@ function WeekView({ days, shifts, reservations, sickLeaves, vacations, getHolida
                 onMouseEnter={e => (e.currentTarget.style.background = holiday ? 'rgba(245,158,11,0.08)' : C.borderSoft)}
                 onMouseLeave={e => (e.currentTarget.style.background = holiday ? 'rgba(245,158,11,0.04)' : 'transparent')}
               >
+                {/* Le bouton d'ajout ne contient pas les cartes : un bouton ARIA
+                    aplatirait leur contenu et masquerait l'employé aux lecteurs d'écran. */}
+                <button
+                  type="button"
+                  aria-label={`Ajouter un shift ${format(day, 'dd/MM/yyyy')} ${String(hour).padStart(2, '0')}:00`}
+                  onClick={() => onCellClick(day, hour)}
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0, padding: 0, background: 'transparent', cursor: 'pointer' }}
+                />
                 {dayShifts.map((s, si) => (
                   s.startHour === hour && (
-                    <motion.div
+                    <motion.article
                       key={s.id}
+                      aria-label={`Créneau ${s.employeeName}, ${format(day, 'dd/MM/yyyy')}, ${String(s.startHour).padStart(2, '0')}:${String(s.startMin).padStart(2, '0')} - ${String(s.endHour).padStart(2, '0')}:${String(s.endMin).padStart(2, '0')}, ${s.role}, ${s.section}`}
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       style={{
@@ -809,7 +809,7 @@ function WeekView({ days, shifts, reservations, sickLeaves, vacations, getHolida
                           ))}
                         </div>
                       )}
-                    </motion.div>
+                    </motion.article>
                   )
                 ))}
                 {dayRes.map(r => (

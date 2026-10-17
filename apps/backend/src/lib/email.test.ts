@@ -23,7 +23,7 @@ describe('sendEmail', () => {
     for (const key of VARIABLES) delete process.env[key]
     expect(emailConfigured()).toBe(false)
     await expect(sendEmail({
-      to: 'destinataire@example.test',
+      to: 'destinataire@example.invalid',
       subject: 'Test',
       html: '<p>Test</p>',
     })).rejects.toBeInstanceOf(EmailNotConfiguredError)

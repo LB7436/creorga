@@ -1,6 +1,7 @@
-import { useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Banknote, CheckCircle2, Clock3, DoorOpen, FileBarChart, Lock } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { isAxiosError } from 'axios'
 import { useCashDrawers, useOpenCashDrawer } from '@/hooks/api/useAccounting'
 import { toastError } from '@/lib/toast'
 import OrderPaymentsPanel from '@/components/accounting/OrderPaymentsPanel'
@@ -10,16 +11,32 @@ const euro = (value: number) => value.toLocaleString('fr-FR', { style: 'currency
 
 export default function CaissePage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const drawers = useCashDrawers()
   const openDrawer = useOpenCashDrawer()
   const [showOpen, setShowOpen] = useState(false)
   const [amount, setAmount] = useState('200')
   const [notes, setNotes] = useState('')
   const [requestId, setRequestId] = useState(() => crypto.randomUUID())
-  const current = drawers.data?.find((drawer) => !drawer.closedAt)
-  const history = (drawers.data ?? []).filter((drawer) => drawer.closedAt)
+  const current = drawers.isSuccess ? drawers.data?.find((drawer) => !drawer.closedAt) : undefined
+  const history = drawers.isSuccess ? (drawers.data ?? []).filter((drawer) => drawer.closedAt) : []
+  const accessDenied = drawers.isError && isAxiosError(drawers.error) && drawers.error.response?.status === 403
+
+  useEffect(() => {
+    if (!drawers.isSuccess || current) setShowOpen(false)
+    if (location.state?.openCashDrawer !== true || drawers.isPending) return
+    // L'intention du bandeau ouvre seulement la confirmation, jamais la caisse.
+    if (!current && drawers.isSuccess) setShowOpen(true)
+    const nextState = { ...location.state }
+    delete nextState.openCashDrawer
+    // Consommer l'intention dans l'entrée courante évite un rejeu au reload/retour.
+    navigate({ pathname: location.pathname, search: location.search, hash: location.hash }, {
+      replace: true, state: Object.keys(nextState).length ? nextState : null,
+    })
+  }, [location, navigate, drawers.isPending, drawers.isSuccess, current])
 
   const confirmOpen = async () => {
+    if (!drawers.isSuccess || current) return
     const openAmount = Number(amount)
     if (!Number.isFinite(openAmount) || openAmount < 0) {
       toastError('Le fond de caisse doit être un montant positif ou nul')
@@ -42,10 +59,12 @@ export default function CaissePage() {
         <p style={{ color: '#64748b', margin: '6px 0 0' }}>Sessions réelles enregistrées pour cet établissement.</p>
       </header>
 
-      {drawers.isError && <div role="alert" style={errorStyle}>Impossible de charger l'état de la caisse.</div>}
+      {drawers.isError && <div role="alert" style={errorStyle}>{accessDenied
+        ? 'Accès à la caisse refusé. Vous n’avez pas l’autorisation de consulter les sessions.'
+        : 'État de la caisse inconnu. Impossible de charger les sessions.'}</div>}
       <OrderPaymentsPanel />
       {current?.ledgerVersion === 2 && <CashMovementsPanel key={current.id} drawerId={current.id} />}
-      {drawers.isLoading ? <Empty text="Chargement de la caisse…" /> : (
+      {drawers.isPending ? <Empty text="Chargement de la caisse…" /> : drawers.isSuccess ? (
         <>
           <section style={{ ...cardStyle, background: current ? 'var(--crg-bg-accent-soft, #ecfdf5)' : 'var(--crg-bg-surface, #fff)', borderColor: current ? '#a7f3d0' : '#e2e8f0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
@@ -84,9 +103,9 @@ export default function CaissePage() {
             )}
           </section>
         </>
-      )}
+      ) : null}
 
-      {showOpen && (
+      {showOpen && drawers.isSuccess && !current && (
         <div role="dialog" aria-modal="true" aria-labelledby="open-drawer-title" style={backdrop} onMouseDown={(event) => { if (event.target === event.currentTarget) setShowOpen(false) }}>
           <section style={dialog}>
             <span style={{ ...iconBox, marginBottom: 12 }}><Banknote size={23} /></span>

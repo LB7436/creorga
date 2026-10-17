@@ -33,7 +33,7 @@ vi.mock('./prisma', () => ({
   },
 }))
 
-import { createAvecNumero, delaiAvantReessai, NumerotationIndisponibleError } from './numerotation'
+import { createAvecNumero, delaiAvantReessai, nextNumber, NumerotationIndisponibleError } from './numerotation'
 
 /** Création simulée : rejette comme Prisma si le numéro est déjà pris. */
 async function creer(numero: string) {
@@ -72,6 +72,25 @@ describe('numérotation séquentielle', () => {
 
     expect(facture.number).toBe(`INV-${annee}-0001`)
     expect(avoir.number).toBe(`AVO-${annee}-0001`)
+  })
+
+  it('lit la série AVO depuis le client transactionnel, y compris les anciens numéros Invoice', async () => {
+    const year = new Date().getFullYear()
+    // The outer connection still sees 0001. Under the invoice lock the
+    // transaction sees the actual committed high-water mark, including legacy.
+    attribues.add(`AVO-${year}-0001`)
+    const transaction = { invoice: { findFirst: async () => ({ number: `AVO-${year}-0017` }) },
+      creditNote: { findFirst: async () => ({ number: `AVO-${year}-0012` }) }, quote: { findFirst: async () => null } }
+    expect(await nextNumber('societe-test', 'AVO', transaction as any)).toBe(`AVO-${year}-0018`)
+  })
+
+  it('utilise également le client fourni pour les séries INV et QUO sans toucher au défaut existant', async () => {
+    const year = new Date().getFullYear()
+    const transaction = { invoice: { findFirst: async () => ({ number: `INV-${year}-0007` }) },
+      quote: { findFirst: async () => ({ number: `QUO-${year}-0021` }) }, creditNote: { findFirst: async () => null } }
+    expect(await nextNumber('societe-test', 'INV', transaction as any)).toBe(`INV-${year}-0008`)
+    expect(await nextNumber('societe-test', 'QUO', transaction as any)).toBe(`QUO-${year}-0022`)
+    expect(await nextNumber('societe-test', 'INV')).toBe(`INV-${year}-0001`)
   })
 
   it("remonte une erreur qui n'est pas une collision au lieu de réessayer", async () => {

@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { useSeats } from './seatStore'
+import { projectSeatCovers, seatCoverId, SeatProjectionError } from '../lib/seat-projection'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -52,6 +54,12 @@ export interface Cover {
   allocationId?: string
 }
 export const isFrozenCover = (cover: Cover) => cover.id.startsWith('guest:') || !!cover.payment?.orderId
+
+function canonicalSeat(tableId: string, coverId: string) {
+  const seat = useSeats.getState().seats.find(candidate => seatCoverId(candidate) === coverId && candidate.tableId === tableId)
+  if (!seat) throw new SeatProjectionError()
+  return seat
+}
 
 /** Ligne figée d'une vente : le prix est copié, pas référencé. */
 export interface LigneVente {
@@ -740,7 +748,17 @@ export const usePOS = create<POSStore>()(
 
       // ── Order actions ─────────────────────────────────────────────────────
 
-      addItem: (tableId, coverId, menuItem, note = '') => set(s => ({
+      addItem: (tableId, coverId, menuItem, note = '') => {
+        if (coverId.startsWith('seat:')) {
+          const cover = get().tables.find(table => table.id === tableId)?.covers.find(candidate => candidate.id === coverId)
+          if (!cover || isFrozenCover(cover)) return
+          const seat = canonicalSeat(tableId, coverId), store = useSeats.getState()
+          const existing = seat.items.find(item => item.menuItemId === menuItem.id && item.note === note && item.price === menuItem.price && item.taxRate === menuItem.taxRate && item.pricingStatus !== 'review')
+          if (existing) store.setItemQty(seat.id, existing.id, existing.qty + 1)
+          else store.addItem(seat.id, { menuItemId: menuItem.id, name: menuItem.name, price: menuItem.price, taxRate: menuItem.taxRate, qty: 1, note })
+          return
+        }
+        set(s => ({
         tables: s.tables.map(t => {
           if (t.id !== tableId) return t
           return {
@@ -771,9 +789,16 @@ export const usePOS = create<POSStore>()(
             })
           }
         })
-      })),
+        }))
+      },
 
-      removeItem: (tableId, itemId) => set(s => ({
+      removeItem: (tableId, itemId) => {
+        const cover = get().tables.find(table => table.id === tableId)?.covers.find(candidate => candidate.items.some(item => item.id === itemId))
+        if (cover?.id.startsWith('seat:')) {
+          if (!isFrozenCover(cover)) useSeats.getState().removeItem(canonicalSeat(tableId, cover.id).id, itemId)
+          return
+        }
+        set(s => ({
         tables: s.tables.map(t => t.id !== tableId ? t : {
           ...t,
           covers: t.covers.map(c => isFrozenCover(c) ? c : ({
@@ -781,9 +806,16 @@ export const usePOS = create<POSStore>()(
             items: c.items.filter(i => i.id !== itemId)
           }))
         })
-      })),
+        }))
+      },
 
-      setItemQty: (tableId, itemId, qty) => set(s => ({
+      setItemQty: (tableId, itemId, qty) => {
+        const cover = get().tables.find(table => table.id === tableId)?.covers.find(candidate => candidate.items.some(item => item.id === itemId))
+        if (cover?.id.startsWith('seat:')) {
+          if (!isFrozenCover(cover)) useSeats.getState().setItemQty(canonicalSeat(tableId, cover.id).id, itemId, qty)
+          return
+        }
+        set(s => ({
         tables: s.tables.map(t => t.id !== tableId ? t : {
           ...t,
           covers: t.covers.map(c => isFrozenCover(c) ? c : ({
@@ -793,9 +825,16 @@ export const usePOS = create<POSStore>()(
               : c.items.map(i => i.id !== itemId ? i : { ...i, qty })
           }))
         })
-      })),
+        }))
+      },
 
-      setItemNote: (tableId, itemId, note) => set(s => ({
+      setItemNote: (tableId, itemId, note) => {
+        const cover = get().tables.find(table => table.id === tableId)?.covers.find(candidate => candidate.items.some(item => item.id === itemId))
+        if (cover?.id.startsWith('seat:')) {
+          if (!isFrozenCover(cover)) useSeats.getState().setItemNote(canonicalSeat(tableId, cover.id).id, itemId, note)
+          return
+        }
+        set(s => ({
         tables: s.tables.map(t => t.id !== tableId ? t : {
           ...t,
           covers: t.covers.map(c => isFrozenCover(c) ? c : ({
@@ -803,7 +842,8 @@ export const usePOS = create<POSStore>()(
             items: c.items.map(i => i.id !== itemId ? i : { ...i, note })
           }))
         })
-      })),
+        }))
+      },
 
       moveItemToCover: (tableId, itemId, toCoverId) => set(s => ({
         tables: s.tables.map(t => {
@@ -1129,6 +1169,15 @@ export const usePOS = create<POSStore>()(
     }
   )
 )
+
+// Une seule autorité pour les articles d'une place. Les autres vues (commande,
+// service, paiement) lisent cette projection ; elles ne maintiennent plus une
+// seconde liste de lignes indépendante de useSeats.
+const unsubscribeSeatProjection = useSeats.subscribe(state => {
+  const previous = usePOS.getState().tables, projected = projectSeatCovers(previous, state.seats)
+  if (projected !== previous) usePOS.setState({ tables: projected })
+})
+if (import.meta.hot) import.meta.hot.dispose(unsubscribeSeatProjection)
 
 // ─── Selectors ───────────────────────────────────────────────────────────────
 

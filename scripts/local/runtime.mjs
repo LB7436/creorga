@@ -2,8 +2,9 @@ import { register } from 'node:module'
 import { readFile, access } from 'node:fs/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
-import { startStaticHost } from './static-host.mjs'
+import { startStaticHost, closeStaticHost } from './static-host.mjs'
 import { startRuntimeControl } from './runtime-control.mjs'
+import { LOCAL_BIND_HOST, LOCAL_API_PORT, LOCAL_WEB_ORIGIN, LOCAL_BROWSER_ORIGINS, LOCAL_FRONTENDS, assertLocalInstallationManifest } from './local-origin-policy.mjs'
 
 // Entrée unique : API + quatre interfaces statiques dans un seul processus Node.
 // PostgreSQL est géré séparément. Aucun seed, install, reset ou migration au boot.
@@ -19,21 +20,20 @@ if (!['127.0.0.1', 'localhost', '[::1]'].includes(database.hostname) || !['postg
 if (process.env.EMAIL_TEST_ONLY !== 'true') throw Error('EMAIL_TEST_ONLY=true requis dans cette installation de laboratoire.')
 if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) throw Error('Secrets privés de session requis ; aucune valeur de démonstration créée.')
 Object.assign(process.env, {
-  NODE_ENV: 'production', CREORGA_BIND_HOST: '127.0.0.1', PORT: '3002',
+  NODE_ENV: 'production', CREORGA_BIND_HOST: LOCAL_BIND_HOST, PORT: String(LOCAL_API_PORT),
+  FRONTEND_URL: LOCAL_WEB_ORIGIN, ALLOWED_ORIGINS: LOCAL_BROWSER_ORIGINS.join(','),
   CREORGA_BUSINESS_ONLY: profile === 'business' ? 'true' : 'false', CREORGA_BACKGROUND_MODE: 'essential',
   FALLBACK_ADMIN_ENABLED: 'false', CREORGA_FLOOR_AUTHORITY: 'postgres',
   PAYPAL_ENV: 'sandbox', PAYPAL_CLIENT_ID: '', PAYPAL_CLIENT_SECRET: '', PAYPAL_LIVE_ENABLED: 'false',
   STRIPE_PAYMENT_KEY: '', STRIPE_PAYMENT_WEBHOOK_SECRET: '', STRIPE_PAYMENTS_LIVE_ENABLED: 'false',
   PAYMENT_MERCHANT_COMPANY_ID: '',
 })
-const apps = [['web', 5174], ['pos', 5175], ['superadmin', 5177], ['guest', 5178]]
+const apps = LOCAL_FRONTENDS
 for (const [app] of apps) {
   const directory = path.join(root, 'apps', app, `dist-${profile}`)
   await access(path.join(directory, 'index.html'))
   const installation = JSON.parse(await readFile(path.join(directory, 'local-installation.json'), 'utf8'))
-  if (installation.profile !== profile || installation.apiOrigin !== 'http://127.0.0.1:3002' || installation.binding !== 'loopback') {
-    throw Error('Livrable local non vérifié : recompilation locale obligatoire avant ouverture.')
-  }
+  assertLocalInstallationManifest(installation, profile)
 }
 const proof = JSON.parse(await readFile(path.join(root, 'apps/web', `dist-${profile}`, 'profile-manifest.json'), 'utf8'))
 if (proof.profile !== profile || (profile === 'business' && proof.gameModuleCount !== 0)) throw Error('Compilation de profil incohérente : relancer build:business ou build:full.')
@@ -41,10 +41,7 @@ await access(path.join(root, 'apps/backend/dist/src/index.js'))
 register('./extensionless-esm.mjs', import.meta.url)
 const servers = []
 let backend, control, stopping
-const closeFrontends = () => Promise.all(servers.map(server => new Promise((resolve, reject) => {
-  if (!server.listening) return resolve()
-  server.close(error => error ? reject(error) : resolve())
-})))
+const closeFrontends = () => Promise.all(servers.map(closeStaticHost))
 // Aucun SIGKILL de secours : un arrêt ambigu reste à diagnostiquer, pas « réussi ».
 const shutdown = () => stopping ??= (async () => {
   if (!backend?.shutdownBackend) throw Error('Arrêt coordonné indisponible')

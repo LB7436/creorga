@@ -1,0 +1,111 @@
+{
+  "format": "creorga-backup-master-mission-complement-v1",
+  "checkedAt": "2026-10-17T19:03:21.658Z",
+  "campaignStatus": "NON LIVREE",
+  "verificationKind": "read-only bytes and existing restoration report review; not a new restore",
+  "privateRestorationReport": {
+    "identifier": "RESTORATION-2.0-mission-maitre-avant-rejeu-20261017-2100.json",
+    "bytes": 49294,
+    "sha256": "a61841db7f40153aefa726eaf9d1733b39345f69deba418f43d7a6473f0782f0",
+    "testedAt": "2026-10-17T19:00:19.780Z",
+    "comparisonAt": "2026-10-17T19:00:19.738Z",
+    "status": "equal",
+    "tables": 81,
+    "tableManifestsSourceRestoredIdentical": true,
+    "differences": 0,
+    "comparisonReadonly": true,
+    "sourceReadonly": true,
+    "restoredReadonly": true,
+    "loopbackOnly": true,
+    "canonicalization": "PostgreSQL JSONB / UTC / ISO dates / hex bytea; SHA-256 per row then sorted multiset",
+    "checkedFiles": 14,
+    "mediaStatus": "absent",
+    "encryptedCopyVerified": true,
+    "keyIncludedInArchive": false,
+    "elapsedMs": 11441,
+    "operationalRtoQualified": false,
+    "issuedPdfChecks": [
+      {
+        "type": "invoice",
+        "count": 15,
+        "totalBytes": 173069,
+        "storedHashMismatches": 0,
+        "nonPdfHeaders": 0,
+        "missingBinaryWithHash": 0,
+        "sha256SortedMultiset": "ab1e78459aed0169b08bbacfd3ff75a2561877a8ecd90da2b399458e2bf0e876"
+      },
+      {
+        "type": "credit-note",
+        "count": 11,
+        "totalBytes": 136514,
+        "storedHashMismatches": 0,
+        "nonPdfHeaders": 0,
+        "missingBinaryWithHash": 0,
+        "sha256SortedMultiset": "937e75251d643b5c0416f65698bd44c138ddcfc5960947e83080384c62b8a6b8"
+      }
+    ]
+  },
+  "sourceArchiveRehash": {
+    "checkedAt": "2026-10-17T19:02:48.742Z",
+    "identifier": "backup-input-recette-ybEDHd/data/backups/full/creorga-full-2026-10-17-1792263609213-1113.zip",
+    "bytes": 2985046,
+    "sha256": "1e135e59de6299cdcd48a95fce551892670261bb64c28132c4af93ecc3bcf1c7",
+    "archiveVersion": 2,
+    "manifestBytes": 3468,
+    "manifestSha256": "d8ce93572212be76edadec7d00e45719ff6ee3ce6bbc14d4bdafab9e35226652",
+    "businessFilesVerifiedInZipAndStagedInput": 14,
+    "businessFileBytes": 22994110,
+    "eachBusinessFileSizeAndSha256MatchesManifest": true,
+    "archiveHashAfterSelectedEntryReadsMatches": true,
+    "manifestEntryNamesOrBusinessContentPublished": false,
+    "archiveExtractionExecuted": false,
+    "currentRuntimeDataCompared": false
+  },
+  "privateWorktreePreservation": {
+    "checkedAt": "2026-10-17T19:02:48.699Z",
+    "identifier": "worktree-preserved-2026-10-17T19-00-20-256Z-9d7a7693",
+    "createdAt": "2026-10-17T19:00:21.740Z",
+    "manifestBytes": 25094,
+    "manifestSha256": "2466d436d0882c8929c61d9a3d97d28e74ac67b5058d9f7463a26ad54b13e685",
+    "verifiedFiles": 112,
+    "preservedFileBytes": 4955856,
+    "verifiedStatusAndPatchArtifacts": 3,
+    "artifactBytes": 309592,
+    "allDeclaredBytesAndSha256Match": true,
+    "privateOnly": true,
+    "currentWorktreeCompared": false,
+    "gitPublicationProven": false
+  },
+  "coordinatorShutdownContext": {
+    "source": "coordinator observations, not repeated by this file-only verifier",
+    "reportedWindowUtc": "2026-10-17T18:59:49Z–2026-10-17T18:59:50Z",
+    "reportedElapsedMs": 778,
+    "reportedOwnedProcessIdentityVerified": true,
+    "reportedProcessAbsentAndNoBusinessListeners": true,
+    "reportedForcedTerminations": 0
+  },
+  "scopeAndLimits": {
+    "newDatabaseConnection": false,
+    "newRestoreExecution": false,
+    "networkRuntimeApiChromeOrGitAccess": false,
+    "existingArchivesOrPreservationsWritten": false,
+    "purgeOrRetentionReopened": false,
+    "legacy27DumpsReinventoriedInThisComplement": false,
+    "oldUnnamedDumpDeletionsIdentified": false,
+    "rpoRtoAgreed": false,
+    "activeWriterAutomaticBackupQualified": false,
+    "fiveHourServiceQualified": false,
+    "t100Complete": false,
+    "futureWritesAfterRestartCovered": false,
+    "productionQualified": false
+  },
+  "limits": [
+    "The restoration was executed previously by the coordinator; this complement only rereads evidence and hashes bytes.",
+    "All 14 selected business ZIP entries match the existing staged backup input and manifest. This does not compare a later live runtime.",
+    "The dump was not restored anew; SQL/PDF equality is the recorded result of the existing private report.",
+    "Warm local elapsed time is not an operational recovery-time objective. Recovery-point and recovery-time targets remain to be agreed.",
+    "Later replay, rebuild or service writes are not included in this fixed point.",
+    "Earlier archives and 27 recovered dumps remain preserved; two old unnamed deletions are still not attributable to known filenames.",
+    "No production deployment, five-hour qualification, exhaustive T100 or external-provider/material test is inferred."
+  ]
+}

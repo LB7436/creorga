@@ -360,12 +360,12 @@ export default function Dashboard() {
               />
               <StatCard
                 label="Tables"
-                value={loadingToday ? '…' : today ? `${today.tablesOccupied} / ${today.tablesTotal}` : '—'}
-                sub="occupées"
+                value={loadingToday ? '…' : today ? `${today.tablesOccupied ?? '—'} / ${today.tablesTotal}` : '—'}
+                sub={today?.tablesOccupied === null ? 'Occupation non renseignée · configuration historique' : 'occupées · plan de salle PostgreSQL'}
                 subColor="#64748b"
                 icon={<Users size={20} color="#0ea5e9" />}
                 iconBg="#f0f9ff"
-                ring={today && today.tablesTotal > 0
+                ring={today && today.tablesTotal > 0 && today.tablesOccupied !== null
                   ? <ProgressRing value={today.tablesOccupied} max={today.tablesTotal} color="#0ea5e9" />
                   : undefined}
               />
@@ -562,15 +562,15 @@ export default function Dashboard() {
                 <Users size={18} color="#0ea5e9" />
                 Occupation des tables
               </h2>
-              {today ? (
+              {today?.tablesOccupied === null ? <DataEmptyState text="Occupation non renseignée : configuration historique sans état de salle courant." /> : today ? (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div style={{ padding: 18, borderRadius: 12, background: '#fef2f2' }}>
                     <div style={{ fontSize: 27, fontWeight: 800, color: '#b91c1c' }}>{today.tablesOccupied}</div>
                     <div style={{ fontSize: 12, color: '#991b1b' }}>occupée{today.tablesOccupied > 1 ? 's' : ''}</div>
                   </div>
                   <div style={{ padding: 18, borderRadius: 12, background: '#f0fdf4' }}>
-                    <div style={{ fontSize: 27, fontWeight: 800, color: '#15803d' }}>{today.tablesFree}</div>
-                    <div style={{ fontSize: 12, color: '#166534' }}>libre{today.tablesFree > 1 ? 's' : ''}</div>
+                    <div style={{ fontSize: 27, fontWeight: 800, color: '#15803d' }}>{today.tablesFree ?? '—'}</div>
+                    <div style={{ fontSize: 12, color: '#166534' }}>libre{(today.tablesFree ?? 0) > 1 ? 's' : ''}</div>
                   </div>
                   <button onClick={() => navigate('/pos/floor')} style={{
                     gridColumn: '1 / -1', border: 'none', borderRadius: 10, padding: 10,

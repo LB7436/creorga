@@ -9,7 +9,7 @@ import { PayPalClient } from '../lib/payments/paypal'
 import logger from '../lib/logger'
 import Stripe from 'stripe'
 import { requestRefund, reconcileRefund, reviewRefund, refundDto, refundableOrderParts } from '../lib/payments/refunds'
-import { declareManualRefund, manualRefundDto, manualRefundReceipt } from '../lib/payments/manual-refunds'
+import { declareManualRefund, manualRefundDto, manualRefundReceipt, ManualRefundNotRecordedError } from '../lib/payments/manual-refunds'
 
 const router = Router()
 // Pas de repli anonyme ou administrateur sans base pour des opérations financières.
@@ -56,10 +56,19 @@ router.post('/refunds', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) =
   const result = await requestRefund(req.companyId, req.user.userId, req.body)
   res.status(result.httpStatus).json(result.body)
 }))
-router.post('/manual-refunds', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
-  const result = await declareManualRefund(req.companyId, req.user.userId, req.body)
-  res.status(result.created ? 201 : 200).json(result.refund)
-}))
+router.post('/manual-refunds', requireRole('OWNER', 'MANAGER'), async (req: any, res) => {
+  res.set('Cache-Control', 'private, no-store')
+  try {
+    const result = await declareManualRefund(req.companyId, req.user.userId, req.body)
+    res.status(result.created ? 201 : 200).json(result.refund)
+  } catch (error) {
+    // Contrat local à cette déclaration : ne jamais élargir les refus PayPal.
+    if (error instanceof ManualRefundNotRecordedError) return res.status(409).json({ error: error.message, ...error.proof })
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Demande de paiement invalide.' })
+    if (error instanceof PaymentError) return res.status(error.status).json({ error: error.message })
+    return res.status(503).json({ error: 'Résultat non confirmé. Conservez la référence et vérifiez avant de recommencer.' })
+  }
+})
 router.get('/manual-refunds', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
   const where = { companyId: req.companyId, ...(typeof req.query.creditNoteId === 'string' ? { creditNoteId: req.query.creditNoteId } : {}) }
   res.set('Cache-Control', 'private, no-store').json((await prisma.manualRefund.findMany({ where, orderBy: { createdAt: 'desc' }, take: 200 })).map(manualRefundDto))

@@ -588,7 +588,9 @@ router.post('/chairs', (req, res) => {
     tableId, customerName: safeCustomer, items: [],
   }
   state.chairs.push(chair)
-  if (t.status === 'LIBRE') { t.status = 'OCCUPEE'; t.openedAt = Date.now() }
+  // Une chaise vide est de l'agencement, pas le début d'un service. Le nom
+  // client explicite conserve le parcours de placement d'une personne.
+  if (safeCustomer && t.status === 'LIBRE') { t.status = 'OCCUPEE'; t.openedAt = Date.now() }
   state.updatedAt = Date.now()
   res.json(state)
 })
@@ -630,6 +632,8 @@ router.post('/chairs/:id/items', async (req, res, next) => {
   if (!item) return res.status(400).json({ error: 'Article invalide' })
   c.items.push({ id: uid(), ...item, addedAt: Date.now() })
   try { await prepareFloorPricing() } catch (e) { if (e instanceof PosPricingError) return res.status(409).json({ error: e.message }); return next(e) }
+  const table = state.tables.find((t) => t.id === c.tableId)
+  if (table?.status === 'LIBRE') { table.status = 'OCCUPEE'; table.openedAt = Date.now() }
   state.updatedAt = Date.now()
   res.json(state)
 })

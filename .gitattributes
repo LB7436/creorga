@@ -1,0 +1,2 @@
+# Les empreintes des preuves portent sur les octets, sans conversion CRLF.
+docs/2.0/preuves/*.json -text

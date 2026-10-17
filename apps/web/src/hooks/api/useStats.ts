@@ -10,9 +10,8 @@ import { useAuthStore } from '@/stores/authStore'
  * 404 garanti) et déclarait des champs jamais renvoyés (`customers`,
  * `occupancyRate`, `comparisonYesterday`). Aucun écran ne l'utilisait.
  *
- * ⚠️ `stats.ts` ne passe PAS par le middleware `requireCompany` (qui retombe
- * sur la première société de l'utilisateur) : il lit `x-company-id` directement
- * et répond 400 si l'en-tête manque. On le fournit donc explicitement.
+ * `requireCompany` vérifie l'adhésion active. L'en-tête explicite garde la
+ * portée choisie ; il ne remplace jamais ce contrôle serveur.
  *
  * Les trois routes ne comptent que les commandes au statut `PAID`, datées par
  * `paidAt`.
@@ -24,8 +23,11 @@ export interface TodayStats {
   /** revenue / orderCount, ou 0 si aucune commande. */
   avgTicket: number
   tablesTotal: number
-  tablesOccupied: number
-  tablesFree: number
+  /** null : seul l'ancien catalogue Table existe, sans statut d'occupation fiable. */
+  tablesOccupied: number | null
+  tablesFree: number | null
+  tablesUnavailable: number | null
+  tablesSource: 'postgres-workspace' | 'legacy-sql-configuration'
 }
 
 export interface WeekRevenuePoint {

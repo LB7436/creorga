@@ -67,7 +67,7 @@ export function canonicalizeFloorPricing(before: any, draft: any, products: Pric
   draft.posPricing = registry
   for (const table of draft.tables || []) if (Array.isArray(table.posCovers)) {
     table.items = table.posCovers.filter((c: any) => !c.id.startsWith('guest:') && !c.id.startsWith('seat:'))
-      .flatMap((c: any) => c.items.map((i: any) => ({ ...i, addedAt: i.addedAt || now })))
+      .flatMap((c: any) => c.items.map((i: any) => ({ ...i, addedAt: i.addedAt ?? now })))
   }
   return registry
 }

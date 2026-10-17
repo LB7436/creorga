@@ -28,24 +28,24 @@ export type PrefixeDocument = 'INV' | 'QUO' | 'AVO'
  * (companyId, number). Les appelants réessaient sur conflit via
  * `createAvecNumero`.
  */
-export async function nextNumber(companyId: string, prefix: PrefixeDocument): Promise<string> {
+export async function nextNumber(companyId: string, prefix: PrefixeDocument, client: Pick<typeof prisma, 'invoice' | 'quote' | 'creditNote'> = prisma): Promise<string> {
   const year = new Date().getFullYear()
   const motif = `${prefix}-${year}-`
 
   const dernier = prefix === 'QUO'
-    ? await prisma.quote.findFirst({
+    ? await client.quote.findFirst({
         where: { companyId, number: { startsWith: motif } },
         orderBy: { number: 'desc' },
         select: { number: true },
       })
-    : await prisma.invoice.findFirst({
+    : await client.invoice.findFirst({
         where: { companyId, number: { startsWith: motif } },
         orderBy: { number: 'desc' },
         select: { number: true },
       })
 
   // Préserve aussi une éventuelle ancienne série AVO stockée dans Invoice.
-  const credit = prefix === 'AVO' ? await prisma.creditNote.findFirst({ where: { companyId, number: { startsWith: motif } }, orderBy: { number: 'desc' }, select: { number: true } }) : null
+  const credit = prefix === 'AVO' ? await client.creditNote.findFirst({ where: { companyId, number: { startsWith: motif } }, orderBy: { number: 'desc' }, select: { number: true } }) : null
   const latest = credit && (!dernier || credit.number > dernier.number) ? credit : dernier
   const dernierRang = latest ? parseInt(latest.number.slice(motif.length), 10) : 0
   const rang = Number.isFinite(dernierRang) ? dernierRang + 1 : 1
@@ -82,18 +82,28 @@ export function delaiAvantReessai(tentative: number): number {
  * Crée un document en réessayant si le numéro vient d'être pris par une
  * requête concurrente (P2002 sur la contrainte d'unicité).
  */
-export async function createAvecNumero<T>(
-  companyId: string,
-  prefix: PrefixeDocument,
-  create: (number: string) => Promise<T>,
-): Promise<T> {
+export async function avecReprisesNumerotation<T>(create: () => Promise<T>): Promise<T> {
   for (let tentative = 0; tentative < MAX_TENTATIVES; tentative++) {
     try {
-      return await create(await nextNumber(companyId, prefix))
+      return await create()
     } catch (e: any) {
       if (e?.code !== 'P2002') throw e
       await new Promise((r) => setTimeout(r, delaiAvantReessai(tentative)))
     }
   }
   throw new NumerotationIndisponibleError()
+}
+
+/**
+ * API existante inchangée pour les factures/devis. Les appelants qui doivent
+ * lire le numéro sous un verrou transactionnel utilisent la même politique de
+ * reprises autour d'une NOUVELLE transaction, jamais dans une transaction P2002
+ * déjà avortée. Ni la contrainte d'unicité ni les délais ne sont remplacés.
+ */
+export async function createAvecNumero<T>(
+  companyId: string,
+  prefix: PrefixeDocument,
+  create: (number: string) => Promise<T>,
+): Promise<T> {
+  return avecReprisesNumerotation(async () => create(await nextNumber(companyId, prefix)))
 }

@@ -1,5 +1,606 @@
 # Checkpoint CréOrga 2.0 — 17 octobre 2026
 
+## Nouvelle campagne intensive — EN COURS / NON LIVRÉ
+
+Reprise à partir de `475f67ac1357e07af478f4f237a1f6bb001bb93a`, branche dédiée
+inchangée. Le lot précédent ci-dessous reste historique. La campagne trois clients
+n'est **pas terminée** et les cinq heures de tests actifs ne sont **pas attestées**.
+
+### Consolidation après les rejoués du 17 octobre — preuves jusqu'à 19:31:36 UTC
+
+**CAMPAGNE NON LIVRÉE / pilote non qualifié.** Les trois établissements fictifs
+ont été réellement parcourus, mais ni tous leurs rôles ni T100 ne sont terminés.
+Base Git `475f67a`, branche `codex/creorga-2-0-2026-10-08` ; vérification distante
+en lecture seule à ce passage : même base, `master` inchangé à `350b351`.
+La publication du lot validé est une étape distincte, à confirmer par SHA après push.
+
+Preuve technique courante : [validation finale v3](preuves/intensive-validation-finale-2026-10-17-2135-v3.json),
+SHA-256 des octets `0a7b52ba69f28bb77d9b38bbfe0704a291d61641c5206c4aab7424dc1056674b`.
+Elle remplace uniquement l'extraction d'une clé de diagnostic de pointage du premier
+export final, conservé ; **aucun test n'est réinventé ou recompté par l'export**.
+
+- **861/861 tests unitaires** finaux (391 backend, 349 web, 121 POS),
+  **295/295 intégrations PostgreSQL**, source stable de même empreinte
+  `6bc6f3ee36132f8e7dff03085d5d0df010f4aebfb1c017061690b814deaccf45`.
+  **47/47 fixtures locales**, pas 47 parcours Chrome. Deux compilations finales
+  de cinq applications chacune réussies : métier 90 289 ms, complet 79 006 ms.
+  Les essais précédents échoués restent conservés, dont les quatre TS7006 de tests
+  corrigés par annotations ; aucun test désactivé. Pas de nouveau benchmark causal.
+- Runtime métier 23808 lancé normalement à 21:15:20 Luxembourg via le lanceur privé,
+  puis arrêté normalement après recette : fenêtre de contrôle 19:31:17.257–18.468 UTC,
+  compteur interne 406 ms. PID absent, cinq ports libérés, **aucun arrêt forcé**,
+  PostgreSQL et Chrome non arrêtés. Laboratoire laissé arrêté pour la copie cohérente.
+  Raccourci Windows préservé ; double-clic natif non qualifié. L'apostrophe corrigée
+  du lanceur privé n'est pas publiée comme fichier Git. Origines localhost alignées,
+  vrai refresh POS 200 observé, cookies protégés conservés.
+- **Restauration finale effectuée**, pas seulement planifiée : 81 tables,
+  **10 083 lignes**, 14 fichiers et **26 PDF** (15 factures, 11 avoirs), colonnes et
+  empreintes identiques, zéro différence/erreur PDF. Copie AES-GCM vérifiée, clé séparée.
+  Preuve privée `RESTORATION-2.0-mission-maitre-fin-rejeux-20261017-2132-v1.json`,
+  archive SHA `372728371f2f262541e5bf3151555b1b2c3be62e3a13cf81db10f6be7fc92d48`.
+  5 342 ms sur cache chaud, **pas un RTO**. Aucune migration de schéma dans ce lot,
+  aucune purge, aucune archive originale remplacée. Les 27 copies récupérées et
+  les précédentes restaurations restent conservées ; les deux noms anciens restent inconnus.
+- **Restaurant** : la commande RED de 6,50 € est préservée puis réglée fictivement
+  dans Chrome. Double clic → une vente/débit de stock ; ancien QR : bill 403 puis
+  tentative d'envoi 403. Fermeture/revocation de visite confirmées en PostgreSQL.
+  Total **84,50 TTC = 81,42 HT + 3,08 TVA**, quatre ventes/cinq commandes payées,
+  espèces 82,20 et carte déclarée 2,30. Facture 31,50/avoir 6,10/remboursement espèces
+  6,10 restent liés et distincts du CA. Original PDF A4 inchangé, rendus A4/58/80 lus
+  visuellement, aucune impression physique. Caisse théorique 276,10, comptée 276,05,
+  écart −0,05 motivé : refus 422 sans motif puis clôture 200, historique rouvert.
+- **Bar** : tickets QR réellement commencés/prêts/servis. Acompte espèces fictif
+  5 € au double clic → une opération, QR encore actif et 8,20 dus ; solde mixte
+  4 € espèces + 4,20 carte déclarée au double clic → solde zéro et ancien QR 403.
+  Nouvelle visite distincte à 0 €, ancien lien toujours refusé. Total **38,04 TTC =
+  34,17 HT + 3,87 TVA**, trois ventes/trois commandes, espèces 19 €/carte 19,04 €.
+  Stocks 96/79/58/19, aucun débit répété constaté. Caisse théorique 119 €, comptée
+  118,90 €, écart −0,10 motivé, clôture 200. Cartes/espèces sont des déclarations
+  fictives, **pas des captures bancaires**.
+- **Bar RH** : congé unique du 24 octobre approuvé par OWNER, même statut retrouvé
+  par le salarié après reload. Planning 23 h → 03 h republié une fois vers SMTP local :
+  MIME 3 478 octets, SHA `d58aab9d52d30a8afcc63a1bc2243ad295268485fe4e268d1633e6f3ca1195ef`,
+  date de fin **18/10/2026** explicite et tous les contrôles de contenu concordants.
+  Pas de réception Zoho attestée ; le fuseau n'est pas imprimé dans le message.
+- **Café** : rapprochement financier inchangé (21,10 € de ventes, caisse 106,80 €
+  clôturée, écart −0,05). Deux anciens pointages ouverts d'un même salarié sont
+  conservés. Le nouveau verrou empêche une nouvelle ouverture concurrente et refuse
+  cet historique ambigu ; aucune clôture rétroactive ni suppression silencieuse.
+- **Robi / droits** : huit suggestions métier réellement vues, sans jeux ; contexte
+  métier toujours indisponible (503 déjà reproduit), pas assistant métier qualifié.
+  EMPLOYEE reçoit bien 403 sur les sessions de caisse, mais voit le CA dans le tableau
+  POS. ADMIN métier et ACL « limité/sans finances » absents : décision de politique
+  toujours nécessaire, pas contournée par un simple nom de compte.
+
+[Journal expurgé 21:32](preuves/intensive-journal-2026-10-17-2132.json) :
+**1 119 tentatives UI / 1 096 retours / 23 erreurs d'outil / 731 clics retournés /
+368 champs**. Ces compteurs ne sont ni des contrôles uniques, ni des PASS, ni une
+mesure certaine des clics physiques ; erreurs de focus/calendrier et incident de
+journalisation de capture sont préservés. CSV de clôture réellement cliqués mais
+octets téléchargés non inspectés ; aucune capture PNG réussie déduite d'un fichier absent.
+[HTTP des rejoués](preuves/intensive-http-rejeux-2026-10-17-2130.json),
+[traçabilité par critère](TRACABILITE-UI-API-PG-2026-10-17.md).
+
+**Restant prioritaire** : permissions fines et leurs refus cohérents sur tous les
+chemins, Robi avec identité complète, réservations/variantes/stock avancé et documents
+encore non parcourus, CSV réellement téléchargés, contrôles T100/clavier/mobile/rôles
+restants, interruptions multi-processus et charge longue. Runtime Node 22.19.0 ancien :
+version corrigée à qualifier isolément avant pilote (voir rapport sécurité). Aucun
+changement global de Node, aucune réécriture Go/Rust/Python sans mesure.
+Banque/sandbox externe, matériel, profils historiques T04 et réglementaire restent
+distincts et non validés. Vidéo/Stripe Refunds non activés ; jeux conservés dans Git.
+
+Reprise : lire cette section et les rapports individuels, vérifier Git/diff et les
+empreintes ; utiliser le lanceur officiel avec `-NoBrowser` sur le laboratoire et
+des contextes Chrome de recette uniquement. Ne pas recréer les sociétés, ventes,
+avoirs, remboursements ou congés déjà prouvés, ni réouvrir les anciens QR.
+
+### Point de reprise supplémentaire — 17 octobre, 20:48 Europe/Luxembourg
+
+**EN COURS / NON LIVRÉ.** HEAD local toujours `475f67ac1357e07af478f4f237a1f6bb001bb93a`,
+branche dédiée inchangée, corrections non commitées/non publiées. Les relevés
+ci-dessous sont conservés comme historiques ; ne pas additionner leurs suites.
+
+- Suites complètes réellement relancées vers19:47–19:49 : **838unitaires**
+  (370backend/347web/121POS) et **278/278PostgreSQL**. Le défaut de concurrence
+  de numérotation des avoirs est corrigé, avec refus409 et repriseP2002 conservés.
+  Ces suites précèdent les derniers changements de politique d'origine locale,
+  d'exemples Robi et la correction QR en préparation : pas de validation globale
+  du code final à cette heure.
+- **47/47tests locaux** frais à20:05 : profils/artefacts, origine, sauvegardes,
+  gardes et arrêt statique, pas47parcours Chrome. Deux compilations de profil,
+  **5applications chacune**, réussies entre19:58 et20:04. Le profil complet a
+  seulement été compilé ; les jeux n'ont pas été démarrés. Manifestes métier :
+  zéro module de jeu. Les sources/historiques complets restent conservés.
+- Ancien runtime40880 arrêté **normalement** à19:56:26, ports libérés,
+  sans arrêt forcé. Copie cohérente suivante restaurée dans une nouvelle base :
+  **81tables/9609lignes/14fichiers/24PDFidentiques**, zéro différence,
+  chiffrement vérifié et clé séparée. Preuve privée
+  `RESTORATION-2.0-mission-maitre-avant-build-20261017-1957.json` ; archive SHA-256
+  `c6fedfe177d7ad3136981b360580ad96a2059ffac9caa3f41270b03815d4ac7d`.
+  Cette copie ne contient pas les opérations Chrome ultérieures.
+- Lanceur privé : erreur de parsing PowerShell reproduite puis apostrophe
+  corrigée ; démarrage et second appel Windows PowerShell5 réussis. Runtime
+  **43260**, démarré20:06:25, profil métier, écoute127.0.0.1 seulement.
+  Le raccourci Bureau est inchangé, vérifié sur métadonnées, **pas double-cliqué**
+  par un outil Windows. Origines navigateur alignées sur localhost ; cookies et
+  protections non affaiblis. Renouvellement naturel200 encore non qualifié.
+- Sélecteur de couverts : vrai clic moins, clavier et focus stable après polling
+  contrôlés dans Chrome. Bar ouvert avec un couvert. La session caissier inactive
+  s'est reverrouillée après dix minutes et logout200 : comportement prévu, pas
+  preuve d'un échec de refresh.
+- **BAR DES AMIS**, société fictive distincte `cmvcopg6q008jkmr5nwuk3q4l` :
+  cinq comptes OWNER/MANAGER/EMPLOYEE, quatre produits. Remise10% du brut puis
+  tonic offert : motif vide réellement refusé au paiement, motif responsable
+  renseigné, double clic → **unevente24,84€=22,46HT+2,38TVA**, deux règlements
+  déclarés10€espèces+14,84€carte, un débit de stock. Stocks98/79/59/19 ; caisse
+  théorique110€ retrouvée après reload. Preuve privée
+  `bar-encaissement-mixte-doubleclic-1.json`, SHA-256 des octets
+  `26be7ae01f7c68d7d7b4ba145d601062cde91e3ac40a2d5c1264a4b207443f83`.
+  La ventilation du geste commercial reste agrégée, pas une qualification fiscale.
+- Restaurant : fusion native+QR31,50€ réellement soldée,40€reçus/8,50€rendu.
+  **3ventes/4commandesPAID**,78€TTC=75,11HT+2,89TVA ; recettes78€,
+  restant dû0 à ce relevé, caisse théorique275,70€ non comptée/non clôturée.
+  Stocks27/23/18/39/59/25. Preuve
+  `restaurant-fusion-pos-qr-encaissee-1.json`, SHA-256 des octets
+  `050c3fcf15f937e913318e1050e4a541828d5e9a2b35a3d81314234edf784d48`.
+  Nouveau défaut ensuite reproduit : le QR renouvelé reste utilisable après fin
+  de table et accepte une nouvelle soupe6,50€ ; pas de nouvelle vente finalisée.
+  Preuve RED `restaurant-qr-ancien-commande-apres-paiement-red-1.json`.
+  Correction transactionnelle de la frontière de visite en TDD, **pas encore
+  compilée ni rejouée Chrome**. Aucune fuite de lecture d'un autre groupe prouvée.
+- Bar RH : shift17oct23h→18oct03h Europe/Luxembourg enregistré et publié,
+ 4heures, confirmé en PG. Capture SMTP locale acceptée, pas réception externe.
+  Le MIME nocturne ne précise pas le lendemain : vérification/correctif en cours.
+  Congé fictif24oct : double clic → **uneseuledemandePENDING** en PG,
+  retrouvée après reload. Les difficultés de focus/calendrier de l'outil sont
+  journalisées ; les dates ont finalement été saisies au clavier dans le vrai
+  formulaire, sans injection API. Preuve `bar-nuit-conge-doubleclic-1.json`.
+- Robi : vrai POST `/api/agent/super-ask`503, message explicite de contexte
+  autorisé indisponible, aucune réponse métier inventée. **Métier BLOCKED**.
+  Trois suggestions de jeux encore visibles ont été reproduites ; correction
+  par capacité existante,2tests ciblés et349/349web frais, **pas encore rebuild**.
+  Ne pas additionner349aux347d'une ancienne suite.
+- `npm audit --omit=dev --json --ignore-scripts` : zéro avis connu de production
+  dans ce contrôle, pas une preuve d'absence de vulnérabilité. Mesure métier
+  non appariée :589,39MiB de working sets additionnés/17processus suivis sur
+  5échantillons, navigateur exclu, aucun gain causal/énergétique affirmé.
+
+Les27dumps récupérés et leurs ZIP/manifeste restent vérifiés et préservés ;
+les deux noms de dumps anciennement supprimés demeurent inconnus. Aucune purge,
+rotation destructive, archive effacée, transaction bancaire ou email réel.
+Les rôles ADMIN ERP et permissions fines ne sont pas inventés. Décision humaine
+sur les futurs droits limités toujours sans réponse, travaux indépendants poursuivis.
+
+Prochaine action : terminer les preuves QR/visite après paiement, émission/avoir
+restaurant, email nocturne et rôles du bar ; reconstruire et rejouer les corrections
+stabilisées, nouvelle restauration cohérente, validations finales puis publication
+des seuls changements validés. **T100 demeure partiel**, cinq heures actives non
+attestées. Aucun engagement de préparation à la production ou au premier pilote.
+
+### Point de reprise supplémentaire — 17 octobre, 19:40 Europe/Luxembourg
+
+Toujours **EN COURS / NON LIVRÉ**, code local non publié. Deux couverts restaurant
+soldés réellement depuis Chrome : 9,30 € (acompte2€, solde espèces5€+carte déclarée2,30€)
+et37,20€ (acompte8€, solde espèces29,20€,30€reçus/0,80€rendu).
+Double clics : une finalisation par commande. Relevé privé
+`restaurant-deux-couverts-soldes-1.json`, SHA canonique
+`55908f287fb5986cb341a54083b75cd9bb4273a45c6f270183c0731971f41021` :
+deux ventes46,50€, HT44,53€/TVA1,97€, restant QR25,40€ ; stocks soupe28,
+plat24,dessert19,vin39,eau59,supplément25. Pas de confirmation bancaire.
+
+Séparation C2 Table1→Table3 conservant son acompte2€ réussie. Fusion suivante
+refusée pour consignes cuisine globales différentes : aucune consigne effacée,
+ancienQR alors encore valide. Cas distinct compatible : nouvelle table terrasse,
+un dessert6,10€ et un couvert vide ; fusion vers Table2 réussie à19:37:35.
+AncienQR refusé403 après rechargement, visite originelle conservée ; renouvellement
+par propriétaire effectué, confidentialité du nouveau lien en cours de contrôle.
+Preuve `restaurant-fusion-compatible-qr-1.json`, SHA canonique
+`75d933f84d7cdc2e3eb114e9c5243e11e38829dcbab51c1c53ce963daffe77b3`.
+Préparation QR passée réellement Commencer→Prêt→Servi, encore absente des colonnes
+actives après rechargement/reconnexion ; `Order.guestStatus=served` conservé en PG,
+commande toujours impayée25,40€. Paiement et préparation restent distincts.
+
+Nouvelles suites complètes à19:30–19:32 :832unitaires réussis
+(368backend/347web/117POS), mais PostgreSQL **276/277**, non qualifié.
+Précision : onze créations d'avoirs ont passé ; seuls sept des neuf refus409
+attendus ont passé. Reproduction ciblée :11×201,8×409,1×503,125collisionsP2002,
+pas de dépassement observé ; numérotation choisie avant verrou/solde, reprise
+épuisée. Correction concurrente en cours, aucun résultat GREEN final annoncé.
+Tests unitaires historiques ne valident pas les nouveaux changements suivants.
+
+Robi :31nouveaux tests ciblés (20serveur/11React), budget20s/25s et arrêt explicite
+implémentés ; pas encore compilés/rejoués Chrome. Raccord identité/société reste
+indisponible503, pas de réponse métier inventée. Sélecteur de couverts : composant
+interne remonté à chaque render, deux échecs reproduits ; correctionJSX stable,
+4tests ciblés/121POS réussis par le sous-lot, clic/focus Chrome après build à faire.
+
+### Mission maître — reprise du17octobre, vers19:15 Europe/Luxembourg
+
+**EN COURS / NON LIVRÉ.** Nouveau cadrage lu intégralement : troisième établissement
+**BAR DES AMIS** ; la préparation BOULANGERIE & SNACK est conservée hors campagne,
+sans renommage ni suppression. A/B existants conservés, pas recréés. Rôle ADMIN ERP
+distinct absent : le scénario de cette politique reste NOT IMPLEMENTED, pas un compte
+EMPLOYEE/MANAGER renommé artificiellement.
+
+À18:48Lux, ancienPID21664 absent et ports métier sans listener. Aucun arrêt forcé
+effectué par cet agent ; cause de disparition et heure exacte non connues, pas de
+preuve rétrospective d'arrêt propre. Copie privée vérifiée des**80fichiers** modifiés
+ou non suivis, patches binaires/staged/status et métadonnées de lancement conservés :
+`worktree-preserved-2026-10-17T16-49-29-912Z-dfb2755a`, manifeste SHA-256
+`18684279242af5b4bec50eb6960f35354981a2550bc78e26c79216aae08efee2`.
+Pas de pull/reset/checkout/clean ni staging. Le tsbuildinfo invité préexistant est
+préservé dans cette copie, pas approuvé pour un commit.
+
+Nouvelle sauvegarde avant test restaurée vers18:50Lux :81tables/12fichiers/24PDF
+égaux, AES-GCM/clé séparée, aucune purge. Preuve privée
+`RESTORATION-2.0-mission-maitre-avant-tests-20261017-1652.json` ; nom de fichier
+distinct de l'heure réelle. Démarrage officiel à**18:51:48Lux**, profilbusiness,
+PID40880,22233ms sur ce démarrage chaud (pas comparaison causale). Capture SMTP
+locale relancée, sans relais et réservée aux destinataires.invalid. Aucun service tiers fermé.
+
+Chrome officiel, nouveaux contextes fictifs : connexion propriétaire restaurant et
+caissier réussies ; ancienQR retrouvé avec son addition25,40€ sans renvoi de commande.
+Onboarding local reproposé au propriétaire neuf : ignoré explicitement pour conserver
+sa configuration, limitation d'ergonomie non corrigée. La page de connexion métier
+n'affiche plus les statistiques de jeux. Les deux couverts natifs vides sont réellement
+réapparus ; ajout/sauvegarde de cinq lignes distinctes (soupequantité2, plat, vin,
+dessert,eau) → total46,50€, note de plat et consigne cuisine saisies réellement.
+Remise10% EMPLOYEE refusée dans l'interface, annulée sans changer les46,50€ ; ce
+contrôle UI n'est pas un nouveau403API provoqué.
+
+**Acompte fictif à19:10:27Lux :** double clic → un POST200, une tentative et deux
+tenders espèces8€+2€. Deux commandes natives37,20€ et9,30€ ; déjà payé10€,
+reste36,50€. Avec leQR25,40€, commandes ouvertes71,90€, restant61,90€ ; zéro
+vente finalisée, aucun stock débité. PostgreSQL19:10:39 et affichage concordent.
+Preuve `restaurant-acompte-natif-double-clic-1.json`, SHA canonique
+`ef8fa8c6994c1e8246ca39fa53629aeabbd6ae65f4deafc715b74c165402edec`.
+Ne pas confondre cet acompte, caisse théorique210€ et chiffre d'affaires0.
+Reload/reconnexion caissier effectué ; comparaison des soldes et seconde caisse
+responsable en cours, pas encore tous les parcours de reprise qualifiés.
+
+Audits documentaires nouveaux : [architecture/technologies](ARCHITECTURE-AUDIT-2026-10-17.md),
+[sécurité/droits](SECURITE-MISSION-MAITRE-2026-10-17.md). Lectures de code, pas
+nouveaux PASS. Aucun prototype de migration de langage ni réécriture décidé.
+Robi : diagnostic confirmé de pertes du contexte humain dans les appels internes,
+refus ignorés et absence de budget serveur. Correctif de bornage/abandon et retours
+honnêtes en TDD isolé, **NON STABLE/non compilé/non rejoué Chrome** à ce point.
+Les gardes d'accès restent inchangées ; pas de données métier inventées.
+
+Les801unités/277PG/41locaux du relevé précédent restent datés, **pas relancés**
+par cette mise à jour et pas une validation du nouveau code Robi en travail. T100
+et cinq heures actives non attestés ; interruption entre14h et18h48 exclue du temps
+actif. Pas de nouveau commit/push, master et production intacts. Prochaine action :
+reprendre les couverts/payments existants de B, séparation/fusion et QR, cuisine,
+droits/RH/documentation, puis créer BAR DES AMIS distinct ; rejouer les correctifs
+après compilation et vérifier une nouvelle restauration avant livraison partielle.
+
+### Historique de reprise — 17 octobre, vers 14:05 UTC
+
+**EN COURS / NON LIVRÉ.** Travail local non commité préservé ; HEAD de départ
+`475f67ac1357e07af478f4f237a1f6bb001bb93a`. Aucun nouveau push ni déploiement.
+Les sections suivantes sont historiques : « B/C non créés » ne décrit plus B.
+
+**Blocage actuel : arrêt complet du runtime local non confirmé.** Depuis la demande
+d'arrêt propre vers13:45UTC, l'API3002 est fermée et la planification est figée par
+la procédure de shutdown. Le processus local21664 conserve une seule connexion
+frontend5174 vers Chrome. Nos pages ERP/QR ont été fermées avec les outils officiels,
+sans fermer Chrome ni les profils historiques ; le processus n'a pas été forcé.
+L'autorisation d'arrêter exceptionnellement ce seul runtime a été demandée et reste
+en attente. Ne pas contourner le refus du lanceur devant un runtime encore présent.
+
+Cause reproduite sur serveurs jetables : préconnexion TCP/en-têtes incomplets et
+connexion HTTP inactive peuvent retenir `server.close()` ; une requête pipelinée
+pendant l'arrêt pouvait aussi lire une adresse serveur devenue nulle. Correctif
+source ciblé : refus des nouvelles admissions, fermeture des seules connexions
+non admises/inactives, attente intacte des POST admis, fermeture idempotente.
+**7 nouvelles fixtures et suite locale41/41 réussies**, sans `closeAllConnections`.
+Ce correctif ne modifie pas le module déjà chargé dans21664. Son redémarrage réel
+et son rejeu Chrome restent **BLOCKED**, pas PASS. La requête Robi sans réponse
+est un incident distinct ; son lien causal avec cette préconnexion n'est pas prouvé.
+
+Sauvegarde conservatoire supplémentaire réellement restaurée à**14:00:46.896UTC** :
+**81tables,12fichiers et24PDF (14factures/10avoirs) identiques**, zéro différence,
+AES-GCM vérifié et clé séparée,4083ms sur cache chaud (pas un RTO). Conditions : API
+arrêtée, scheduling figé et zéro autre client de `creorga_local` observé à14:00:21 ;
+cela prouve la comparaison de cette copie, pas un arrêt propre complet du runtime.
+Inclut les données B et la commandeQR25,40€. Toutes les archives conservées.
+Preuve privée `RESTORATION-2.0-intensive-restaurant-avant-reprise-20261017-1402.json` ;
+SHA-256 archive `1e2d7b41bfae4fa784d45538ae84b2997af78d6df736f2c82819542764ccf001`.
+
+- **A — Café :** quatre ventes21,10€ TTC/20,03HT/1,07TVA ; avoirs10,25€,
+  remboursements déclarés fictifs10,25€ séparés. Caisse propriétaire clôturée avec
+  théorique106,85€, compté106,80€, écart-0,05€ justifié ; rechargement/SQL concordants.
+  Parcours financiers ciblés aboutis, mais tous les écrans/rôles/incidents ne le sont pas.
+- **B — Restaurant :** créé dans l'UI ; cinq membres, six produits, quatre catégories,
+  quatre tables configurées ; caisse ouverte200€ fictifs. Deux demandes de congé
+  créées au double clic ont été préservées, puis l'une approuvée et l'autre refusée
+  par MANAGER. Un créneau18oct18–22h Luxembourg/Terrasse publié, un e-mail capturé
+  localement (pas distribué par Internet), un relevé HACCP manuel sans mesure inventée.
+  CommandeQR réelle UI : soupe6,50€ + plat18,90€ ; double clic → un POST201.
+  PostgreSQL à13:58:46 confirme **25,40€ TTC/24,66HT/0,74TVA**, impayé25,40€,
+  zéro vente finalisée/règlement/débit de stock. Pas de seconde commande ni de solde.
+- **C — Boulangerie : NOT RUN**, non créée. Aucun établissement ni rôle entièrement
+  qualifié. Les identités « limité »/« sans finances » restent EMPLOYEE : ACL fines
+  distinctes **NOT IMPLEMENTED**, pas des permissions obtenues en renommant un compte.
+
+Dernières suites effectivement exécutées : **801unités (348backend/336web/117POS)**
+à13:46UTC, **277intégrations PostgreSQL** à13:53:56–13:54:46UTC, zéro échec/ignoré.
+Cinq compilations métier réussies ; changements lifecycle ultérieurs couverts
+séparément par les41tests locaux. [Preuve agrégée datée](preuves/intensive-validation-2026-10-17-1405.json).
+Ne pas transformer ces suites en clics Chrome ni en qualification bancaire.
+
+Rejeux Chrome encore indispensables après reprise : table native ouverte sans ligne
+qui disparaît du bootstrap (correctif tablesFor prêt), double soumission de congé
+(garde UI prête, idempotence serveur/reload/multi-onglet non implémentée), textes
+Rapports/Journal et suppression des statistiques de jeux sur la connexion métier.
+Robi : question de lecture sans réponse et exemples ludiques encore visibles ; non qualifié.
+Les deux congés historiques et deux anciens pointages ouverts fautifs ne sont pas effacés.
+
+[Journal expurgé nommé14:05](preuves/intensive-journal-2026-10-17-1405.json), généré
+à14:01:20UTC, dernière action13:50:33 : **713tentatives UI,700retours d'outil,
+13erreurs d'outil,466clics retournés,255champs remplis**. 2253335ms d'outils UI
+confirmés et13587770ms de fenêtre murale : **cinq heures actives non attestées**.
+Ni700scénariosPASS ni466contrôlesT100 uniques. Les anciens IDs numériques ont sept
+collisions conservées ; utiliser position du journal + hash d'événement, pas l'ID seul.
+
+T100 reste partiel ; matrice historique inchangée55PASS/0FAIL/44BLOCKED/1NOT RUN,
+distincte de cette campagne. [Couverture par rôle](INTENSIVE-COUVERTURE-PAR-ROLE.md).
+Vérification distante à14:04 environ : GitHub2.0 et HEADlocal restent475f67a,
+master350b351 inchangé. Pas de nouveau commit publié. Capture SMTP locale arrêtée
+proprement à14:05:43UTC, EML conservés ; la relancer en mode local avant de nouveaux
+tests d'envoi. Les comptes fictifs et le lien QR de reprise sont conservés dans le
+dossier privé de campagne, hors Git ; ne pas les recopier dans les livrables publics.
+**Prochaine action sûre :** obtenir la décision d'arrêt du seul runtime résiduel,
+revérifier PID/chemin/état de la sauvegarde avant toute action ; ensuite lancer
+normalement le profil métier. Reprendre les deux couverts natifs persistés de B
+et sa commandeQR25,40€ sans reset, sans réémettre aveuglément, puis service/QR/RH,
+comparaisons et C. Aucun commit de livraison avant les rejeux indispensables.
+
+### Historique de reprise — 17 octobre, vers 13:15 UTC
+
+**EN COURS / NON LIVRÉ.** Café : quatre ventes21,10€ TTC/20,03HT/1,07TVA,
+avoirs10,25€ et quatre remboursements déclarés10,25€ (6,25espèces/4carte), sans banque.
+La reprise explicitement autorisée de la déclaration refusée a été rejouée dans Chrome :
+même demande refusée, preuve409 typée, bouton Modifier, puis nouvelle déclaration valide.
+Aucune réservation prestataire incertaine libérée ; aucune remise d'argent réel.
+
+Clôture réellement exécutée le17/10 à13:11:37UTC : fond100€, encaissements espèces13,10€,
+mouvements sortants6,25€, théorique106,85€, compté fictif106,80€, écart-0,05€ justifié.
+Deux refus422 sans motif pris en compte, puis frappe clavier du motif et un succès200.
+Le remplissage d'outil initial n'avait pas alimenté l'état React du textarea ; ne pas
+présenter cet incident de saisie comme une perte de données applicative établie.
+Historique rouvert après reload : clôture identique. PostgreSQL confirme une seule
+caisse clôturée, instantané figé et zéro anomalie financière calculée. Preuve privée
+`cafe-cloture-comptage-ui-1.json`, SHA-256
+`ffeec4409f319da90db61b663c26e2df4cb67cb6339e983f1c7228bd6dfd92b6`.
+Le bouton CSV a été cliqué ; contenu téléchargé pas encore comparé.
+
+Nouvelle suite web instrumentée325/325 ; backend343 et POS115 précédemment exécutés
+sur leurs fichiers inchangés : **783unités au total**, PostgreSQL277 dernier passage.
+Cinq compilations métier réussies. Correction Rapports : totaux renommés en ventes avant
+avoirs, notice et ancre de rapprochement, sans modifier les calculs. Rejeu Chrome restant.
+Journal POS : libellés corrigés compilés, rejeu du nouveau texte restant.
+
+Sauvegarde/restauration cohérente supplémentaire13:13:40UTC environ :81tables,
+10fichiers/24PDF égaux, nouvelle base et copie AES-GCM, clé séparée,4080ms sur cache
+chaud (pas un RTO). Inclut tous les remboursements et le comptage du café. Aucune purge.
+Contexte Chrome propriétaire du restaurant créé, formulaire d'inscription seulement
+ouvert : B/C ne sont pas encore enregistrés. Prochaine action : créer B via UI,
+ses quatre employés, puis son service et ses contrôles par rôle ; A demeure partiel.
+Cinq heures de tests actifs non attestées, aucun nouveau commit publié.
+
+### Historique de reprise — 17 octobre, vers 12:55 UTC
+
+**EN COURS / NON LIVRÉ, café seulement ; B/C non créés.**
+Dernière exécution complète : **778 unités (343 backend /320 web /115 POS)**,
+**277 intégrations PostgreSQL**, zéro échec/ignoré. La compilation métier des correctifs
+de remboursement déclaré/journal est en cours ; aucun nouveau commit publié.
+
+- Avoirs rejoués dans Chrome : anciens11€ refusés avec la même référence, décision
+  explicite de modification, puis AVO-0001 de2,50€ et AVO-0002 de7,75€ au double clic.
+  Deux pièces, total10,25€/HT9,50/TVA0,75 ; facture et vente d'origine inchangées,
+  pas de remise en stock ni remboursement automatique.
+- Tentative de remboursement2,50€ sur le règlement espèces sélectionné2,25€ refusée.
+  Sélection de l'opérateur incorrecte reconnue ; défaut applicatif : formulaire
+  définitivement figé. Correctif conservateur testé ; **pending intact à rejouer**.
+  NOT_RECORDED ne prouve pas l'absence d'argent remis hors logiciel. Aucune réservation
+  UNKNOWN/REVIEW n'est libérée ; refus dû à une réservation seule reste figé.
+- Remboursement carte **déclaré fictif4€**, un enregistrement au double clic, sans banque.
+- QR : transfert des trois commandes au comptoir200, anciens accès403 ; séparation
+  d'une visite fermée refusée409 avec motif clair, puis groupe actif1,25€ séparé200
+  vers Table1 salle. Aucun stock ni montant déplacé deux fois.
+- Groupe1,25€ soldé (reçu2€, rendu0,75) ; en-tête corrigé garde1,25€/reste0.
+  Deux autres commandes9,60€ : acompte3€ réparti81c/219c, reload/reconnexion puis
+  reste6,60€ retrouvé ; solde mixte2,60espèces/4carte, payé9,60€/reste0.
+- SQL indépendant12:52:45UTC : **quatre ventes21,10€**, HT20,03, TVA1,07, tous soldes0,
+  stocks97/59/46/19/100. Encaissements déclarés21,10€, remboursements déclarés4€,
+  avoirs10,25€ : ne pas additionner ces trois natures. Caisse ouverte113,10€ théoriques
+  avant les remboursements espèces restant à déclarer.
+- Caissier connecté dans un contexte neuf : bouton clôture absent, ventilation mixte
+  explicite. Ancien contrôle natif page3 reste non qualifié, pas un blocage de tout Chrome.
+- Portail corrigé réellement rejoué390/375/768/1440 ; à375 le dernier Ajouter au clavier
+  est visible, centre sur Ajouter (plus Avis), main s'arrête avant nav en flux.
+  Inscription facultative annoncée honnêtement. Pas de qualification multilingue globale.
+- Nouvelle restauration **12:55:27UTC** :81tables,10fichiers,24PDF (14factures/10avoirs)
+  égaux, AES-GCM/clé séparée, zéro différence,3941ms sur cache chaud (pas un RTO).
+  Inclut les deux nouveaux avoirs, quatre ventes et remboursement carte fictif.
+
+Preuve SQL du dernier solde : `cafe-qr-solde-mixte-2.json`. La première tentative de
+collecte n'a pas rendu, orchestration interrompue, fichier1 absent ; **aucun règlement
+rejoué**. Une nouvelle lecture seule au nom distinct2 a confirmé les données.
+Journal daté [12:50](preuves/intensive-journal-2026-10-17-1250.json) :485tentatives,
+475retours UI,10erreurs d'outil,325clics retournés ; pas de conversion en scénariosPASS.
+T100 et cinq heures actives restent non attestés. Prochaine action : terminer build,
+redémarrer proprement, rejouer la déclaration refusée puis les625c espèces, clôture
+avec comptage/écart, export et rapprochement de A avant B puis C.
+
+### Historique de reprise — 17 octobre, vers 12:30 UTC
+
+**Campagne toujours EN COURS / NON LIVRÉE. Café seul, B/C non créés.**
+Le [journal 12:30](preuves/intensive-journal-2026-10-17-1230.json) vérifie la chaîne :
+412 tentatives UI, 404 retours, huit erreurs d'outil et 275 clics retournés ;
+1 249 286 ms d'outils UI confirmés et environ 145 min de fenêtre murale.
+Ce ne sont ni des contrôles T100 uniques ni cinq heures de tests actifs.
+
+- Nouvelle exécution instrumentée : **734 unités (343 backend / 277 web / 114 POS)**
+  et **257 intégrations PostgreSQL**, zéro échec/ignoré ; pas les 584/201 historiques.
+  Corrections supplémentaires avoir/portail testées, compilation/rejeux encore à faire.
+- Une facture INV-2026-0001 réellement créée depuis le ticket par Chrome puis émise :
+  10,25 € TTC, 9,50 € HT, 0,75 € TVA. Une vente d'origine, pas une deuxième vente.
+  PDF figé SQL/A4 API identiques (13 177 octets,
+  SHA-256 `3007ab4fc7629364fdfdea24f907b688631ef950dbbcb040aaad80edcf038f8f`).
+  A4/58/80 ouverts par les boutons Chrome, puis copies API rendues et inspectées :
+  montants et ventilation par taux lisibles, pas d'impression physique qualifiée.
+- Envoi de facture au double clic : une capture SMTP locale correspondante parmi
+  trois EML ; MIME multipart, destinataire fictif et pièce PDF strictement identique.
+  Cela ne prouve ni réception Zoho/Internet, ni lecture destinataire.
+- Demande d'avoir de 11 € sur 10,25 € : refus 409, aucune pièce créée. Le formulaire
+  reste figé sur la référence initiale ; correction restrictive RED→GREEN prête.
+  **Ne pas effacer sa référence** : rejouer les mêmes 11 €, obtenir le refus typé,
+  puis choisir explicitement « Modifier la demande refusée ». Rejeu Chrome restant.
+- QR réellement parcouru : deux commandes de 2,60 € et 7 €, double clic sur la
+  seconde → un POST201, solde 9,60 € ; rechargement et PostgreSQL concordants.
+  Les stocks ne sont pas débités avant finalisation ; aucun règlement QR réalisé.
+- Révocation explicite : ancien QR → message visible et HTTP403 ; anciennes commandes
+  impayées conservées. Nouveau groupe, contexte anonyme neuf → addition 0 €, pas 9,60 €.
+  Pas de compte interne ni de compte client imposé par le contrat réel du portail.
+- Défauts UI reproduits : inscription annoncée obligatoire à tort ; bouton Ajouter
+  recouvert par la navigation fixe à390px (le clic ouvre Avis). Correctifs limités
+  texte/cadre défilant testés, mesures Chrome après compilation encore à faire.
+- Le compte propriétaire et les nouveaux contextes QR fonctionnent. Le blocage
+  natif de la page3 n'est pas un blocage de tout Chrome. Le bouton e-mail des rapports
+  prépare un `mailto:`, ce n'est pas un envoi SMTP ; aucun succès d'envoi revendiqué.
+
+Preuves privées : `cafe-facture-depuis-ticket-ui-1.json`,
+`cafe-invoice-email-mime-readonly-1.json`, export PDF privé du12:20UTC,
+`cafe-qr-premiere-commande-1.json`, `cafe-qr-deuxieme-commande-1.json`,
+`cafe-qr-revocation-1.json`. Trois sauvegardes/restaurations de campagne déjà conservées ;
+la dernière de11:55 précède cette facture/ces QR, une nouvelle copie reste à faire.
+Aucun commit de cette campagne publié à cet instant. T100 reste partiel.
+
+Prochaine action : sauvegarde cohérente sans purge, compilation métier des corrections,
+rejeu avoir/QR mobile, paiement et clôture autorisés fictifs du café, rapprochement final
+de A avant création successive de B puis C. Ne pas annoncer la campagne terminée.
+
+### Historique de reprise — 17 octobre, vers 11:45 UTC
+
+**A — CAFÉ DU CENTRE encore en cours ; B/C et client QR non commencés. NON LIVRÉ.**
+Le journal public daté [11:45](preuves/intensive-journal-2026-10-17-1145.json)
+contient 340 tentatives UI, 336 retours d'outil et quatre erreurs d'outil, 221 clics
+retournés (double clic compté deux fois). Ce ne sont pas des contrôles T100 uniques
+ni des scénarios PASS. Temps cumulé des outils UI confirmés : 1 015 027 ms ; fenêtre
+murale environ 101 min. **Cinq heures actives non établies**, attentes exclues.
+
+- Nouvelle restauration cohérente à 11:29:28 UTC : PostgreSQL égal, dix fichiers
+  identiques, archive v2/AES-GCM et clé séparée ; 3 845 ms sur cache chaud. Elle
+  précède les encaissements fictifs ci-dessous et ne vaut pas restauration finale.
+- Cinq compilations métier réussies ; runtime privé redémarré à 11:29:42 UTC.
+  Profil métier, aucun jeu, aucun moyen bancaire réel, SMTP strictement local.
+- Ancien brouillon divergent 10,25 €/2,50 € réellement refusé en HTTP 409.
+  Copie privée préservée ; import ambigu refusé puis trois ajouts ressaisis par clics.
+  Les quatre lignes sont ensuite confirmées en base, sans choix silencieux de source.
+- Transfert Table 1 → Table 2 par le caissier confirmé dans Chrome et PostgreSQL ;
+  prix 2,50/2,60/3,90/1,25 € conservés. Préparation commencée, prête puis servie
+  depuis l'écran cuisine ; les corrections de quantité/consigne restent explicites.
+- Acompte fictif 4 €, solde mixte 6,25 € : coupure réseau avant envoi refusée sans
+  faux succès ; reprise avec la **même référence**, puis solde nul. Une seule vente
+  de 10,25 €, HT 9,50 €, TVA 0,75 € ; espèces déclarées 6,25 €, carte déclarée 4 €.
+  Aucun terminal ni prestataire bancaire utilisé. Trois lignes OrderTender, deux
+  demandes de règlement ; ne pas les compter comme trois ventes.
+- SQL après incident navigateur : une vente, zéro remboursement/facture/avoir,
+  aucun écart financier détecté, CashDrawer encore ouverte à 106,25 € théoriques.
+  Stocks vendables : Espresso 98, Bière 59, Eau 49, Sandwich 20, Gobelet 100 ;
+  ingrédient 5 kg, distinct des produits (aucune recette de consommation inventée).
+- Deux devis DRAFT indépendants des ventes : 16,15 € (deux taux) et 1,03 € lié au
+  client fictif. La première saisie d'outil a omis client/notes ; reprise clavier
+  du second formulaire correctement enregistrée. Ni conversion ni paiement revendiqués.
+- Admission ERP corrigée/rejouée : adhésion désactivée → refus visible, puis
+  réactivation propriétaire → connexion EMPLOYEE au bon café. Deux vieux pointages
+  fautifs restent intacts, toute nouvelle action y reçoit un conflit explicite.
+  Pour Limité, double entrée/sortie → une seule nouvelle ligne fermée, relue en UI/SQL.
+- Planning : second message réellement capturé le 17/10 à 11:35:15 UTC ; MIME/hash
+  vérifiés, section Bar présente. Réception **locale**, pas Zoho/Internet.
+- Correctif confirmé-paiement/chronologie des places testé en unités, revu et compilé.
+  Le cas perte de GET après confirmation et saisie concurrente exige encore son
+  rejeu Chrome ; rapprochement manuel conservateur, pas reprise automatique promise.
+
+**Blocage actuel de contrôle Chrome :** après confirmation de clôture sous EMPLOYEE,
+le retour du clic officiel reste en attente, probablement sur `window.alert` du refus
+(diagnostic source, pas preuve d'une clôture réussie). La fermeture du dialogue par
+l'outil officiel n'a pas rendu non plus ; cellules 243/244 interrompues côté orchestration,
+aucune répétition de clôture. Événement d'interruption ajouté au journal. Contrôle
+BLOCKED ; fermeture « OK » demandée à l'utilisateur si l'alerte est visible. Aucun
+contournement. Le relevé ciblé en lecture seule à **11:53:25 UTC** confirme dans
+ActivityEvent le **POST /pos/close EMPLOYEE 403** à 11:41:18 UTC, zéro PosClosure,
+la vente conservée et la caisse ouverte. Cela prouve le refus serveur, pas le retour
+du contrôle Chrome ni une clôture réussie (`cafe-closure-refusal-readonly-1.json` privé).
+
+Corrections complémentaires en cours, **pas encore rejouées** : résultat payé affiché
+à tort à zéro après disparition des couverts ; refus de clôture non bloquant et rôle
+du bouton ; ventilation mixte dans le journal. Aucun nouveau commit publié. Prochaine
+action sûre : terminer ces régressions, validations fraîches en laboratoire, puis
+reprendre les contrôles Chrome seulement après résolution sûre du dialogue. Reprendre
+documents/QR/clôture et rapprochement du café avant de créer B puis C.
+
+### Historique de préparation — relevé 10:52 UTC (non actuel)
+
+Position à cet instant : **A — CAFÉ DU CENTRE, cinq identités internes connectées ; client QR non commencé**.
+Chrome officiel, contexte neuf `creorga-intensive-20261017-cafe-owner`, URL locale
+vérifiée. Aucun profil historique ouvert, aucune protection Windows contournée.
+La tentative d'export de capture vers le dossier Windows a été refusée par l'outil ;
+captures intégrées à la conversation et observations textuelles privées conservées.
+
+- Sauvegarde cohérente préalable, arrêt privé puis archive v2 chiffrée/restaurée dans
+  une nouvelle base : huit fichiers égaux, comparaison PostgreSQL égale. Aucune purge.
+- Inscription activée uniquement par l'option existante de la compilation LAB ;
+  création du café et de son propriétaire depuis le vrai formulaire (`201`).
+- Quatre employés créés par formulaire, cinq membres relus après rechargement.
+  Seuls OWNER/MANAGER/EMPLOYEE existent ; « limité » et « sans finance » ne sont
+  pas des ACL supplémentaires et ne sont pas déclarés fonctionnels.
+- Trois salles, quatre tables et dix chaises fictives ; cinq produits et trois
+  catégories créés via UI, prix/stocks relus après reload et rapprochés en SQL.
+- Fond fictif de 100 € : double clic réel, réponses `201`/`200`, une seule caisse
+  et 10 000 centimes théoriques en base ; aucune vente ou transaction bancaire.
+- Défaut reproduit : installer des chaises vides occupe la table. Correctif serveur
+  et neuf régressions PostgreSQL écrits, RED puis GREEN ; **replay Chrome effectué** :
+  quatre chaises vides sur une table libre la laissent libre, puis le premier article
+  l'occupe. Les six chaises de la première reproduction ne sont pas réécrites.
+- Autres défauts reproduits : occupation du dashboard basée sur une autre source,
+  capacité prise pour des clients et CTA de bandeau n'ouvrant pas le formulaire.
+  Corrections écrites/testées, compilation globale en cours ; rejeux Chrome restants.
+- POS tactile : des coordonnées locales à chaque salle superposent trois tables.
+  Un clic sur la table occupée ouvre une autre table libre ; modal annulée sans vente.
+  Correctif par sélection explicite de salle/liste sûre et ID exact, sans déplacement
+  des données ; 15 nouvelles régressions, rejeu Chrome indispensable avant encaissement.
+- Responsable : prix catalogue Espresso passé à 2,60 € via formulaire ; SQL confirme
+  la ligne de service et sa quote historique à 2,50 €, TVA 3 %, sans réécriture.
+- Congé fictif : dates inversées refusées (400), création valide (201), auto-approbation
+  employé refusée (403), décision du responsable (200), statut approuvé relu par l'employé
+  et en PostgreSQL. Un créneau 18/10 06–12 Luxembourg, pause 30 min, est conservé.
+- SansFinance : gestion utilisateurs/catalogue refusée par la navigation ; tentative
+  de création de devis via le vrai formulaire refusée côté serveur (403). Le rôle
+  EMPLOYEE peut cependant lire devis/factures : ACL « sans finances » non implémentée.
+- Défaut de rendu après 403 caisse : état faussement fermé malgré le fond de 100 €.
+  Correction RED→GREEN écrite (état refusé/inconnu, pas de CTA), rejeu navigateur restant.
+- Publication planning : boîte SMTP locale absente, réponse 207 avec zéro confirmation,
+  message d'échec visible, créneau non publié. Aucun e-mail externe ni livraison réelle.
+
+Registre des identités fictives, journal horodaté chaîné, rapports SQL et archives
+dans `local-2.0/intensive-20261017` hors Git. Ne pas publier ce registre (accès privés).
+[Plan et suivi](RECETTE-INTENSIVE-2026-10-17.md) ; matrice historique inchangée,
+aucun PASS déduit des 3 697 contrôles source. B/C restent **NOT RUN** ; les parcours du
+café sont partiels, pas cinq rôles intégralement validés. Journal à 10:48:10 UTC :
+238 événements, 178 actions UI, 113 clics (double clic compté deux fois), 97 champs ;
+534 343 ms cumulées dans les outils d'interaction et 44 min de fenêtre murale, **pas
+cinq heures actives**. Les événements suivants sont conservés sans gonfler ce relevé daté.
+Prochaine action : achever la compilation, arrêter/redémarrer le runtime privé, rejouer
+sélection POS/états de caisse/stats, puis reprendre service, QR et documents du café.
+Préparer le récepteur SMTP uniquement local avant la reprise de publication. Aucun
+déploiement, paiement réel ou master modifié ; aucun nouveau commit publié à ce stade.
+
+## Lot précédent finalisé
+
 **Lot logiciel et reprise locale validés ; T100 partiel, contrôle natif Windows BLOCKED,
 aucune qualification de production.** Les sections historiques plus bas conservent leurs dates.
 

@@ -1,5 +1,75 @@
 # Recette métier T01–T100 — fiabilité du profil métier
 
+## Campagne intensive après 475f67a — en cours, 17 octobre
+
+### Complément après rejoués du 17 octobre, fin de copie 19:31:36 UTC
+
+A/B/Bar sont maintenant créés et partiellement parcourus. Les sections précédemment
+dites « courantes » ci-dessous sont historiques, pas une nouvelle qualification.
+La matrice de référence reste **55 PASS / 0 FAIL / 44 BLOCKED / 1 NOT RUN** ; aucun
+scénario entier n'est promu sur les seuls clics, sous-cas ou tests techniques.
+**T100 reste partiel** sur les 3 697 contrôles inventoriés. Les critères étroits et
+leurs anciens FAIL/contre-essais datés figurent dans la
+[traçabilité UI–HTTP–PG](TRACABILITE-UI-API-PG-2026-10-17.md).
+
+Preuves nouvelles : clôtures B/C, QR refusés après solde mais actifs pendant acompte,
+paiements mixtes déclarés, KDS, planning nuit avec date de fin, congé approuvé et
+restauration finale. [Agrégat exécuté](preuves/intensive-validation-finale-2026-10-17-2135-v3.json) :
+861 unités, 295 PG, 47 fixtures locales et deux compilations de profils ; restauration
+81 tables/10 083 lignes/14 fichiers/26 PDF sans différence. Ce ne sont pas des parcours
+Chrome supplémentaires inventés ni une couverture exhaustive de T71/T100.
+
+Restent notamment non qualifiés : tous les contrôles par rôle, permissions fines
+absentes, Robi métier 503, CSV téléchargés, réservations/variantes/stock avancé,
+charge prolongée et incidents multi-processus, matériel, vrais prestataires et T04.
+Les cinq heures actives ne sont pas attestées. Campagne **NON LIVRÉE**, aucun pilote
+ou passage en production validé. [Reprise exacte](CHECKPOINT.md).
+
+### Reprise vers14:05UTC — état courant, non livré
+
+A partiel, B créé et en cours, C non créé. Café : quatre ventes21,10€,
+avoirs/remboursements déclarés10,25€ distincts ; caisse clôturée106,80€,
+écart-0,05€ justifié. Restaurant : une commandeQR25,40€ impayée/0vente,
+cinq identités internes (OWNER/MANAGER/3EMPLOYEE), pas cinq ACL distinctes.
+Dernières suites801unités/277PG, cinq compilations et41tests de profil local.
+Restauration14:00:46 :81tables/12fichiers/24PDF égaux sans purge.
+
+Blocage : API fermée mais runtime local retenu par préconnexion frontend ;
+source lifecycle corrigée sur fixtures, aucun arrêt forcé ni redémarrage réel validé.
+Rejeux table vide/congé/libellés **BLOCKED** jusqu'à reprise sûre. Aucun scénario
+de cette matrice n'est promu par ce constat ni par les713tentatives/700retours UI.
+Les **3697contrôles** ne sont pas tous exécutés ; **T100 reste partiel** et les
+cinq heures actives non attestées. [Checkpoint](CHECKPOINT.md),
+[preuve fraîche](preuves/intensive-validation-2026-10-17-1405.json),
+[couverture par rôle](INTENSIVE-COUVERTURE-PAR-ROLE.md).
+La matrice55PASS/0FAIL/44BLOCKED/1NOT RUN demeure celle du lot historique.
+
+### Historique du relevé de campagne précédent
+
+Le bilan de 08:53 ci-dessous reste **historique**. Aucun de ses PASS n'est repris
+comme preuve de clic de la campagne trois clients. [Suivi courant](RECETTE-INTENSIVE-2026-10-17.md),
+[résultats intermédiaires ciblés](preuves/intensive-resultats-2026-10-17-1150.json),
+[journal expurgé12:30](preuves/intensive-journal-2026-10-17-1230.json).
+
+À ce relevé : café partiel, cinq identités internes connectées mais aucun parcours
+de rôle intégral ; B/C non commencés. QR Café réellement parcouru : deux commandes,
+9,60 € impayés, ancien lien révoqué403, nouveau groupe0 € sans exposition de l'ancienne
+addition. Vente fictive de 10,25 € rapprochée,
+TVA 0,75 €, espèces déclarées 6,25 €/carte déclarée 4 € ; aucune banque. Défauts de
+répartition d'état et de droits reproduits puis corrigés ou en cours de qualification.
+Le contrôle Chrome de clôture est BLOCKED sur dialogue natif ; aucune clôture réussie
+inventée. **T100 toujours partiel**, couverture unique des 3 697 contrôles non calculée.
+Les 12 PASS ciblés/2 BLOCKED des 222 scénarios préparés, consignés séparément, ne
+modifient pas automatiquement les statuts T01–T100. Cinq heures actives non attestées.
+Une facture depuis ticket et son e-mail local/PDF ont ensuite été exécutés ; aucun
+paiement bancaire, réception Zoho ou essai physique d'impression n'en est déduit.
+Dernière restauration à12:31:06UTC :81tables, dix fichiers,22PDF (14factures/8avoirs)
+égaux ; pièces anciennes du laboratoire incluses sans les compter comme nouvelles
+factures de cette campagne.734unités et257PostgreSQL fraîchement exécutés, distincts
+des résultats historiques ci-dessous et sans conversion automatique en PASS métier.
+
+## Bilan du lot précédent (non relancé par le texte ci-dessus)
+
 Générée le 2026-10-17T08:53:51.085Z. Laboratoire privé Windows, PostgreSQL loopback, comptes et sociétés fictifs ; aucune production ou banque réelle.
 
 **55 PASS / 0 FAIL / 44 BLOCKED / 1 NOT RUN.**

@@ -43,14 +43,19 @@ export async function fetchAuth(
   init: RequestInit = {},
 ): Promise<Response> {
   assertApiDestination(entree)
+  init.signal?.throwIfAborted()
   const state = useAuthStore.getState()
   const scope = authDataScope(state)
   const { accessToken: jeton, companyId } = state
   const reponse = await fetch(entree, avecJeton(init, jeton, companyId))
+  init.signal?.throwIfAborted()
   assertAuthScope(scope)
   if (reponse.status !== 401) return reponse
 
   const nouveauJeton = await rafraichirJeton()
+  // The refresh belongs to all consumers. A canceled caller must not replay
+  // its own request when that shared operation eventually completes.
+  init.signal?.throwIfAborted()
   assertAuthScope(scope)
   if (!nouveauJeton) {
     // Ne jamais avaler : l'appelant enveloppe souvent l'appel dans un

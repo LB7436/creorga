@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import api from '@/lib/api'
+import api, { assertAuthScope } from '@/lib/api'
+import { authDataScope } from '@/lib/authScope'
 import { moneyMinor } from '@/lib/money'
 import { useAuthStore } from '@/stores/authStore'
 import { readFinancialRequest, preserveFinancialRequest, forgetFinancialRequest } from '@/lib/financial-request'
@@ -8,40 +9,101 @@ import ManualRefundPanel from './ManualRefundPanel'
 import RefundReviewPanel from './RefundReviewPanel'
 
 export default function CreditNotesPanel({ invoiceId, issued }: { invoiceId: string; issued: boolean }) {
-  const companyId = useAuthStore(s => s.companyId), actorId = useAuthStore(s => s.user?.id)
+  const scope = useAuthStore(authDataScope)
+  return <ScopedCreditNotesPanel key={JSON.stringify([scope, invoiceId, issued])} invoiceId={invoiceId} issued={issued} scope={scope} />
+}
+
+type Refusal = { body: any; proof: { code: string; outcome: string; requestId: string; companyId: string; actorId: string; invoiceId: string; amountCents: number; availableCents: number; reason: string } }
+function ScopedCreditNotesPanel({ invoiceId, issued, scope }: { invoiceId: string; issued: boolean; scope: string }) {
+  const auth = useAuthStore.getState(), companyId = auth.companyId, actorId = auth.user?.id
+  const allowed = auth.isAuthenticated && !auth.logoutRevocationPending && !!companyId && !!actorId && ['owner', 'manager'].includes(auth.role)
   const key = `creorga-financial-v1:credit:${companyId}:${actorId}:${invoiceId}`
-  const [pending, setPending] = useState<any>(() => { try { return JSON.parse(localStorage.getItem(key) || 'null') } catch { return null } })
-  const [amount, setAmount] = useState(''), [reason, setReason] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('')
-  const credits = useQuery<any[]>({ queryKey: ['credit-notes', invoiceId], enabled: issued, queryFn: () => api.get(`/invoices/${invoiceId}/credit-notes`).then(r => r.data) })
+  const [initial] = useState(() => { try { return { body: readFinancialRequest(key), error: '' } } catch (e) { return { body: null, error: e instanceof Error ? e.message : 'Référence locale illisible : vérification nécessaire.' } } })
+  const [pending, setPending] = useState<any>(initial.body)
+  const [amount, setAmount] = useState(() => Number.isSafeInteger(initial.body?.amountCents) ? (initial.body.amountCents / 100).toFixed(2) : '')
+  const [reason, setReason] = useState(() => typeof initial.body?.reason === 'string' ? initial.body.reason : '')
+  const [busy, setBusy] = useState(false), [error, setError] = useState(initial.error), [refusal, setRefusal] = useState<Refusal | null>(null), [notice, setNotice] = useState('')
+  const busyRef = useRef(false), mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  const isCurrent = () => mounted.current && scope === authDataScope(useAuthStore.getState()) && allowed
+  const credits = useQuery<any[]>({ queryKey: ['credit-notes', companyId, actorId, invoiceId, scope], enabled: issued && allowed,
+    queryFn: async () => { assertAuthScope(scope); const result = await api.get(`/invoices/${invoiceId}/credit-notes`); assertAuthScope(scope); return result.data } })
+  function exactNotIssuedProof(e: any, body: any): Refusal['proof'] | null {
+    const proof = e.response?.data
+    return e.response?.status === 409 && proof?.code === 'CREDIT_AMOUNT_EXCEEDS_AVAILABLE' && proof.outcome === 'NOT_ISSUED'
+      && proof.requestId === body?.requestId && proof.companyId === companyId && proof.actorId === actorId && proof.invoiceId === invoiceId
+      && Number.isSafeInteger(body?.amountCents) && body.amountCents > 0 && proof.amountCents === body.amountCents
+      && Number.isSafeInteger(proof.availableCents) && proof.availableCents >= 0 && proof.availableCents < proof.amountCents
+      && typeof body.reason === 'string' && proof.reason === body.reason.trim() ? proof : null
+  }
   async function submit(e: React.FormEvent) {
-    e.preventDefault(); if (busy) return; setBusy(true); setError('')
+    e.preventDefault(); if (busyRef.current || !isCurrent() || !issued || initial.error || credits.isError) return
+    busyRef.current = true; setBusy(true); setError(''); setRefusal(null); setNotice('')
+    let body: any
     try {
-      const body = readFinancialRequest(key) || pending || { requestId: crypto.randomUUID(), reason: reason.trim(), ...(amount.trim() ? { amountCents: moneyMinor(amount) } : {}) }
-      if (body.reason.length < 5 || body.amountCents === 0) throw new Error('Motif de cinq caractères et montant positif requis.')
+      assertAuthScope(scope)
+      body = readFinancialRequest(key) || pending || { requestId: crypto.randomUUID(), reason: reason.trim(), ...(amount.trim() ? { amountCents: moneyMinor(amount) } : {}) }
+      if (typeof body.reason !== 'string' || body.reason.trim().length < 5 || (body.amountCents !== undefined && (!Number.isSafeInteger(body.amountCents) || body.amountCents <= 0))) throw new Error('Motif de cinq caractères et montant positif requis.')
       preserveFinancialRequest(key, body); setPending(body)
+      assertAuthScope(scope)
       await api.post(`/invoices/${invoiceId}/credit-notes`, body)
+      if (!isCurrent()) return
+      if (JSON.stringify(readFinancialRequest(key)) !== JSON.stringify(body)) throw new Error('La référence locale a changé. Elle reste conservée pour vérification.')
       forgetFinancialRequest(key, body.requestId); setPending(null); setAmount(''); setReason(''); await credits.refetch()
-    } catch (e: any) { setError(e.response?.data?.message || e.message || 'Avoir non confirmé. Référence conservée.') }
-    finally { setBusy(false) }
+    } catch (e: any) {
+      if (isCurrent()) {
+        setError(e.response?.data?.message || e.message || 'Avoir non confirmé. Référence conservée.')
+        const proof = exactNotIssuedProof(e, body)
+        if (proof) setRefusal({ body, proof })
+      }
+    } finally { busyRef.current = false; if (isCurrent()) setBusy(false) }
+  }
+  function editRefusedRequest() {
+    if (busyRef.current || !isCurrent() || !refusal) return
+    try {
+      const active = readFinancialRequest(key)
+      if (JSON.stringify(active) !== JSON.stringify(refusal.body)) throw new Error('Une autre demande attend une vérification. Sa référence reste conservée.')
+      const historyKey = `${key}:refused:${refusal.body.requestId}`, saved = localStorage.getItem(historyKey)
+      if (saved !== null) {
+        const previous = JSON.parse(saved)
+        if (JSON.stringify(previous.body) !== JSON.stringify(refusal.body) || JSON.stringify(previous.proof) !== JSON.stringify(refusal.proof)) throw new Error('La trace locale de refus diffère : vérification nécessaire, référence conservée.')
+      } else {
+        // Copie locale append-only de reprise, pas un audit serveur infalsifiable.
+        localStorage.setItem(historyKey, JSON.stringify({ ...refusal, observedAt: new Date().toISOString() }))
+      }
+      if (!isCurrent()) return
+      if (JSON.stringify(readFinancialRequest(key)) !== JSON.stringify(refusal.body)) throw new Error('La référence locale a changé pendant la conservation de la preuve.')
+      forgetFinancialRequest(key, refusal.body.requestId)
+      setAmount((refusal.proof.amountCents / 100).toFixed(2)); setReason(refusal.body.reason); setPending(null); setRefusal(null); setError('')
+      setNotice(`Demande refusée ${refusal.body.requestId} conservée localement. La prochaine émission utilisera une nouvelle référence. Cette trace ne remplace pas le journal serveur.`)
+    } catch (e) { if (isCurrent()) setError(e instanceof Error ? e.message : 'Preuve locale non conservée : référence active inchangée.') }
   }
   async function download(credit: any) {
+    if (!isCurrent()) return
     try {
+      assertAuthScope(scope)
       const r = await api.get(`/invoices/credit-notes/${credit.id}/pdf`, { responseType: 'blob' })
+      if (!isCurrent()) return
       if (!String(r.headers['content-type']).includes('application/pdf')) throw new Error('PDF non confirmé')
       const url = URL.createObjectURL(r.data), a = document.createElement('a'); a.href = url; a.download = `avoir-${credit.number}.pdf`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 60000)
-    } catch { setError('Téléchargement de l’avoir impossible.') }
+    } catch { if (isCurrent()) setError('Téléchargement de l’avoir impossible.') }
   }
   return <section role="region" aria-label="Avoirs de la facture" style={{ marginTop: 22, paddingTop: 16, borderTop: '1px solid #cbd5e1' }}>
     <h3>Avoirs de la facture</h3><p>Un avoir corrige le document sans le réécrire. Il ne rembourse pas automatiquement le client et ne remet rien en stock.</p>
-    {!issued ? <p>Émettez l’original avant un avoir. Les documents historiques incomplets demandent une vérification.</p> : <>
+    {!allowed ? <p>Accès réservé au propriétaire ou au responsable connecté à cette société.</p> : !issued ? <p>Émettez l’original avant un avoir. Les documents historiques incomplets demandent une vérification.</p> : <>
       <form onSubmit={submit}>
-        <fieldset disabled={busy || !!pending} style={{ border: 0, padding: 0 }}>
+        <fieldset disabled={busy || !!pending || !!initial.error} style={{ border: 0, padding: 0 }}>
           <label style={label}>Montant à créditer (€)<input type="number" step="0.01" min="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Vide : tout le solde encore créditable" style={field} /></label>
           <label style={label}>Motif de l’avoir<input required minLength={5} maxLength={500} value={reason} onChange={e => setReason(e.target.value)} style={field} /></label>
         </fieldset>
-        <button type="submit" disabled={busy || credits.isError} style={{ padding: 12, marginTop: 8 }}>{busy ? 'Émission…' : pending ? 'Réessayer le même avoir' : 'Émettre l’avoir'}</button>
+        <button type="submit" disabled={busy || credits.isError || !!initial.error} style={{ padding: 12, marginTop: 8 }}>{busy ? 'Émission…' : pending ? 'Réessayer le même avoir' : 'Émettre l’avoir'}</button>
       </form>
       {pending && <p>Référence conservée : {pending.requestId}.</p>}
+      {refusal && <div style={{ border: '1px solid #94a3b8', borderRadius: 8, padding: 12, marginTop: 10 }}>
+        <p>Le serveur a refusé cette demande précise avant émission : aucun avoir émis pour cette demande. Le solde peut avoir évolué depuis ce contrôle.</p>
+        <button type="button" disabled={busy} onClick={editRefusedRequest} style={{ padding: 12 }}>Modifier la demande refusée</button>
+      </div>}
+      {notice && <p role="status">{notice}</p>}
       {credits.isError && <p role="alert">Historique des avoirs indisponible : émission désactivée.</p>}
       {credits.data?.map(c => <div key={c.id} style={{ borderTop: '1px solid #e2e8f0', marginTop: 14, paddingTop: 10 }}>
         <strong>{c.number} · {(c.totalCents / 100).toFixed(2)} {c.currency}</strong><p>{c.reason} · Avoir émis, remboursement distinct.</p>

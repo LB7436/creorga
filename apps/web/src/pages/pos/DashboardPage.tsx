@@ -167,14 +167,16 @@ export default function DashboardPage() {
           <>
             <CarteKpi
               titre="Tables occupées"
-              valeur={`${t.tablesOccupied} / ${t.tablesTotal}`}
+              valeur={`${t.tablesOccupied ?? '—'} / ${t.tablesTotal}`}
               icone={Users}
               couleur="#6366f1"
               enAvant
               sousTitre={
-                <div style={{ height: 6, background: '#e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ width: `${t.tablesTotal ? Math.round((t.tablesOccupied / t.tablesTotal) * 100) : 0}%`, height: '100%', background: '#6366f1', transition: 'width .4s' }} />
-                </div>
+                t.tablesOccupied === null
+                  ? <span>Occupation non renseignée · configuration historique</span>
+                  : <><div style={{ height: 6, background: '#e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${t.tablesTotal ? Math.round((t.tablesOccupied / t.tablesTotal) * 100) : 0}%`, height: '100%', background: '#6366f1', transition: 'width .4s' }} />
+                  </div><span style={{ fontSize: 11, color: '#64748b' }}>Plan de salle PostgreSQL</span></>
               }
             />
             <CarteKpi

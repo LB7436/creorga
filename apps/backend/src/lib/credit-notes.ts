@@ -1,11 +1,15 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import prisma from './prisma'
-import { createAvecNumero } from './numerotation'
+import { avecReprisesNumerotation, nextNumber } from './numerotation'
 import { allocateMinor, moneyMinor, totalsFromTtc, type TaxGroup } from './money'
 import { invoicePdf, type PrintableInvoice } from './invoice-pdf'
 
-export class CreditError extends Error { constructor(public status: number, message: string) { super(message) } }
+type CreditNotIssuedProof = {
+  code: 'CREDIT_AMOUNT_EXCEEDS_AVAILABLE'; outcome: 'NOT_ISSUED'; requestId: string
+  companyId: string; actorId: string; invoiceId: string; amountCents: number; availableCents: number; reason: string
+}
+export class CreditError extends Error { constructor(public status: number, message: string, public notIssuedProof?: CreditNotIssuedProof) { super(message) } }
 const groupSchema = z.array(z.object({ taxRate: z.number().min(0).max(100), baseCents: z.number().int().nonnegative(), taxCents: z.number().int().nonnegative(), totalCents: z.number().int().nonnegative() })).min(1)
 export const creditDto = (credit: any) => ({ id: credit.id, invoiceId: credit.invoiceId, number: credit.number, actorId: credit.actorId, reason: credit.reason,
   currency: credit.currency, totalCents: credit.totalCents, baseCents: credit.baseCents, taxCents: credit.taxCents,
@@ -14,7 +18,7 @@ export const creditDto = (credit: any) => ({ id: credit.id, invoiceId: credit.in
 export async function createCreditNote(companyId: string, actorId: string, invoiceId: string, raw: unknown) {
   const input = z.object({ requestId: z.string().uuid(), reason: z.string().trim().min(5).max(500), amountCents: z.number().int().positive().max(1_000_000_000).optional() }).strict().parse(raw)
   const requestHash = createHash('sha256').update(JSON.stringify({ companyId, actorId, invoiceId, ...input })).digest('hex')
-  return createAvecNumero(companyId, 'AVO', number => prisma.$transaction(async tx => {
+  return avecReprisesNumerotation(() => prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext(${`invoice-credit:${invoiceId}`}))::text`
     const invoice = await tx.invoice.findFirst({ where: { id: invoiceId, companyId } })
     if (!invoice) throw new CreditError(404, 'Facture introuvable dans cette société.')
@@ -45,7 +49,14 @@ export async function createCreditNote(companyId: string, actorId: string, invoi
     }
     if (remaining.some(g => g.totalCents < 0 || g.baseCents < 0 || g.taxCents < 0)) throw new CreditError(422, 'Historique déjà surcrédité : opération refusée.')
     const available = remaining.reduce((s, g) => s + g.totalCents, 0), totalCents = input.amountCents ?? available
-    if (!totalCents || totalCents > available) throw new CreditError(409, 'Le montant dépasse le solde encore créditable de la facture.')
+    // Preuve restrictive : original vérifié, référence non émise, verrou tenu,
+    // aucune création/PDF encore tenté. Le rejet sort après rollback de la transaction.
+    // Ni un zéro implicite, ni une collision de référence n'autorise cet abandon.
+    if (totalCents > available) throw new CreditError(409, 'Le montant dépasse le solde encore créditable de la facture.', {
+      code: 'CREDIT_AMOUNT_EXCEEDS_AVAILABLE', outcome: 'NOT_ISSUED', requestId: input.requestId,
+      companyId, actorId, invoiceId, amountCents: totalCents, availableCents: available, reason: input.reason,
+    })
+    if (!totalCents) throw new CreditError(409, 'Le montant dépasse le solde encore créditable de la facture.')
     const allocations = allocateMinor(totalCents, remaining.map(g => g.totalCents))
     const taxGroups: TaxGroup[] = remaining.flatMap((g, i) => {
       const total = allocations[i]
@@ -56,6 +67,12 @@ export async function createCreditNote(companyId: string, actorId: string, invoi
       return [{ taxRate: g.taxRate, baseCents, taxCents: total - baseCents, totalCents: total }]
     })
     const baseCents = taxGroups.reduce((s, g) => s + g.baseCents, 0), taxCents = totalCents - baseCents
+    // Lire après l'attente du verrou et les contrôles, sur la même connexion.
+    // Un candidat choisi avant ce verrou devient périmé pour toute la file et
+    // fait recalculer inutilement les PDF jusqu'à épuiser les reprises.
+    // Les factures distinctes gardent la contrainte société/numéro + reprises ;
+    // aucun verrou global n'est tenu pendant leur génération PDF.
+    const number = await nextNumber(companyId, 'AVO', tx)
     const snapshot: PrintableInvoice = { ...original, documentKind: 'CREDIT_NOTE', number, status: 'ISSUED', createdAt: new Date().toISOString(), dueDate: null,
       sourceDocumentNumber: invoice.number, subtotal: baseCents / 100, taxAmount: taxCents / 100, total: totalCents / 100,
       priceBasis: 'TTC', discountCents: 0, taxGroups,

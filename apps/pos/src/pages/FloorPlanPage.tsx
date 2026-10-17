@@ -4,6 +4,7 @@ import { usePOS, Table, TableStatus, STATUS_COLORS, STATUS_LABELS, elapsed, tabl
 import { useSeats, seatTotal, type Seat } from '../store/seatStore'
 import SeatPanel from '../components/SeatPanel'
 import { moveTableServer } from '../lib/floorBridge'
+import { ambiguousFloorGeometry, floorViewBox, floorViews } from '../lib/floor-view'
 
 interface Props {
   onOpenOrder: (tableId: string) => void
@@ -239,7 +240,7 @@ function VIPStar({ x, y }: { x: number; y: number }) {
 // ─── Single table card ──────────────────────────────────────────────────────
 function TableCard({
   table, onClick, onContextMenu, selected, transferTarget,
-  onSeatClick, selectedSeatId,
+  onSeatClick, selectedSeatId, roomLabel,
 }: {
   table: Table
   onClick: (e: React.MouseEvent) => void
@@ -248,6 +249,7 @@ function TableCard({
   transferTarget: boolean
   onSeatClick?: (tableId: string, position: number) => void
   selectedSeatId?: string | null
+  roomLabel: string
 }) {
   const [hover, setHover] = useState(false)
   const g = tableGeometry(table)
@@ -275,7 +277,8 @@ function TableCard({
     <g
       transform={`translate(${table.x},${table.y})`}
       role="button"
-      aria-label={`${table.name} — ${STATUS_LABELS[table.status]}`}
+      data-table-id={table.id}
+      aria-label={`${table.name} — ${roomLabel} — ${STATUS_LABELS[table.status]}`}
       tabIndex={0}
       onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick(event as any) } }}
       onClick={onClick}
@@ -345,7 +348,7 @@ function TableCard({
         {coverCount > 0 && (
           <text textAnchor="middle" dy="0.9em" fontSize={10} fill={effectiveColor} fontWeight={600}
             style={{ userSelect: 'none', pointerEvents: 'none' }}>
-            {coverCount} cvt · {total.toFixed(0)} €
+            {coverCount} cvt · {total.toFixed(2)} €
           </text>
         )}
 
@@ -579,11 +582,12 @@ function ContextMenu({ x, y, table, onClose, onViewOrder, onReassign, onMarkVIP,
 // ─── Table modal ────────────────────────────────────────────────────────────
 interface ModalProps {
   table: Table
+  roomLabel: string
   onClose: () => void
   onOpenOrder: (id: string) => void
 }
 
-function TableModal({ table, onClose, onOpenOrder }: ModalProps) {
+function TableModal({ table, roomLabel, onClose, onOpenOrder }: ModalProps) {
   const [covers, setCovers] = useState(2)
   // Refus du store (table impayée) : la modale RESTE ouverte avec le motif,
   // au lieu de se fermer comme si l'action avait réussi.
@@ -630,7 +634,9 @@ function TableModal({ table, onClose, onOpenOrder }: ModalProps) {
     display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s ease',
   }
 
-  const CoverSelector = () => (
+  // JSX direct : un composant défini ici changerait d'identité à chaque rendu,
+  // remonterait les boutons et ferait perdre la cible/focus pendant le polling.
+  const coverSelector = (
     <div style={{ marginBottom: 8 }}>
       <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 10, letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontWeight: 600 }}>
         Nombre de couverts
@@ -679,7 +685,7 @@ function TableModal({ table, onClose, onOpenOrder }: ModalProps) {
                 {table.seats} places
               </span>
               <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.05)', color: '#8892a8', fontWeight: 500 }}>
-                {table.section}
+                {roomLabel}
               </span>
               {waiter && (
                 <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: `${waiter.color}18`, color: waiter.color, fontWeight: 600 }}>
@@ -748,13 +754,13 @@ function TableModal({ table, onClose, onOpenOrder }: ModalProps) {
             <button onClick={handleMarkAvailable} style={gradientBtn('#34d399', '#10b981')}>Table nettoyee</button>
           ) : table.status === 'reserved' ? (
             <>
-              <CoverSelector />
+              {coverSelector}
               <button onClick={handleOpen} style={gradientBtn('#818cf8', '#6366f1')}>Ouvrir la table</button>
               <button onClick={handleMarkAvailable} style={gradientBtn('#94a3b8', '#475569')}>Annuler reservation</button>
             </>
           ) : (
             <>
-              <CoverSelector />
+              {coverSelector}
               <button onClick={handleOpen} style={gradientBtn('#818cf8', '#6366f1')}>Ouvrir la table</button>
               <button onClick={handleMarkReserved} style={gradientBtn('#a78bfa', '#8b5cf6')}>Reserver</button>
             </>
@@ -858,10 +864,11 @@ function FloorStatsBar({ tables }: { tables: Table[] }) {
       background: 'rgba(10,10,26,0.82)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
       border: '1px solid rgba(99,102,241,0.18)',
       boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+      maxWidth: 'calc(100% - 28px)', overflowX: 'auto',
     }}>
       {stat('Tables occupées', `${occupiedCount}/${totalCount}`, '#e2e8f0')}
       <div style={{ width: 1, height: 30, background: 'rgba(255,255,255,0.06)' }} />
-      {stat('CA en cours', `${ca.toFixed(0)} €`, '#10b981')}
+      {stat('CA en cours', `${ca.toFixed(2)} €`, '#10b981')}
       <div style={{ width: 1, height: 30, background: 'rgba(255,255,255,0.06)' }} />
       {stat('Couverts actifs', String(covers), '#a5b4fc')}
       <div style={{ width: 1, height: 30, background: 'rgba(255,255,255,0.06)' }} />
@@ -975,8 +982,11 @@ function useGhosts(show: boolean, tables: Table[]): Ghost[] {
 export default function FloorPlanPage({ onOpenOrder }: Props) {
   const tables = usePOS(s => s.tables)
   const rooms = usePOS(s => s.editor.rooms)
+  const seats = useSeats(s => s.seats)
   const setTableStatus = usePOS(s => s.setTableStatus)
   const ensureSeat = useSeats(s => s.ensureSeat)
+  const [roomKey, setRoomKey] = useState<string | null>(null)
+  const [listView, setListView] = useState(false)
   const [selectedSeatId, setSelectedSeatId] = useState<string | null>(null)
   const [selectedTable, setSelectedTable] = useState<Table | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; table: Table } | null>(null)
@@ -1003,22 +1013,31 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
 
   useTimeTick()
 
-  const visibleTables = tables.filter(t => !t.isMergedInto)
-  const ghosts = useGhosts(showGhosts, tables)
+  const views = useMemo(() => floorViews(rooms, tables.filter(table => !table.isMergedInto)), [rooms, tables])
+  const standaloneSeats = seats.filter(seat => seat.tableId === null)
+  const standaloneView = roomKey === 'standalone'
+  const activeView = views.find(view => view.key === roomKey) || views[0]
+  const visibleTables = standaloneView ? [] : activeView?.tables || []
+  const geometryAmbiguous = Boolean(activeView?.unconfirmed) || ambiguousFloorGeometry(visibleTables)
+  const showList = standaloneView || listView || geometryAmbiguous
+  const viewBox = floorViewBox(visibleTables)
+  const ghosts = useGhosts(showGhosts, visibleTables)
 
-  const sectionOccupancy = useMemo(() => {
-    const groups = { 'Salle principale': { o: 0, t: 0 }, 'Bar': { o: 0, t: 0 }, 'Terrasse': { o: 0, t: 0 } } as Record<string, { o: number; t: number }>
-    for (const tb of visibleTables) {
-      const sec = (tb.section in groups) ? tb.section : 'Salle principale'
-      groups[sec].t++
-      if (tb.status === 'occupied') groups[sec].o++
+  function chooseRoom(key: string) {
+    setRoomKey(key)
+    setSelectedTable(null); setSelectedSeatId(null); setContextMenu(null); setReassignFor(null)
+    setSelectedIds(new Set()); dragStart.current = null; setDragRect(null)
+    // Une destination intersalles peut être choisie depuis le menu Transférer.
+    // Un drag commencé dans une autre vue, lui, ne doit pas survivre au changement.
+    if (transferGesture.current?.mode === 'drag') {
+      transferGesture.current = null; consumedTransferClick.current = null
+      setTransferFrom(null); setTransferTo(null)
     }
-    return {
-      salle: groups['Salle principale'].t > 0 ? groups['Salle principale'].o / groups['Salle principale'].t : 0,
-      bar:   groups['Bar'].t > 0            ? groups['Bar'].o / groups['Bar'].t : 0,
-      terr:  groups['Terrasse'].t > 0       ? groups['Terrasse'].o / groups['Terrasse'].t : 0,
-    }
-  }, [visibleTables])
+  }
+
+  function roomLabelFor(table: Table) {
+    return floorViews(usePOS.getState().editor.rooms, [table]).find(view => view.tables.length)?.label || table.section
+  }
 
   const handleTableClick = useCallback((table: Table, e: React.MouseEvent) => {
     if (table.isMergedInto) return
@@ -1105,7 +1124,7 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
     const current = usePOS.getState().tables, src = current.find(t => t.id === fromId), dst = current.find(t => t.id === intoId)
     if (!src || !dst) { setTransferNotice('Table indisponible. Rechargez le plan.'); return }
     const merge = dst.covers.some(c => !c.paidAt && c.items.length > 0)
-    if (!window.confirm(`${merge ? 'Fusionner les additions' : 'Transférer la table'} : ${src.name} → ${dst.name} ? Les groupes et leurs soldes seront conservés. Les anciens QR seront révoqués ; renouvelez un QR distinct par groupe.`)) return
+    if (!window.confirm(`${merge ? 'Fusionner les additions' : 'Transférer la table'} : ${src.name} (${roomLabelFor(src)}) → ${dst.name} (${roomLabelFor(dst)}) ? Les groupes et leurs soldes seront conservés. Les anciens QR seront révoqués ; renouvelez un QR distinct par groupe.`)) return
     transferBusy.current = true
     setTransferNotice('Transfert en cours — en attente de confirmation serveur…')
     try {
@@ -1159,7 +1178,7 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
     consumedTransferClick.current = null
     transferGesture.current = { mode: 'context', from: t.id, into: null }
     setTransferFrom(t.id)
-    setTransferNotice(`Cliquez sur une table destination pour transférer depuis ${t.name}`)
+    setTransferNotice(`Cliquez sur une table destination pour transférer depuis ${t.name} (${roomLabelFor(t)}). Vous pouvez changer de salle.`)
   }
   function ctxClean(t: Table) {
     // Le menu contextuel a le même garde-fou que la modale : une table
@@ -1175,13 +1194,60 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
     : null
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: '#07070d' }}>
+    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: '#07070d', display: 'flex', flexDirection: 'column' }}>
       <PulseStyles />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '10px 16px', borderBottom: '1px solid #252542', color: '#e2e8f0' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600 }}>
+          Salle
+          <select aria-label="Salle affichée" value={standaloneView ? 'standalone' : activeView?.key || ''} onChange={event => chooseRoom(event.target.value)}
+            style={{ maxWidth: '65vw', padding: '8px 10px', borderRadius: 8, border: '1px solid #4b5074', background: '#151526', color: '#f1f5f9', font: 'inherit' }}>
+            {views.map(view => <option key={view.key} value={view.key}>{view.label} ({view.tables.length})</option>)}
+            <option value="standalone">Chaises indépendantes ({standaloneSeats.length})</option>
+          </select>
+        </label>
+        {!standaloneView && <button onClick={() => setListView(value => !value)} disabled={geometryAmbiguous}
+          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #4b5074', background: '#151526', color: '#e2e8f0', cursor: geometryAmbiguous ? 'not-allowed' : 'pointer' }}>
+          {showList ? 'Plan de salle' : 'Liste des tables'}
+        </button>}
+        <span style={{ fontSize: 12, color: '#cbd5e1' }}>{standaloneView ? 'Sans rattachement de salle' : `${activeView?.label || 'Aucune salle'} · ${visibleTables.length} table(s)`}</span>
+      </div>
+
+      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+      {showList ? <div style={{ height: '100%', overflowY: 'auto', padding: '14px 18px 150px', boxSizing: 'border-box' }}>
+        {!standaloneView && geometryAmbiguous && <p role="status" style={{ color: '#fde68a', margin: '0 0 14px', lineHeight: 1.5 }}>
+          Géométrie superposée ou salle non confirmée : choisissez une table dans la liste. Aucune position enregistrée n’a été déplacée.
+        </p>}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+          {visibleTables.map(table => <div key={table.id}><button data-table-id={table.id}
+            aria-label={`${table.name} — ${activeView?.label || table.section} — ${STATUS_LABELS[table.status]}`}
+            onClick={event => handleTableClick(table, event)} onContextMenu={event => handleContextMenu(table, event)}
+            style={{ width: '100%', textAlign: 'left', minHeight: 100, padding: 16, borderRadius: 12, border: `2px solid ${transferFrom === table.id || transferTo === table.id ? '#10b981' : selectedIds.has(table.id) ? '#818cf8' : STATUS_COLORS[table.status]}`, background: '#111125', color: '#f1f5f9', cursor: 'pointer' }}>
+            <strong style={{ display: 'block', fontSize: 16 }}>{table.name}</strong>
+            <span style={{ display: 'block', marginTop: 6 }}>{activeView?.label} · {STATUS_LABELS[table.status]}</span>
+            <span style={{ display: 'block', marginTop: 6 }}>{table.seats} places · {tableTotal(table).toFixed(2)} €</span>
+          </button><div role="group" aria-label={`Places de ${table.name} — ${activeView?.label || table.section}`} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingTop: 8 }}>
+            {Array.from({ length: table.seats }, (_, position) => <button key={position} data-seat-table-id={table.id}
+              aria-label={`${table.name} — ${activeView?.label || table.section} — place ${position + 1}`}
+              onClick={() => { const seat = ensureSeat(table.id, position); setSelectedSeatId(seat.id) }}
+              style={{ minWidth: 40, minHeight: 40, borderRadius: 8, border: '1px solid #a78bfa', background: '#151526', color: '#f1f5f9', cursor: 'pointer' }}>
+              {position + 1}
+            </button>)}
+          </div></div>)}
+          {standaloneView && standaloneSeats.map((seat, index) => <button key={seat.id} data-seat-id={seat.id}
+            onClick={() => setSelectedSeatId(seat.id)}
+            style={{ textAlign: 'left', minHeight: 100, padding: 16, borderRadius: 12, border: '1px solid #a78bfa', background: '#111125', color: '#f1f5f9', cursor: 'pointer' }}>
+            <strong>{seat.customerName || `Chaise indépendante ${index + 1}`}</strong>
+            <span style={{ display: 'block', marginTop: 6 }}>{seat.status === 'free' ? 'Libre' : seat.status === 'reserved' ? 'Réservée' : 'Occupée'} · {seatTotal(seat).toFixed(2)} €</span>
+          </button>)}
+        </div>
+        {visibleTables.length === 0 && (!standaloneView || standaloneSeats.length === 0) && <p style={{ color: '#cbd5e1' }}>Aucune {standaloneView ? 'chaise indépendante' : 'table'} dans cette vue.</p>}
+      </div> : <>
 
       <svg
         ref={svgRef}
         width="100%" height="100%"
-        viewBox={`0 0 ${VW} ${VH}`}
+        viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
         preserveAspectRatio="xMidYMid meet"
         style={{ display: 'block', userSelect: 'none' }}
         onMouseDown={onMouseDown}
@@ -1202,14 +1268,11 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
           </radialGradient>
         </defs>
 
-        <rect data-bg="1" width={VW} height={VH} fill="url(#bgGradient)" />
-        <rect data-bg="1" width={VW} height={VH} fill="url(#floorGrid)" />
-        <rect data-bg="1" width={VW} height={VH} fill="url(#dotGrid)" />
+        <rect data-bg="1" x={viewBox.x} y={viewBox.y} width={viewBox.w} height={viewBox.h} fill="url(#bgGradient)" />
+        <rect data-bg="1" x={viewBox.x} y={viewBox.y} width={viewBox.w} height={viewBox.h} fill="url(#floorGrid)" />
+        <rect data-bg="1" x={viewBox.x} y={viewBox.y} width={viewBox.w} height={viewBox.h} fill="url(#dotGrid)" />
 
-        {rooms.map(room => { const list = visibleTables.filter(t => t.section === room.id || t.section === room.label); return <SectionBg key={room.id} x={room.x} y={room.y} w={room.w} h={room.h} label={room.label} color={room.color} gradId="gradSalle" heatmap={heatmap} occupancy={list.length ? list.filter(t => t.status === 'occupied').length / list.length : 0} /> })}
-
-        <line x1={628} y1={20} x2={628} y2={598} stroke="rgba(255,255,255,0.03)" strokeWidth={1.5} />
-        <line x1={632} y1={276} x2={1078} y2={276} stroke="rgba(255,255,255,0.03)" strokeWidth={1.5} />
+        {activeView && <SectionBg x={viewBox.x + 12} y={viewBox.y + 12} w={viewBox.w - 24} h={viewBox.h - 24} label={activeView.label} color={activeView.color} gradId="gradSalle" heatmap={heatmap} occupancy={visibleTables.length ? visibleTables.filter(t => t.status === 'occupied').length / visibleTables.length : 0} />}
 
         {/* Ghost reservations */}
         {ghosts.map(g => <GhostTable key={g.id} g={g} />)}
@@ -1226,6 +1289,7 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
           >
             <TableCard
               table={table}
+              roomLabel={activeView?.label || table.section}
               onClick={e => handleTableClick(table, e)}
               onContextMenu={e => handleContextMenu(table, e)}
               selected={selectedIds.has(table.id)}
@@ -1238,12 +1302,6 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
             />
           </g>
         ))}
-
-        {/* Standalone seats (chairs detached from any table) */}
-        <StandaloneSeats
-          selectedSeatId={selectedSeatId}
-          onSeatClick={(seatId) => setSelectedSeatId(seatId === selectedSeatId ? null : seatId)}
-        />
 
         {/* Selection rectangle */}
         {dragRect && (
@@ -1258,7 +1316,6 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
           />
         )}
 
-        <Legend />
       </svg>
 
       <Toolbar
@@ -1269,7 +1326,9 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
       />
 
       <StatsOverlay tables={tables} />
+      </>}
       <FloorStatsBar tables={tables} />
+      </div>
 
       {/* Transient notices */}
       <AnimatePresence>
@@ -1340,6 +1399,7 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
           <TableModal
             key={syncedSelected.id}
             table={syncedSelected}
+            roomLabel={roomLabelFor(syncedSelected)}
             onClose={() => setSelectedTable(null)}
             onOpenOrder={(id) => { setSelectedTable(null); onOpenOrder(id) }}
           />

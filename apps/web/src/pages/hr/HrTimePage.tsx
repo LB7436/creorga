@@ -1,55 +1,106 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { CheckCircle2, Clock3, LogIn, LogOut, RefreshCw } from 'lucide-react'
 import api from '@/lib/api'
 import { toastError, toastSuccess } from '@/lib/toast'
+import { useAuthStore } from '@/stores/authStore'
+import { authDataScope } from '@/lib/authScope'
 
 type Member = { userId: string; user: { firstName: string; lastName: string; email: string } }
 type Punch = { id: string; userId: string; clockIn: string; clockOut: string | null; user: { firstName: string; lastName: string } }
 type Leave = { id: string; userId: string; type: string; startDate: string; endDate: string; status: string; notes?: string | null; user: { firstName: string; lastName: string } }
 
 export default function HrTimePage({ view }: { view: 'punches' | 'leaves' }) {
+  const scope = useAuthStore(authDataScope)
+  return <ScopedHrTimePage key={`${scope}:${view}`} scope={scope} view={view} />
+}
+
+function ScopedHrTimePage({ view, scope }: { view: 'punches' | 'leaves'; scope: string }) {
+  const role = useAuthStore(state => state.role)
+  const canDecideLeaves = role === 'owner' || role === 'manager'
   const [members, setMembers] = useState<Member[]>([])
   const [punches, setPunches] = useState<Punch[]>([])
   const [leaves, setLeaves] = useState<Leave[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedUserId, setSelectedUserId] = useState('')
   const [leaveForm, setLeaveForm] = useState({ userId: '', type: 'VACATION', startDate: '', endDate: '', notes: '' })
+  const [leaveSaving, setLeaveSaving] = useState(false)
+  const [leaveUncertain, setLeaveUncertain] = useState(false)
+  const [leaveFeedback, setLeaveFeedback] = useState<{ message: string; error: boolean } | null>(null)
+  const leaveLock = useRef(false), mounted = useRef(true), readGeneration = useRef(0)
+  const isCurrent = useCallback(() => mounted.current && scope === authDataScope(useAuthStore.getState()), [scope])
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
 
   const load = useCallback(async () => {
+    if (!isCurrent()) return false
+    const read = ++readGeneration.current
+    const currentRead = () => isCurrent() && read === readGeneration.current
     setLoading(true)
     try {
       const [teamResponse, punchResponse, leaveResponse] = await Promise.all([
         api.get<Member[]>('/hr/team'), api.get<Punch[]>('/hr/punches'), api.get<Leave[]>('/hr/leave-requests'),
       ])
+      if (!currentRead()) return false
       setMembers(teamResponse.data); setPunches(punchResponse.data); setLeaves(leaveResponse.data)
       if (!selectedUserId && teamResponse.data[0]) setSelectedUserId(teamResponse.data[0].userId)
       if (!leaveForm.userId && teamResponse.data[0]) setLeaveForm((value) => ({ ...value, userId: teamResponse.data[0].userId }))
-    } catch (error: any) { toastError(error?.response?.data?.message || 'Impossible de charger les données RH') }
-    finally { setLoading(false) }
-  }, [leaveForm.userId, selectedUserId])
+      return true
+    } catch (error: any) { if (currentRead()) toastError(error?.response?.data?.message || 'Impossible de charger les données RH'); return false }
+    finally { if (currentRead()) setLoading(false) }
+  }, [leaveForm.userId, selectedUserId, isCurrent])
 
   useEffect(() => { void load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function punch(direction: 'in' | 'out') {
+    if (!isCurrent()) return
     if (!selectedUserId) return toastError('Choisissez un collaborateur')
-    try { await api.post(`/hr/punch/${direction}`, { userId: selectedUserId }); await load(); toastSuccess(direction === 'in' ? 'Entrée pointée' : 'Sortie pointée') }
-    catch (error: any) { toastError(error?.response?.data?.message || 'Pointage impossible') }
+    try { await api.post(`/hr/punch/${direction}`, { userId: selectedUserId }); if (!isCurrent()) return; await load(); if (isCurrent()) toastSuccess(direction === 'in' ? 'Entrée pointée' : 'Sortie pointée') }
+    catch (error: any) { if (isCurrent()) toastError(error?.response?.data?.message || 'Pointage impossible') }
   }
 
   async function createLeave(event: React.FormEvent) {
     event.preventDefault()
-    try { await api.post('/hr/leave-requests', leaveForm); setLeaveForm((value) => ({ ...value, startDate: '', endDate: '', notes: '' })); await load(); toastSuccess('Demande de congé enregistrée') }
-    catch (error: any) { toastError(error?.response?.data?.message || 'Enregistrement impossible') }
+    // Le ref est posé avant le premier await et avant le prochain rendu React.
+    if (leaveLock.current || !isCurrent()) return
+    leaveLock.current = true
+    setLeaveSaving(true); setLeaveFeedback(null)
+    let uncertain = false
+    try {
+      const response = await api.post<Leave>('/hr/leave-requests', leaveForm)
+      if (!isCurrent()) return
+      if (!response.data?.id) throw new Error('Référence de demande non confirmée')
+      const saved = response.data
+      setLeaves(value => value.some(leave => leave.id === saved.id) ? value : [saved, ...value])
+      setLeaveForm(value => ({ ...value, startDate: '', endDate: '', notes: '' }))
+      const refreshed = await load()
+      if (!isCurrent()) return
+      setLeaveFeedback({ error: false, message: refreshed ? 'Demande de congé enregistrée.' : 'Demande de congé enregistrée, mais la liste n’a pas pu être actualisée. Ne recréez pas cette demande.' })
+      toastSuccess('Demande de congé enregistrée')
+    } catch (error: any) {
+      if (!isCurrent()) return
+      const rejected = [400, 401, 403, 404, 422].includes(error?.response?.status)
+      uncertain = !rejected
+      setLeaveUncertain(uncertain)
+      const message = rejected ? error?.response?.data?.message || 'Demande refusée par le serveur. Vérifiez les informations saisies.'
+        : 'Réponse non confirmée : la demande peut avoir été enregistrée. Actualisez la liste et vérifiez avec le responsable avant toute nouvelle demande. Aucun nouvel envoi automatique.'
+      setLeaveFeedback({ message, error: true }); toastError(message)
+    } finally {
+      if (isCurrent()) { leaveLock.current = uncertain; setLeaveSaving(false) }
+    }
   }
 
   async function setLeaveStatus(leave: Leave, status: 'APPROVED' | 'REJECTED') {
-    try { await api.put(`/hr/leave-requests/${leave.id}/status`, { status }); await load(); toastSuccess(status === 'APPROVED' ? 'Congé approuvé' : 'Congé refusé') }
-    catch (error: any) { toastError(error?.response?.data?.message || 'Modification impossible') }
+    if (!isCurrent()) return
+    // Le contrôle serveur reste obligatoire ; un ancien handler UI conservé
+    // ne doit pas proposer une décision après le retrait du rôle local.
+    const currentRole = useAuthStore.getState().role
+    if (currentRole !== 'owner' && currentRole !== 'manager') return toastError('Action réservée aux responsables')
+    try { await api.put(`/hr/leave-requests/${leave.id}/status`, { status }); if (!isCurrent()) return; await load(); if (isCurrent()) toastSuccess(status === 'APPROVED' ? 'Congé approuvé' : 'Congé refusé') }
+    catch (error: any) { if (isCurrent()) toastError(error?.response?.data?.message || 'Modification impossible') }
   }
 
   const memberName = (id: string) => { const member = members.find((entry) => entry.userId === id); return member ? `${member.user.firstName} ${member.user.lastName}` : id }
   return <main style={page}><header style={header}><div><p style={eyebrow}>Gestion d’équipe</p><h1 style={title}>{view === 'punches' ? 'Pointages' : 'Congés'}</h1><p style={subtitle}>Données réelles, enregistrées pour votre société.</p></div><button onClick={() => void load()} disabled={loading} style={secondary}><RefreshCw size={16} /> Actualiser</button></header>
-    {view === 'punches' ? <><section style={card}><h2 style={h2}><Clock3 size={19} /> Pointer un collaborateur</h2><div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)} style={{ ...input, flex: '1 1 240px' }}>{members.map((member) => <option key={member.userId} value={member.userId}>{member.user.firstName} {member.user.lastName}</option>)}</select><button onClick={() => void punch('in')} style={primary}><LogIn size={16} /> Entrée</button><button onClick={() => void punch('out')} style={secondary}><LogOut size={16} /> Sortie</button></div></section><section style={card}><h2 style={h2}>Historique</h2>{punches.length === 0 ? <Empty text="Aucun pointage." /> : punches.map((punch) => <article key={punch.id} style={row}><div><strong>{punch.user.firstName} {punch.user.lastName}</strong><div style={small}>Entrée : {new Date(punch.clockIn).toLocaleString('fr-LU')}</div></div>{punch.clockOut ? <span style={good}><CheckCircle2 size={14} /> Sortie {new Date(punch.clockOut).toLocaleString('fr-LU')}</span> : <span style={open}>En service</span>}</article>)}</section></> : <><form onSubmit={createLeave} style={card}><h2 style={h2}>Nouvelle demande</h2><div style={grid}><label style={label}>Collaborateur<select required value={leaveForm.userId} onChange={(event) => setLeaveForm({ ...leaveForm, userId: event.target.value })} style={input}>{members.map((member) => <option key={member.userId} value={member.userId}>{member.user.firstName} {member.user.lastName}</option>)}</select></label><label style={label}>Type<select value={leaveForm.type} onChange={(event) => setLeaveForm({ ...leaveForm, type: event.target.value })} style={input}><option value="VACATION">Vacances</option><option value="SICK">Maladie</option><option value="OTHER">Autre</option></select></label><label style={label}>Début<input required type="date" value={leaveForm.startDate} onChange={(event) => setLeaveForm({ ...leaveForm, startDate: event.target.value })} style={input} /></label><label style={label}>Fin<input required type="date" value={leaveForm.endDate} onChange={(event) => setLeaveForm({ ...leaveForm, endDate: event.target.value })} style={input} /></label><label style={label}>Note<input value={leaveForm.notes} onChange={(event) => setLeaveForm({ ...leaveForm, notes: event.target.value })} style={input} /></label></div><button style={primary}>Enregistrer la demande</button></form><section style={card}>{leaves.length === 0 ? <Empty text="Aucune demande de congé." /> : leaves.map((leave) => <article key={leave.id} style={row}><div><strong>{memberName(leave.userId)} · {leave.type}</strong><div style={small}>{new Date(leave.startDate).toLocaleDateString('fr-LU')} – {new Date(leave.endDate).toLocaleDateString('fr-LU')}{leave.notes ? ` · ${leave.notes}` : ''}</div></div>{leave.status === 'PENDING' ? <div style={{ display: 'flex', gap: 7 }}><button onClick={() => void setLeaveStatus(leave, 'APPROVED')} style={primary}>Approuver</button><button onClick={() => void setLeaveStatus(leave, 'REJECTED')} style={secondary}>Refuser</button></div> : <span style={leave.status === 'APPROVED' ? good : rejected}>{leave.status === 'APPROVED' ? 'Approuvé' : 'Refusé'}</span>}</article>)}</section></>}
+    {view === 'punches' ? <><section style={card}><h2 style={h2}><Clock3 size={19} /> Pointer un collaborateur</h2><div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)} style={{ ...input, flex: '1 1 240px' }}>{members.map((member) => <option key={member.userId} value={member.userId}>{member.user.firstName} {member.user.lastName}</option>)}</select><button onClick={() => void punch('in')} style={primary}><LogIn size={16} /> Entrée</button><button onClick={() => void punch('out')} style={secondary}><LogOut size={16} /> Sortie</button></div></section><section style={card}><h2 style={h2}>Historique</h2>{punches.length === 0 ? <Empty text="Aucun pointage." /> : punches.map((punch) => <article key={punch.id} style={row}><div><strong>{punch.user.firstName} {punch.user.lastName}</strong><div style={small}>Entrée : {new Date(punch.clockIn).toLocaleString('fr-LU')}</div></div>{punch.clockOut ? <span style={good}><CheckCircle2 size={14} /> Sortie {new Date(punch.clockOut).toLocaleString('fr-LU')}</span> : <span style={open}>En service</span>}</article>)}</section></> : <><form onSubmit={createLeave} style={card} aria-busy={leaveSaving}><h2 style={h2}>Nouvelle demande</h2>{leaveFeedback && <p role={leaveFeedback.error ? 'alert' : 'status'} style={{ color: leaveFeedback.error ? '#b91c1c' : '#047857', lineHeight: 1.6 }}>{leaveFeedback.message}</p>}<fieldset disabled={loading || leaveSaving || leaveUncertain} style={{ border: 0, padding: 0, margin: 0 }}><div style={grid}><label style={label}>Collaborateur<select required value={leaveForm.userId} onChange={(event) => setLeaveForm({ ...leaveForm, userId: event.target.value })} style={input}>{members.map((member) => <option key={member.userId} value={member.userId}>{member.user.firstName} {member.user.lastName}</option>)}</select></label><label style={label}>Type<select value={leaveForm.type} onChange={(event) => setLeaveForm({ ...leaveForm, type: event.target.value })} style={input}><option value="VACATION">Vacances</option><option value="SICK">Maladie</option><option value="OTHER">Autre</option></select></label><label style={label}>Début<input required type="date" value={leaveForm.startDate} onChange={(event) => setLeaveForm({ ...leaveForm, startDate: event.target.value })} style={input} /></label><label style={label}>Fin<input required type="date" value={leaveForm.endDate} onChange={(event) => setLeaveForm({ ...leaveForm, endDate: event.target.value })} style={input} /></label><label style={label}>Note<input value={leaveForm.notes} onChange={(event) => setLeaveForm({ ...leaveForm, notes: event.target.value })} style={input} /></label></div></fieldset><button type="submit" disabled={loading || leaveSaving || leaveUncertain} style={primary}>{leaveSaving ? 'Enregistrement en cours…' : leaveUncertain ? 'Vérification nécessaire' : 'Enregistrer la demande'}</button></form><section style={card}>{leaves.length === 0 ? <Empty text={leaveUncertain ? 'Liste non confirmée : actualisez et vérifiez auprès du responsable.' : loading ? 'Chargement des demandes…' : 'Aucune demande de congé.'} /> : leaves.map((leave) => <article key={leave.id} style={row}><div><strong>{memberName(leave.userId)} · {leave.type}</strong><div style={small}>{new Date(leave.startDate).toLocaleDateString('fr-LU')} – {new Date(leave.endDate).toLocaleDateString('fr-LU')}{leave.notes ? ` · ${leave.notes}` : ''}</div></div>{leave.status === 'PENDING' && canDecideLeaves ? <div style={{ display: 'flex', gap: 7 }}><button onClick={() => void setLeaveStatus(leave, 'APPROVED')} style={primary}>Approuver</button><button onClick={() => void setLeaveStatus(leave, 'REJECTED')} style={secondary}>Refuser</button></div> : <span style={leave.status === 'APPROVED' ? good : leave.status === 'PENDING' ? open : rejected}>{leave.status === 'APPROVED' ? 'Approuvé' : leave.status === 'PENDING' ? 'En attente' : 'Refusé'}</span>}</article>)}</section></>}
   </main>
 }
 

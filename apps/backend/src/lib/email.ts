@@ -225,6 +225,19 @@ function button(href: string, label: string): string {
 // aucun e-mail n'est envoyé tant que sendEmail est désactivé.
 const APP_URL = process.env.FRONTEND_URL || '#'
 
+/** Display labels only; never modify the shift dates supplied by storage. */
+export function planningShiftLabels(startTime: Date, endTime: Date) {
+  const timeZone = 'Europe/Luxembourg'
+  const calendarDate = (date: Date) => date.toLocaleDateString('fr-LU', { timeZone, day: '2-digit', month: '2-digit', year: 'numeric' })
+  const endDate = calendarDate(endTime)
+  const end = endTime.toLocaleTimeString('fr-LU', { timeZone, hour: '2-digit', minute: '2-digit' })
+  return {
+    date: startTime.toLocaleDateString('fr-LU', { timeZone, weekday: 'long', day: '2-digit', month: '2-digit' }),
+    start: startTime.toLocaleTimeString('fr-LU', { timeZone, hour: '2-digit', minute: '2-digit' }),
+    end: calendarDate(startTime) === endDate ? end : `${end} (${endDate})`,
+  }
+}
+
 export const emailTemplates = {
   welcome: (name: string) => layout(`
     <h1 style="margin:0 0 16px;font-size:24px;color:${BRAND_DARK};">Bienvenue ${name} !</h1>

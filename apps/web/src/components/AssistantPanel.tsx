@@ -10,6 +10,9 @@ import { useAssistant, type AssistantAttachment, type AssistantContext } from '@
 import { useTheme } from '@/lib/theme'
 import { fetchAuth } from '@/lib/fetchAuth'
 import { AssistantConfirmationError, confirmAssistantPreview } from '@/lib/assistantConfirmation'
+import { useAuthStore } from '@/stores/authStore'
+import { authDataScope } from '@/lib/authScope'
+import { GAMES_ENABLED } from '@/optional/entertainment'
 
 // v3.18 — backend dynamique (localStorage > env > localhost)
 function getBackend(): string {
@@ -42,6 +45,7 @@ async function fileToDataUrl(file: File): Promise<string> {
 
 export default function AssistantPanel() {
   const a = useAssistant()
+  const dataScope = useAuthStore(authDataScope)
   const navigate = useNavigate()
   const location = useLocation()
   const themeStore = useTheme()
@@ -61,7 +65,7 @@ export default function AssistantPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scanInputRef = useRef<HTMLInputElement>(null)
   const docInputRef = useRef<HTMLInputElement>(null)
-  const requestRef = useRef<AssistantContext | null>(null)
+  const requestRef = useRef<{ context: AssistantContext; controller: AbortController; timer: ReturnType<typeof setTimeout> } | null>(null)
   const confirmingRef = useRef(false)
 
   useEffect(() => {
@@ -72,6 +76,31 @@ export default function AssistantPanel() {
     try { recognitionRef.current?.stop() } catch { /* déjà interrompu */ }
     recognitionRef.current = null
   }, [a.scopeKey, a.sessionVersion, a.currentConversationId])
+
+  // Hiding the panel or changing identity/permissions abandons only this
+  // analysis. It does not cancel an already confirmed business transaction.
+  useEffect(() => () => {
+    const operation = requestRef.current
+    if (!operation) return
+    requestRef.current = null
+    clearTimeout(operation.timer)
+    operation.controller.abort(new DOMException('Contexte de demande fermé.', 'AbortError'))
+    const state = useAssistant.getState()
+    if (state.isCurrentContext(operation.context) && state.mode === 'thinking') state.setMode('idle')
+  }, [a.scopeKey, a.sessionVersion, a.currentConversationId, a.open, dataScope])
+
+  function stopRequest() {
+    const operation = requestRef.current
+    if (!operation) return
+    requestRef.current = null
+    clearTimeout(operation.timer)
+    operation.controller.abort(new DOMException('Analyse interrompue.', 'AbortError'))
+    const state = useAssistant.getState()
+    if (state.isCurrentContext(operation.context)) {
+      state.addMessageForContext(operation.context, { role: 'bot', text: 'Analyse arrêtée. Cette interruption ne prouve pas l’annulation d’une action déjà effectuée ; vérifiez les données avant de réessayer.' })
+      if (state.mode === 'thinking') state.setMode('idle')
+    }
+  }
 
   useEffect(() => {
     const onResize = () => setViewport({ width: window.innerWidth, height: window.innerHeight })
@@ -221,12 +250,31 @@ export default function AssistantPanel() {
   // décide du moteur IA ; le navigateur ne promet pas un traitement local.
   async function ask(text: string) {
     const context = a.captureContext()
-    if (!context || requestRef.current && a.isCurrentContext(requestRef.current)) return
+    if (!context || requestRef.current && a.isCurrentContext(requestRef.current.context)) return
     const attached = [...a.attachments]
     const hasText = !!text.trim()
     const hasAttachments = attached.length > 0
     if (!hasText && !hasAttachments) return
-    requestRef.current = context
+    const controller = new AbortController()
+    const operation = { context, controller, timer: setTimeout(() => controller.abort(new DOMException('Le délai de l’assistant est dépassé. Vérifiez les données avant de réessayer.', 'TimeoutError')), hasAttachments ? 180_000 : 25_000) }
+    requestRef.current = operation
+    const current = () => requestRef.current === operation && a.isCurrentContext(context) && !controller.signal.aborted
+    const interrupted = () => controller.signal.reason || new DOMException('La demande n’est plus active.', 'AbortError')
+    // Covers both fetch and body parsing, including an auth refresh shared by
+    // other consumers. Never abort that shared refresh or adopt a late answer.
+    const wait = async <T,>(work: () => Promise<T>): Promise<T> => {
+      if (!current()) throw interrupted()
+      let onAbort!: () => void
+      try {
+        return await new Promise<T>((resolve, reject) => {
+          onAbort = () => reject(interrupted())
+          controller.signal.addEventListener('abort', onAbort, { once: true })
+          Promise.resolve().then(() => { if (!current()) throw interrupted(); return work() }).then(value => {
+            if (current()) resolve(value); else reject(interrupted())
+          }, reject)
+        })
+      } finally { controller.signal.removeEventListener('abort', onAbort) }
+    }
 
     // Add user message with attachments preview
     const userText = hasText ? text : `[${attached.length} pièce(s) jointe(s)]`
@@ -242,13 +290,13 @@ export default function AssistantPanel() {
       const firstImage = attached.find((att) => (att.kind === 'image' || att.kind === 'scan') && att.dataUrl)
       if (firstImage && firstImage.dataUrl) {
         const b64 = firstImage.dataUrl.replace(/^data:image\/\w+;base64,/, '')
-        const r = await fetchAuth(`${BE}/api/agent/photo-magic`, {
+        const r = await wait(() => fetchAuth(`${BE}/api/agent/photo-magic`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ imageBase64: b64, hint: text || '', currentPath: location.pathname }),
-          signal: AbortSignal.timeout(180_000),
-        })
+          signal: controller.signal,
+        }))
         if (r.ok) {
-          const d = await r.json()
+          const d = await wait(() => r.json())
           const summary = d.title
             ? `${d.emoji || '📋'} ${d.title}\n${d.summary}`
             : `${d.emoji || '📋'} ${d.summary || 'Image analysée'}`
@@ -257,7 +305,7 @@ export default function AssistantPanel() {
           if (d.cta?.route) setTimeout(() => { if (a.isCurrentContext(context)) navigate(d.cta.route) }, 1500)
           return
         }
-        const errText = await r.text()
+        const errText = await wait(() => r.text())
         a.addMessageForContext(context, { role: 'bot', text: `❌ Vision IA indisponible : ${errText.slice(0, 200)}` })
         return
       }
@@ -270,32 +318,32 @@ export default function AssistantPanel() {
           return
         }
         const b64 = firstPdf.dataUrl.replace(/^data:application\/pdf;base64,/, '')
-        const r = await fetchAuth(`${BE}/api/agent/process-pdf`, {
+        const r = await wait(() => fetchAuth(`${BE}/api/agent/process-pdf`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pdfBase64: b64, hint: text || '', currentPath: location.pathname }),
-          signal: AbortSignal.timeout(180_000),
-        })
+          signal: controller.signal,
+        }))
         if (r.ok) {
-          const d = await r.json()
+          const d = await wait(() => r.json())
           a.addMessageForContext(context, { role: 'bot', text: d.text || 'PDF analysé.', ui: d })
           speak(d.summary || d.text || '', context)
           if (d.uiAction?.type === 'navigate') setTimeout(() => { if (a.isCurrentContext(context)) navigate(d.uiAction.to) }, 2000)
           return
         }
-        const errText = await r.text()
+        const errText = await wait(() => r.text())
         a.addMessageForContext(context, { role: 'bot', text: `❌ PDF non analysable : ${errText.slice(0, 200)}` })
         return
       }
 
       // v3.18.8 — DEFAULT : texte seul → super-ask (agent tool-loop avec Gemma)
       // Le super-agent essaie 3 niveaux : parseIntent → Gemma intent pick → smart-query
-      const r = await fetchAuth(`${BE}/api/agent/super-ask`, {
+      const r = await wait(() => fetchAuth(`${BE}/api/agent/super-ask`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: hasText ? text : userText, currentPath: location.pathname, userId: 'default' }),
-        signal: AbortSignal.timeout(180_000),
-      })
-      const data = await r.json()
-      if (!r.ok) throw new Error(data.message || data.error || `Assistant indisponible (HTTP ${r.status}).`)
+        signal: controller.signal,
+      }))
+      const data = await wait(() => r.json())
+      if (!r.ok) throw new Error(data.text || data.message || data.error || `Assistant indisponible (HTTP ${r.status}).`)
 
       if (data.kind === 'workflow') {
         const stepCount = data.steps?.length || 0
@@ -331,10 +379,13 @@ export default function AssistantPanel() {
         speak(txt, context)
       }
     } catch (e: any) {
-      a.addMessageForContext(context, { role: 'bot', text: `❌ Erreur : ${e?.message || 'inconnue'}` })
+      if (requestRef.current === operation && a.isCurrentContext(context)) a.addMessageForContext(context, { role: 'bot', text: `❌ Erreur : ${e?.message || 'inconnue'}` })
     } finally {
-      if (requestRef.current === context) requestRef.current = null
-      if (a.isCurrentContext(context) && useAssistant.getState().mode === 'thinking') a.setMode('idle')
+      clearTimeout(operation.timer)
+      if (requestRef.current === operation) {
+        requestRef.current = null
+        if (a.isCurrentContext(context) && useAssistant.getState().mode === 'thinking') a.setMode('idle')
+      }
     }
   }
 
@@ -367,9 +418,11 @@ export default function AssistantPanel() {
   }
 
   const SUGGESTIONS = [
-    'Quel jeu recommandes-tu pour une table de 4 ?',
-    'Explique Scoopa en 20 secondes',
-    'Lance un défi rapide pour les clients',
+    ...(GAMES_ENABLED ? [
+      'Quel jeu recommandes-tu pour une table de 4 ?',
+      'Explique Scoopa en 20 secondes',
+      'Lance un défi rapide pour les clients',
+    ] : []),
     'Mets 3 cafés sur la table 1',
     'Qui travaille aujourd\'hui ?',
     'Crée une facture pour Brasserie du Centre de 850€',
@@ -533,6 +586,7 @@ export default function AssistantPanel() {
           {a.mode === 'thinking' && (
             <div style={{ alignSelf: 'flex-start', padding: '8px 14px', fontSize: 12, color: '#a78bfa' }}>
               <Sparkles size={12} style={{ verticalAlign: -1 }} /> {a.name} réfléchit…
+              <button type="button" onClick={stopRequest} style={{ marginLeft: 12, padding: '6px 10px', borderRadius: 8, border: '1px solid #a78bfa', background: 'transparent', color: '#f1f5f9', cursor: 'pointer' }}>Arrêter</button>
             </div>
           )}
 
