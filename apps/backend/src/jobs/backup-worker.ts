@@ -6,7 +6,6 @@ import yauzl, { type Entry } from 'yauzl'
 import { Transform, type Readable } from 'node:stream'
 import logger from '../lib/logger'
 import { runPgDump } from './pg-dump'
-import { runtimeProfile } from '../lib/runtime-profile'
 
 const DATA_DIR = path.resolve(process.cwd(), 'data')
 const SCAN_INTERVAL_MS = 6 * 60 * 60 * 1000
@@ -18,9 +17,12 @@ export interface FullBackupInfo { filename: string; size: number; createdAt: num
 const validated = new Map<string, { signature: string; result: ArchiveInspection | null }>()
 const running = new Map<string, Promise<string>>()
 let inspectionQueue: Promise<void> = Promise.resolve()
+let closing = false
+let shutdown: Promise<void> | null = null
 
 /** Un échec PostgreSQL ne peut jamais produire une archive annoncée complète. */
 export function runFullBackup(dataDir = DATA_DIR): Promise<string> {
+  if (closing) return Promise.reject(new Error('Sauvegarde différée : arrêt du service en cours.'))
   const root = path.resolve(dataDir)
   const active = running.get(root)
   if (active) return active
@@ -106,17 +108,21 @@ async function createFullBackup(dataDir: string): Promise<string> {
     if (!inspection.valid) throw new Error('Sauvegarde refusée : contrôle d’intégrité du ZIP échoué')
     const fd = fs.openSync(partial, 'r+')
     try { fs.fsyncSync(fd) } finally { fs.closeSync(fd) }
-    fs.renameSync(partial, destination)
+    // Publication atomique sans remplacement. Le lien .partial est conservé
+    // pendant le gel : même contenu/inode, aucun nettoyage implicite.
+    // Si les liens physiques ne sont pas supportés, l'échec est explicite et
+    // l'archive contrôlée reste en .partial, jamais annoncée complète.
+    fs.linkSync(partial, destination)
     const stat = fs.statSync(destination)
     validated.set(destination, { signature: `${stat.size}:${stat.mtimeMs}`, result: { ...inspection, files: [] } })
-    pruneOldBackups(dataDir)
     return filename
   } catch (err) {
     archive.abort()
     output.destroy()
     if (!output.closed) await new Promise<void>(resolve => output.once('close', resolve))
-    // Seul notre fichier temporaire est concerné, aucune sauvegarde antérieure.
-    if (fs.existsSync(partial)) fs.unlinkSync(partial)
+    // Le partiel n'est jamais annoncé complet, mais reste une preuve utile.
+    // Son éventuel nettoyage nécessite la même autorisation que les archives.
+    if (fs.existsSync(partial)) logger.warn('[backup] Archive partielle conservée pour diagnostic ; aucune suppression autorisée')
     throw err
   }
 }
@@ -233,21 +239,10 @@ export function listFullBackups(dataDir = DATA_DIR): FullBackupInfo[] {
   }).sort((a, b) => b.createdAt - a.createdAt)
 }
 
-function pruneOldBackups(dataDir: string) {
-  // Le lancement local ne reçoit aucune autorisation de supprimer des archives.
-  if (!runtimeProfile().pruneBackups) return
-  const backups = listFullBackups(dataDir).filter((backup) => backup.complete)
-  for (const backup of backups.slice(30)) {
-    if (new Date(backup.createdAt).getDate() === 1) continue
-    try { fs.unlinkSync(path.join(dataDir, 'backups', 'full', backup.filename)) }
-    catch (err) { logger.warn('[backup] Ancienne archive conservée : suppression impossible', err) }
-  }
-}
-
 let timer: NodeJS.Timeout | null = null
 let initial: NodeJS.Timeout | null = null
 export function startBackupWorker(): void {
-  if (timer) return
+  if (timer || closing) return
   const run = () => { runFullBackup().catch((err) => logger.error('[backup] ÉCHEC : aucune nouvelle sauvegarde complète', err)) }
   initial = setTimeout(run, 60_000)
   timer = setInterval(run, SCAN_INTERVAL_MS)
@@ -257,4 +252,17 @@ export function stopBackupWorker(): void {
   if (timer) clearInterval(timer)
   timer = null
   initial = null
+}
+
+export function shutdownBackups(): Promise<void> {
+  if (shutdown) return shutdown
+  closing = true
+  stopBackupWorker()
+  const active = [...running.values()]
+  shutdown = (async () => {
+    const results = await Promise.allSettled(active)
+    await inspectionQueue
+    if (results.some(result => result.status === 'rejected')) throw new Error('Arrêt non confirmé : sauvegarde en cours échouée, partiel conservé.')
+  })()
+  return shutdown
 }

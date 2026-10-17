@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
+import { useLogout } from '@/hooks/api/useAuth'
 import { useModuleStore, MODULES } from '@/stores/moduleStore'
 import { useI18n } from '@/lib/i18n'
 import { useThemeColors } from '@/lib/theme'
@@ -145,8 +146,9 @@ function LiveCustomerCount() {
 
 export default function AppShell() {
   const navigate = useNavigate()
-  const { user, company } = useAuthStore()
-  const logout = useAuthStore((s) => s.logout)
+  const { user, company, companyId, companies, setActiveCompany } = useAuthStore()
+  const logoutRequest = useLogout()
+  const availableCompanies = companies.filter(membership => membership.isActive !== false && membership.companyId === membership.company?.id)
   const activeModule = useModuleStore((s) => s.activeModule)
   const clearModule = useModuleStore((s) => s.clearModule)
   const { t } = useI18n()
@@ -193,8 +195,7 @@ export default function AppShell() {
   }
 
   const handleLogout = () => {
-    logout()
-    navigate('/login')
+    if (!logoutRequest.isPending) logoutRequest.mutate()
   }
 
   return (
@@ -370,6 +371,18 @@ export default function AppShell() {
 
         {/* ── right: actions ── */}
         <div className="creorga-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {availableCompanies.length > 1 && <label style={{ display: 'grid', gap: 2, color: colors.textMuted, fontSize: 10, maxWidth: 200 }}>
+            Société active
+            <select aria-label="Société active" value={companyId ?? ''} disabled={logoutRequest.isPending}
+              onChange={event => {
+                const target = event.target.value
+                if (target === companyId || !availableCompanies.some(membership => membership.companyId === target)) return
+                if (window.confirm('Changer de société remplace le contexte affiché. Les brouillons non enregistrés de cet écran ne sont pas transférés. Continuer ?')) setActiveCompany(target)
+              }}
+              style={{ minWidth: 100, maxWidth: '100%', borderRadius: 8, padding: '5px 6px', background: colors.bgCard, color: colors.text, border: `1px solid ${colors.border}` }}>
+              {availableCompanies.map(membership => <option key={membership.id} value={membership.companyId}>{membership.company.name}</option>)}
+            </select>
+          </label>}
           {/* modules button */}
           <ViewModeToggle />
 
@@ -630,6 +643,7 @@ export default function AppShell() {
 
                 {/* logout */}
                 <button
+                  disabled={logoutRequest.isPending}
                   onClick={() => {
                     setUserMenuOpen(false)
                     handleLogout()

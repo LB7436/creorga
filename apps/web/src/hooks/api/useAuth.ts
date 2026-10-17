@@ -21,8 +21,10 @@ export interface AuthResponse {
 export function useLogin() {
   return useMutation<AuthResponse, unknown, LoginPayload, { session: string }>({
     onMutate: () => ({ session: authSessionKey(useAuthStore.getState()) }),
-    mutationFn: (data) =>
-      api.post('/auth/login', data).then((r) => r.data),
+    mutationFn: async (data) => {
+      if (useAuthStore.getState().logoutRevocationPending) throw new Error('Révocation serveur précédente non confirmée.')
+      return api.post('/auth/login', data).then((r) => r.data)
+    },
     onSuccess: (data, _variables, context) => {
       if (context?.session !== authSessionKey(useAuthStore.getState())) return
       useAuthStore.getState().setAuth(data)
@@ -37,18 +39,23 @@ export function useLogin() {
 export function useLogout() {
   const qc = useQueryClient()
   return useMutation<unknown, unknown, void, { session: string }>({
-    onMutate: () => ({ session: authSessionKey(useAuthStore.getState()) }),
+    onMutate: () => {
+      // L'accès local disparaît immédiatement, y compris hors réseau. Le
+      // marqueur persistant ne contient aucun jeton ni identité privée.
+      useAuthStore.getState().beginLogout()
+      qc.clear()
+      return { session: authSessionKey(useAuthStore.getState()) }
+    },
     mutationFn: () => api.post('/auth/logout').then((r) => r.data),
     onSuccess: (_data, _variables, context) => {
       if (context?.session !== authSessionKey(useAuthStore.getState())) return
-      useAuthStore.getState().logout()
+      useAuthStore.getState().confirmLogoutRevocation()
       qc.clear()
       toastSuccess('Déconnexion réussie')
     },
     onError: (_error, _variables, context) => {
       if (context?.session !== authSessionKey(useAuthStore.getState())) return
-      useAuthStore.getState().logout()
-      qc.clear()
+      toastError('Accès local verrouillé. Révocation serveur non confirmée : réessayez depuis la page de connexion.')
     },
   })
 }

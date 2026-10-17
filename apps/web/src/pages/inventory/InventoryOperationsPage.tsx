@@ -17,11 +17,17 @@ export default function InventoryOperationsPage({ view = 'stock' }: { view?: Vie
   const [stockDrafts, setStockDrafts] = useState<Record<string, string>>({})
   const [stockSaving, setStockSaving] = useState<Record<string, boolean>>({})
   const stockRequests = useRef(new Set<string>())
+  const receiveRequests = useRef(new Set<string>())
+  const [receiving, setReceiving] = useState<Record<string, boolean>>({})
+  const loadRevision = useRef(0)
+  const mounted = useRef(true)
   const [ingredientForm, setIngredientForm] = useState({ name: '', unit: 'pièce', currentStock: '0', minStockLevel: '0', costPerUnit: '0', supplierId: '' })
   const [supplierForm, setSupplierForm] = useState({ name: '', contactName: '', email: '', phone: '' })
   const [orderForm, setOrderForm] = useState({ supplierId: '', ingredientId: '', quantity: '1', unitCost: '0' })
 
   const load = useCallback(async () => {
+    if (!mounted.current) return
+    const revision = ++loadRevision.current
     setLoading(true)
     try {
       const [ingredientResponse, supplierResponse, orderResponse] = await Promise.all([
@@ -29,17 +35,22 @@ export default function InventoryOperationsPage({ view = 'stock' }: { view?: Vie
         api.get<Supplier[]>('/inventory/suppliers'),
         api.get<PurchaseOrder[]>('/inventory/purchase-orders'),
       ])
+      if (!mounted.current || revision !== loadRevision.current) return
       setIngredients(ingredientResponse.data)
       setSuppliers(supplierResponse.data)
       setOrders(orderResponse.data)
     } catch (error: any) {
-      toastError(error?.response?.data?.message || 'Impossible de charger l’inventaire')
+      if (mounted.current && revision === loadRevision.current) toastError(error?.response?.data?.message || 'Impossible de charger l’inventaire')
     } finally {
-      setLoading(false)
+      if (mounted.current && revision === loadRevision.current) setLoading(false)
     }
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    mounted.current = true
+    void load()
+    return () => { mounted.current = false; loadRevision.current++ }
+  }, [load])
   const lowStock = useMemo(() => ingredients.filter((item) => item.currentStock <= item.minStockLevel), [ingredients])
 
   async function createIngredient(event: React.FormEvent) {
@@ -97,8 +108,22 @@ export default function InventoryOperationsPage({ view = 'stock' }: { view?: Vie
   }
 
   async function receiveOrder(order: PurchaseOrder) {
-    try { await api.put(`/inventory/purchase-orders/${order.id}/receive`); await load(); toastSuccess('Réception enregistrée et stock crédité') }
-    catch (error: any) { toastError(error?.response?.data?.message || 'Réception impossible') }
+    // Le ref ferme aussi la fenêtre entre deux événements avant le rerendu.
+    // L'unicité financière reste garantie séparément par la transaction API.
+    if (receiveRequests.current.has(order.id)) return
+    receiveRequests.current.add(order.id)
+    setReceiving(current => ({ ...current, [order.id]: true }))
+    try {
+      await api.put(`/inventory/purchase-orders/${order.id}/receive`)
+      if (!mounted.current) return
+      await load()
+      if (mounted.current) toastSuccess('Réception enregistrée et stock crédité')
+    } catch (error: any) {
+      if (mounted.current) toastError(error?.response?.data?.message || 'Réception impossible : vérifier l’état serveur avant une nouvelle tentative')
+    } finally {
+      receiveRequests.current.delete(order.id)
+      if (mounted.current) setReceiving(current => ({ ...current, [order.id]: false }))
+    }
   }
 
   return <main style={page}>
@@ -116,7 +141,7 @@ export default function InventoryOperationsPage({ view = 'stock' }: { view?: Vie
       </tr>)}</tbody></table></div>}</section>
     </>}
     {view === 'suppliers' && <><form onSubmit={createSupplier} style={card}><h2 style={h2}><Truck size={19} /> Nouveau fournisseur</h2><div style={formGrid}><Field label="Société"><input required value={supplierForm.name} onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })} style={input} /></Field><Field label="Contact"><input value={supplierForm.contactName} onChange={(e) => setSupplierForm({ ...supplierForm, contactName: e.target.value })} style={input} /></Field><Field label="Email"><input type="email" value={supplierForm.email} onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })} style={input} /></Field><Field label="Téléphone"><input value={supplierForm.phone} onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })} style={input} /></Field></div><button disabled={busy} style={primary}>Enregistrer le fournisseur</button></form><section style={card}>{suppliers.length === 0 ? <Empty text="Aucun fournisseur enregistré." /> : suppliers.map((supplier) => <article key={supplier.id} style={row}><strong>{supplier.name}</strong><span style={small}>{supplier.contactName || 'Aucun contact'} · {supplier.email || supplier.phone || 'coordonnées non renseignées'}</span></article>)}</section></>}
-    {view === 'orders' && <><form onSubmit={createOrder} style={card}><h2 style={h2}>Créer un bon de commande</h2>{suppliers.length === 0 || ingredients.length === 0 ? <Empty text="Ajoutez d’abord un fournisseur et un article de stock." /> : <><div style={formGrid}><Field label="Fournisseur"><select required value={orderForm.supplierId} onChange={(e) => setOrderForm({ ...orderForm, supplierId: e.target.value })} style={input}><option value="">Choisir…</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></Field><Field label="Article"><select required value={orderForm.ingredientId} onChange={(e) => setOrderForm({ ...orderForm, ingredientId: e.target.value })} style={input}><option value="">Choisir…</option>{ingredients.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Quantité"><input required type="number" min="0.01" step="0.01" value={orderForm.quantity} onChange={(e) => setOrderForm({ ...orderForm, quantity: e.target.value })} style={input} /></Field><Field label="Coût unitaire"><input required type="number" min="0" step="0.01" value={orderForm.unitCost} onChange={(e) => setOrderForm({ ...orderForm, unitCost: e.target.value })} style={input} /></Field></div><button disabled={busy} style={primary}>Enregistrer le bon</button></>}</form><section style={card}>{orders.length === 0 ? <Empty text="Aucun bon de commande." /> : orders.map((order) => <article key={order.id} style={row}><div><strong>{order.supplier.name} · {order.total.toFixed(2)} €</strong><div style={small}>{order.items.map((item) => `${item.ingredient.name} × ${item.quantity}`).join(', ')}</div></div>{order.status === 'RECEIVED' ? <span style={ok}><Check size={14} /> Réceptionné</span> : <button onClick={() => void receiveOrder(order)} style={primary}>Réceptionner</button>}</article>)}</section></>}
+{view === 'orders' && <><form onSubmit={createOrder} style={card}><h2 style={h2}>Créer un bon de commande</h2>{suppliers.length === 0 || ingredients.length === 0 ? <Empty text="Ajoutez d’abord un fournisseur et un article de stock." /> : <><div style={formGrid}><Field label="Fournisseur"><select required value={orderForm.supplierId} onChange={(e) => setOrderForm({ ...orderForm, supplierId: e.target.value })} style={input}><option value="">Choisir…</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></Field><Field label="Article"><select required value={orderForm.ingredientId} onChange={(e) => setOrderForm({ ...orderForm, ingredientId: e.target.value })} style={input}><option value="">Choisir…</option>{ingredients.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Quantité"><input required type="number" min="0.01" step="0.01" value={orderForm.quantity} onChange={(e) => setOrderForm({ ...orderForm, quantity: e.target.value })} style={input} /></Field><Field label="Coût unitaire"><input required type="number" min="0" step="0.01" value={orderForm.unitCost} onChange={(e) => setOrderForm({ ...orderForm, unitCost: e.target.value })} style={input} /></Field></div><button disabled={busy} style={primary}>Enregistrer le bon</button></>}</form><section style={card}>{orders.length === 0 ? <Empty text="Aucun bon de commande." /> : orders.map((order) => <article key={order.id} style={row}><div><strong>{order.supplier.name} · {order.total.toFixed(2)} €</strong><div style={small}>{order.items.map((item) => `${item.ingredient.name} × ${item.quantity}`).join(', ')}</div></div>{order.status === 'RECEIVED' ? <span style={ok}><Check size={14} /> Réceptionné</span> : <button disabled={receiving[order.id] === true} onClick={() => void receiveOrder(order)} style={primary}>Réceptionner</button>}</article>)}</section></>}
   </main>
 }
 

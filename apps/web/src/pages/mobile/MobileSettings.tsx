@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Bell, Volume2, Settings, User, Palette, ChevronRight, Fingerprint, Car, MapPin, Mic, Server, RefreshCw, LogOut, Wifi } from 'lucide-react'
 import { useAssistant } from '@/stores/assistantStore'
 import AssistantMascot from '@/components/AssistantMascot'
-import { useAuthStore } from '@/stores/authStore'
+import { useLogout } from '@/hooks/api/useAuth'
 import { assertApiDestination } from '@/lib/apiDestination'
 
 const ENV_BACKEND = (import.meta as any).env?.VITE_REMOTE_BACKEND
@@ -13,7 +13,7 @@ const ENV_BACKEND = (import.meta as any).env?.VITE_REMOTE_BACKEND
 export default function MobileSettings() {
   const a = useAssistant()
   const navigate = useNavigate()
-  const logout = useAuthStore((s) => s.logout)
+  const logoutRequest = useLogout()
   // v3.15 fix : Android WebView n'a pas l'API Notification globale → check defensif
   const [pushEnabled, setPushEnabled] = useState(
     typeof Notification !== 'undefined' && Notification.permission === 'granted'
@@ -47,15 +47,6 @@ export default function MobileSettings() {
     } catch (e: any) {
       setPingState('fail'); setPingMsg(`❌ ${e.message || 'Inaccessible'}`)
     }
-  }
-
-  const fullReset = () => {
-    if (!confirm('⚠️ Tout réinitialiser ? Déconnexion + suppression des préférences locales.')) return
-    logout()
-    localStorage.removeItem('creorga.backend.remote')
-    localStorage.removeItem('creorga-auth')
-    localStorage.removeItem('creorga-assistant')
-    setTimeout(() => { window.location.href = '/m/demo' }, 400)
   }
 
   const requestPush = async () => {
@@ -218,11 +209,11 @@ export default function MobileSettings() {
         <Row icon={RefreshCw} label="Recharger l'app" onClick={() => window.location.href = '/m/demo'}>
           <ChevronRight size={14} />
         </Row>
-        <Row icon={LogOut} label="Déconnecter" onClick={() => { logout(); window.location.href = '/m/demo' }}>
+        <Row icon={LogOut} label="Déconnecter" disabled={logoutRequest.isPending} onClick={() => logoutRequest.mutate()}>
           <ChevronRight size={14} />
         </Row>
-        <Row icon={Server} label="🔄 Reset complet (auth + URL + préférences)" onClick={fullReset}>
-          <ChevronRight size={14} />
+        <Row icon={Server} label="Réinitialisation locale — procédure de reprise requise" disabled>
+          <span style={{ fontSize: 10 }}>Données conservées</span>
         </Row>
       </Section>
 
@@ -253,12 +244,15 @@ function Section({ title, children }: any) {
   )
 }
 
-function Row({ icon: Icon, label, value, children, onClick }: any) {
+function Row({ icon: Icon, label, value, children, onClick, disabled = false }: any) {
   return (
-    <div onClick={onClick} style={{
+    <div role={onClick || disabled ? 'button' : undefined} aria-label={onClick || disabled ? label : undefined} aria-disabled={disabled || undefined}
+      tabIndex={onClick && !disabled ? 0 : undefined} onClick={disabled ? undefined : onClick}
+      onKeyDown={!disabled && onClick ? event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick() } } : undefined}
+      style={{
       display: 'flex', alignItems: 'center', gap: 12,
       padding: '12px 10px', borderTop: '1px solid rgba(255,255,255,0.04)',
-      cursor: onClick ? 'pointer' : 'default',
+      cursor: disabled ? 'not-allowed' : onClick ? 'pointer' : 'default',
     }}>
       <Icon size={16} color="#a78bfa" style={{ flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>

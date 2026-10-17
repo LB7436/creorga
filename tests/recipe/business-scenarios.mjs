@@ -25,7 +25,7 @@ const currentLot = {
   43: run(pg('payments', 'un abandon acheteur')),
   46: run(pg('payments', 'un webhook vérifié avant le retour')),
   64: { ...blocked('Réimpression thermique de duplicata non qualifiée : matériel et commande persistante absents. Les relectures HTML seules ne prouvent pas ce parcours physique.'), blockerCategory: 'EXTERNAL' },
-  69: blocked('Pas de lien documentaire signé temporaire implémenté. Les documents restent soumis à authentification et société ; l’expiration d’un QR n’est pas celle d’un document.'),
+  69: run(pg('invoice-document-links', 'refuse à l’échéance décidée par le serveur'), pg('invoice-document-links', 'sérialise téléchargement/révocation'), chrome('reliability-documents', 'vrai PDF au clavier')),
   71: blocked('Moteur d’alertes déterministe de départ déclaré non implémenté. Aucun événement de départ fictif ne peut traverser ce parcours inexistant ; vidéo non activée.'),
   72: blocked('Consommateur de retour humain lié aux alertes T71 non implémenté.'),
   74: blocked('Raccordement paiement / résolution des alertes T71 non implémenté ; le paiement serveur est testé séparément.'),

@@ -1,15 +1,34 @@
-import type { Prisma } from '@prisma/client'
+import type { Prisma, OrderTender } from '@prisma/client'
 import { allocateMinor, moneyMinor } from './money'
 import { activeCashDrawerId } from './cash-ledger'
 
-export async function orderPaymentBalance(tx: Prisma.TransactionClient, companyId: string, order: { id: string; total: number; paidAt: Date | null; status: string }) {
-  const payments = await tx.orderTender.findMany({ where: { companyId, orderId: order.id }, orderBy: { createdAt: 'asc' } })
+type BalanceOrder = { id: string; total: number; paidAt: Date | null; status: string }
+
+function balanceFromPayments(order: BalanceOrder, payments: OrderTender[]) {
   const totalCents = moneyMinor(order.total), recordedCents = payments.reduce((s, p) => s + p.amountCents, 0)
   const legacyPaid = !payments.length && (!!order.paidAt || order.status === 'PAID')
   if (recordedCents > totalCents) throw new Error('Affectations supérieures à la commande')
   return { totalCents, paidCents: legacyPaid ? totalCents : recordedCents, outstandingCents: legacyPaid ? 0 : totalCents - recordedCents,
     legacyPaidState: legacyPaid, payments: payments.map(p => ({ id: p.id, amountCents: p.amountCents, tipCents: p.tipCents, charityCents: p.charityCents,
       method: p.method, confirmation: p.confirmation, sourceAttemptId: p.attemptId, sourceSaleId: p.saleId, settlementId: p.settlementId, createdAt: p.createdAt })) }
+}
+
+export async function orderPaymentBalance(tx: Prisma.TransactionClient, companyId: string, order: BalanceOrder) {
+  const payments = await tx.orderTender.findMany({ where: { companyId, orderId: order.id }, orderBy: { createdAt: 'asc' } })
+  return balanceFromPayments(order, payments)
+}
+
+/** Lecture groupée seulement : mêmes calculs/provenances, aucune affectation créée ni réécrite. */
+export async function orderPaymentBalances(tx: Prisma.TransactionClient, companyId: string, orders: BalanceOrder[]) {
+  const grouped = new Map(orders.map(order => [order.id, [] as OrderTender[]]))
+  if (!grouped.size) return new Map<string, ReturnType<typeof balanceFromPayments>>()
+  const payments = await tx.orderTender.findMany({ where: { companyId, orderId: { in: [...grouped.keys()] } }, orderBy: { createdAt: 'asc' } })
+  for (const payment of payments) {
+    const target = grouped.get(payment.orderId)
+    if (!target || payment.companyId !== companyId) throw new Error('Affectation hors du périmètre des soldes')
+    target.push(payment)
+  }
+  return new Map(orders.map(order => [order.id, balanceFromPayments(order, grouped.get(order.id)!)]))
 }
 
 /** Ventilation du reçu POS, y compris pourboires/dons, sans gonfler le solde des commandes. */

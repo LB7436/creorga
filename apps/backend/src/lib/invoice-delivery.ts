@@ -3,6 +3,9 @@ import { z } from 'zod'
 import prisma from './prisma'
 import { emailConfigured, sendEmail } from './email'
 import { escapeHtml } from './pos-ledger'
+import { TrackedTasks } from './backend-lifecycle'
+
+const deliveryTasks = new TrackedTasks()
 
 export class DeliveryError extends Error {
   constructor(public status: number, message: string) { super(message) }
@@ -30,7 +33,7 @@ export async function enqueueInvoice(companyId: string, userId: string, invoiceI
 /** File persistante. Une interruption après DATA est ambiguë : pas de renvoi automatique.
  * Les anciennes tâches SENDING deviennent UNCERTAIN ; la boîte destinataire doit être vérifiée.
  */
-export async function processInvoiceDeliveries() {
+async function performInvoiceDeliveries() {
   await prisma.invoiceDelivery.updateMany({ where: { status: 'SENDING', claimedAt: { lt: new Date(Date.now() - 5 * 60000) } }, data: { status: 'UNCERTAIN', lastErrorCode: 'WORKER_INTERRUPTED' } })
   if (!emailConfigured()) return
   const jobs = await prisma.invoiceDelivery.findMany({ where: { status: 'QUEUED' }, orderBy: { createdAt: 'asc' }, take: 20 })
@@ -52,3 +55,7 @@ export async function processInvoiceDeliveries() {
     }
   }
 }
+
+export async function processInvoiceDeliveries(): Promise<void> { await deliveryTasks.run(performInvoiceDeliveries) }
+export function pauseInvoiceDeliveries(): void { deliveryTasks.freeze() }
+export function drainInvoiceDeliveries(): Promise<void> { return deliveryTasks.drain() }

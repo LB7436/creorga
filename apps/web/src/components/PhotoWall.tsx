@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
-import { usePhotoWall, type PhotoCategory } from '@/stores/photoWallStore'
+import { capturePhotoWallContext, usePhotoWall, type PhotoCategory } from '@/stores/photoWallStore'
 import { fileToDataUrl } from '@/stores/brandStore'
+import { toastError } from '@/lib/toast'
 
 /**
  * Reusable photo wall — album of staff + clients + café + events.
@@ -17,6 +18,8 @@ const CATEGORIES: { value: PhotoCategory; label: string; emoji: string }[] = [
 export default function PhotoWall({ moduleId, compact = false }: { moduleId: string; compact?: boolean }) {
   const photos = usePhotoWall((s) => s.photos.filter((p) => p.moduleId === moduleId))
   const { addPhoto, removePhoto } = usePhotoWall()
+  const legacyPhotoCount = usePhotoWall(state => state.legacyPhotoCount)
+  const [uploading, setUploading] = useState(false)
   const [filter, setFilter] = useState<PhotoCategory | 'all'>('all')
   const [uploadCategory, setUploadCategory] = useState<PhotoCategory>('café')
   const [caption, setCaption] = useState('')
@@ -26,14 +29,19 @@ export default function PhotoWall({ moduleId, compact = false }: { moduleId: str
   const filtered = filter === 'all' ? photos : photos.filter((p) => p.category === filter)
 
   const handleFiles = async (files: FileList | null) => {
-    if (!files) return
-    for (const f of Array.from(files).slice(0, 10)) {
-      if (!f.type.startsWith('image/')) continue
-      if (f.size > 3 * 1024 * 1024) { alert(`${f.name} > 3 Mo ignoré`); continue }
-      const dataUrl = await fileToDataUrl(f)
-      addPhoto(moduleId, dataUrl, uploadCategory, caption.trim() || undefined)
-    }
-    setCaption('')
+    if (!files || uploading) return
+    const context = capturePhotoWallContext()
+    setUploading(true)
+    try {
+      for (const file of Array.from(files).slice(0, 10)) {
+        if (!file.type.startsWith('image/')) continue
+        if (file.size > 3 * 1024 * 1024) { toastError(`${file.name} : taille supérieure à 3 Mo`); continue }
+        const dataUrl = await fileToDataUrl(file)
+        if (!addPhoto(moduleId, dataUrl, uploadCategory, caption.trim() || undefined, undefined, context)) return
+      }
+      setCaption('')
+    } catch { toastError('Photo non enregistrée : stockage navigateur indisponible ou plein. Aucune ancienne photo n’a été supprimée.') }
+    finally { setUploading(false); if (inputRef.current) inputRef.current.value = '' }
   }
 
   return (
@@ -56,6 +64,8 @@ export default function PhotoWall({ moduleId, compact = false }: { moduleId: str
           ))}
         </div>
       </header>
+      <p style={{ color: '#64748b', fontSize: 12 }}>Album personnel de cette société et de cette vue, conservé uniquement dans ce navigateur.</p>
+      {legacyPhotoCount > 0 && <p role="status" style={{ color: '#92400e', fontSize: 12 }}>{legacyPhotoCount} ancienne(s) photo(s) non attribuable(s) conservée(s), sans affichage ni import automatique.</p>}
 
       {/* Upload bar */}
       <div style={{
@@ -63,6 +73,8 @@ export default function PhotoWall({ moduleId, compact = false }: { moduleId: str
         padding: 10, background: '#f8fafc', borderRadius: 10, marginBottom: 14, flexWrap: 'wrap',
       }}>
         <select
+          aria-label="Catégorie de la nouvelle photo"
+          disabled={uploading}
           value={uploadCategory}
           onChange={(e) => setUploadCategory(e.target.value as PhotoCategory)}
           style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13 }}
@@ -72,11 +84,12 @@ export default function PhotoWall({ moduleId, compact = false }: { moduleId: str
         <input
           type="text"
           value={caption}
+          disabled={uploading}
           placeholder="Légende (optionnelle)"
           onChange={(e) => setCaption(e.target.value)}
           style={{ flex: 1, minWidth: 160, padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13 }}
         />
-        <button onClick={() => inputRef.current?.click()} style={{
+        <button disabled={uploading} onClick={() => inputRef.current?.click()} style={{
           padding: '8px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
           background: '#6366f1', color: '#fff', fontWeight: 600, fontSize: 13,
         }}>+ Ajouter photos</button>
@@ -114,7 +127,8 @@ export default function PhotoWall({ moduleId, compact = false }: { moduleId: str
                 padding: '2px 6px', borderRadius: 999,
               }}>{CATEGORIES.find((c) => c.value === p.category)?.emoji}</div>
               <button
-                onClick={() => removePhoto(p.id)}
+                aria-label={`Supprimer la photo ${p.caption || 'sans légende'}`}
+                onClick={() => { try { removePhoto(p.id) } catch { toastError('Suppression non enregistrée : stockage navigateur indisponible.') } }}
                 style={{
                   position: 'absolute', top: 6, right: 6,
                   background: 'rgba(239,68,68,0.9)', color: '#fff', border: 'none',

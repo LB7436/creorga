@@ -71,14 +71,17 @@ function checked(snapshot: any, expectedHash?: string) {
   return snapshot
 }
 export async function loadFloorWorkspace(companyId: string, legacy: () => any) {
-  let row = await prisma.floorWorkspace.findUnique({ where: { companyId } })
+  // Le cliché d'adoption reste archivé ; le transporter à chaque requête n'est
+  // nécessaire ni à la révision courante ni à sa vérification d'intégrité.
+  const select = { revision: true, snapshot: true, snapshotHash: true } as const
+  let row = await prisma.floorWorkspace.findUnique({ where: { companyId }, select })
   if (!row) row = await prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, companyId)
-    const existing = await tx.floorWorkspace.findUnique({ where: { companyId } })
+    const existing = await tx.floorWorkspace.findUnique({ where: { companyId }, select })
     if (existing) return existing
     const initial = JSON.parse(JSON.stringify(checked(legacy())))
     const snapshot = { ...initial, storageAuthority: 'postgres' }
-    const created = await tx.floorWorkspace.create({ data: { companyId, revision: BigInt(snapshot.updatedAt), snapshot, snapshotHash: floorHash(snapshot), initialSnapshot: initial, initialHash: floorHash(initial) } })
+    const created = await tx.floorWorkspace.create({ data: { companyId, revision: BigInt(snapshot.updatedAt), snapshot, snapshotHash: floorHash(snapshot), initialSnapshot: initial, initialHash: floorHash(initial) }, select })
     await syncCovers(tx, companyId, snapshot, 'adoption-locale')
     return created
   })

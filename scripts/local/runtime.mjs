@@ -3,6 +3,7 @@ import { readFile, access } from 'node:fs/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
 import { startStaticHost } from './static-host.mjs'
+import { startRuntimeControl } from './runtime-control.mjs'
 
 // Entrée unique : API + quatre interfaces statiques dans un seul processus Node.
 // PostgreSQL est géré séparément. Aucun seed, install, reset ou migration au boot.
@@ -39,12 +40,36 @@ if (proof.profile !== profile || (profile === 'business' && proof.gameModuleCoun
 await access(path.join(root, 'apps/backend/dist/src/index.js'))
 register('./extensionless-esm.mjs', import.meta.url)
 const servers = []
+let backend, control, stopping
+const closeFrontends = () => Promise.all(servers.map(server => new Promise((resolve, reject) => {
+  if (!server.listening) return resolve()
+  server.close(error => error ? reject(error) : resolve())
+})))
+// Aucun SIGKILL de secours : un arrêt ambigu reste à diagnostiquer, pas « réussi ».
+const shutdown = () => stopping ??= (async () => {
+  if (!backend?.shutdownBackend) throw Error('Arrêt coordonné indisponible')
+  await Promise.all([closeFrontends(), backend.shutdownBackend()])
+})()
 try {
   for (const [app, port] of apps) servers.push(await startStaticHost({ directory: path.join(root, 'apps', app, `dist-${profile}`), port }))
-  await import(pathToFileURL(path.join(root, 'apps/backend/dist/src/index.js')).href)
+  backend = await import(pathToFileURL(path.join(root, 'apps/backend/dist/src/index.js')).href)
+  await backend.backendReady
+  if (process.env.CREORGA_CONTROL_FILE) {
+    control = await startRuntimeControl({ descriptorPath: process.env.CREORGA_CONTROL_FILE, onShutdown: shutdown })
+  }
+  for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
+    void shutdown().then(() => control?.close()).catch(() => {
+      console.error('[CréOrga] Arrêt non confirmé ; conserver le processus et consulter le journal privé.')
+      process.exitCode = 1
+    })
+  })
   console.log(`[CréOrga] Profil ${profile}, interfaces compilées sur 127.0.0.1 ; tâches essentielles, aucune purge automatique.`)
 } catch (error) {
-  for (const server of servers) server.close()
   console.error(`[CréOrga] Démarrage refusé : ${error.code || error.name || 'erreur'} ; consulter le journal privé.`)
-  process.exit(1)
+  try {
+    if (backend?.shutdownBackend) await shutdown()
+    else await closeFrontends()
+    await control?.close()
+  } catch { console.error('[CréOrga] Nettoyage de démarrage non confirmé ; aucune interruption forcée.') }
+  process.exitCode = 1
 }

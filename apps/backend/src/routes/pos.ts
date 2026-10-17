@@ -13,7 +13,7 @@ import { moneyMinor, totalsFromTtc, allocateMinor } from '../lib/money'
 import { activePaymentExists, lockOrderPayment } from '../lib/payments/ledger'
 import { floorLines, pricedItem, quoteFor, PosPricingError } from '../lib/pos-pricing'
 import type { Prisma } from '@prisma/client'
-import { recordPosTenders, orderPaymentBalance } from '../lib/order-tenders'
+import { recordPosTenders, orderPaymentBalance, orderPaymentBalances } from '../lib/order-tenders'
 import { partialPaymentSchema, payPosPart } from '../lib/pos-partial-payments'
 import { WorkspaceError, postgresFloorEnabled, floorHash } from '../lib/floor-workspace'
 import { tableMovementSchema, previousMovement, moveTable } from '../lib/table-movements'
@@ -68,7 +68,8 @@ async function tablesFor(companyId: string, db: Prisma.TransactionClient = prism
   const standalone = getFloorState(companyId).chairs.filter(c => c.tableId === null).map(c => ({ id: `standalone-seat:${c.id}`, name: c.label, section: 'Chaises indépendantes', seats: 1, x: c.x || 0, y: c.y || 0, shape: 'round', status: c.status || 'LIBRE', items: [] }))
   const allTables = [...configured, ...dbTables.filter(t => !configured.some(f => f.id === t.id)).map(t => ({ id: t.id, name: t.name, section: t.section, seats: t.capacity, x: t.posX, y: t.posY, shape: 'round', status: 'LIBRE', items: [] })), ...standalone]
   const linked = await db.serviceCover.findMany({ where: { companyId, state: 'OPEN', orderId: { not: null } }, include: { order: true } })
-  const balances = new Map(await Promise.all(linked.filter(c => c.order).map(async c => [c.coverId, { orderId: c.orderId, ...await orderPaymentBalance(db, companyId, c.order!) }] as const)))
+  const orderBalances = await orderPaymentBalances(db, companyId, linked.flatMap(c => c.order ? [c.order] : []))
+  const balances = new Map(linked.filter(c => c.order).map(c => [c.coverId, { orderId: c.orderId, ...orderBalances.get(c.orderId!)! }] as const))
   return allTables.map((t: any) => {
     const fallbackId = `table-${t.id}-${t.openedAt || 0}`
     const covers = [
@@ -188,10 +189,14 @@ router.put('/draft', wrap(async (req, res) => {
   if (alreadyPaid) throw new PosError('Ce brouillon contient un couvert déjà réglé. Rechargez le plan serveur.', 409)
   const floor = getFloorState()
   const seats = req.body.seats === undefined ? undefined : z.array(seatSchema).max(9000).parse(req.body.seats)
+  // Même instant de validation avant toute mutation de ce brouillon. La projection
+  // après modification reste neuve ; aucun cache partagé entre requêtes ou sociétés.
+  let originalProjection: Promise<PosTable[]> | undefined
+  const beforeMutation = () => originalProjection ??= tablesFor(req.companyId)
   const guestCovers = tables.flatMap(t => t.covers.filter(c => c.id.startsWith('guest:')).map(c => ({ tableId: t.id, cover: c })))
   if (tables.some(t => t.covers.some(c => c.id.startsWith(SHARE_PREFIX)) && (t.orderDiscount || t.offeredItemIds?.length))) throw new PosError('Les gestes globaux ne peuvent modifier une créance répartie. Utilisez une correction documentaire explicite.', 409)
   if (guestCovers.length) {
-    const original = await tablesFor(req.companyId)
+    const original = await beforeMutation()
     for (const entry of guestCovers) {
       const parent = original.find(t => t.covers.some(c => c.id === entry.cover.id)), cover = parent?.covers.find(c => c.id === entry.cover.id)
       if (!cover || parent!.id !== entry.tableId || floorHash(cover.items.map(i => [i.id, i.qty, i.menuItemId, i.note])) !== floorHash(entry.cover.items.map(i => [i.id, i.qty, i.menuItemId, i.note]))) throw new PosError('Transfert ou modification QR non pris en charge dans un brouillon : utilisez la commande d’origine. Aucune modification de table n’a été confirmée.', 409)
@@ -202,7 +207,7 @@ router.put('/draft', wrap(async (req, res) => {
   if (await prisma.orderItem.count({ where: { id: { in: candidateLines }, order: { companyId: req.companyId } } })) throw new PosError('Une ligne de commande ou QR ne peut pas être recopiée en nouvelle vente native. Utilisez sa commande d’origine.', 409)
   if (postgresFloorEnabled()) {
     const locations = new Map<string, string>()
-    for (const t of await tablesFor(req.companyId)) for (const c of t.covers) for (const i of c.items) locations.set(i.id, c.id)
+    for (const t of await beforeMutation()) for (const c of t.covers) for (const i of c.items) locations.set(i.id, c.id)
     const incoming = [...tables.flatMap(t => t.covers.filter(c => !c.id.startsWith('guest:')).flatMap(c => c.items.map(i => ({ id: i.id, coverId: c.id })))), ...(seats || []).flatMap(s => s.items.map(i => ({ id: i.id, coverId: `seat:${s.id}:${s.createdAt}` })))]
     if (incoming.some(i => locations.has(i.id) && locations.get(i.id) !== i.coverId)) throw new PosError('Utilisez la séparation serveur pour déplacer une ligne entre groupes ; un brouillon ne peut pas relancer la préparation ni contourner son audit.', 409)
   }

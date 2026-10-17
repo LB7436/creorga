@@ -26,10 +26,14 @@ const tampons: Record<TableEvenement, Record<string, unknown>[]> = {
   errorLog: [],
 }
 let minuteur: NodeJS.Timeout | null = null
-let vidageEnCours = false
+let vidageEnCours: Promise<{ failed: boolean }> | null = null
+let fermeture = false
+let ferme = false
+let arret: Promise<void> | null = null
 
 export function push(table: TableEvenement, ligne: Record<string, unknown>): void {
   try {
+    if (ferme) return
     const tampon = tampons[table]
     if (tampon.length >= TAMPON_MAX) return
     tampon.push(ligne)
@@ -40,18 +44,17 @@ export function push(table: TableEvenement, ligne: Record<string, unknown>): voi
 }
 
 function planifier() {
-  if (minuteur) return
+  if (minuteur || fermeture) return
   minuteur = setTimeout(() => {
     minuteur = null
-    void flush()
+    void flush().catch(() => logger.error('[eventSink] Vidage interrompu, journal non confirmé'))
   }, INTERVALLE_MS)
   minuteur.unref?.()
 }
 
-export async function flush(): Promise<void> {
-  if (vidageEnCours) return
-  vidageEnCours = true
-  try {
+async function ecrireUnLot(): Promise<{ failed: boolean }> {
+  let failed = false
+  {
     for (const table of Object.keys(tampons) as TableEvenement[]) {
       const lot = tampons[table]
       if (lot.length === 0) continue
@@ -59,14 +62,48 @@ export async function flush(): Promise<void> {
       try {
         await (prisma as any)[table].createMany({ data: lot, skipDuplicates: true })
       } catch (e: any) {
+        failed = true
         logger.error(`[eventSink] écriture ${table} impossible (${lot.length} lignes): ${e?.message || e}`)
         const place = TAMPON_MAX - tampons[table].length
         if (place > 0) tampons[table].unshift(...lot.slice(0, place))
       }
     }
-  } finally {
-    vidageEnCours = false
   }
+  return { failed }
+}
+
+function lotEnCours(): Promise<{ failed: boolean }> {
+  if (vidageEnCours) return vidageEnCours
+  const operation = Promise.resolve().then(ecrireUnLot)
+  vidageEnCours = operation
+  void operation.then(() => { if (vidageEnCours === operation) vidageEnCours = null }, () => { if (vidageEnCours === operation) vidageEnCours = null })
+  return operation
+}
+
+const resteDesEvenements = () => Object.values(tampons).some(tampon => tampon.length > 0)
+
+/** Un concurrent attend le vrai lot, puis les lignes arrivées pendant ce lot. */
+export async function flush(): Promise<void> {
+  do {
+    const result = await lotEnCours()
+    // Mode normal : erreur journalisée et tampon conservé pour reprise.
+    if (result.failed) return
+  } while (resteDesEvenements())
+}
+
+/** Après drainage des producteurs : aucune réussite si la base n'a pas confirmé. */
+export function shutdownEventSink(): Promise<void> {
+  if (arret) return arret
+  fermeture = true
+  if (minuteur) { clearTimeout(minuteur); minuteur = null }
+  arret = (async () => {
+    do {
+      const result = await lotEnCours()
+      if (result.failed) throw new Error('Arrêt non confirmé : journal d’événements non enregistré.')
+    } while (resteDesEvenements())
+    ferme = true
+  })()
+  return arret
 }
 
 /**
@@ -94,5 +131,8 @@ export function _reinitialiserPourTests(): void {
     clearTimeout(minuteur)
     minuteur = null
   }
-  vidageEnCours = false
+  vidageEnCours = null
+  fermeture = false
+  ferme = false
+  arret = null
 }

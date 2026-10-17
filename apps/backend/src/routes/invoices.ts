@@ -12,6 +12,7 @@ import { enqueueInvoice, processInvoiceDeliveries, deliveryDto, DeliveryError } 
 import { z } from 'zod'
 import { receiptInvoiceData, ReceiptInvoiceError } from '../lib/receipt-invoice'
 import { createCreditNote, creditDto, CreditError } from '../lib/credit-notes'
+import { createInvoiceDocumentLink, listInvoiceDocumentLinks, revokeInvoiceDocumentLink, DocumentLinkError } from '../lib/invoice-document-links'
 
 const router = Router()
 router.use((req, res, next) => {
@@ -70,6 +71,23 @@ function parseOptionalDate(value: unknown): { value?: Date | null; error?: strin
 // avec les avoirs et couverte par `lib/numerotation.test.ts`. Ré-exportée ici
 // afin de ne casser aucun import existant.
 export { createAvecNumero, NumerotationIndisponibleError }
+const documentLinkFailure = (error: unknown, res: Response) => {
+  if (error instanceof z.ZodError) return res.status(400).json({ message: 'Référence, durée (15 ou 60 minutes) ou motif de révocation invalide.' })
+  if (error instanceof DocumentLinkError) return res.status(error.status).json({ message: error.message })
+  return res.status(503).json({ message: 'Opération documentaire non confirmée. Reprenez avec la même référence.' })
+}
+router.get('/:id/document-links', requireRole('OWNER', 'MANAGER'), async (req: any, res) => {
+  try { return res.set('Cache-Control', 'private, no-store').json(await listInvoiceDocumentLinks(req.companyId, req.user.userId, req.params.id)) }
+  catch (error) { return documentLinkFailure(error, res) }
+})
+router.post('/:id/document-links', async (req: any, res) => {
+  try { return res.status(201).set('Cache-Control', 'private, no-store').json(await createInvoiceDocumentLink(req.companyId, req.user.userId, req.params.id, req.body)) }
+  catch (error) { return documentLinkFailure(error, res) }
+})
+router.post('/:id/document-links/:linkId/revoke', async (req: any, res) => {
+  try { return res.set('Cache-Control', 'private, no-store').json(await revokeInvoiceDocumentLink(req.companyId, req.user.userId, req.params.id, req.params.linkId, req.body)) }
+  catch (error) { return documentLinkFailure(error, res) }
+})
 router.get('/deliveries/:id', async (req: any, res) => {
   const job = await prisma.invoiceDelivery.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
   if (!job) return res.status(404).json({ message: 'Envoi introuvable.' })

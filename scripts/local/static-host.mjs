@@ -17,12 +17,17 @@ export async function startStaticHost({ directory, port, apiPort = 3002 }) {
     const fail = (code) => { res.writeHead(code, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' }); res.end(`CréOrga : HTTP ${code}`) }
     if (!localHost(req.headers.host, server.address().port)) return fail(403)
     if (/^\/api(?:\/|\?|$)|^\/socket\.io(?:\/|\?|$)/.test(req.url || '')) {
+      let apiResponse
       const upstream = request({ hostname: '127.0.0.1', port: apiPort, path: req.url, method: req.method,
         headers: { ...req.headers, host: `127.0.0.1:${apiPort}` } }, response => {
+        apiResponse = response
         res.writeHead(response.statusCode || 502, response.headers); response.pipe(res)
       })
       upstream.setTimeout(120_000, () => upstream.destroy())
-      upstream.on('error', () => { if (!res.headersSent) fail(502); else res.destroy() })
+      upstream.on('error', () => { if (res.destroyed) return; if (!res.headersSent) fail(502); else res.destroy() })
+      // req.aborted ne couvre pas un GET déjà reçu dont le navigateur abandonne
+      // la réponse. Libérer seulement son relais, jamais toutes les connexions.
+      res.once('close', () => { if (!res.writableEnded) { apiResponse?.destroy(); upstream.destroy() } })
       req.on('aborted', () => upstream.destroy()); req.pipe(upstream); return
     }
     if (!['GET', 'HEAD'].includes(req.method)) return fail(405)

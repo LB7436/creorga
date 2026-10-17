@@ -1,9 +1,7 @@
-import prisma from '../lib/prisma'
-import logger from '../lib/logger'
-
 /**
- * Rétention RGPD de la console créateur — purge quotidienne.
+ * Rétention de la console créateur — gel de suppression explicite.
  *
+ * Ancienne proposition historique, non autorisée et non exécutée dans ce lot :
  * | Table                | Rétention | Pourquoi                                  |
  * |----------------------|-----------|-------------------------------------------|
  * | ActivityEvent        | 90 j      | minimisation ; les tendances longues      |
@@ -18,8 +16,6 @@ import logger from '../lib/logger'
  * par jour.
  */
 
-const JOUR_MS = 24 * 60 * 60 * 1000
-
 export interface BilanPurge {
   activityEvents: number
   loginEvents: number
@@ -28,57 +24,16 @@ export interface BilanPurge {
   refreshTokens: number
 }
 
-export async function purgerRetention(maintenant: Date = new Date()): Promise<BilanPurge> {
-  const seuil = (jours: number) => new Date(maintenant.getTime() - jours * JOUR_MS)
-
-  const [a, l, e, o, r] = await prisma.$transaction([
-    prisma.activityEvent.deleteMany({ where: { ts: { lt: seuil(90) } } }),
-    prisma.loginEvent.deleteMany({ where: { ts: { lt: seuil(180) } } }),
-    prisma.errorLog.deleteMany({ where: { ts: { lt: seuil(30) } } }),
-    prisma.opportunity.deleteMany({ where: { status: 'DISMISSED', updatedAt: { lt: seuil(365) } } }),
-    prisma.creatorRefreshToken.deleteMany({
-      where: {
-        OR: [{ revokedAt: { lt: seuil(90) } }, { expiresAt: { lt: seuil(90) } }],
-      },
-    }),
-  ])
-
-  const bilan: BilanPurge = {
-    activityEvents: a.count,
-    loginEvents: l.count,
-    errorLogs: e.count,
-    opportunites: o.count,
-    refreshTokens: r.count,
-  }
-  const total = a.count + l.count + e.count + o.count + r.count
-  if (total > 0) {
-    logger.info(`[creator-retention] purge : ${JSON.stringify(bilan)}`)
-  }
-  return bilan
+export async function purgerRetention(_maintenant: Date = new Date()): Promise<BilanPurge> {
+  // L'import direct et les variables legacy ne permettent pas de contourner
+  // le gel. La politique future devra être approuvée et qualifiée séparément.
+  return { activityEvents: 0, loginEvents: 0, errorLogs: 0, opportunites: 0, refreshTokens: 0 }
 }
 
-let premierPassage: NodeJS.Timeout | null = null
-let minuteur: NodeJS.Timeout | null = null
-
 export function startCreatorRetention(): void {
-  if (minuteur) return
-  const lancer = () => {
-    purgerRetention().catch((e) => logger.error(`[creator-retention] purge impossible: ${e?.message || e}`))
-  }
-  // Premier passage 5 min après le démarrage, puis toutes les 24 h.
-  premierPassage = setTimeout(lancer, 5 * 60 * 1000)
-  premierPassage.unref?.()
-  minuteur = setInterval(lancer, JOUR_MS)
-  minuteur.unref?.()
+  // Aucun minuteur de purge installé, même en profil complet.
 }
 
 export function stopCreatorRetention(): void {
-  if (premierPassage) {
-    clearTimeout(premierPassage)
-    premierPassage = null
-  }
-  if (minuteur) {
-    clearInterval(minuteur)
-    minuteur = null
-  }
+  // Fonction conservée pour les anciens appelants ; aucun minuteur actif.
 }

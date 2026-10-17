@@ -4,8 +4,10 @@ export function runtimeProfile(env: Record<string, string | undefined> = process
   const essential = businessOnly || env.CREORGA_BACKGROUND_MODE === 'essential'
   return {
     name: businessOnly ? 'business' : 'full', businessOnly, gamesEnabled: !businessOnly,
-    legacyStockSync: !essential, creatorRetention: !essential, creatorMetrics: !essential,
-    opportunityEngine: !essential, pruneBackups: !essential,
+    legacyStockSync: !essential, creatorRetention: false, creatorMetrics: !essential,
+    // Gel global : le changement de profil ou d'environnement ne vaut pas une
+    // politique approuvée, sa recette et une autorisation explicite de purge.
+    opportunityEngine: !essential, pruneBackups: false,
     backups: true, paymentRecovery: true, invoiceDelivery: true,
   } as const
 }

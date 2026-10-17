@@ -4,7 +4,6 @@ import path from 'path'
 import { promisify } from 'util'
 import { randomInt } from 'node:crypto'
 import logger from '../lib/logger'
-import { runtimeProfile } from '../lib/runtime-profile'
 
 const execFileAsync = promisify(execFile)
 
@@ -25,10 +24,6 @@ const execFileAsync = promisify(execFile)
 const DATA_DIR = path.resolve(process.cwd(), 'data')
 export const DB_BACKUP_DIR = path.join(DATA_DIR, 'backups', 'db')
 
-/** Retention demandee : 7 quotidiens + 4 hebdomadaires. */
-export const DAILY_RETENTION = 7
-export const WEEKLY_RETENTION = 4
-
 const DUMP_RE = /^creorga-db-[\d-]+\.dump$/
 
 export type DumpStrategy = 'native' | 'docker'
@@ -38,6 +33,7 @@ export interface PgDumpResult {
   path: string
   size: number
   strategy: DumpStrategy
+  retainedContainerDump?: { container: string; path: string }
 }
 
 export interface DbConnection {
@@ -111,6 +107,12 @@ export async function runPgDump(backupDirectory = DB_BACKUP_DIR): Promise<PgDump
         'Installez postgresql-client ou definissez PG_DUMP_MODE / PG_DUMP_DOCKER_CONTAINER.'
     )
   }
+  // Réservation exclusive : pg_dump / docker cp peuvent remplacer une sortie
+  // existante. Nous ne leur transmettons qu'un fichier neuf possédé par cet appel.
+  // Un échec conserve ce fichier (même vide) pour diagnostic, jamais unlink+retry.
+  const reservation = fs.openSync(outPath, 'wx', 0o600)
+  fs.closeSync(reservation)
+  let retainedContainerDump: PgDumpResult['retainedContainerDump']
 
   if (strategy === 'native') {
     await execFileAsync(
@@ -120,7 +122,11 @@ export async function runPgDump(backupDirectory = DB_BACKUP_DIR): Promise<PgDump
     )
   } else {
     const container = process.env.PG_DUMP_DOCKER_CONTAINER || 'creorga-db'
-    const tmp = `/tmp/${filename}`
+    const workDirectory = `/tmp/${filename}.work`, tmp = `${workDirectory}/${filename}`
+    // La copie locale pourrait manquer alors que l'ancienne copie Docker existe.
+    // mkdir sans -p réserve aussi le répertoire distant avant pg_dump -f.
+    await execFileAsync('docker', ['exec', container, 'mkdir', '--', workDirectory], { timeout: 60_000, windowsHide: true })
+    retainedContainerDump = { container, path: tmp }
     // Depuis l'interieur du conteneur, la base est joignable en local.
     await execFileAsync(
       'docker',
@@ -129,7 +135,9 @@ export async function runPgDump(backupDirectory = DB_BACKUP_DIR): Promise<PgDump
       { env: { ...process.env, PGPASSWORD: conn.password }, timeout: 10 * 60_000, windowsHide: true }
     )
     await execFileAsync('docker', ['cp', `${container}:${tmp}`, outPath], { timeout: 5 * 60_000, windowsHide: true })
-    await execFileAsync('docker', ['exec', container, 'rm', '-f', tmp], { timeout: 60_000, windowsHide: true }).catch(() => {})
+    // Copie intermédiaire conservée. Aucun nettoyage automatique tant que la
+    // politique, les preuves et l'autorisation de suppression ne sont validés.
+    logger.warn('[pg-dump] Copie de travail conservée dans le conteneur ; nettoyage opérateur non autorisé')
   }
 
   if (!fs.existsSync(outPath)) throw new Error(`pg_dump n'a produit aucun fichier (${outPath})`)
@@ -145,8 +153,7 @@ export async function runPgDump(backupDirectory = DB_BACKUP_DIR): Promise<PgDump
   }
 
   logger.info(`[pg-dump] ${filename} — ${size} octets (strategie: ${strategy})`)
-  prunePgDumps(targetDirectory)
-  return { filename, path: outPath, size, strategy }
+  return { filename, path: outPath, size, strategy, ...(retainedContainerDump ? { retainedContainerDump } : {}) }
 }
 
 export function listPgDumps(directory = DB_BACKUP_DIR): { filename: string; size: number; createdAt: number }[] {
@@ -161,41 +168,9 @@ export function listPgDumps(directory = DB_BACKUP_DIR): { filename: string; size
     .sort((a, b) => b.createdAt - a.createdAt)
 }
 
-function weekKey(ms: number): string {
-  const d = new Date(ms)
-  // Cle ISO annee-semaine, suffisante pour regrouper par semaine.
-  const target = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-  const dayNum = target.getUTCDay() || 7
-  target.setUTCDate(target.getUTCDate() + 4 - dayNum)
-  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1))
-  const week = Math.ceil(((target.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
-  return `${target.getUTCFullYear()}-W${String(week).padStart(2, '0')}`
-}
-
-/** Conserve les 7 plus recents, puis 1 dump par semaine sur 4 semaines. */
-export function prunePgDumps(directory = DB_BACKUP_DIR): string[] {
-  if (!runtimeProfile().pruneBackups) return []
-  const all = listPgDumps(directory)
-  const keep = new Set(all.slice(0, DAILY_RETENTION).map((x) => x.filename))
-
-  const weeklySeen = new Set<string>()
-  for (const item of all.slice(DAILY_RETENTION)) {
-    const k = weekKey(item.createdAt)
-    if (weeklySeen.has(k)) continue
-    weeklySeen.add(k)
-    if (weeklySeen.size <= WEEKLY_RETENTION) keep.add(item.filename)
-  }
-
-  const removed: string[] = []
-  for (const item of all) {
-    if (keep.has(item.filename)) continue
-    try {
-      fs.unlinkSync(path.join(directory, item.filename))
-      removed.push(item.filename)
-    } catch {
-      /* best effort */
-    }
-  }
-  if (removed.length) logger.info(`[pg-dump] retention : ${removed.length} dump(s) supprime(s)`)
-  return removed
+/** Compatibilité des anciens appelants ; aucune purge n'est autorisée. */
+export function prunePgDumps(_directory = DB_BACKUP_DIR): string[] {
+  // Pas de scan, de création de répertoire, ni de commande de suppression.
+  // Une variable d'environnement ne peut pas lever ce verrou.
+  return []
 }

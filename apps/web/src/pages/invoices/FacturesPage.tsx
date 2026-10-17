@@ -12,10 +12,14 @@ import { useCustomers } from '@/hooks/api/useCustomers'
 import { downloadCsv } from '@/lib/csv'
 import { toastError, toastSuccess } from '@/lib/toast'
 import { totalsFromHt } from '@/lib/money'
-import api from '@/lib/api'
+import api, { assertAuthScope } from '@/lib/api'
+import { authDataScope } from '@/lib/authScope'
+import { prepareInvoiceEmailReference } from '@/lib/invoice-email-reference'
+import type { AxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import ReceiptInvoiceCreator from '@/components/invoices/ReceiptInvoiceCreator'
 import CreditNotesPanel from '@/components/invoices/CreditNotesPanel'
+import InvoiceDocumentLinks from '@/components/invoices/InvoiceDocumentLinks'
 
 const euro = new Intl.NumberFormat('fr-LU', { style: 'currency', currency: 'EUR' })
 const statuses: InvoiceStatus[] = ['DRAFT', 'SENT', 'PAID', 'OVERDUE', 'CANCELLED']
@@ -57,11 +61,13 @@ export default function FacturesPage() {
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<LigneDocument[]>([emptyLine()])
   const displayedInvoiceId = useRef<string | null>(null)
+  const documentScope = useAuthStore(authDataScope)
   displayedInvoiceId.current = detail?.id || null
   useEffect(() => {
     setEmailTo('')
     setDeliveryState('')
-  }, [detail?.id, actorId, companyId])
+    setEmailSending(false)
+  }, [detail?.id, actorId, companyId, documentScope])
 
   const filtered = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('fr')
@@ -161,23 +167,25 @@ export default function FacturesPage() {
   }
   async function sendDocument(invoice: Invoice) {
     if (emailSending) return
+    const scope = authDataScope(useAuthStore.getState())
+    const current = () => scope === authDataScope(useAuthStore.getState()) && displayedInvoiceId.current === invoice.id
     setEmailSending(true)
     try {
-      const to = emailTo.trim() || invoice.customer?.email || ''
-      if (!to) throw new Error('Saisissez le destinataire.')
-      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${companyId}:${actorId}:${invoice.id}:${to.toLowerCase()}`))
-      const key = `creorga-invoice-mail:${Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('')}`
-      const id = localStorage.getItem(key) || crypto.randomUUID(); localStorage.setItem(key, id)
-      const queued = await api.post(`/invoices/${invoice.id}/email`, { requestId: id, to })
-      if (displayedInvoiceId.current === invoice.id) setDeliveryState(queued.data.status)
+      const reference = await prepareInvoiceEmailReference(invoice.id, emailTo.trim() || invoice.customer?.email || '')
+      assertAuthScope(scope)
+      const config = { _creorgaScope: scope } as AxiosRequestConfig
+      const id = reference.requestId
+      const queued = await api.post(`/invoices/${invoice.id}/email`, { requestId: id, to: reference.to }, config)
+      if (current()) setDeliveryState(queued.data.status)
       for (let i = 0; i < 20; i++) {
-        const response = await api.get(`/invoices/deliveries/${id}`)
-        if (displayedInvoiceId.current === invoice.id) setDeliveryState(response.data.status)
+        assertAuthScope(scope)
+        const response = await api.get(`/invoices/deliveries/${id}`, config)
+        if (current()) setDeliveryState(response.data.status)
         if (['ACCEPTED', 'UNCERTAIN', 'FAILED'].includes(response.data.status)) break
         await new Promise(resolve => setTimeout(resolve, 500))
       }
-    } catch (error: any) { toastError(error.response?.data?.message || error.message || 'Envoi non confirmé.') }
-    finally { setEmailSending(false) }
+    } catch (error: any) { if (current()) toastError(error.response?.data?.message || error.message || 'Envoi non confirmé.') }
+    finally { if (current()) setEmailSending(false) }
   }
 
   return (
@@ -311,6 +319,7 @@ export default function FacturesPage() {
               <button type="button" disabled={emailSending} onClick={() => void sendDocument(detail)} style={{ ...primaryButton, marginTop: 10 }}>{emailSending ? 'Suivi de l’envoi…' : 'Envoyer le PDF par email'}</button>
               <p role="status" style={{ fontSize: 13, color: '#64748b' }}>{deliveryState === 'ACCEPTED' ? 'Message accepté par le serveur SMTP ; lecture du destinataire non prouvée.' : deliveryState === 'UNCERTAIN' ? 'Résultat incertain. Vérifiez la boîte avant tout nouvel envoi.' : deliveryState === 'FAILED' ? 'Envoi échoué. Vérifiez la configuration.' : deliveryState ? 'Message en file ou en cours ; référence conservée.' : 'Envoi transactionnel uniquement, sans inscription marketing.'}</p>
             </section>}
+            {detail.issuedAt && detail.status !== 'CANCELLED' && ['OWNER', 'MANAGER'].includes(role || '') && <InvoiceDocumentLinks key={`${documentScope}:${detail.id}`} invoiceId={detail.id} />}
             {['OWNER', 'MANAGER'].includes(role || '') && <CreditNotesPanel key={detail.id} invoiceId={detail.id} issued={!!detail.issuedAt && detail.status !== 'CANCELLED'} />}
           </section>
         </div>

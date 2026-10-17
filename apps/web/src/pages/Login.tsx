@@ -12,6 +12,7 @@ import {
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/stores/authStore'
 import api from '@/lib/api'
+import { useLogout } from '@/hooks/api/useAuth'
 
 /**
  * Creorga OS — Login / landing page.
@@ -97,6 +98,8 @@ export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const setAuth = useAuthStore((s) => s.setAuth)
+  const revocationPending = useAuthStore(state => state.logoutRevocationPending)
+  const logoutRequest = useLogout()
 
   useEffect(() => {
     const id = setInterval(() => setEngagementIdx((i) => (i + 1) % ENGAGEMENTS.length), 6000)
@@ -118,6 +121,7 @@ export default function Login() {
 
   const onSubmit = async (data: LoginForm) => {
     try {
+      if (useAuthStore.getState().logoutRevocationPending) throw new Error('Révocation serveur non confirmée. Réessayez la déconnexion avant de vous connecter.')
       if (mode === 'register') {
         const champs = [
           ['firstName', data.firstName, 'Prénom requis'],
@@ -295,6 +299,14 @@ export default function Login() {
               </p>
             </div>
 
+            {revocationPending && <div role="alert" style={{ padding: 14, marginBottom: 16, borderRadius: 10, background: 'rgba(180,83,9,.15)', border: '1px solid #d97706', color: '#fcd34d', fontSize: 13 }}>
+              <strong>Accès local verrouillé — révocation serveur non confirmée.</strong>
+              <p>L’ancien cookie ne peut pas rouvrir votre session dans cette page. Réessayez sa révocation avant toute nouvelle connexion explicite.</p>
+              <button type="button" disabled={logoutRequest.isPending} onClick={() => logoutRequest.mutate()} style={{ ...submitStyle, padding: '9px 12px', fontSize: 13 }}>
+                {logoutRequest.isPending ? 'Révocation en cours…' : 'Réessayer la révocation serveur'}
+              </button>
+            </div>}
+
             <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {mode === 'register' && (
                 <>
@@ -392,7 +404,7 @@ export default function Login() {
               {/* Submit */}
               <motion.button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || revocationPending}
                 whileTap={{ scale: 0.98 }}
                 style={{
                   ...submitStyle,

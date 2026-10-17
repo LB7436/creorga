@@ -21,6 +21,13 @@ function userDisplayName(user: User | null): string | null {
   return name || user.email || null
 }
 
+function clearedSession(sessionVersion: number) {
+  return {
+    sessionVersion, accessToken: null, user: null, companies: [] as UserCompany[], company: null, companyId: null,
+    isAuthenticated: false, role: 'owner' as const, viewMode: 'owner' as const, viewAsEmployeeId: null, viewAsEmployeeName: null,
+  }
+}
+
 interface AuthState {
   /** Génération mémoire : une reconnexion du même compte reste une nouvelle session. */
   sessionVersion: number
@@ -30,6 +37,8 @@ interface AuthState {
   company: Company | null
   companyId: string | null
   isAuthenticated: boolean
+  /** Marqueur sans secret : accès local verrouillé, cookie serveur à révoquer. */
+  logoutRevocationPending: boolean
 
   // v3.18.6 — Permissions par rôle RH
   role: 'owner' | 'manager' | 'employee'
@@ -48,6 +57,8 @@ interface AuthState {
   setRole: (role: 'owner' | 'manager' | 'employee') => void
   setViewMode: (mode: ViewMode, employeeId?: string, employeeName?: string) => void
   logout: () => void
+  beginLogout: () => void
+  confirmLogoutRevocation: () => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -60,6 +71,7 @@ export const useAuthStore = create<AuthState>()(
       company: null,
       companyId: null,
       isAuthenticated: false,
+      logoutRevocationPending: false,
 
       // v3.18.6 — defaults : patron voit tout
       role: 'owner',
@@ -68,6 +80,7 @@ export const useAuthStore = create<AuthState>()(
       viewAsEmployeeName: null,
 
       setAuth: ({ accessToken, user, companies }) => {
+        if (get().logoutRevocationPending) throw new Error('La révocation de la session précédente doit être confirmée avant une nouvelle connexion.')
         const activeCompany = companies[0]?.company ?? null
         // Le rôle est porté par l'adhésion UserCompany, jamais par User (cf. CLAUDE.md) :
         // l'API ne renvoie AUCUN user.role. L'ancien repli — « owner seulement si
@@ -109,7 +122,7 @@ export const useAuthStore = create<AuthState>()(
       setActiveCompany: (companyId) => {
         const { companies, user } = get()
         const uc = companies.find((c) => c.companyId === companyId)
-        if (uc) {
+        if (uc && uc.isActive !== false) {
           const role = membershipRole(uc.role)
           set({
             company: uc.company,
@@ -131,23 +144,21 @@ export const useAuthStore = create<AuthState>()(
       })),
 
       logout: () => {
-        set((state) => ({
-          sessionVersion: state.sessionVersion + 1,
-          accessToken: null,
-          user: null,
-          companies: [],
-          company: null,
-          companyId: null,
-          isAuthenticated: false,
-          role: 'owner',
-          viewMode: 'owner',
-          viewAsEmployeeId: null,
-          viewAsEmployeeName: null,
-        }))
+        set(state => clearedSession(state.sessionVersion + 1))
       },
+      beginLogout: () => set(state => ({ ...clearedSession(state.sessionVersion + 1), logoutRevocationPending: true })),
+      confirmLogoutRevocation: () => set({ logoutRevocationPending: false }),
     }),
     {
       name: 'creorga-auth',
+      merge: (persisted, current) => {
+        const next = { ...current, ...(persisted as Partial<AuthState> | undefined) }
+        // Un ancien cookie ou un vieux champ persisté ne réouvre jamais la
+        // session pendant une révocation incertaine après rechargement.
+        return next.logoutRevocationPending
+          ? { ...next, ...clearedSession(current.sessionVersion + 1), logoutRevocationPending: true }
+          : next
+      },
       // ✓ v3.11 fix #26 : persist auth across navigations (session was lost
       // every time the user clicked a direct URL because the store was
       // in-memory only — React Router would re-mount and lose state).
@@ -158,6 +169,7 @@ export const useAuthStore = create<AuthState>()(
         company: s.company,
         companyId: s.companyId,
         isAuthenticated: s.isAuthenticated,
+        logoutRevocationPending: s.logoutRevocationPending,
         role: s.role,
         viewMode: s.viewMode,
         viewAsEmployeeId: s.viewAsEmployeeId,

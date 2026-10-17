@@ -22,12 +22,8 @@ async function loadModule() {
 afterEach(() => {
   vi.unstubAllEnvs()
   process.chdir(CWD)
-  if (tmpRoot) {
-    const resolved = path.resolve(tmpRoot)
-    if (path.dirname(resolved) !== path.resolve(os.tmpdir()) || !path.basename(resolved).startsWith('creorga-pgdump-')) throw new Error('Répertoire temporaire inattendu')
-    fs.rmSync(resolved, { recursive: true, force: true })
-    tmpRoot = ''
-  }
+  // Les fixtures exclusives sont conservées pendant le gel de suppression.
+  tmpRoot = ''
 })
 
 describe('parseDatabaseUrl', () => {
@@ -48,7 +44,7 @@ describe('parseDatabaseUrl', () => {
   })
 })
 
-describe('prunePgDumps — retention 7 quotidiens + 4 hebdomadaires', () => {
+describe('prunePgDumps — conservation sans autorisation de suppression', () => {
   it.each(['business', 'essential'])('le profil local %s ne purge aucun dump préexistant', async profile => {
     const { prunePgDumps, listPgDumps, DB_BACKUP_DIR, timestamp } = await loadModule()
     vi.stubEnv(profile === 'business' ? 'CREORGA_BUSINESS_ONLY' : 'CREORGA_BACKGROUND_MODE', profile === 'business' ? 'true' : 'essential')
@@ -60,8 +56,14 @@ describe('prunePgDumps — retention 7 quotidiens + 4 hebdomadaires', () => {
     expect(prunePgDumps()).toEqual([])
     expect(listPgDumps()).toHaveLength(20)
   })
-  it('conserve les 7 plus recents et 1 dump par semaine sur 4 semaines', async () => {
+  it.each(['full', 'environment-opt-in'])('conserve les 60 dumps en profil %s sans dérogation par environnement', async profile => {
     const { prunePgDumps, listPgDumps, DB_BACKUP_DIR, timestamp } = await loadModule()
+    vi.stubEnv('CREORGA_BUSINESS_ONLY', 'false')
+    vi.stubEnv('CREORGA_BACKGROUND_MODE', 'full')
+    if (profile === 'environment-opt-in') {
+      vi.stubEnv('CREORGA_ALLOW_BACKUP_DELETION', 'true')
+      vi.stubEnv('CREORGA_BACKUP_RETENTION_APPROVED', 'true')
+    }
     fs.mkdirSync(DB_BACKUP_DIR, { recursive: true })
 
     const day = 86_400_000
@@ -74,17 +76,15 @@ describe('prunePgDumps — retention 7 quotidiens + 4 hebdomadaires', () => {
     }
     expect(listPgDumps()).toHaveLength(60)
 
-    prunePgDumps()
+    expect(prunePgDumps()).toEqual([])
     const kept = listPgDumps()
-
-    expect(kept.length).toBeGreaterThanOrEqual(7)
-    expect(kept.length).toBeLessThanOrEqual(7 + 4)
+    expect(kept).toHaveLength(60)
 
     const keptNames = new Set(kept.map((k) => k.filename))
     for (let i = 0; i < 7; i++) {
       expect(keptNames.has(`creorga-db-${timestamp(new Date(now - i * day))}.dump`)).toBe(true)
     }
-    expect(keptNames.has(`creorga-db-${timestamp(new Date(now - 59 * day))}.dump`)).toBe(false)
+    expect(keptNames.has(`creorga-db-${timestamp(new Date(now - 59 * day))}.dump`)).toBe(true)
   })
 
   it('ne supprime rien quand il y a moins de 7 dumps', async () => {

@@ -39,18 +39,20 @@ function planifierEcriture() {
   if (minuteur) return
   minuteur = setTimeout(() => {
     minuteur = null
-    if (!aEcrire || !cache) return
-    aEcrire = false
-    try {
-      ensureDataDir()
-      safeWriteJson(AUDIT_FILE, cache.slice(0, 1000))
-    } catch (e: any) {
-      // Ne jamais avaler un échec d'écriture (règle du CLAUDE.md).
-      logger.error(`[audit] écriture du journal impossible: ${e?.message || e}`)
-    }
+    void flushAuditLog().catch(() => logger.error('[audit] écriture du journal impossible ; tampon conservé'))
   }, 2000)
   // Ne pas retenir le processus au moment de l'arrêt.
   minuteur.unref?.()
+}
+
+export async function flushAuditLog(): Promise<void> {
+  if (minuteur) { clearTimeout(minuteur); minuteur = null }
+  if (!aEcrire || !cache) return
+  ensureDataDir()
+  // safeWriteJson confirme le fsync avant de rendre. En cas d'échec on garde
+  // dirty : l'arrêt ne peut pas être déclaré propre ni perdre cette mutation.
+  safeWriteJson(AUDIT_FILE, cache.slice(0, 1000))
+  aEcrire = false
 }
 
 // Ne JAMAIS journaliser ces champs en clair : le mot de passe des routes
@@ -102,6 +104,9 @@ const CHEMINS_EXCLUS = [
 const TAUX_ECHANTILLON_GET = 0.2
 
 export function auditLog(req: Request, res: Response, next: NextFunction) {
+  // Le fragment n'arrive pas au serveur ; le POST de cette seule capacité
+  // conserve son statut dans l'audit, mais aucun corps/query, même malformé.
+  const documentDownload = req.path.replace(/\/$/, '') === '/api/document-download'
   const estMutation = MUTATING.has(req.method)
   if (CHEMINS_EXCLUS.some((prefixe) => req.path.startsWith(prefixe))) {
     next()
@@ -129,10 +134,10 @@ export function auditLog(req: Request, res: Response, next: NextFunction) {
           // /api/owner/audit de ne montrer à chaque société que son journal.
           companyId: (req as any).companyId ?? null,
           method: req.method,
-          path: req.originalUrl,
+          path: documentDownload ? '/api/document-download' : req.originalUrl,
           status: res.statusCode,
-          module: req.originalUrl.split('/')[2] || 'system',
-          body: summarizeBody(req.body),
+          module: req.path.split('/')[2] || 'system',
+          body: documentDownload ? { capability: '***' } : summarizeBody(req.body),
         })
         if (entries.length > 1000) entries.length = 1000
         planifierEcriture()
@@ -145,7 +150,7 @@ export function auditLog(req: Request, res: Response, next: NextFunction) {
         userId: user?.userId ?? user?.id ?? null,
         role: (req as any).role ?? null,
         method: req.method,
-        module: req.originalUrl.split('/')[2] || 'system',
+        module: req.path.split('/')[2] || 'system',
         path: (req.originalUrl || req.path).split('?')[0],
         status: res.statusCode,
         durationMs,

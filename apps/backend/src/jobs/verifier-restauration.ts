@@ -21,7 +21,7 @@ const execFileAsync = promisify(execFile)
  *  1. que chaque `data/**\/*.json` se relit (JSON valide, pas tronqué) ;
  *  2. que le dump PostgreSQL (`database/*.dump`, format custom) se restaure
  *     réellement, dans une base JETABLE `creorga_restore_<horodatage>` créée
- *     dans le conteneur, puis supprimée — la base de production n'est jamais
+ *     dans le conteneur, puis conservée — la base de production n'est jamais
  *     touchée. On compte les tables et les sociétés restaurées.
  *
  * Aucun échec n'est avalé : chaque problème est listé dans `erreurs`, et
@@ -41,6 +41,7 @@ export interface RapportRestauration {
   versionArchive: number | null
   fichiersVerifies: number
   limites: string[]
+  ressourcesConservees: { extraction: string | null; base: string | null; dumpConteneur: string | null }
 }
 
 export const FULL_BACKUP_DIR = path.join(path.dirname(DB_BACKUP_DIR), 'full')
@@ -78,7 +79,11 @@ export function verifierJson(racine: string): { total: number; invalides: string
 
 type DockerRunner = (args: string[], timeout?: number) => Promise<{ stdout: string }>
 export interface RestoreRuntime { run: DockerRunner; sourceDatabase: string; user: string; container: string }
-class SafeRestoreError extends Error {}
+type RetainedDatabase = { base: string; dumpConteneur: string }
+type RestoreResult = { tables: number; societes: number; ressourcesConservees?: RetainedDatabase }
+class SafeRestoreError extends Error {
+  constructor(message: string, readonly ressourcesConservees?: RetainedDatabase) { super(message) }
+}
 
 function runtime(): RestoreRuntime {
   const conn = parseDatabaseUrl()
@@ -147,22 +152,26 @@ export async function extractVerifiedArchive(zipPath: string, destination: strin
 
 /**
  * Restaure le dump dans une base jetable du conteneur et compte ce qui en
- * ressort. Nettoie toujours (base + fichier temporaire), même en cas d'erreur.
+ * ressort. Conserve base et copie temporaire, même en cas d'erreur : aucune
+ * suppression sans politique, recette et autorisation explicite distincte.
  */
-export async function restaurerDansBaseJetable(dumpPath: string, execution: RestoreRuntime = runtime()): Promise<{ tables: number; societes: number }> {
+export async function restaurerDansBaseJetable(dumpPath: string, execution: RestoreRuntime = runtime()): Promise<RestoreResult> {
   const { run, container, user, sourceDatabase } = execution
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(container)) throw new Error('Conteneur de restauration refusé')
   const nonce = randomUUID().replace(/-/g, '')
   const baseTest = `creorga_restore_${nonce}`
   validateRestoreTarget(sourceDatabase, baseTest)
-  const distant = `/tmp/creorga-restore-${nonce}.dump`
-  let copied = false, created = false, phase = 'copie du dump', result: { tables: number; societes: number } | null = null
+  const workDirectory = `/tmp/creorga-restore-${nonce}.work`, distant = `${workDirectory}/backup.dump`
+  let phase = 'réservation du répertoire de contrôle', result: { tables: number; societes: number } | null = null
   let failure: Error | null = null
   const docker = (args: string[]) => run(['exec', '-e', 'PGPASSWORD', container, ...args])
   try {
-    await run(['cp', dumpPath, `${container}:${distant}`]); copied = true
+    // Sans -p : une ancienne copie de contrôle ne peut pas être remplacée.
+    await docker(['mkdir', '--', workDirectory])
+    phase = 'copie du dump'
+    await run(['cp', dumpPath, `${container}:${distant}`])
     phase = 'création de la base jetable'
-    await docker(['createdb', '-U', user, '--maintenance-db=postgres', '--template=template0', baseTest]); created = true
+    await docker(['createdb', '-U', user, '--maintenance-db=postgres', '--template=template0', baseTest])
     phase = 'restauration PostgreSQL'
     await docker(['pg_restore', '-U', user, '-d', baseTest, '--no-owner', '--no-privileges', '--exit-on-error', '--single-transaction', distant])
     phase = 'vérification des tables restaurées'
@@ -179,26 +188,20 @@ export async function restaurerDansBaseJetable(dumpPath: string, execution: Rest
       result = { tables, societes }
   } catch {
     // stderr peut contenir des valeurs métier ou des identifiants : phase seule.
-    failure = new SafeRestoreError(`Échec : ${phase}. La restauration n’est pas validée.`)
-  } finally {
-    if (created) {
-      try { await docker(['dropdb', '-U', user, '--maintenance-db=postgres', baseTest]) }
-      catch { failure ||= new SafeRestoreError('Nettoyage de la base jetable non confirmé') }
-    }
-    if (copied) {
-      try { await docker(['rm', '-f', '--', distant]) }
-      catch { failure ||= new SafeRestoreError('Nettoyage du dump temporaire non confirmé') }
-    }
+    failure = new SafeRestoreError(`Échec : ${phase}. La restauration n’est pas validée. Ressources éventuelles conservées pour diagnostic.`,
+      { base: baseTest, dumpConteneur: `${container}:${distant}` })
   }
   if (failure) throw failure
   if (!result) throw new Error('Résultat de restauration absent')
-  return result
+  return { ...result, ressourcesConservees: { base: baseTest, dumpConteneur: `${container}:${distant}` } }
 }
 
-export async function verifierRestauration(zipPath: string | null = dernierZip(), restore = restaurerDansBaseJetable): Promise<RapportRestauration> {
+export async function verifierRestauration(zipPath: string | null = dernierZip(), restore: (dumpPath: string) => Promise<RestoreResult> = restaurerDansBaseJetable): Promise<RapportRestauration> {
   const debut = Date.now()
   const rapport: RapportRestauration = { zip: zipPath ? path.basename(zipPath) : null, fichiersJson: 0, jsonInvalides: [], dump: null, erreurs: [], ok: false, dureeMs: 0, versionArchive: null, fichiersVerifies: 0,
-    limites: ['Le comptage des tables ne remplace pas le rapprochement des lignes, totaux et PDF avec une source figée.', 'Un fichier JSON de plus de 64 Mio rend ce contrôle incomplet et exige un outil adapté.'] }
+    limites: ['Le comptage des tables ne remplace pas le rapprochement des lignes, totaux et PDF avec une source figée.', 'Un fichier JSON de plus de 64 Mio rend ce contrôle incomplet et exige un outil adapté.',
+      'Extraction, base de contrôle et dump de travail restent conservés ; le rapport détaillé contenant leurs emplacements doit rester privé.'],
+    ressourcesConservees: { extraction: null, base: null, dumpConteneur: null } }
   if (!zipPath || !fs.existsSync(zipPath)) {
     rapport.erreurs.push('aucun ZIP de sauvegarde complète trouvé')
     rapport.dureeMs = Date.now() - debut
@@ -206,6 +209,7 @@ export async function verifierRestauration(zipPath: string | null = dernierZip()
   }
 
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'creorga-restore-'))
+  rapport.ressourcesConservees.extraction = tmp
   try {
     const inspection = await extractVerifiedArchive(zipPath, tmp)
     rapport.versionArchive = inspection.version
@@ -226,18 +230,15 @@ export async function verifierRestauration(zipPath: string | null = dernierZip()
       const dumpPath = path.join(dossierDump, dumps[0])
       try {
         const resultat = await restore(dumpPath)
-        rapport.dump = { fichier: dumps[0], ...resultat }
+        rapport.dump = { fichier: dumps[0], tables: resultat.tables, societes: resultat.societes }
+        if (resultat.ressourcesConservees) Object.assign(rapport.ressourcesConservees, resultat.ressourcesConservees)
       } catch (error) {
-        rapport.erreurs.push(error instanceof SafeRestoreError ? error.message : 'Restauration PostgreSQL ou nettoyage non confirmé ; aucun succès partiel accepté')
+        if (error instanceof SafeRestoreError && error.ressourcesConservees) Object.assign(rapport.ressourcesConservees, error.ressourcesConservees)
+        rapport.erreurs.push(error instanceof SafeRestoreError ? error.message : 'Restauration PostgreSQL non confirmée ; ressources conservées, aucun succès partiel accepté')
       }
     }
   } catch {
     rapport.erreurs.push('Archive refusée ou extraction impossible : intégrité, structure ou dump PostgreSQL invalide')
-  } finally {
-    const resolved = path.resolve(tmp)
-    if (path.dirname(resolved) !== path.resolve(os.tmpdir()) || !path.basename(resolved).startsWith('creorga-restore-')) throw new Error('Nettoyage temporaire refusé')
-    try { fs.rmSync(resolved, { recursive: true, force: true }) }
-    catch { rapport.erreurs.push('Nettoyage du dossier temporaire non confirmé') }
   }
   rapport.ok = rapport.erreurs.length === 0
   rapport.dureeMs = Date.now() - debut

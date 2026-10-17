@@ -718,6 +718,7 @@ model Invoice {
   customer Customer?     @relation(fields: [customerId], references: [id])
   items    InvoiceItem[]
   deliveries InvoiceDelivery[]
+  documentLinks InvoiceDocumentLink[]
   creditNotes CreditNote[]
   sourcePosSale PosSale? @relation(fields: [companyId, sourcePosSaleId], references: [companyId, id], onDelete: Restrict, map: "Invoice_sourcePosSale_fkey")
   sourceQuote Quote?
@@ -928,6 +929,37 @@ model InvoiceDelivery {
   acceptedAt    DateTime?
   invoice       Invoice @relation(fields: [companyId, invoiceId], references: [companyId, id])
   @@index([companyId, status])
+}
+
+// Capacité au porteur : aucun jeton clair conservé, aucun document réécrit.
+model InvoiceDocumentLink {
+  id String @id
+  companyId String
+  invoiceId String
+  actorId String
+  requestHash String
+  documentHash String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  revokedBy String?
+  revocationReason String?
+  invoice Invoice @relation(fields: [companyId, invoiceId], references: [companyId, id], onDelete: Restrict)
+  events InvoiceDocumentLinkEvent[]
+  @@unique([companyId, id])
+  @@index([companyId, invoiceId, createdAt])
+}
+
+// Append-only dans l'API. Ne contient ni capacité, ni destinataire, ni URL.
+model InvoiceDocumentLinkEvent {
+  id String @id @default(uuid())
+  companyId String
+  linkId String
+  action String
+  actorId String?
+  createdAt DateTime @default(now())
+  link InvoiceDocumentLink @relation(fields: [companyId, linkId], references: [companyId, id], onDelete: Restrict)
+  @@index([companyId, linkId, createdAt])
 }
 
 model InvoiceItem {

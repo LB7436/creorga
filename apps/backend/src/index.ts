@@ -41,7 +41,8 @@ import { createServer } from 'http'
 import { Server as SocketServer } from 'socket.io'
 import logger from './lib/logger'
 import prisma from './lib/prisma'
-import { listFullBackups } from './jobs/backup-worker'
+import { listFullBackups, startBackupWorker, shutdownBackups } from './jobs/backup-worker'
+import { startStaleSessionJanitor, stopStaleSessionJanitor } from './jobs/closeStaleFloorSessions'
 import { errorHandler } from './middleware/errorHandler'
 import { authenticate } from './middleware/auth'
 import { requireCompany, requireRole } from './middleware/requireCompany'
@@ -56,6 +57,7 @@ import companiesRoutes from './routes/companies'
 import modulesRoutes from './routes/modules'
 import crmRoutes from './routes/crm'
 import invoicesRoutes from './routes/invoices'
+import invoiceDocumentDownload from './routes/invoice-document-download'
 import reservationsRoutes from './routes/reservations'
 import inventoryRoutes from './routes/inventory'
 import hrRoutes from './routes/hr'
@@ -68,7 +70,7 @@ import eventsRoutes from './routes/events'
 import stripeRoutes, { stripeWebhook } from './routes/stripe'
 import emailRoutes from './routes/email'
 import paymentsRoutes, { paypalWebhook, stripePaymentWebhook, processPendingPaymentWebhooks } from './routes/payments'
-import { processInvoiceDeliveries } from './lib/invoice-delivery'
+import { processInvoiceDeliveries, pauseInvoiceDeliveries, drainInvoiceDeliveries } from './lib/invoice-delivery'
 import portalConfigRoutes from './routes/portalConfig'
 import floorStateRoutes, { floorCompanyContext } from './routes/floorState'
 import moduleConfigRoutes from './routes/moduleConfig'
@@ -85,7 +87,7 @@ import guestRoutes from './routes/guest'
 import guestVisitRoutes from './routes/guestVisits'
 import { isPublicLiveChannel } from './lib/live-channels'
 import { runtimeProfile } from './lib/runtime-profile'
-import { auditLog } from './middleware/audit-log'
+import { auditLog, flushAuditLog } from './middleware/audit-log'
 import { assertProductionSecrets, buildCorsOrigin, authLimiter, aiLimiter, publicLimiter, creatorAuthLimiter } from './lib/security'
 import { deviceOrUserAuth } from './middleware/deviceAuth'
 import { initMonitoring } from './lib/monitoring'
@@ -94,8 +96,9 @@ import creatorAuthRoutes from './routes/creator/auth'
 import creatorDonneesRoutes from './routes/creator/donnees'
 import creatorOpportunitesRoutes from './routes/creator/opportunites'
 import { creatorConfigure } from './lib/creatorSecurity'
-import { brancherVidageArret } from './lib/eventSink'
+import { shutdownEventSink } from './lib/eventSink'
 import { ErrorLogTransport } from './lib/errorLogTransport'
+import { createBackendShutdown, TrackedTasks } from './lib/backend-lifecycle'
 
 // Refuse de démarrer en production avec des secrets de dev ou absents.
 assertProductionSecrets()
@@ -104,6 +107,15 @@ initMonitoring()
 
 const app = express()
 const profile = runtimeProfile()
+const localEssential = profile.businessOnly || process.env.CREORGA_BACKGROUND_MODE === 'essential'
+let mailQueueTimer: NodeJS.Timeout | null = null
+let paymentRecoveryTimer: NodeJS.Timeout | null = null
+let backupShutdown: Promise<void> | null = null
+const recoveryTasks = new TrackedTasks()
+let resolveBackendReady!: () => void
+let rejectBackendReady!: (error: Error) => void
+export const backendReady = new Promise<void>((resolve, reject) => { resolveBackendReady = resolve; rejectBackendReady = reject })
+void backendReady.catch(() => {})
 
 // Un seul intermédiaire devant nous : Caddy, sur la même machine.
 // Sans ce réglage, express-rate-limit voit l'IP de Caddy (127.0.0.1) pour
@@ -123,6 +135,53 @@ const corsOptions = {
 }
 
 const io = new SocketServer(httpServer, { cors: corsOptions })
+httpServer.once('error', rejectBackendReady)
+
+const lifecycle = createBackendShutdown({
+  assertAllowed: () => {
+    if (!localEssential) throw new Error('Arrêt propre non qualifié pour ce profil : CREORGA_BACKGROUND_MODE=essential requis pour le profil complet local. Aucun service fermé.')
+  },
+  stopScheduling: () => {
+    if (mailQueueTimer) { clearInterval(mailQueueTimer); mailQueueTimer = null }
+    if (paymentRecoveryTimer) { clearInterval(paymentRecoveryTimer); paymentRecoveryTimer = null }
+    pauseInvoiceDeliveries()
+    recoveryTasks.freeze()
+    stopStaleSessionJanitor()
+    // Le gel est synchrone ; la promesse attendra les archives déjà commencées.
+    backupShutdown = shutdownBackups()
+    void backupShutdown.catch(() => {})
+  },
+  closeHttp: async () => {
+    // Couvre aussi une demande d'arrêt reçue avant le callback listen.
+    await backendReady
+    await new Promise<void>((resolve, reject) => {
+      void io.close(error => error ? reject(error) : resolve()).catch(reject)
+    })
+  },
+  drain: async () => {
+    const results = await Promise.allSettled([drainInvoiceDeliveries(), recoveryTasks.drain(), backupShutdown!])
+    if (results.some(result => result.status === 'rejected')) throw new Error('Arrêt non confirmé : travaux en cours non drainés ; données et diagnostics conservés.')
+  },
+  flushAudit: async () => {
+    await flushAuditLog()
+    await shutdownEventSink()
+  },
+  disconnect: async () => { await prisma.$disconnect() },
+})
+
+/** Utilisé par le contrôleur local privé ; aucun endpoint de contrôle public. */
+export function shutdownBackend(): Promise<void> { return lifecycle.shutdown() }
+
+// Une requête déjà admise finit normalement. Une nouvelle requête sur un ancien
+// keep-alive n'entre plus dans les routes métier pendant le drainage.
+app.use((_req, res, next) => {
+  if (lifecycle.stopping) {
+    res.setHeader('Connection', 'close')
+    res.status(503).json({ code: 'BACKEND_STOPPING', message: 'Arrêt en cours. Reprenez après le redémarrage avec la même référence.' })
+    return
+  }
+  next()
+})
 
 // v3.12 #29 — WebSocket Live channel for assistant + KPI realtime push
 const liveNs = io.of('/live')
@@ -174,8 +233,6 @@ app.post('/api/payments/webhooks/stripe', express.raw({ type: 'application/json'
 app.use(LARGE_BODY_PATHS, express.json({ limit: '20mb' }))
 app.use('/api/pos/draft', express.json({ limit: '5mb' }))
 app.use(express.json({ limit: '1mb' }))
-const mailQueueTimer = setInterval(() => { void processInvoiceDeliveries().catch(() => logger.warn('[documents] file email non traitée, reprise nécessaire')) }, 15000)
-mailQueueTimer.unref()
 app.use(cookieParser())
 app.use(auditLog)
 
@@ -231,6 +288,7 @@ app.use('/api/companies', authenticate, companiesRoutes)
 app.use('/api/modules', authenticate, requireCompany, modulesRoutes)
 app.use('/api/crm', authenticate, requireCompany, crmRoutes)
 app.use('/api/invoices', authenticate, requireCompany, invoicesRoutes)
+app.use('/api/document-download', publicLimiter, invoiceDocumentDownload)
 app.use('/api/reservations', authenticate, requireCompany, reservationsRoutes)
 app.use('/api/inventory', authenticate, requireCompany, inventoryRoutes)
 app.use('/api/hr', authenticate, requireCompany, hrRoutes)
@@ -357,16 +415,19 @@ export { io }
 // Start
 const PORT = parseInt(process.env.PORT || '3002', 10)
 httpServer.listen(PORT, process.env.CREORGA_BIND_HOST || undefined, () => {
+  resolveBackendReady()
+  if (lifecycle.stopping) return
   logger.info(`Serveur Creorga démarré sur http://localhost:${PORT}`)
   logger.info(`Environnement: ${process.env.NODE_ENV || 'development'}`)
   // Réplication stock JSON → Prisma Ingredient (no-op si DB indisponible)
   if (profile.legacyStockSync) startStockSyncJob()
-  setInterval(() => { void processPendingPaymentWebhooks().catch(() => logger.warn('[payments] reprise des notifications différée')) }, 60000).unref()
+  mailQueueTimer = setInterval(() => { void processInvoiceDeliveries().catch(() => logger.warn('[documents] file email non traitée, reprise nécessaire')) }, 15000)
+  mailQueueTimer.unref()
+  paymentRecoveryTimer = setInterval(() => { void recoveryTasks.run(processPendingPaymentWebhooks).catch(() => logger.warn('[payments] reprise des notifications différée')) }, 60000)
+  paymentRecoveryTimer.unref()
   // Signalement des sessions anciennes, sans effacer les additions ni les chaises.
-  import('./jobs/closeStaleFloorSessions').then(({ startStaleSessionJanitor }) => {
-    startStaleSessionJanitor()
-    logger.info('[salles] surveillance non destructive des sessions anciennes activée')
-  }).catch((e) => logger.warn('[janitor] non démarré:', e?.message))
+  startStaleSessionJanitor()
+  logger.info('[salles] surveillance non destructive des sessions anciennes activée')
 
   // L'ancien planificateur utilisait un unique scheduled-tasks.json et un
   // canal « inbox » commun. Il reste fermé tant que les tâches ne portent pas
@@ -384,10 +445,8 @@ httpServer.listen(PORT, process.env.CREORGA_BIND_HOST || undefined, () => {
   logger.info('[duplicate-detector] worker désactivé — migration Prisma par entreprise requise')
 
   // v4.7 — Sauvegarde ZIP complète de data/ (60s après boot, puis toutes les 6h)
-  import('./jobs/backup-worker').then(({ startBackupWorker }) => {
-    startBackupWorker()
-    logger.info('[backup] worker démarré — snapshot complet data/ (6h)')
-  }).catch((e) => logger.warn('[backup] non démarré:', e?.message))
+  startBackupWorker()
+  logger.info('[backup] worker démarré — snapshot complet data/ (6h)')
 
   // Console créateur — rétention RGPD des événements (5 min après boot, puis 24h)
   if (profile.creatorRetention) import('./jobs/creator-retention').then(({ startCreatorRetention }) => {
@@ -411,4 +470,11 @@ httpServer.listen(PORT, process.env.CREORGA_BIND_HOST || undefined, () => {
 // Console créateur — collecte : toute erreur logger.error() part aussi en base,
 // et l'arrêt du service vide le tampon d'événements (2 dernières secondes).
 logger.add(new ErrorLogTransport())
-brancherVidageArret()
+const arreterSurSignal = () => {
+  void shutdownBackend().catch(() => {
+    logger.error('[shutdown] Arrêt propre non confirmé ; aucun arrêt forcé exécuté.')
+    process.exitCode = 1
+  })
+}
+process.once('SIGTERM', arreterSurSignal)
+process.once('SIGINT', arreterSurSignal)

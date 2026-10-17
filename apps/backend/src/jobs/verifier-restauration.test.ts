@@ -13,11 +13,8 @@ function temporary(prefix: string) {
   return directory
 }
 afterEach(() => {
-  for (const directory of temporaryDirectories.splice(0)) {
-    const resolved = path.resolve(directory)
-    if (path.dirname(resolved) !== path.resolve(os.tmpdir()) || !/^creorga-(zip|json|extraction)-/.test(path.basename(resolved))) throw new Error('Nettoyage de test refusé')
-    fs.rmSync(resolved, { recursive: true, force: true })
-  }
+  // Conservation des nouvelles fixtures exclusives : aucun nettoyage automatique.
+  temporaryDirectories.splice(0)
 })
 
 /** v5.0 — vérification de restauration : partie hermétique (sans Docker). */
@@ -89,10 +86,12 @@ function validArchive(version: 1 | 2 = 2, corruptJson = false): string {
 
 describe('restauration contrôlée — fichiers', () => {
   it('vérifie chaque fichier v2 et ne compte pas le manifeste comme donnée métier', async () => {
-    const restore = vi.fn(async () => ({ tables: 48, societes: 1 }))
+    const restore = vi.fn(async (_dump: string) => ({ tables: 48, societes: 1 }))
     const report = await verifierRestauration(validArchive(), restore)
     expect(report).toMatchObject({ ok: true, fichiersJson: 1, fichiersVerifies: 2, versionArchive: 2 })
     expect(restore).toHaveBeenCalledOnce()
+    const extraction = path.dirname(path.dirname(restore.mock.calls[0][0] as string))
+    expect(fs.existsSync(path.join(extraction, 'data', 'floor-state.json'))).toBe(true)
   })
   it('conserve la lecture v1 avec couverture ancienne explicitement limitée', async () => {
     const report = await verifierRestauration(validArchive(1), async () => ({ tables: 48, societes: 1 }))
@@ -148,11 +147,11 @@ describe('restauration contrôlée — commandes simulées', () => {
     expect(() => validateRestoreTarget(name, name)).toThrow(/refusée/)
     expect(() => validateRestoreTarget('source', 'creorga_production')).toThrow(/refusée/)
   })
-  it('un pg_restore échoué reste un échec malgré WARNING et effectue le nettoyage de ses ressources', async () => {
+  it('un pg_restore échoué conserve base et dump pour diagnostic sans lancer dropdb ou rm', async () => {
     const runtime = fakeRuntime('pg_restore')
     await expect(restaurerDansBaseJetable('fixture.dump', runtime)).rejects.toThrow(/restauration PostgreSQL/)
-    expect(runtime.run.mock.calls.some(([args]) => args.includes('dropdb'))).toBe(true)
-    expect(runtime.run.mock.calls.some(([args]) => args.includes('rm'))).toBe(true)
+    expect(runtime.run.mock.calls.some(([args]) => args.includes('dropdb'))).toBe(false)
+    expect(runtime.run.mock.calls.some(([args]) => args.includes('rm'))).toBe(false)
     expect(runtime.run.mock.calls.some(([args]) => args.includes('psql'))).toBe(false)
   })
   it('un échec createdb ne supprime aucune base qui existait déjà', async () => {
@@ -163,12 +162,18 @@ describe('restauration contrôlée — commandes simulées', () => {
   it('un échec de copie ne déclenche aucun nettoyage de ressource non créée', async () => {
     const runtime = fakeRuntime('cp')
     await expect(restaurerDansBaseJetable('fixture.dump', runtime)).rejects.toThrow(/copie/)
-    expect(runtime.run).toHaveBeenCalledOnce()
+    expect(runtime.run.mock.calls.filter(([args]) => args.includes('cp'))).toHaveLength(1)
+    expect(runtime.run.mock.calls.some(([args]) => args.includes('createdb') || args.includes('dropdb') || args.includes('rm'))).toBe(false)
+  })
+  it('une collision du répertoire Docker est refusée avant la copie du dump', async () => {
+    const runtime = fakeRuntime('mkdir')
+    await expect(restaurerDansBaseJetable('fixture.dump', runtime)).rejects.toThrow(/réservation/)
+    expect(runtime.run.mock.calls.some(([args]) => args.includes('cp') || args.includes('pg_restore') || args.includes('dropdb') || args.includes('rm'))).toBe(false)
   })
   it('deux opérations ont des destinations indépendantes et utilisent une restauration atomique', async () => {
     const runtime = fakeRuntime()
     const results = await Promise.all([restaurerDansBaseJetable('fixture.dump', runtime), restaurerDansBaseJetable('fixture.dump', runtime)])
-    expect(results).toEqual([{ tables: 48, societes: 1 }, { tables: 48, societes: 1 }])
+    for (const result of results) expect(result).toMatchObject({ tables: 48, societes: 1 })
     const targets = runtime.run.mock.calls.filter(([args]) => args.includes('createdb')).map(([args]) => args[args.length - 1])
     expect(new Set(targets).size).toBe(2)
     for (const [args] of runtime.run.mock.calls.filter(([args]) => args.includes('pg_restore'))) {
@@ -176,13 +181,16 @@ describe('restauration contrôlée — commandes simulées', () => {
       expect(args).toContain('--single-transaction')
     }
   })
-  it('un nettoyage non confirmé empêche un résultat réussi', async () => {
-    await expect(restaurerDansBaseJetable('fixture.dump', fakeRuntime('dropdb'))).rejects.toThrow(/Nettoyage/)
+  it('une restauration réussie conserve ses destinations et n’appelle aucun nettoyage', async () => {
+    const execution = fakeRuntime('dropdb')
+    const result = await restaurerDansBaseJetable('fixture.dump', execution)
+    expect(result).toMatchObject({ tables: 48, societes: 1 })
+    expect(execution.run.mock.calls.some(([args]) => args.includes('dropdb') || args.includes('rm'))).toBe(false)
   })
   it('une sortie psql vide ne devient pas un comptage valide à zéro', async () => {
     const runtime = fakeRuntime()
     runtime.run.mockImplementation(async () => ({ stdout: '' }))
     await expect(restaurerDansBaseJetable('fixture.dump', runtime)).rejects.toThrow(/vérification des tables/)
-    expect(runtime.run.mock.calls.some(([args]) => args.includes('dropdb'))).toBe(true)
+    expect(runtime.run.mock.calls.some(([args]) => args.includes('dropdb'))).toBe(false)
   })
 })

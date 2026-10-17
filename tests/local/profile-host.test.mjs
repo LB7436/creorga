@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { createServer } from 'node:http'
+import { createServer, get } from 'node:http'
 import { startStaticHost } from '../../scripts/local/static-host.mjs'
 
 test('interfaces compilées : SPA, MIME, refus de traversée et proxy API borné', async () => {
@@ -32,4 +32,33 @@ test('interfaces compilées : SPA, MIME, refus de traversée et proxy API borné
     await Promise.all([new Promise(resolve => server.close(resolve)), new Promise(resolve => upstream.close(resolve))])
     await rm(directory, { recursive: true, force: true })
   }
+})
+
+test('une réponse API abandonnée ne retient pas une connexion orpheline pendant l’arrêt', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'creorga-static-abandon-'))
+  await writeFile(path.join(directory, 'index.html'), '<main>Fictif</main>')
+  let upstreamClosed
+  const closed = new Promise(resolve => { upstreamClosed = resolve })
+  const upstream = createServer((req, res) => {
+    req.socket.once('close', () => upstreamClosed())
+    res.setHeader('content-type', 'application/octet-stream')
+    // Dépasse les buffers TCP pour reproduire un bootstrap réel non consommé.
+    res.end(Buffer.alloc(8 * 1024 * 1024, 65))
+  })
+  await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve))
+  const server = await startStaticHost({ directory, port: 0, apiPort: upstream.address().port })
+  t.after(async () => {
+    // Uniquement les serveurs éphémères de ce test, jamais ceux du laboratoire.
+    server.closeAllConnections(); upstream.closeAllConnections()
+    await Promise.all([new Promise(resolve => server.close(resolve)), new Promise(resolve => upstream.close(resolve))])
+  })
+  await new Promise((resolve, reject) => {
+    const client = get(`http://127.0.0.1:${server.address().port}/api/bootstrap-fictif`, response => {
+      response.once('data', () => { response.destroy(); resolve() })
+      response.on('error', () => {})
+    })
+    client.on('error', reject)
+  })
+  const result = await Promise.race([closed.then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 1500))])
+  assert.equal(result, true, 'La fermeture aval doit libérer son unique requête amont, pas attendre un timeout destructif global')
 })

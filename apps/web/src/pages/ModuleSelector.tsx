@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/stores/authStore'
+import { useLogout } from '@/hooks/api/useAuth'
 import { useModuleStore, MODULES } from '@/stores/moduleStore'
 import type { ModuleId, ModuleDef } from '@/stores/moduleStore'
 import AdminQuickMenu from '@/components/AdminQuickMenu'
@@ -304,7 +305,7 @@ export default function ModuleSelector() {
   const navigate = useNavigate()
   const { user, company } = useAuthStore()
   const role = useAuthStore((s) => s.role)
-  const logout = useAuthStore((s) => s.logout)
+  const logoutRequest = useLogout()
   const setActiveModule = useModuleStore((s) => s.setActiveModule)
   const usageStats = useModuleUXStore((s) => s.usageStats)
   const pinnedModules = useModuleUXStore((s) => s.pinnedModules)
@@ -392,8 +393,7 @@ export default function ModuleSelector() {
   }
 
   const handleLogout = () => {
-    logout()
-    navigate('/login')
+    if (!logoutRequest.isPending) logoutRequest.mutate()
   }
 
   return (
@@ -497,6 +497,8 @@ export default function ModuleSelector() {
 
           <button
             onClick={handleLogout}
+            disabled={logoutRequest.isPending}
+            aria-label="Déconnexion"
             title="Déconnexion"
             style={{
               width: 36,
