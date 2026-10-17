@@ -1,0 +1,87 @@
+{
+  "testedAt": "2026-10-17T08:57:11.180Z",
+  "restorationAt": "2026-10-17T08:51:26.884Z",
+  "tableCount": 81,
+  "checkedFiles": 8,
+  "encryptedCopyVerified": true,
+  "keyIncludedInArchive": false,
+  "elapsedMs": 3703,
+  "pdfCounts": {
+    "invoices": 13,
+    "credits": 8
+  },
+  "tables": [
+    {
+      "schema": "public",
+      "table": "HaccpLog",
+      "count": 7,
+      "sha256": "71c1c16e00322688644d14da825497193b393e75f06737ac6679da0ef800a19d",
+      "columnsSha256": "c500f9288381f724f7a0b785f6c054e0542479bff47aa279ca8ce756d56a36f2"
+    },
+    {
+      "schema": "public",
+      "table": "InvoiceDocumentLink",
+      "count": 3,
+      "sha256": "562d98346b9cc78113a6bd9c320d3d48fda261e18cce90fbcc2f42ac57e82753",
+      "columnsSha256": "7351c5232a2b968e77e59f568ff6a1b96b6aaccc5de5d6d1323b22592cef216e"
+    },
+    {
+      "schema": "public",
+      "table": "InvoiceDocumentLinkEvent",
+      "count": 6,
+      "sha256": "fc832ffb54e98b31dbc4b92cd51bfc363374fd8a19fb298224e0f438019bbea1",
+      "columnsSha256": "fce4cd218f5af349bb479d155699c52175cc53b19b850df3054494ab6462fae7"
+    },
+    {
+      "schema": "public",
+      "table": "Quote",
+      "count": 7,
+      "sha256": "17f63ddb18268ad36e9e3e2f4fc26c411f82c331c3576d61a9aa04db03c431f9",
+      "columnsSha256": "024cc03dd5f672e685cba88431f047e334df02361b8676b035c369b1df501568"
+    },
+    {
+      "schema": "public",
+      "table": "ServiceAllocation",
+      "count": 8,
+      "sha256": "17dd9ad2db5d553e88544b8156408842787d60164f8fd0db70ca8b00663ef851",
+      "columnsSha256": "c9d8e9b0881eaa99863bb2c5fcf533164944ca9b85250ec3d51947958dd378b4"
+    },
+    {
+      "schema": "public",
+      "table": "ServiceShare",
+      "count": 16,
+      "sha256": "4f4698917ee99d497f7d9f03c15891d7b7faa6a02daca13c901e07b029c4fa7b",
+      "columnsSha256": "f1b125947df4c4de9555ed3455bfe8c738203e09a8ae59effc78cc81c944d4e4"
+    },
+    {
+      "schema": "public",
+      "table": "ServiceShareTender",
+      "count": 24,
+      "sha256": "492c73a7234b38150ba53832ac736d72dd0ed05cd49c135caa16e68d96d9cb52",
+      "columnsSha256": "e00995934278eb465adeea503a8c61375e499c4dba51baf247a2070f25f65133"
+    }
+  ],
+  "state": "equal",
+  "restartChecks": [
+    "Autorité et révision PostgreSQL retrouvées",
+    "Deux portions uniques, quantité totale trois",
+    "Groupe séparé relocalisé après redémarrage",
+    "Prix et TVA historiques relus",
+    "Provenance de portion conservée dans le snapshot",
+    "Préparation initiale et routage conservés",
+    "Réservation fictive retrouvée",
+    "Parts financières exactes conservées après redémarrage",
+    "Chaque acompte et paiement conserve sa provenance exacte",
+    "Dernière commande partiellement réglée non annoncée payée et stock fictif 100 inchangé",
+    "Anciennes capacités QR de la commande répartie toujours révoquées",
+    "Lien devis / facture convertie relu",
+    "Mesure HACCP fictive et source manuelle relues",
+    "Deux contraintes additives NOT VALID présentes dans la base restaurée",
+    "Trois nouvelles tables financières restaurées avec données, pas seulement schéma vide",
+    "Quatre gardes et contraintes financières retrouvés dans la restauration",
+    "Comptage des PDF factures et avoirs identique après restauration",
+    "Deux tables de liens documentaires restaurées avec données et empreintes vérifiées par le comparateur",
+    "Contrainte additive de révocation complète retrouvée et validée après restauration"
+  ],
+  "limits": "Nouvelle base locale, fichiers et PDF réellement comparés ; pas sauvegarde externe/cloud, machine vierge ou coupure électrique. Clé, comptes et données privées non publiés."
+}

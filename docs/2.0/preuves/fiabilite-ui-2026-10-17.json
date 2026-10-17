@@ -1,0 +1,99 @@
+{
+  "createdAt": "2026-10-17T08:30:47.073Z",
+  "scope": "Laboratoire privé Windows, profil CREORGA_BUSINESS_ONLY compilé",
+  "policies": [
+    "Aucun déploiement ni paiement réel",
+    "Chrome neuf, pas de profil historique",
+    "Destinations réseau non locales bloquées",
+    "Incidents HTTP et retards de projection simulés explicitement",
+    "Mutations réelles du stock seulement dans la société fictive multiA, indépendante du jeu de performance primaire",
+    "Cookie de révocation vérifié avec login UI réel et refresh 200 préalable, sur la même origine"
+  ],
+  "browser": {
+    "file": "tests/browser-lab/reliability-ui.spec.ts",
+    "channel": "chrome",
+    "startTime": "2026-10-17T08:29:23.216Z",
+    "durationMs": 18077.184,
+    "durationDescription": "Durée cumulée des cinq sessions Playwright, hors arrêts/redémarrages API",
+    "executionPolicy": "Dix scénarios en cinq groupes, API privée redémarrée entre groupes, PostgreSQL conservé, limiteur normal 10 requêtes auth/5 min non désactivé. Chrome neuf par test ; durée cumulée hors redémarrages.",
+    "passed": 10,
+    "failed": 0,
+    "skipped": 0,
+    "cases": [
+      {
+        "title": "fiabilité UI : déconnexion clavier révoque le cookie réel et reste déconnectée après rechargement",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "durationMs": 1759
+      },
+      {
+        "title": "fiabilité UI : refus serveur de déconnexion verrouille, résiste au rechargement puis permet la reprise explicite",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "durationMs": 3935
+      },
+      {
+        "title": "fiabilité UI : déconnexion Modules rejoint la révocation sûre sans reset destructif",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "durationMs": 1501
+      },
+      {
+        "title": "fiabilité UI : déconnexion Mobile rejoint la révocation sûre sans reset destructif",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "durationMs": 1321
+      },
+      {
+        "title": "fiabilité UI : ancien mur photos non attribué reste en quarantaine et intact",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "durationMs": 585
+      },
+      {
+        "title": "fiabilité UI : image fictive locale persistée, filtrée puis retirée au clavier",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "durationMs": 654
+      },
+      {
+        "title": "fiabilité UI : réception double clic ne crédite pas deux fois et refus permet une reprise explicite",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "durationMs": 475
+      },
+      {
+        "title": "fiabilité UI : une projection stock ancienne ne remplace pas la réception plus récente",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "durationMs": 700
+      },
+      {
+        "title": "fiabilité UI : changement de société et rôle par sélecteur utilise les adhésions réelles",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "durationMs": 1442
+      },
+      {
+        "title": "fiabilité UI : fournisseur, stock, commande et réception persistent réellement dans la société fictive A",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "durationMs": 1786
+      }
+    ]
+  },
+  "webUnit": {
+    "passed": 207,
+    "failed": 0,
+    "skipped": 0,
+    "startTime": "2026-10-17T08:27:19.396Z"
+  },
+  "limitations": [
+    "Aucune validation de toutes les actions T100",
+    "Pas de qualification de matériel ni de banque réelle",
+    "Les 27 copies récupérées et la restauration appartiennent aux preuves distinctes de sauvegarde",
+    "Le mur photos est local au navigateur, non chiffré, pas un dossier RH ni une sauvegarde serveur",
+    "La politique de droits stock des employés est inchangée et reste à décider",
+    "Le verrou local ne prétend pas révoquer instantanément tous les JWT ni toutes les autres fenêtres"
+  ]
+}

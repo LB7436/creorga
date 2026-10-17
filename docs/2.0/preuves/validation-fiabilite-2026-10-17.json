@@ -1,0 +1,449 @@
+{
+  "generatedAt": "2026-10-17T08:35:26.103Z",
+  "baseCommit": "f198c98",
+  "sourceCommit": "f198c987933ff5fa7650a3f6894896974e680465",
+  "worktreeDirtyAtRendering": true,
+  "since": "2026-10-17T07:00:00Z",
+  "environment": "Windows ; laboratoires PostgreSQL loopback ; Chrome neuf ; données fictives ; aucun profil historique.",
+  "scope": "Unitaires, PostgreSQL et parcours Chrome ciblés. Incidents/IA/banques simulés quand indiqué ; ni prestataire réel, matériel, production ou certification.",
+  "unit": [
+    {
+      "suite": "backend-unit",
+      "executedAt": "2026-10-17T08:27:32.439Z",
+      "passed": 313,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "web-unit",
+      "executedAt": "2026-10-17T08:27:40.823Z",
+      "passed": 207,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "pos-unit",
+      "executedAt": "2026-10-17T08:27:43.202Z",
+      "passed": 64,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "integration",
+      "executedAt": "2026-10-17T08:25:17.967Z",
+      "passed": 201,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "browser": {
+    "executedAt": "2026-10-17T08:27:23.551Z",
+    "globalErrors": 0,
+    "counts": {
+      "PASS": 42,
+      "FAIL": 0,
+      "NOT RUN": 0
+    },
+    "cases": [
+      {
+        "file": "tests/browser-lab/business-extended.spec.ts",
+        "name": "gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:30:22.536Z",
+        "durationMs": 4314
+      },
+      {
+        "file": "tests/browser-lab/business-floor.spec.ts",
+        "name": "profil métier : la salle ERP affiche la projection PostgreSQL réelle sans écriture ni révision perdue",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:30:32.621Z",
+        "durationMs": 2731
+      },
+      {
+        "file": "tests/browser-lab/business-profile.spec.ts",
+        "name": "profil métier : libellé puis reset efface seulement le brouillon confirmé",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:30:41.013Z",
+        "durationMs": 910
+      },
+      {
+        "file": "tests/browser-lab/business-profile.spec.ts",
+        "name": "profil métier : un libellé refusé reste disponible pour correction",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:30:42.135Z",
+        "durationMs": 703
+      },
+      {
+        "file": "tests/browser-lab/business-profile.spec.ts",
+        "name": "profil métier : jeux absents, menu QR présent et réglages ludiques préservés",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:30:42.851Z",
+        "durationMs": 1343
+      },
+      {
+        "file": "tests/browser-lab/business-profile.spec.ts",
+        "name": "planning métier : nuit de 4 h puis 8 h, refus visible sans perte de saisie",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:30:44.203Z",
+        "durationMs": 896
+      },
+      {
+        "file": "tests/browser-lab/business-profile.spec.ts",
+        "name": "portail métier : un enregistrement en cours verrouille les thèmes et évite le double clic",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:30:45.108Z",
+        "durationMs": 554
+      },
+      {
+        "file": "tests/browser-lab/business-profile.spec.ts",
+        "name": "portail métier : un onglet ancien ne réactive pas le menu en enregistrant son message",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:30:45.670Z",
+        "durationMs": 1306
+      },
+      {
+        "file": "tests/browser-lab/financial-allocation.spec.ts",
+        "name": "allocation QR : décision responsable, acomptes explicites, panne réseau, QR privés et paiement du groupe dans Chrome",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:30:52.570Z",
+        "durationMs": 16594
+      },
+      {
+        "file": "tests/browser-lab/performance-interface.spec.ts",
+        "name": "mesures locales et interface synthétique 100 produits 25 tables 200 lignes",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:31:14.987Z",
+        "durationMs": 63440
+      },
+      {
+        "file": "tests/browser-lab/qr-movements.spec.ts",
+        "name": "fusion POS/QR, acompte, réponse perdue et addition privée renouvelée",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:32:24.184Z",
+        "durationMs": 21295
+      },
+      {
+        "file": "tests/browser-lab/service-separations.spec.ts",
+        "name": "séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:32:52.937Z",
+        "durationMs": 29358
+      },
+      {
+        "file": "tests/browser-lab/t100-assistant.spec.ts",
+        "name": "T100 assistant : une réponse sans voix libère la saisie suivante",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:33:27.979Z",
+        "durationMs": 909
+      },
+      {
+        "file": "tests/browser-lab/t100-assistant.spec.ts",
+        "name": "T100 assistant : validation refusée sans faux succès ni perte de l’aperçu",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:33:29.083Z",
+        "durationMs": 1025
+      },
+      {
+        "file": "tests/browser-lab/t100-assistant.spec.ts",
+        "name": "T100 assistant : une réponse tardive ne contamine pas une nouvelle discussion",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:33:30.120Z",
+        "durationMs": 2871
+      },
+      {
+        "file": "tests/browser-lab/t100-assistant.spec.ts",
+        "name": "T100 assistant : le PDF joint est transmis et sa réponse débloque la saisie",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:33:33.001Z",
+        "durationMs": 769
+      },
+      {
+        "file": "tests/browser-lab/t100-assistant.spec.ts",
+        "name": "T100 alertes : une erreur de chargement n’est jamais affichée comme Tout va bien",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:33:33.778Z",
+        "durationMs": 849
+      },
+      {
+        "file": "tests/browser-lab/t100-assistant.spec.ts",
+        "name": "T100 réglages : le choix d’assistant est réel, la biométrie financière indisponible est annoncée",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:33:34.635Z",
+        "durationMs": 776
+      },
+      {
+        "file": "tests/browser-lab/t100-pos.spec.ts",
+        "name": "T100 POS : un import invalide ne retire aucune table et ne produit aucun brouillon destructeur",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:33:41.033Z",
+        "durationMs": 4228
+      },
+      {
+        "file": "tests/browser-lab/t100-pos.spec.ts",
+        "name": "T100 POS : transfert serveur des quantités et prix historiques, puis refus réseau sans perte de ligne",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:33:45.454Z",
+        "durationMs": 17862
+      },
+      {
+        "file": "tests/browser-lab/t100-pos.spec.ts",
+        "name": "T100 POS : les synchronisations serveur ne prolongent pas une session inactive",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:34:03.329Z",
+        "durationMs": 2029
+      },
+      {
+        "file": "tests/browser-lab/t100-pos.spec.ts",
+        "name": "T100 POS : les raccourcis sans connecteur ne prétendent pas effectuer une action",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:34:05.367Z",
+        "durationMs": 1533
+      },
+      {
+        "file": "tests/browser-lab/t100-pos.spec.ts",
+        "name": "T100 POS frontière simulée : appui long, annulation sans ajout, clic court et validation unique de note",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:34:06.909Z",
+        "durationMs": 10161
+      },
+      {
+        "file": "tests/browser-lab/t100-pos.spec.ts",
+        "name": "T100 POS frontière simulée : annuler et rétablir la géométrie préserve la finance arrivée après le snapshot",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:34:17.078Z",
+        "durationMs": 12865
+      },
+      {
+        "file": "tests/browser-lab/t100-pos.spec.ts",
+        "name": "T100 POS frontière simulée : transfert contextuel annulé une fois, refus 503 puis reprise confirmée",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:34:29.954Z",
+        "durationMs": 7316
+      },
+      {
+        "file": "tests/browser-lab/t100-web-errors.spec.ts",
+        "name": "T100 accès distant : saisir et sauvegarder une origine étrangère ne transmet aucune session",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:34:42.718Z",
+        "durationMs": 617
+      },
+      {
+        "file": "tests/browser-lab/t100-web-errors.spec.ts",
+        "name": "T100 publicité : un refus de création conserve la saisie et affiche une erreur",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:34:43.533Z",
+        "durationMs": 865
+      },
+      {
+        "file": "tests/browser-lab/t100-web-errors.spec.ts",
+        "name": "T100 stock : refus visible, valeur serveur restaurée et absence d’écriture inchangée",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:34:44.409Z",
+        "durationMs": 617
+      },
+      {
+        "file": "tests/browser-lab/reliability-ui.spec.ts",
+        "name": "fiabilité UI : déconnexion clavier révoque le cookie réel et reste déconnectée après rechargement",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:29:23.711Z",
+        "durationMs": 1759
+      },
+      {
+        "file": "tests/browser-lab/reliability-ui.spec.ts",
+        "name": "fiabilité UI : refus serveur de déconnexion verrouille, résiste au rechargement puis permet la reprise explicite",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:29:31.402Z",
+        "durationMs": 3935
+      },
+      {
+        "file": "tests/browser-lab/reliability-ui.spec.ts",
+        "name": "fiabilité UI : déconnexion Modules rejoint la révocation sûre sans reset destructif",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:29:41.018Z",
+        "durationMs": 1501
+      },
+      {
+        "file": "tests/browser-lab/reliability-ui.spec.ts",
+        "name": "fiabilité UI : déconnexion Mobile rejoint la révocation sûre sans reset destructif",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:29:48.204Z",
+        "durationMs": 1321
+      },
+      {
+        "file": "tests/browser-lab/reliability-ui.spec.ts",
+        "name": "fiabilité UI : ancien mur photos non attribué reste en quarantaine et intact",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:29:55.505Z",
+        "durationMs": 585
+      },
+      {
+        "file": "tests/browser-lab/reliability-ui.spec.ts",
+        "name": "fiabilité UI : image fictive locale persistée, filtrée puis retirée au clavier",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:29:56.282Z",
+        "durationMs": 654
+      },
+      {
+        "file": "tests/browser-lab/reliability-ui.spec.ts",
+        "name": "fiabilité UI : réception double clic ne crédite pas deux fois et refus permet une reprise explicite",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:29:56.945Z",
+        "durationMs": 475
+      },
+      {
+        "file": "tests/browser-lab/reliability-ui.spec.ts",
+        "name": "fiabilité UI : une projection stock ancienne ne remplace pas la réception plus récente",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:29:57.428Z",
+        "durationMs": 700
+      },
+      {
+        "file": "tests/browser-lab/reliability-ui.spec.ts",
+        "name": "fiabilité UI : changement de société et rôle par sélecteur utilise les adhésions réelles",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:29:58.136Z",
+        "durationMs": 1442
+      },
+      {
+        "file": "tests/browser-lab/reliability-ui.spec.ts",
+        "name": "fiabilité UI : fournisseur, stock, commande et réception persistent réellement dans la société fictive A",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:29:59.586Z",
+        "durationMs": 1786
+      },
+      {
+        "file": "tests/browser-lab/reliability-documents.spec.ts",
+        "name": "documents métier : vrai PDF au clavier, rejeu, rechargement et révocation sans octets divulgués",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:27:24.276Z",
+        "durationMs": 4637
+      },
+      {
+        "file": "tests/browser-lab/reliability-documents.spec.ts",
+        "name": "documents métier : réponse perdue, reprise par même référence et erreur visible",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:27:29.100Z",
+        "durationMs": 1179
+      },
+      {
+        "file": "tests/browser-lab/reliability-documents.spec.ts",
+        "name": "documents métier : aller-retour réel de société pendant le digest ne réactive pas un ancien envoi email",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:27:30.288Z",
+        "durationMs": 760
+      },
+      {
+        "file": "tests/browser-lab/reliability-documents.spec.ts",
+        "name": "documents métier : une ancienne lecture HTTP retardée ne fait pas disparaître le nouveau lien confirmé",
+        "status": "PASS",
+        "executedAt": "2026-10-17T08:27:31.058Z",
+        "durationMs": 922
+      }
+    ]
+  },
+  "browserFiles": [
+    "business-extended.spec.ts",
+    "business-floor.spec.ts",
+    "business-profile.spec.ts",
+    "financial-allocation.spec.ts",
+    "performance-interface.spec.ts",
+    "qr-movements.spec.ts",
+    "reliability-documents.spec.ts",
+    "reliability-ui.spec.ts",
+    "service-separations.spec.ts",
+    "t100-assistant.spec.ts",
+    "t100-pos.spec.ts",
+    "t100-web-errors.spec.ts"
+  ],
+  "inventory": {
+    "algorithmVersion": "creorga-jsx-controls-v1",
+    "generatedAt": "2026-10-17T08:35:25.990Z",
+    "runtimeVerified": false,
+    "completeParse": true,
+    "totals": {
+      "files": 402,
+      "controls": 3697,
+      "routes": 157,
+      "parseDiagnostics": 0,
+      "templates": 828
+    },
+    "byApp": {
+      "web": {
+        "files": 334,
+        "controls": 3041,
+        "routes": 141
+      },
+      "pos": {
+        "files": 31,
+        "controls": 522,
+        "routes": 0
+      },
+      "guest": {
+        "files": 11,
+        "controls": 23,
+        "routes": 0
+      },
+      "superadmin": {
+        "files": 14,
+        "controls": 46,
+        "routes": 10
+      },
+      "marketing": {
+        "files": 12,
+        "controls": 65,
+        "routes": 6
+      }
+    },
+    "byType": {
+      "link": 70,
+      "button": 1731,
+      "handler": 683,
+      "input": 505,
+      "role": 114,
+      "menuitem": 8,
+      "form": 41,
+      "select": 148,
+      "option": 325,
+      "details": 7,
+      "summary": 7,
+      "textarea": 45,
+      "iconbutton": 5,
+      "toggle": 5,
+      "editable": 3
+    },
+    "missingApps": [],
+    "limitations": [
+      "Static JSX source only: not evidence of rendering, reachability, permission, persistence, success or failure.",
+      "Repeated map/flatMap JSX are templates, not counted runtime instances.",
+      "Routes are lexical JSX Route declarations; dynamic routers, imperative navigation and cross-file component reuse are unresolved.",
+      "Spread props, dynamic labels, handlers forwarded by custom components and imperative DOM/createElement controls require runtime review.",
+      "Source can include inactive features, dead code and conditional controls; no discovered entry is automatically PASS.",
+      "Labels and URLs are deliberately reduced; field values, placeholders, handler arguments and executable source are never exported."
+    ]
+  },
+  "migrations": {
+    "count": 36,
+    "productionApplied": false
+  },
+  "t100": {
+    "status": "NOT RUN",
+    "partial": true,
+    "declaredMatrix": {
+      "PASS": 55,
+      "FAIL": 0,
+      "BLOCKED": 44,
+      "NOT RUN": 1
+    },
+    "matrixSource": "docs/2.0/RECETTE-METIER-T01-T100.md",
+    "reason": "Comptages de scénarios déclarés dans la matrice, jamais déduits du scan. Toutes les entrées statiques restent NOT RUN ; tous écrans/rôles/erreurs non couverts."
+  },
+  "safety": {
+    "productionDeployment": false,
+    "realPayment": false,
+    "historicProfileOpened": false,
+    "originalArchivesDeleted": false,
+    "masterChanged": false,
+    "stripeRefundsEnabled": false,
+    "videoEnabled": false
+  }
+}

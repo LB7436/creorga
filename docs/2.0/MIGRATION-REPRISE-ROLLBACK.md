@@ -1,5 +1,57 @@
 # Reprise et retour arrière
 
+## Fiabilité du profil métier — après f198c98
+
+Code/test du lot `23316e37547c46bb03176a63e3c7b16a1f082d2e`. Finalisation le
+17 octobre : nouvelle base restaurée, **81 tables / 8 fichiers / 21 PDF égaux**,
+AES-GCM/clé séparée, puis **19 assertions de reprise** réussies. Liens documentaires
+restaurés avec données (3 liens / 6 événements), pas schéma vide.
+[Preuve](preuves/restauration-fiabilite-2026-10-17.json). Toutes les anciennes
+archives et bases restaurées sont conservées ; aucun rollback destructif effectué.
+Le contrôle visuel Windows reste BLOCKED pour URL non vérifiable par computer-use,
+sans contournement ; cela ne remplace pas une procédure d'arrêt via le canal privé.
+
+Deux migrations **additives** `20261019120000_invoice_document_links` et
+`20261019121000_document_link_revocation_guard`, soit 36 au total, appliquées
+uniquement à `creorga_local` et `creorga_tests` sur localhost:5450. Elles ajoutent
+les capacités de téléchargement et leur journal avec relations société/facture,
+puis une contrainte de révocation complète. Aucune vente, facture, paiement ou
+ligne historique n'est réécrit. Les dates des identifiants sont des séquences de
+migration, pas des attestations d'exécution à cette date.
+
+Gel permanent dans le code de ce lot : **aucune suppression automatique** de ZIP,
+dump, partiel ou extraction de restauration, en profil métier comme complet.
+La politique future nécessite inventaire, recette puis validation humaine des
+candidats précis ; aucune variable ne lève ce gel. Les originaux et les 27 dumps
+récupérés sont conservés. [Registre vérifié](SAUVEGARDES-FIABILITE.md).
+Le script privé de nettoyage de fixture échoue avant toute suppression ; il n'a
+pas été exécuté comme nettoyage. Surveiller l'espace, ne pas réactiver une purge.
+
+Le contrôle Windows utilise un canal nommé privé et un descripteur aléatoire
+hors Git, conservé après arrêt. Aucun endpoint HTTP ni secret dans le navigateur.
+`stop-profile.ps1` attend la fin des requêtes admises, tâches/sauvegardes en vol,
+journaux puis Prisma ; un délai ou un échec reste **non confirmé**, sans kill.
+Le démarrage refuse de remplacer un profil encore actif non arrêté proprement.
+Une ancienne version sans canal privé exige une procédure séparée : ne pas la
+terminer automatiquement ni transformer la disparition d'une fenêtre en preuve.
+[Contrat et tests](ARRET-PROPRE-PROFIL-LOCAL.md).
+
+Les photos et brouillons non attribuables restent en quarantaine navigateur.
+La déconnexion conserve un verrou de révocation non confirmée ; ne pas l'effacer
+avec une ancienne fonction Reset. Si la révocation échoue, garder l'écran verrouillé
+et réessayer. Un ancien frontend ignore ces protections : correction en avant
+recommandée, pas rollback aveugle sur le même profil navigateur.
+
+Les liens PDF sont au porteur. La rotation du secret serveur les invalide ;
+conserver les clés de restauration **séparément** des archives. Ne publier ni
+descripteur de contrôle, ni capability, ni fichier d'environnement dans Git/support.
+Un PDF déjà téléchargé ne peut pas être rappelé par révocation.
+
+Retour arrière : arrêter les écrivains, préserver base/fichiers/configuration au
+même instant, restaurer dans **une base neuve**, comparer puis décider. Aucun
+`down`, reset, drop des nouvelles tables, suppression d'audit ou ancien POS en
+écriture sur la base migrée. Aucun déploiement en production dans ce lot.
+
 ## Profil professionnel local — après 962c01b
 
 Code `9e15b1a`, 16 octobre 2026. **Aucune migration SQL nouvelle**, 34 existantes conservées.

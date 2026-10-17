@@ -1,0 +1,58 @@
+{
+  "scope": "Laboratoire prive Windows, donnees fictives, aucun envoi email ou paiement reel",
+  "baseCommit": "f198c987933ff5fa7650a3f6894896974e680465",
+  "stateAtExecution": "Arbre de travail du lot de fiabilite avant commit de livraison",
+  "businessBuild": {
+    "builtAt": "2026-10-17T08:26:53.870Z",
+    "sourceFingerprintSha256": "28c1f6bcd940d089794e9b9d25d634ca01b30f1118a0d353f9a96692e52fa6b8",
+    "includesUntrackedSource": true
+  },
+  "targetedBackendUnits": {
+    "startedAt": "2026-10-17T08:17:39.722Z",
+    "passed": 14,
+    "failed": 0,
+    "skipped": 0,
+    "files": ["apps/backend/src/lib/document-link-token.test.ts", "apps/backend/src/middleware/audit-document-download.test.ts"]
+  },
+  "targetedWebUnits": {
+    "startedAt": "2026-10-17T08:24:57.954Z",
+    "passed": 11,
+    "failed": 0,
+    "skipped": 0,
+    "files": ["apps/web/src/lib/invoice-email-reference.test.ts", "apps/web/src/lib/document-link-list.test.ts"]
+  },
+  "postgresql": {
+    "startedAt": "2026-10-17T08:17:35.315Z",
+    "database": "creorga_tests",
+    "passed": 19,
+    "failed": 0,
+    "skipped": 0,
+    "file": "apps/backend/src/routes/invoice-document-links.integration.test.ts",
+    "migrations": ["20261019120000_invoice_document_links", "20261019121000_document_link_revocation_guard"],
+    "T69": {
+      "status": "PASS",
+      "test": "refuse a l'echeance decidee par le serveur, independamment de l'horloge du navigateur",
+      "clock": "Date serveur de test controlee, PostgreSQL et vrais PDF non remplaces",
+      "observed": "Refus HTTP a l'echeance exacte, aucun octet PDF, aucun evenement DOWNLOADED"
+    },
+    "covered": ["creation dedupliquee douze requetes", "rejeu sans prolongation", "PDF original identique", "capacite non utilisable en Bearer", "isolation societe et document", "auteur retire ou declasse", "falsification", "expiration", "revocation et droits", "telechargement et revocation concurrents", "creation/reprise et revocation concurrentes", "FK composite", "revocation partielle refusee en SQL", "durations approuvees uniquement", "UUID majuscule normalise"]
+  },
+  "chrome": {
+    "startedAt": "2026-10-17T08:27:23.551Z",
+    "durationMs": 8591.253,
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0,
+    "flaky": 0,
+    "reportErrors": 0,
+    "file": "tests/browser-lab/reliability-documents.spec.ts",
+    "cases": [
+      {"status": "PASS", "title": "documents metier : vrai PDF au clavier, rejeu, rechargement et revocation sans octets divulgues", "boundary": "API et PDF reels du laboratoire, aucune banque"},
+      {"status": "PASS", "title": "documents metier : reponse perdue, reprise par meme reference et erreur visible", "boundary": "API cree reellement le lien, seul accuse HTTP est remplace par un 503 fictif"},
+      {"status": "PASS", "title": "documents metier : aller-retour reel de societe pendant le digest ne reactive pas un ancien envoi email", "boundary": "Selecteur societe et session reels, digest retarde par harness, envoi email interdit"},
+      {"status": "PASS", "title": "documents metier : une ancienne lecture HTTP retardee ne fait pas disparaitre le nouveau lien confirme", "boundary": "GET reel retenu puis livre apres une creation reelle"}
+    ]
+  },
+  "redObserved": ["route de creation absente : 404 au lieu de 201", "fuite du secret fictif dans path puis module d'audit", "quatre changements de portee pendant digest", "deux allers-retours de portee pendant digest", "trois publications de lecture obsolete", "CHECK SQL acceptant motif NULL", "creation UUID majuscule annoncee puis capacite inutilisable"],
+  "limitations": ["Pas de recette de production", "Capacite au porteur et non nominative", "URL loopback utilisable sur ce PC uniquement", "Le journal DOWNLOADED prouve admission serveur, pas reception physique", "Expiration serveur controlee, pas qualification NTP", "Telechargement deja admis ou recu non rappelable", "Aucun email externe ou paiement reel", "La signature de capacite n'est pas une signature du PDF"]
+}

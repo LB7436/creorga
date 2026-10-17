@@ -1,8 +1,74 @@
-# Checkpoint CréOrga 2.0 — 16 octobre 2026
+# Checkpoint CréOrga 2.0 — 17 octobre 2026
 
-Mission en cours. **Matrice T01–T100 documentée, mais pas de recette intégralement exécutée ni de qualification de production.**
+**Lot logiciel et reprise locale validés ; T100 partiel, contrôle natif Windows BLOCKED,
+aucune qualification de production.** Les sections historiques plus bas conservent leurs dates.
 
-## Lot courant — installation professionnelle sans jeux et T100
+## Lot courant — fiabilité du profil métier et finalisation de l'interruption
+
+Branche `codex/creorga-2-0-2026-10-08`, dépôt `LB7436/creorga`.
+Base `f198c987933ff5fa7650a3f6894896974e680465` ; **code/tests :
+`23316e37547c46bb03176a63e3c7b16a1f082d2e`**. Le commit documentaire suivant contient
+ce checkpoint et les preuves ; le SHA final de publication est communiqué après contrôle
+du HEAD GitHub. Aucun écrasement des corrections non commitées à la reprise.
+
+- Rétentions ZIP/dump/créateur et nettoyages de restauration gelés dans les deux profils,
+  pas de variable d'activation destructive. Collisions refusées, partiels conservés.
+  **27/27 copies récupérées** reliées aux ZIP/manifeste/SHA ; correspondance exacte des deux
+  anciennes suppressions toujours inconnue. [Sauvegardes](SAUVEGARDES-FIABILITE.md).
+- Déconnexion serveur/reprise explicite, sélection de société, photos cloisonnées et ancien
+  cache en quarantaine, double réception et projection stock tardive corrigés. Reset local
+  destructif désactivé. [T100 ciblé](T100-FIABILITE-UI.md).
+- T69 : liens courts vers PDF original, expiration serveur, révocation, droits/société,
+  création idempotente et audit sans capacité. Deux migrations additives, **36 au total**,
+  appliquées uniquement aux deux bases de laboratoire. [Liens](LIENS-DOCUMENTAIRES.md).
+- Salle : lectures `OrderTender` **720 → 20**, requêtes totales **1 341 → 503** sur même jeu.
+  p95 HTTP **2 267,32 → 2 208,57 ms**, faible écart non qualificatif ; snapshots, transactions,
+  CAS et `fsync` conservés. [Performance et limites](PERFORMANCE-FIABILITE.md).
+- Arrêt coordonné HTTP/tâches/sauvegardes/audits/Prisma, canal privé, aucune API publique
+  d'arrêt ni kill de secours. Relais des réponses abandonnées corrigé après reproduction.
+  Raccourcis lancement/arrêt conservés, cibles/arguments/SHA relus sans modification.
+- **Résultats acquis avant interruption**, rapports complets revérifiés, pas rejoués à la
+  finalisation : **584 unités (313/207/64), 201 PostgreSQL, 42 Chrome dans 12 fichiers**,
+  zéro échec/ignoré dans les campagnes finales. Exécutés le 17 octobre, 08:25–08:34 UTC.
+  [Validation](preuves/validation-fiabilite-2026-10-17.json).
+- **Exécutions de finalisation :** 34 autocontrôles locaux PASS, cinq builds métier + cinq
+  complets PASS, empreintes des livrables égales aux sources courantes ; anciennes suites
+  métier non présentées comme une exécution nouvelle.
+- Restauration réelle à **08:51:26 UTC** : **81 tables / 8 fichiers / 21 PDF (13 factures,
+  8 avoirs) égaux**, AES-GCM/clé séparée, zéro écart ; **19 contrôles** après redémarrage.
+  Liens restaurés peuplés 3/6 ; 3 703 ms sur cette copie, pas un RTO.
+  [Preuve](preuves/restauration-fiabilite-2026-10-17.json).
+- Migration de copie ancienne à 08:34 UTC : **7 → 36 migrations**, **47 tables / 341 lignes**
+  anciennes identiques, cliché lu seulement. Preuve conservée, pas réexécutée à la finalisation.
+- Jeux : 99 fichiers vérifiés contre le commit immuable `f198c98`, aucun retiré de Git.
+  Zéro module ludique dans le métier ; profil complet compilé préservé.
+
+**Matrice courante : 55 PASS / 0 FAIL / 44 BLOCKED / 1 NOT RUN.** T69 seul est débloqué.
+T100 demeure partiel : 402 fichiers, 3 697 contrôles, 157 routes et 828 gabarits source,
+aucun PASS déduit du scan. [Matrice fraîche](RECETTE-METIER-T01-T100.md).
+
+**Windows natif : BLOCKED.** La protection computer-use a refusé la lecture parce que
+l'URL n'était pas vérifiable avec assez de confiance. Aucun contournement, nouvel essai
+natif, navigation alternative ou réglage de sécurité modifié. Lecture des `.lnk` et
+contrôles HTTP/SQL indépendants seulement ; ouverture/fermeture visuelle et panne Windows
+non qualifiées. Validation manuelle propriétaire ou capacité officielle sûre nécessaire.
+
+Le profil métier est laissé actif, loopback 3002/5174/5175/5177/5178. PostgreSQL 16.15,
+Node 22.19, configurations/archives/clés/profils Chrome hors Git. Le buildinfo guest
+préexistant reste local et exclu. Aucun VPS, déploiement, paiement réel, master, DNS,
+archive originale ou profil historique touché. Stripe Refunds et vidéo désactivés.
+
+Reprise : arrêt privé confirmé, préserver l'état/réserves, restaurer dans une **nouvelle
+base** avec fichiers du même instant, comparer avant reprise. Aucun down/reset/purge ni
+ancien POS en écriture sur base migrée. La fin d'une fenêtre ne prouve pas l'arrêt serveur.
+
+Prochaine action : contrôle Windows manuel, T100 par rôle/société, décision droits stock
+employés et profilage du snapshot encore coûteux ; essais matériels/prestataires séparés.
+[Rapport du lot](FIABILITE-PROFIL-METIER.md),
+[contrôle final](preuves/finalisation-fiabilite-2026-10-17.json),
+[retour arrière](MIGRATION-REPRISE-ROLLBACK.md).
+
+## Historique — installation professionnelle sans jeux et T100
 
 16 octobre 2026. Base locale/GitHub vérifiée `962c01b2767a06db510c6b0aa3e22d521da77534`,
 branche `codex/creorga-2-0-2026-10-08`. **Code : `9e15b1a`**, le commit documentaire suivant

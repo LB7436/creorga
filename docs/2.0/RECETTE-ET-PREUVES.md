@@ -1,5 +1,25 @@
 # Recette actuelle
 
+## Fiabilité et finalisation après f198c98 — 17 octobre 2026
+
+Code/tests `23316e37547c46bb03176a63e3c7b16a1f082d2e` ;
+[bilan du lot](FIABILITE-PROFIL-METIER.md), [checkpoint](CHECKPOINT.md).
+**584 unités, 201 PostgreSQL et 42 Chrome** déjà exécutés à 08:25–08:34 UTC, rapports
+complets contrôlés pendant la finalisation, **pas présentés comme relancés**.
+[Validation et dates](preuves/validation-fiabilite-2026-10-17.json).
+
+Nouveaux contrôles de finalisation : **34 autocontrôles locaux**, dix compilations
+(cinq par profil), restauration neuve à 08:51 UTC avec **81 tables, 8 fichiers,
+21 PDF égaux**, puis **19 assertions de reprise**. Clé AES-GCM séparée, aucune purge.
+[Restauration](preuves/restauration-fiabilite-2026-10-17.json),
+[sources/livrables/raccourcis/jeux](preuves/finalisation-fiabilite-2026-10-17.json).
+
+**55 PASS / 0 FAIL / 44 BLOCKED / 1 NOT RUN.** T69 devient PASS ; T100 reste partiel.
+La protection computer-use empêche de vérifier sûrement l'URL de la fenêtre native :
+contrôle Windows **BLOCKED**, aucune protection contournée ni navigation de remplacement.
+Ce blocage n'est ni masqué par les 42 parcours Chrome de laboratoire ni promu en PASS
+par la présence des raccourcis. Matériel, banque réelle, historique et production non qualifiés.
+
 ## Profil métier sans jeux — après 962c01b
 
 16 octobre 2026, code `9e15b1a`. [Rapport](PROFIL-PROFESSIONNEL-SANS-JEUX.md),

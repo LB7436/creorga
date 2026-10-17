@@ -1,0 +1,206 @@
+{
+  "checkedAt": "2026-10-17T08:58:50.074Z",
+  "baseCommit": "f198c987933ff5fa7650a3f6894896974e680465",
+  "scope": "Finalisation du même travail local ; contrôles de preuves/compilation/reprise, aucune nouvelle exécution des 584/201/42 revendiquée.",
+  "previousExecutions": {
+    "unitsAndIntegration": [
+      {
+        "suite": "backend-unit",
+        "executedAt": "2026-10-17T08:27:32.439Z",
+        "sha256": "014d646423d6f473ddffe75fb1803a5100a606d230a9cc0d1dea7383e1ab40c5",
+        "passed": 313,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "web-unit",
+        "executedAt": "2026-10-17T08:27:40.823Z",
+        "sha256": "5e415b00bf4a9b2455f955c05c4bbf04089fdb2f5c630ddb83e1134ae2e1c96e",
+        "passed": 207,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "pos-unit",
+        "executedAt": "2026-10-17T08:27:43.202Z",
+        "sha256": "a77d9f5d6aa96084871cb0880365b83bc7eeee42c73d2d9f480109ea8ced6c89",
+        "passed": 64,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "integration",
+        "executedAt": "2026-10-17T08:25:17.967Z",
+        "sha256": "0012e0e53c9e95a2f48fbbaa0af748d9f1d4f5f5c6f9b6c4693e8f2d518691d3",
+        "passed": 201,
+        "failed": 0,
+        "skipped": 0
+      }
+    ],
+    "browserReports": [
+      {
+        "name": "reliability-final-existing-browser.json",
+        "executedAt": "2026-10-17T08:30:22.202Z",
+        "sha256": "563f8310cfd452400c4d1f48d9406c70ef48a7d359f3d51548c0e1f9ae767d26",
+        "passed": 28,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "reliability-ui-green-browser.json",
+        "executedAt": "2026-10-17T08:29:23.216Z",
+        "sha256": "df2ea8e0bc6ab4fcd3acd3bab54136196f4b31d5c7475ca9dda5e3439e433150",
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "reliability-documents-green-browser.json",
+        "executedAt": "2026-10-17T08:27:23.551Z",
+        "sha256": "dd3b72f0367497efc1a4621ef68bb6c737622befde295349e66f36520ae24d61",
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0
+      }
+    ]
+  },
+  "builds": [
+    {
+      "profile": "business",
+      "builtAt": "2026-10-17T08:54:30.347Z",
+      "sourceFingerprint": {
+        "algorithm": "sha256",
+        "files": 883,
+        "digest": "7600a16f8d3aed896eabb940454ac84f6624443ab03b9be7ad5efde4fb16fa2c",
+        "includesUntrackedSource": true
+      },
+      "gameModuleCount": 0
+    },
+    {
+      "profile": "full",
+      "builtAt": "2026-10-17T08:56:38.894Z",
+      "sourceFingerprint": {
+        "algorithm": "sha256",
+        "files": 883,
+        "digest": "7600a16f8d3aed896eabb940454ac84f6624443ab03b9be7ad5efde4fb16fa2c",
+        "includesUntrackedSource": true
+      },
+      "gameModuleCount": 55
+    }
+  ],
+  "restoration": {
+    "executedAt": "2026-10-17T08:51:26.884Z",
+    "tables": 81,
+    "checkedFiles": 8,
+    "state": "equal",
+    "differences": 0,
+    "encryptedCopyVerified": true,
+    "keyIncludedInArchive": false,
+    "archiveSha256": "08c0be40aa215d93e2d0ce251bd927305863a777ca9421db6921d297f9ea1ecd",
+    "pdf": [
+      {
+        "table": "CreditNote",
+        "status": "checked",
+        "count": 8,
+        "totalBytes": 97037,
+        "storedHashMismatches": 0,
+        "nonPdfHeaders": 0,
+        "missingBinaryWithHash": 0,
+        "sha256": "3adb4b85ae5637504151a27f299a7754adbf2185e7563bdd2691dfca54239de7"
+      },
+      {
+        "table": "Invoice",
+        "status": "checked",
+        "count": 13,
+        "totalBytes": 146763,
+        "storedHashMismatches": 0,
+        "nonPdfHeaders": 0,
+        "missingBinaryWithHash": 0,
+        "sha256": "8ad752cb554be0b3507f7061d43778a20bcbf8db84556fb2874872f3958d5329"
+      }
+    ],
+    "restartExecutedAt": "2026-10-17T08:57:11.188Z",
+    "restartChecks": 19
+  },
+  "installation": {
+    "profile": "business",
+    "database": "ok",
+    "gameRouteStatus": 404,
+    "frontends": [
+      {
+        "port": 5174,
+        "status": 200,
+        "scope": "HTTP HTML servi, pas validation interactive native"
+      },
+      {
+        "port": 5175,
+        "status": 200,
+        "scope": "HTTP HTML servi, pas validation interactive native"
+      },
+      {
+        "port": 5177,
+        "status": 200,
+        "scope": "HTTP HTML servi, pas validation interactive native"
+      },
+      {
+        "port": 5178,
+        "status": 200,
+        "scope": "HTTP HTML servi, pas validation interactive native"
+      }
+    ]
+  },
+  "windows": {
+    "shortcuts": [
+      {
+        "kind": "launch",
+        "targetMatches": true,
+        "argumentsMatch": true,
+        "workingDirectoryMatches": true,
+        "sha256": "5c62aea646c4cef22305808d827b2c51165e7d8c9f72b7b17d2e205be27e0371",
+        "preserved": true
+      },
+      {
+        "kind": "stop",
+        "targetMatches": true,
+        "argumentsMatch": true,
+        "workingDirectoryMatches": true,
+        "sha256": "f05ab7a522148d5fd723e8a53ec02ee32896281644ab9a2830178568f1490511",
+        "preserved": true
+      }
+    ],
+    "nativeUiStatus": "BLOCKED",
+    "nativeUiReason": "Le contrôle computer-use précédent ne pouvait pas vérifier suffisamment l’URL courante. Aucune nouvelle tentative, navigation ou protection désactivée pendant cette finalisation.",
+    "nativeFullOpeningClosingAndCrashValidated": false
+  },
+  "games": {
+    "immutableCommit": "f198c987933ff5fa7650a3f6894896974e680465",
+    "verifiedSourceFiles": 99,
+    "checkoutContentMatchesGit": true,
+    "checkoutLineEndingNormalisations": 58,
+    "retrievalUrl": "https://github.com/LB7436/creorga/tree/f198c987933ff5fa7650a3f6894896974e680465",
+    "gameFilesModified": false
+  },
+  "t100": {
+    "status": "NOT RUN",
+    "partial": true,
+    "declaredMatrix": {
+      "PASS": 55,
+      "FAIL": 0,
+      "BLOCKED": 44,
+      "NOT RUN": 1
+    },
+    "matrixSource": "docs/2.0/RECETTE-METIER-T01-T100.md",
+    "reason": "Comptages de scénarios déclarés dans la matrice, jamais déduits du scan. Toutes les entrées statiques restent NOT RUN ; tous écrans/rôles/erreurs non couverts."
+  },
+  "safety": {
+    "productionDeployment": false,
+    "realPayment": false,
+    "masterModified": false,
+    "archiveDeleted": false,
+    "historicalProfileOpened": false,
+    "computerUseBypassed": false,
+    "secretsOrPrivateArchivesIncludedInCommit": false,
+    "generatedGuestBuildInfoExcludedFromCommit": true
+  },
+  "limits": "Livraison logicielle uniquement ; contrôle natif Windows bloqué, T100 partiel, banque/matériel/production non qualifiés. Les empreintes des rapports ne relancent pas leurs tests."
+}

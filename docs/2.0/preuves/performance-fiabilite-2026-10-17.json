@@ -1,0 +1,631 @@
+{
+  "generatedAt": "2026-10-17T08:35:24.925Z",
+  "http": {
+    "dataset": {
+      "products": 737,
+      "tables": 275,
+      "covers": 645,
+      "lines": 1225
+    },
+    "datasetHash": "dca4233b7de0fe5a934ff4440343106b2ac436aabf95439e87e347277be8828a",
+    "os": "10.0.26200",
+    "cpu": "AMD Ryzen 5 7600X 6-Core Processor",
+    "node": "v22.19.0",
+    "instrumentation": "Prisma query events + CPU inspector 1ms + durées I/O, mêmes instruments avant/après",
+    "before": {
+      "measuredAt": "2026-10-17T08:02:30.028Z",
+      "n": 10,
+      "warmup": 4,
+      "samplesMs": [
+        2208.05,
+        2032.6,
+        2112.91,
+        2082.75,
+        2141.11,
+        2153.46,
+        2123.51,
+        2035.16,
+        2267.32,
+        2054.45
+      ],
+      "p95Ms": 2267.32,
+      "sql": {
+        "queryCount": 1341,
+        "sqlCumulativeMs": 2318,
+        "operations": {
+          "SELECT:UserCompany": {
+            "n": 20,
+            "ms": 7
+          },
+          "SELECT:Company": {
+            "n": 10,
+            "ms": 5
+          },
+          "SELECT:FloorWorkspace": {
+            "n": 10,
+            "ms": 897
+          },
+          "SELECT:PosCoverPayment": {
+            "n": 50,
+            "ms": 11
+          },
+          "SELECT:Table": {
+            "n": 30,
+            "ms": 10
+          },
+          "SELECT:Product": {
+            "n": 70,
+            "ms": 8
+          },
+          "SELECT:SaleOrigin": {
+            "n": 40,
+            "ms": 17
+          },
+          "SELECT:Order": {
+            "n": 90,
+            "ms": 8
+          },
+          "SELECT:OrderItem": {
+            "n": 70,
+            "ms": 20
+          },
+          "SELECT:ServiceShare": {
+            "n": 30,
+            "ms": 6
+          },
+          "SELECT:ServiceShareTender": {
+            "n": 30,
+            "ms": 3
+          },
+          "SELECT:ServiceCover": {
+            "n": 50,
+            "ms": 135
+          },
+          "SELECT:OrderTender": {
+            "n": 720,
+            "ms": 0
+          },
+          "SELECT:Customer": {
+            "n": 10,
+            "ms": 14
+          },
+          "BEGIN:transaction": {
+            "n": 22,
+            "ms": 0
+          },
+          "SELECT:transaction": {
+            "n": 23,
+            "ms": 0
+          },
+          "INSERT:ActivityEvent": {
+            "n": 10,
+            "ms": 4
+          },
+          "COMMIT:transaction": {
+            "n": 22,
+            "ms": 8
+          },
+          "UPDATE:FloorWorkspace": {
+            "n": 10,
+            "ms": 1142
+          },
+          "SELECT:ServiceSession": {
+            "n": 10,
+            "ms": 14
+          },
+          "INSERT:FloorChange": {
+            "n": 10,
+            "ms": 5
+          },
+          "UPDATE:InvoiceDelivery": {
+            "n": 2,
+            "ms": 4
+          },
+          "SELECT:InvoiceDelivery": {
+            "n": 2,
+            "ms": 0
+          }
+        },
+        "io": {
+          "writeFileSync": {
+            "n": 40,
+            "ms": 116.1506999999765
+          },
+          "fsyncSync": {
+            "n": 40,
+            "ms": 89.56580000002577
+          },
+          "readFileSync": {
+            "n": 20,
+            "ms": 35.135199999978795
+          },
+          "renameSync": {
+            "n": 40,
+            "ms": 41.814999999973224
+          }
+        }
+      },
+      "cpuSamples": [
+        {
+          "function": "(idle)",
+          "file": "",
+          "line": 0,
+          "selfMs": 10057
+        },
+        {
+          "function": "(garbage collector)",
+          "file": "",
+          "line": 0,
+          "selfMs": 959
+        },
+        {
+          "function": "safeWriteJson",
+          "file": "apps/backend/dist/src/lib/safe-json.js",
+          "line": 45,
+          "selfMs": 699
+        },
+        {
+          "function": "floorHash",
+          "file": "apps/backend/dist/src/lib/floor-workspace.js",
+          "line": 16,
+          "selfMs": 678
+        },
+        {
+          "function": "floorHash",
+          "file": "apps/backend/dist/src/lib/floor-workspace.js",
+          "line": 16,
+          "selfMs": 658
+        },
+        {
+          "function": "res.json",
+          "file": "apps/backend/dist/src/routes/floorState.js",
+          "line": 217,
+          "selfMs": 647
+        },
+        {
+          "function": "saveFloorWorkspace",
+          "file": "apps/backend/dist/src/lib/floor-workspace.js",
+          "line": 115,
+          "selfMs": 576
+        },
+        {
+          "function": "structuredClone",
+          "file": "node:internal/worker/js_transferable",
+          "line": 112,
+          "selfMs": 525
+        },
+        {
+          "function": "(program)",
+          "file": "",
+          "line": 0,
+          "selfMs": 379
+        },
+        {
+          "function": "stringify",
+          "file": "node_modules/express/lib/response.js",
+          "line": 1155,
+          "selfMs": 333
+        },
+        {
+          "function": "floorHash",
+          "file": "apps/backend/dist/src/lib/floor-workspace.js",
+          "line": 16,
+          "selfMs": 322
+        },
+        {
+          "function": "request",
+          "file": "",
+          "line": 112,
+          "selfMs": 315
+        }
+      ]
+    },
+    "after": {
+      "measuredAt": "2026-10-17T08:21:21.349Z",
+      "n": 10,
+      "warmup": 4,
+      "samplesMs": [
+        2127.71,
+        2103.14,
+        2145.87,
+        2130.25,
+        2187.22,
+        2123.18,
+        2100.87,
+        2192.3,
+        2112.07,
+        2208.57
+      ],
+      "p95Ms": 2208.57,
+      "sql": {
+        "queryCount": 503,
+        "sqlCumulativeMs": 2438,
+        "operations": {
+          "SELECT:UserCompany": {
+            "n": 20,
+            "ms": 0
+          },
+          "SELECT:Company": {
+            "n": 10,
+            "ms": 2
+          },
+          "SELECT:FloorWorkspace": {
+            "n": 10,
+            "ms": 974
+          },
+          "SELECT:PosCoverPayment": {
+            "n": 40,
+            "ms": 9
+          },
+          "SELECT:Table": {
+            "n": 20,
+            "ms": 4
+          },
+          "SELECT:SaleOrigin": {
+            "n": 30,
+            "ms": 7
+          },
+          "SELECT:Product": {
+            "n": 50,
+            "ms": 9
+          },
+          "SELECT:Order": {
+            "n": 60,
+            "ms": 4
+          },
+          "SELECT:OrderItem": {
+            "n": 50,
+            "ms": 17
+          },
+          "SELECT:ServiceShare": {
+            "n": 20,
+            "ms": 2
+          },
+          "SELECT:ServiceShareTender": {
+            "n": 20,
+            "ms": 1
+          },
+          "SELECT:ServiceCover": {
+            "n": 40,
+            "ms": 128
+          },
+          "SELECT:OrderTender": {
+            "n": 20,
+            "ms": 4
+          },
+          "SELECT:Customer": {
+            "n": 10,
+            "ms": 5
+          },
+          "BEGIN:transaction": {
+            "n": 22,
+            "ms": 0
+          },
+          "SELECT:transaction": {
+            "n": 15,
+            "ms": 0
+          },
+          "UPDATE:FloorWorkspace": {
+            "n": 10,
+            "ms": 1249
+          },
+          "INSERT:ActivityEvent": {
+            "n": 10,
+            "ms": 3
+          },
+          "COMMIT:transaction": {
+            "n": 22,
+            "ms": 7
+          },
+          "SELECT:ServiceSession": {
+            "n": 10,
+            "ms": 5
+          },
+          "INSERT:FloorChange": {
+            "n": 10,
+            "ms": 2
+          },
+          "UPDATE:InvoiceDelivery": {
+            "n": 2,
+            "ms": 2
+          },
+          "SELECT:InvoiceDelivery": {
+            "n": 2,
+            "ms": 4
+          }
+        },
+        "io": {
+          "writeFileSync": {
+            "n": 40,
+            "ms": 120.79919999999038
+          },
+          "fsyncSync": {
+            "n": 40,
+            "ms": 98.98560000002908
+          },
+          "readFileSync": {
+            "n": 20,
+            "ms": 38.31359999999768
+          },
+          "renameSync": {
+            "n": 40,
+            "ms": 42.322299999999814
+          }
+        }
+      },
+      "cpuSamples": [
+        {
+          "function": "(idle)",
+          "file": "",
+          "line": 0,
+          "selfMs": 10156
+        },
+        {
+          "function": "(garbage collector)",
+          "file": "",
+          "line": 0,
+          "selfMs": 972
+        },
+        {
+          "function": "safeWriteJson",
+          "file": "apps/backend/dist/src/lib/safe-json.js",
+          "line": 45,
+          "selfMs": 681
+        },
+        {
+          "function": "floorHash",
+          "file": "apps/backend/dist/src/lib/floor-workspace.js",
+          "line": 16,
+          "selfMs": 679
+        },
+        {
+          "function": "res.json",
+          "file": "apps/backend/dist/src/routes/floorState.js",
+          "line": 217,
+          "selfMs": 664
+        },
+        {
+          "function": "floorHash",
+          "file": "apps/backend/dist/src/lib/floor-workspace.js",
+          "line": 16,
+          "selfMs": 655
+        },
+        {
+          "function": "saveFloorWorkspace",
+          "file": "apps/backend/dist/src/lib/floor-workspace.js",
+          "line": 118,
+          "selfMs": 588
+        },
+        {
+          "function": "structuredClone",
+          "file": "node:internal/worker/js_transferable",
+          "line": 112,
+          "selfMs": 540
+        },
+        {
+          "function": "(program)",
+          "file": "",
+          "line": 0,
+          "selfMs": 389
+        },
+        {
+          "function": "stringify",
+          "file": "node_modules/express/lib/response.js",
+          "line": 1155,
+          "selfMs": 332
+        },
+        {
+          "function": "request",
+          "file": "",
+          "line": 112,
+          "selfMs": 320
+        },
+        {
+          "function": "floorHash",
+          "file": "apps/backend/dist/src/lib/floor-workspace.js",
+          "line": 16,
+          "selfMs": 319
+        }
+      ]
+    },
+    "p95ObservedDeltaMs": -58.75
+  },
+  "ui": {
+    "before": {
+      "measuredAt": "2026-10-17T08:02:58.849Z",
+      "chrome": "155.0.8059.80",
+      "dataset": {
+        "products": 737,
+        "tables": 275,
+        "lines": 1225
+      },
+      "measurements": [
+        {
+          "name": "portail-config",
+          "samplesMs": [
+            109.71,
+            111.24,
+            109.02,
+            92.38,
+            100.3
+          ],
+          "medianMs": 109.02,
+          "p95Ms": 111.24
+        },
+        {
+          "name": "modules",
+          "samplesMs": [
+            415.2,
+            82.9,
+            1227.61,
+            109.71,
+            96.17
+          ],
+          "medianMs": 109.71,
+          "p95Ms": 1227.61
+        },
+        {
+          "name": "planning",
+          "samplesMs": [
+            89.78,
+            82.52,
+            80.72,
+            88.77,
+            84.82
+          ],
+          "medianMs": 84.82,
+          "p95Ms": 89.78
+        },
+        {
+          "name": "qr-menu",
+          "samplesMs": [
+            108.47,
+            105.17,
+            108.02,
+            105.77,
+            107.54
+          ],
+          "medianMs": 107.54,
+          "p95Ms": 108.47
+        },
+        {
+          "name": "pos-connexion",
+          "samplesMs": [
+            33.4,
+            37,
+            33.94,
+            37.49,
+            32.32
+          ],
+          "medianMs": 33.94,
+          "p95Ms": 37.49
+        }
+      ],
+      "jsErrorCount": 0
+    },
+    "after": {
+      "measuredAt": "2026-10-17T08:21:52.549Z",
+      "chrome": "155.0.8059.80",
+      "dataset": {
+        "products": 737,
+        "tables": 275,
+        "lines": 1225
+      },
+      "measurements": [
+        {
+          "name": "portail-config",
+          "samplesMs": [
+            90.49,
+            110.8,
+            99,
+            102.31,
+            108.26
+          ],
+          "medianMs": 102.31,
+          "p95Ms": 110.8
+        },
+        {
+          "name": "modules",
+          "samplesMs": [
+            477.86,
+            83.86,
+            1243.48,
+            85.75,
+            84.44
+          ],
+          "medianMs": 85.75,
+          "p95Ms": 1243.48
+        },
+        {
+          "name": "planning",
+          "samplesMs": [
+            437.33,
+            92.88,
+            84.28,
+            84.85,
+            84.91
+          ],
+          "medianMs": 84.91,
+          "p95Ms": 437.33
+        },
+        {
+          "name": "qr-menu",
+          "samplesMs": [
+            105.4,
+            108.34,
+            122.5,
+            121.64,
+            105.82
+          ],
+          "medianMs": 108.34,
+          "p95Ms": 122.5
+        },
+        {
+          "name": "pos-connexion",
+          "samplesMs": [
+            32.27,
+            32.79,
+            32.76,
+            37.57,
+            35.43
+          ],
+          "medianMs": 32.79,
+          "p95Ms": 37.57
+        }
+      ],
+      "jsErrorCount": 0
+    }
+  },
+  "resources": {
+    "before": {
+      "measuredAt": "2026-10-17T08:02:58.808Z",
+      "logicalCpus": 12,
+      "samples": 11,
+      "workingSetSumMiB": 1956.3809,
+      "privateCommitMiB": 1563.0182,
+      "cpuNormalizedPercent": 0,
+      "processCountMin": 28,
+      "processCountMax": 28,
+      "gpuEnginePercentSum": 0,
+      "gpuDedicatedMiB": 137.5508,
+      "gpuSharedMiB": 6.5078,
+      "gpuCounterErrorSamples": 0
+    },
+    "after": {
+      "measuredAt": "2026-10-17T08:21:52.513Z",
+      "logicalCpus": 12,
+      "samples": 11,
+      "workingSetSumMiB": 1719.52,
+      "privateCommitMiB": 1365.1818,
+      "cpuNormalizedPercent": 0,
+      "processCountMin": 25,
+      "processCountMax": 29,
+      "gpuEnginePercentSum": 0,
+      "gpuDedicatedMiB": 135.9688,
+      "gpuSharedMiB": 6.9609,
+      "gpuCounterErrorSamples": 0
+    }
+  },
+  "startup": {
+    "before": {
+      "at": "2026-10-17T08:06:06.345Z",
+      "profile": "business",
+      "readyMs": 2190
+    },
+    "after": {
+      "at": "2026-10-17T08:24:41.866Z",
+      "profile": "business",
+      "readyMs": 2142
+    },
+    "causallyComparable": false,
+    "gainClaimed": false,
+    "reason": "Une seule relance par série, cache chaud ; instrumentation et contrôle privé non identiques, pas un gain causal de démarrage."
+  },
+  "limits": [
+    "Courtes séries séquentielles loopback, pas de charge multiclient ni de qualification de production.",
+    "p95 sur dix points HTTP et cinq navigations UI : indicateur grossier, tous les écrans ne s’améliorent pas.",
+    "Somme des working sets non dédupliquée ; mémoire engagée privée différente de la RAM résidente physique.",
+    "CPU/GPU zéro observé peut être sous la résolution ; GPU par moteur non normalisé, valeurs indisponibles conservées null.",
+    "Autres logiciels Windows conservés ; aucun wattmètre, watt, kWh, euro ou gain énergétique calculé."
+  ]
+}

@@ -1,0 +1,294 @@
+{
+  "testedAt": "2026-10-17T08:34:28.770Z",
+  "initialMigrations": 7,
+  "finalMigrations": 36,
+  "preservedTables": 47,
+  "preservedRows": 341,
+  "allOriginalColumnsAndRowsEqual": true,
+  "oldSnapshotUnchanged": true,
+  "tables": [
+    {
+      "name": "ActivityEvent",
+      "columnCount": 10,
+      "rows": 252,
+      "sha256": "1db3f4d0a7bd4409af3e32a92f6a283a673327829e350fa13d6e898519b2b0b9"
+    },
+    {
+      "name": "Campaign",
+      "columnCount": 11,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "CashDrawer",
+      "columnCount": 10,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "Category",
+      "columnCount": 8,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "Company",
+      "columnCount": 12,
+      "rows": 1,
+      "sha256": "90e7755591c5c0a685f17dd5592ad35355e2edadd6b3f185e420f369cd5c595d"
+    },
+    {
+      "name": "CompanyModule",
+      "columnCount": 6,
+      "rows": 18,
+      "sha256": "d9877a0d422b9c76d6f0c7d27833a283a93a120e317f9c2b8dcb197bc1ecad7a"
+    },
+    {
+      "name": "CompanySettings",
+      "columnCount": 11,
+      "rows": 1,
+      "sha256": "b3a859605ad134b70cf27c6d7caa66ff48a9ce324e756f4ae088f282829f4782"
+    },
+    {
+      "name": "CreatorAccount",
+      "columnCount": 7,
+      "rows": 1,
+      "sha256": "7389e86f85305e52d1299e87afc6389a7a48afacdc3ce77c68f33ee803a61d50"
+    },
+    {
+      "name": "CreatorRefreshToken",
+      "columnCount": 9,
+      "rows": 2,
+      "sha256": "f29b0b0e18d0bf2256d9205190cf07b378a8b8839dfb21bd1e822f41d96252d0"
+    },
+    {
+      "name": "Customer",
+      "columnCount": 12,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "DiscountCode",
+      "columnCount": 10,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "EmployeeDocument",
+      "columnCount": 9,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "EmployeeNote",
+      "columnCount": 5,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "EmployeeProfile",
+      "columnCount": 17,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "ErrorLog",
+      "columnCount": 7,
+      "rows": 2,
+      "sha256": "d3ad87dd7c4913d5d05e1f8fb68a8e4a4a48e165adde2d845127b12a835b7e3b"
+    },
+    {
+      "name": "EventQuote",
+      "columnCount": 15,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "EventQuoteItem",
+      "columnCount": 6,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "Expense",
+      "columnCount": 10,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "GiftCard",
+      "columnCount": 8,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "HaccpLog",
+      "columnCount": 8,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "HaccpTask",
+      "columnCount": 7,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "Ingredient",
+      "columnCount": 10,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "Invoice",
+      "columnCount": 14,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "InvoiceItem",
+      "columnCount": 6,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "LeaveRequest",
+      "columnCount": 9,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "LoginEvent",
+      "columnCount": 6,
+      "rows": 23,
+      "sha256": "43bf0f4eaac148f7d32c8431c0e8230c174b185ff5ced3b1cd198c8a33c00150"
+    },
+    {
+      "name": "LoyaltyTransaction",
+      "columnCount": 7,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "Opportunity",
+      "columnCount": 12,
+      "rows": 2,
+      "sha256": "f079ad440bb38a6ee2de0b25f1f3ff02d13c47484b670ebece96db3a91403ac3"
+    },
+    {
+      "name": "Order",
+      "columnCount": 17,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "OrderItem",
+      "columnCount": 9,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "PortalConfiguration",
+      "columnCount": 11,
+      "rows": 1,
+      "sha256": "77c76321cecdaa4318719d978f881819635fe6a56f53fad446888c24d896416f"
+    },
+    {
+      "name": "Product",
+      "columnCount": 14,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "PurchaseOrder",
+      "columnCount": 7,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "PurchaseOrderItem",
+      "columnCount": 5,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "Quote",
+      "columnCount": 10,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "QuoteItem",
+      "columnCount": 6,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "Recipe",
+      "columnCount": 4,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "RefreshToken",
+      "columnCount": 5,
+      "rows": 5,
+      "sha256": "fd7e6bb0702311b6111154d076703dd41bdf3858ee10169332e0a46362de39b9"
+    },
+    {
+      "name": "Reservation",
+      "columnCount": 13,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "Review",
+      "columnCount": 9,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "Shift",
+      "columnCount": 10,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "Supplier",
+      "columnCount": 8,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "Table",
+      "columnCount": 11,
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "TenantMetricDaily",
+      "columnCount": 17,
+      "rows": 28,
+      "sha256": "879132f3070230769a51afb0a790a0b09832940be717a47293651567fb94fd7a"
+    },
+    {
+      "name": "TimePunch",
+      "columnCount": 8,
+      "rows": 1,
+      "sha256": "c085f72c0545ad170fd96bf0c715a97f135eab852ea4f7226c4a17b0a7030e50"
+    },
+    {
+      "name": "User",
+      "columnCount": 8,
+      "rows": 2,
+      "sha256": "875027bbf8f3a5ab698d9f2b5b0999cbb3736eb01a9f7dc1efe9237dc341f23e"
+    },
+    {
+      "name": "UserCompany",
+      "columnCount": 6,
+      "rows": 2,
+      "sha256": "5d4f7f04eee0a603e04952c822c21e3001a84c55df5efab70b96e4a1c285cc9e"
+    }
+  ],
+  "limitations": "Migration d’une copie ancienne dans une nouvelle base locale ; pas installation vierge, ouverture de profil navigateur historique ou qualification de production."
+}

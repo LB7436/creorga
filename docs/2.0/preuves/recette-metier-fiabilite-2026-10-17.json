@@ -1,0 +1,2371 @@
+{
+  "generatedAt": "2026-10-17T08:53:51.085Z",
+  "since": "2026-10-17T07:00:00Z",
+  "environment": "Laboratoire privé Windows, PostgreSQL loopback, comptes et sociétés fictifs ; aucune production ou banque réelle.",
+  "limits": "PASS limité au parcours logiciel décrit. Les incidents, transports et prestataires simulés sont distingués dans les tests. Aucun PASS global de tous les écrans, rôles, matériels ou langues.",
+  "counts": {
+    "PASS": 55,
+    "FAIL": 0,
+    "BLOCKED": 44,
+    "NOT RUN": 1
+  },
+  "runs": [
+    {
+      "suite": "backend-unit",
+      "executedAt": "2026-10-17T08:27:32.439Z",
+      "passed": 313,
+      "failed": 0,
+      "skipped": 0,
+      "complete": true
+    },
+    {
+      "suite": "web-unit",
+      "executedAt": "2026-10-17T08:27:40.823Z",
+      "passed": 207,
+      "failed": 0,
+      "skipped": 0,
+      "complete": true
+    },
+    {
+      "suite": "pos-unit",
+      "executedAt": "2026-10-17T08:27:43.202Z",
+      "passed": 64,
+      "failed": 0,
+      "skipped": 0,
+      "complete": true
+    },
+    {
+      "suite": "integration",
+      "executedAt": "2026-10-17T08:25:17.967Z",
+      "passed": 201,
+      "failed": 0,
+      "skipped": 0,
+      "complete": true
+    },
+    {
+      "suite": "reliability-final-existing-browser.json",
+      "executedAt": "2026-10-17T08:30:22.202Z",
+      "passed": 28,
+      "failed": 0,
+      "skipped": 0,
+      "globalErrors": 0,
+      "complete": true
+    },
+    {
+      "suite": "reliability-ui-green-browser.json",
+      "executedAt": "2026-10-17T08:29:23.216Z",
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "globalErrors": 0,
+      "complete": true
+    },
+    {
+      "suite": "reliability-documents-green-browser.json",
+      "executedAt": "2026-10-17T08:27:23.551Z",
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "globalErrors": 0,
+      "complete": true
+    }
+  ],
+  "specialEvidence": [
+    {
+      "file": "scripts/verify-restored-copy.mjs",
+      "name": "restauration native chiffrée et comparaison exhaustive",
+      "status": "passed",
+      "executedAt": "2026-10-17T08:51:26.884Z",
+      "observed": "81 tables, 8 fichiers et 21 PDF comparés égaux ; nouvelles tables de liens peuplées ; AES-GCM vérifié et clé séparée. 3703 ms sur cette copie, pas un RTO."
+    },
+    {
+      "file": "docs/2.0/preuves/migration-ancienne-copie-fiabilite-2026-10-17.json",
+      "name": "migration réelle d’un cliché privé ancien vers une nouvelle base",
+      "status": "passed",
+      "executedAt": "2026-10-17T08:34:28.770Z",
+      "observed": "7 → 36 migrations, 47 tables / 341 lignes anciennes identiques. Cliché lu seulement ; aucune archive originale ni profil historique modifié."
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "T01",
+      "title": "Installation neuve complète",
+      "prerequisites": "Machine vierge et base neuve.",
+      "actions": "Installer, migrer puis ouvrir les cinq applications.",
+      "expected": "Premier démarrage sans données historiques ni manipulation manuelle cachée.",
+      "blocked": "Aucune machine Windows vierge / VM de recette disponible. Les cinq builds et la base migrée ne prouvent pas une installation complète sur machine vierge.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "Aucune machine Windows vierge / VM de recette disponible. Les cinq builds et la base migrée ne prouvent pas une installation complète sur machine vierge.",
+      "evidence": []
+    },
+    {
+      "id": "T02",
+      "title": "Restauration avec pièces jointes",
+      "prerequisites": "Copie privée cohérente arrêtée, fichiers et base du même instant.",
+      "actions": "Sauvegarder, chiffrer, restaurer dans une nouvelle base et comparer.",
+      "expected": "Toutes tables, colonnes, lignes, fichiers et PDF égaux.",
+      "proofs": [
+        {
+          "special": "restore"
+        }
+      ],
+      "status": "PASS",
+      "observed": "81 tables, 8 fichiers et 21 PDF comparés égaux ; nouvelles tables de liens peuplées ; AES-GCM vérifié et clé séparée. 3703 ms sur cette copie, pas un RTO.",
+      "evidence": [
+        {
+          "file": "scripts/verify-restored-copy.mjs",
+          "name": "restauration native chiffrée et comparaison exhaustive",
+          "status": "passed",
+          "executedAt": "2026-10-17T08:51:26.884Z",
+          "observed": "81 tables, 8 fichiers et 21 PDF comparés égaux ; nouvelles tables de liens peuplées ; AES-GCM vérifié et clé séparée. 3703 ms sur cette copie, pas un RTO."
+        }
+      ]
+    },
+    {
+      "id": "T03",
+      "title": "Migration de copie ancienne",
+      "prerequisites": "Archive ancienne immuable et nouvelle base dédiée.",
+      "actions": "Restaurer une copie de la version ancienne puis appliquer toutes les migrations.",
+      "expected": "Historique inchangé, parcours anciens encore lisibles.",
+      "proofs": [
+        {
+          "special": "old-migration"
+        }
+      ],
+      "status": "PASS",
+      "observed": "7 → 36 migrations, 47 tables / 341 lignes anciennes identiques. Cliché lu seulement ; aucune archive originale ni profil historique modifié.",
+      "evidence": [
+        {
+          "file": "docs/2.0/preuves/migration-ancienne-copie-fiabilite-2026-10-17.json",
+          "name": "migration réelle d’un cliché privé ancien vers une nouvelle base",
+          "status": "passed",
+          "executedAt": "2026-10-17T08:34:28.770Z",
+          "observed": "7 → 36 migrations, 47 tables / 341 lignes anciennes identiques. Cliché lu seulement ; aucune archive originale ni profil historique modifié."
+        }
+      ]
+    },
+    {
+      "id": "T04",
+      "title": "Export des anciennes ventes navigateur",
+      "prerequisites": "Copie des profils historiques autorisée séparément.",
+      "actions": "Exporter les ventes de chaque origine sans effacement ni rejeu.",
+      "expected": "Inventaire et empreintes conservés, aucune vente perdue.",
+      "blocked": "Profils historiques hors autorisation ; aucun profil ouvert. Procédure T04 conservée.",
+      "blockerCategory": "HISTORY_AUTHORIZATION",
+      "status": "BLOCKED",
+      "observed": "Profils historiques hors autorisation ; aucun profil ouvert. Procédure T04 conservée.",
+      "evidence": []
+    },
+    {
+      "id": "T05",
+      "title": "Isolation intersociétés",
+      "prerequisites": "Deux sociétés fictives, propriétaire et salarié.",
+      "actions": "Demander des documents, paiements et relations de réservation étrangers.",
+      "expected": "Refus avant fuite ou mutation ; contraintes SQL incluses.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "refuse une commande appartenant"
+        },
+        {
+          "file": "apps/backend/src/routes/receipt-invoices.integration.test.ts",
+          "name": "refuse le client étranger"
+        },
+        {
+          "file": "apps/backend/src/routes/reservations.integration.test.ts",
+          "name": "refuse une table ou un client"
+        },
+        {
+          "file": "apps/backend/src/routes/reservations.integration.test.ts",
+          "name": "la base refuse les relations"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : refuse une commande appartenant à une autre société ; refuse le client étranger, le ticket étranger et le rôle salarié ; refuse une table ou un client d’une autre société, y compris à la modification ; la base refuse les relations intersociétés même sans passer par HTTP. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "refuse une commande appartenant à une autre société",
+          "status": "passed",
+          "durationMs": 42.69889999999998,
+          "executedAt": "2026-10-17T08:25:45.281Z"
+        },
+        {
+          "file": "apps/backend/src/routes/receipt-invoices.integration.test.ts",
+          "name": "refuse le client étranger, le ticket étranger et le rôle salarié",
+          "status": "passed",
+          "durationMs": 13.772199999999884,
+          "executedAt": "2026-10-17T08:25:51.300Z"
+        },
+        {
+          "file": "apps/backend/src/routes/reservations.integration.test.ts",
+          "name": "refuse une table ou un client d’une autre société, y compris à la modification",
+          "status": "passed",
+          "durationMs": 51.27139999999997,
+          "executedAt": "2026-10-17T08:25:56.851Z"
+        },
+        {
+          "file": "apps/backend/src/routes/reservations.integration.test.ts",
+          "name": "la base refuse les relations intersociétés même sans passer par HTTP",
+          "status": "passed",
+          "durationMs": 7.113100000000031,
+          "executedAt": "2026-10-17T08:25:56.851Z"
+        }
+      ]
+    },
+    {
+      "id": "T06",
+      "title": "Isolation intersites",
+      "prerequisites": "Deux établissements et rôles affectés par site.",
+      "actions": "Lire et modifier la session d’un autre site.",
+      "expected": "Droits de site appliqués, pas seulement société.",
+      "blocked": "Modèle de sites et adhésions par établissement non implémenté dans le schéma actuel. Le contrôle société ne remplace pas un contrôle intersites.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Modèle de sites et adhésions par établissement non implémenté dans le schéma actuel. Le contrôle société ne remplace pas un contrôle intersites.",
+      "evidence": []
+    },
+    {
+      "id": "T07",
+      "title": "Panne de base sans promotion",
+      "prerequisites": "Membre ordinaire, panne de lecture d’adhésion simulée.",
+      "actions": "Ouvrir une route protégée pendant la panne.",
+      "expected": "503, aucun rôle propriétaire de repli.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/middleware/requireCompany.test.ts",
+          "name": "en PRODUCTION : refuse en 503"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : en PRODUCTION : refuse en 503 et n'accorde AUCUN rôle. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/middleware/requireCompany.test.ts",
+          "name": "en PRODUCTION : refuse en 503 et n'accorde AUCUN rôle",
+          "status": "passed",
+          "durationMs": 1.8673000000000002,
+          "executedAt": "2026-10-17T08:27:38.217Z"
+        }
+      ]
+    },
+    {
+      "id": "T08",
+      "title": "Révocation d’un appareil de caisse",
+      "prerequisites": "Appareil enregistré et révocable.",
+      "actions": "Révoquer puis rejouer son ancien accès.",
+      "expected": "Ancien appareil refusé sans affecter les autres.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "révoquer un jeton de caisse"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : révoquer un jeton de caisse dans la configuration bloque immédiatement son ancien accès sans révoquer l’autre. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "révoquer un jeton de caisse dans la configuration bloque immédiatement son ancien accès sans révoquer l’autre",
+          "status": "passed",
+          "durationMs": 8.217699999999923,
+          "executedAt": "2026-10-17T08:25:53.643Z"
+        }
+      ]
+    },
+    {
+      "id": "T09",
+      "title": "Restauration chiffrée externe",
+      "prerequisites": "Copie hors du PC, archive AES-GCM et clé séparée.",
+      "actions": "Récupérer depuis le stockage externe puis restaurer.",
+      "expected": "Copie externe effectivement récupérable et état complet égal.",
+      "blocked": "Restauration chiffrée locale exécutée en T02 ; aucun stockage externe/cloud de recette raccordé.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "Restauration chiffrée locale exécutée en T02 ; aucun stockage externe/cloud de recette raccordé.",
+      "evidence": []
+    },
+    {
+      "id": "T10",
+      "title": "Rapprochement avant et après restauration",
+      "prerequisites": "Copie avec documents, règlements, réserves et séparations fictifs.",
+      "actions": "Comparer toutes les lignes et les PDF des deux bases.",
+      "expected": "Aucun total, lien, pièce ou état changé.",
+      "proofs": [
+        {
+          "special": "restore"
+        }
+      ],
+      "status": "PASS",
+      "observed": "81 tables, 8 fichiers et 21 PDF comparés égaux ; nouvelles tables de liens peuplées ; AES-GCM vérifié et clé séparée. 3703 ms sur cette copie, pas un RTO.",
+      "evidence": [
+        {
+          "file": "scripts/verify-restored-copy.mjs",
+          "name": "restauration native chiffrée et comparaison exhaustive",
+          "status": "passed",
+          "executedAt": "2026-10-17T08:51:26.884Z",
+          "observed": "81 tables, 8 fichiers et 21 PDF comparés égaux ; nouvelles tables de liens peuplées ; AES-GCM vérifié et clé séparée. 3703 ms sur cette copie, pas un RTO."
+        }
+      ]
+    },
+    {
+      "id": "T11",
+      "title": "Vente café et ouverture de caisse",
+      "prerequisites": "Base fictive, produit TTC, propriétaire.",
+      "actions": "Ouvrir la caisse, enregistrer un acompte puis régler le solde.",
+      "expected": "Une vente, un débit de stock, espèces comptabilisées.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/cash-drawers.integration.test.ts",
+          "name": "compte un acompte espèces"
+        },
+        {
+          "file": "apps/backend/src/routes/service-sessions.integration.test.ts",
+          "name": "un acompte natif puis un solde mixte"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : compte un acompte espèces même si la commande n’est pas encore payée entièrement ; un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/cash-drawers.integration.test.ts",
+          "name": "compte un acompte espèces même si la commande n’est pas encore payée entièrement",
+          "status": "passed",
+          "durationMs": 88.12760000000003,
+          "executedAt": "2026-10-17T08:25:52.426Z"
+        },
+        {
+          "file": "apps/backend/src/routes/service-sessions.integration.test.ts",
+          "name": "un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock",
+          "status": "passed",
+          "durationMs": 451.6213,
+          "executedAt": "2026-10-17T08:25:39.045Z"
+        }
+      ]
+    },
+    {
+      "id": "T12",
+      "title": "Table à plusieurs tournées QR",
+      "prerequisites": "Visite fictive, plusieurs commandes.",
+      "actions": "Commander, demander le règlement puis rejouer.",
+      "expected": "Même solde réservé et aucune deuxième capture.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "réserve et rapproche plusieurs tournées QR"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : réserve et rapproche plusieurs tournées QR sans nouveau débit sur rejeu. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "réserve et rapproche plusieurs tournées QR sans nouveau débit sur rejeu",
+          "status": "passed",
+          "durationMs": 57.81749999999988,
+          "executedAt": "2026-10-17T08:25:45.281Z"
+        }
+      ]
+    },
+    {
+      "id": "T13",
+      "title": "Transfert de table",
+      "prerequisites": "Groupes fictifs avec acompte et tentative UNKNOWN.",
+      "actions": "Transférer puis payer uniquement le solde après preuve d’annulation simulée.",
+      "expected": "Identités, réserve et acompte inchangés ; une vente.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/table-movements.integration.test.ts",
+          "name": "conserve acompte, tentative en cours"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : conserve acompte, tentative en cours et affectations pendant un transfert puis un solde. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/table-movements.integration.test.ts",
+          "name": "conserve acompte, tentative en cours et affectations pendant un transfert puis un solde",
+          "status": "passed",
+          "durationMs": 296.4224999999999,
+          "executedAt": "2026-10-17T08:25:28.665Z"
+        }
+      ]
+    },
+    {
+      "id": "T14",
+      "title": "Fusion puis séparation des groupes",
+      "prerequisites": "Deux visites QR, acompte sur une seule.",
+      "actions": "Fusionner, séparer la visite puis renouveler ses liens.",
+      "expected": "Groupes, soldes et accès indépendants, anciens liens refusés.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/table-movements.integration.test.ts",
+          "name": "sépare un groupe QR après fusion"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : sépare un groupe QR après fusion, sans déplacer l’acompte de l’autre groupe ni rouvrir les anciens QR. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/table-movements.integration.test.ts",
+          "name": "sépare un groupe QR après fusion, sans déplacer l’acompte de l’autre groupe ni rouvrir les anciens QR",
+          "status": "passed",
+          "durationMs": 221.26449999999977,
+          "executedAt": "2026-10-17T08:25:28.665Z"
+        }
+      ]
+    },
+    {
+      "id": "T15",
+      "title": "Partage par article ou quantité",
+      "prerequisites": "Ligne native de trois articles avant commande financière.",
+      "actions": "Déplacer un article, recharger et régler les deux groupes.",
+      "expected": "TVA/prix historiques ; total 35,10 €, stock diminué de trois, sans doublon.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/table-movements.integration.test.ts",
+          "name": "déplace une partie de ligne native"
+        },
+        {
+          "file": "tests/browser-lab/service-separations.spec.ts",
+          "name": "séparations natives"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : déplace une partie de ligne native à son prix historique sans nouvelle préparation ni débit de stock ; séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/table-movements.integration.test.ts",
+          "name": "déplace une partie de ligne native à son prix historique sans nouvelle préparation ni débit de stock",
+          "status": "passed",
+          "durationMs": 346.9444000000003,
+          "executedAt": "2026-10-17T08:25:28.665Z"
+        },
+        {
+          "file": "tests/browser-lab/service-separations.spec.ts",
+          "name": "séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement",
+          "status": "passed",
+          "durationMs": 29358,
+          "executedAt": "2026-10-17T08:32:52.937Z"
+        }
+      ]
+    },
+    {
+      "id": "T16",
+      "title": "Partage par montant et centimes résiduels",
+      "prerequisites": "Plusieurs groupes et montants non divisibles au centime.",
+      "actions": "Répartir une addition entre groupes et moyens puis payer chaque solde.",
+      "expected": "Somme exacte et répartition des centimes explicitement conservée.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "trois groupes partagent remise"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "un nouvel acompte invalide"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "vente finale conserve les centimes"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "ancien original entièrement"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "ancien miroir JSON fictif"
+        },
+        {
+          "file": "tests/browser-lab/financial-allocation.spec.ts",
+          "name": "allocation QR : décision responsable"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : trois groupes partagent remise et acompte, règlent séparément sans nouvelle vente ni préparation et restent privés ; un nouvel acompte invalide l’aperçu, puis les paiements mixtes et concurrents conservent les parts exactes ; la vente finale conserve les centimes de TVA historiques même si PostgreSQL retourne les lignes dans un autre ordre ; refuse un ancien original entièrement couvert par ses règlements mais sans clôture, sans inventer de vente ; un ancien miroir JSON fictif ne réintroduit pas la commande répartie dans l’addition du personnel ; allocation QR : décision responsable, acomptes explicites, panne réseau, QR privés et paiement du groupe dans Chrome. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "trois groupes partagent remise et acompte, règlent séparément sans nouvelle vente ni préparation et restent privés",
+          "status": "passed",
+          "durationMs": 594.6549,
+          "executedAt": "2026-10-17T08:25:36.201Z"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "un nouvel acompte invalide l’aperçu, puis les paiements mixtes et concurrents conservent les parts exactes",
+          "status": "passed",
+          "durationMs": 422.61779999999976,
+          "executedAt": "2026-10-17T08:25:36.201Z"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "la vente finale conserve les centimes de TVA historiques même si PostgreSQL retourne les lignes dans un autre ordre",
+          "status": "passed",
+          "durationMs": 206.84590000000026,
+          "executedAt": "2026-10-17T08:25:36.201Z"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "refuse un ancien original entièrement couvert par ses règlements mais sans clôture, sans inventer de vente",
+          "status": "passed",
+          "durationMs": 145.5936999999999,
+          "executedAt": "2026-10-17T08:25:36.201Z"
+        },
+        {
+          "file": "apps/backend/src/routes/financial-allocations.integration.test.ts",
+          "name": "un ancien miroir JSON fictif ne réintroduit pas la commande répartie dans l’addition du personnel",
+          "status": "passed",
+          "durationMs": 111.7206000000001,
+          "executedAt": "2026-10-17T08:25:36.201Z"
+        },
+        {
+          "file": "tests/browser-lab/financial-allocation.spec.ts",
+          "name": "allocation QR : décision responsable, acomptes explicites, panne réseau, QR privés et paiement du groupe dans Chrome",
+          "status": "passed",
+          "durationMs": 16594,
+          "executedAt": "2026-10-17T08:30:52.570Z"
+        }
+      ]
+    },
+    {
+      "id": "T17",
+      "title": "Offert avec droit et motif",
+      "prerequisites": "Responsable puis serveur, article offert.",
+      "actions": "Offrir, encaisser et contrôler le justificatif et le journal.",
+      "expected": "Autorisation, motif, ventilation et stock traçables.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/pos.integration.test.ts",
+          "name": "un offert exige un motif responsable"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : un offert exige un motif responsable, conserve son auteur, son ticket et un seul débit de stock. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/pos.integration.test.ts",
+          "name": "un offert exige un motif responsable, conserve son auteur, son ticket et un seul débit de stock",
+          "status": "passed",
+          "durationMs": 85.2706999999998,
+          "executedAt": "2026-10-17T08:25:41.135Z"
+        }
+      ]
+    },
+    {
+      "id": "T18",
+      "title": "Annulation après envoi bar",
+      "prerequisites": "Commande déjà transmise à la préparation.",
+      "actions": "Annuler une ligne et traiter la correction.",
+      "expected": "Correction visible sans suppression silencieuse de vente ou préparation.",
+      "blocked": "Parcours de correction signé après préparation non implémenté. Le risque d’annulation/effacement silencieux a été reproduit puis bloqué par 409, avec test orders ; cela ne livre pas la correction métier complète.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/orders.integration.test.ts",
+          "name": "annulation destructive"
+        }
+      ],
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Parcours de correction signé après préparation non implémenté. Le risque d’annulation/effacement silencieux a été reproduit puis bloqué par 409, avec test orders ; cela ne livre pas la correction métier complète.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/orders.integration.test.ts",
+          "name": "refuse l’effacement ou l’annulation destructive d’un QR déjà en préparation et garde le prix et la quantité",
+          "status": "passed",
+          "durationMs": 32.52520000000004,
+          "executedAt": "2026-10-17T08:25:46.768Z"
+        }
+      ]
+    },
+    {
+      "id": "T19",
+      "title": "Retour après vente",
+      "prerequisites": "Facture émise et règlement fictif.",
+      "actions": "Créer un avoir puis déclarer le remboursement espèces.",
+      "expected": "Vente et facture originales inchangées, sortie unique et plafonnée.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
+          "name": "un avoir intégral ne modifie"
+        },
+        {
+          "file": "apps/backend/src/routes/refunds.integration.test.ts",
+          "name": "un remboursement espèces déclaré"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : un avoir intégral ne modifie pas la facture, son PDF, sa vente ou son règlement ; un remboursement espèces déclaré garde le justificatif et une seule sortie de caisse. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
+          "name": "un avoir intégral ne modifie pas la facture, son PDF, sa vente ou son règlement",
+          "status": "passed",
+          "durationMs": 507.5715,
+          "executedAt": "2026-10-17T08:25:19.395Z"
+        },
+        {
+          "file": "apps/backend/src/routes/refunds.integration.test.ts",
+          "name": "un remboursement espèces déclaré garde le justificatif et une seule sortie de caisse",
+          "status": "passed",
+          "durationMs": 343.2330999999999,
+          "executedAt": "2026-10-17T08:25:32.548Z"
+        }
+      ]
+    },
+    {
+      "id": "T20",
+      "title": "Deux terminaux sur une session",
+      "prerequisites": "Deux révisions concurrentes d’une même salle fictive.",
+      "actions": "Confirmer simultanément deux changements.",
+      "expected": "Une seule version gagne ; aucune ligne écrasée.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/service-sessions.integration.test.ts",
+          "name": "deux versions concurrentes"
+        },
+        {
+          "file": "apps/backend/src/routes/table-movements.integration.test.ts",
+          "name": "une séparation concurrente gagne"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : deux versions concurrentes ne perdent pas la modification confirmée ; une séparation concurrente gagne une fois, reste rejouable et n’est pas lisible dans une autre société. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/service-sessions.integration.test.ts",
+          "name": "deux versions concurrentes ne perdent pas la modification confirmée",
+          "status": "passed",
+          "durationMs": 29.671800000000076,
+          "executedAt": "2026-10-17T08:25:39.045Z"
+        },
+        {
+          "file": "apps/backend/src/routes/table-movements.integration.test.ts",
+          "name": "une séparation concurrente gagne une fois, reste rejouable et n’est pas lisible dans une autre société",
+          "status": "passed",
+          "durationMs": 144.48900000000003,
+          "executedAt": "2026-10-17T08:25:28.665Z"
+        }
+      ]
+    },
+    {
+      "id": "T21",
+      "title": "Double clic sur validation",
+      "prerequisites": "Même commande et référence stable.",
+      "actions": "Envoyer vingt validations concurrentes.",
+      "expected": "Un seul encaissement et même réponse au rejeu.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/orders.integration.test.ts",
+          "name": "un seul encaissement gagne"
+        },
+        {
+          "file": "apps/backend/src/routes/service-sessions.integration.test.ts",
+          "name": "un acompte natif puis un solde mixte"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : un seul encaissement gagne parmi vingt demandes simultanées ; un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/orders.integration.test.ts",
+          "name": "un seul encaissement gagne parmi vingt demandes simultanées",
+          "status": "passed",
+          "durationMs": 308.7999,
+          "executedAt": "2026-10-17T08:25:46.768Z"
+        },
+        {
+          "file": "apps/backend/src/routes/service-sessions.integration.test.ts",
+          "name": "un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock",
+          "status": "passed",
+          "durationMs": 451.6213,
+          "executedAt": "2026-10-17T08:25:39.045Z"
+        }
+      ]
+    },
+    {
+      "id": "T22",
+      "title": "Réponse réseau perdue après commit local",
+      "prerequisites": "Serveur PostgreSQL local, Chrome neuf.",
+      "actions": "Perdre la réponse POST puis relire l’opération par sa référence.",
+      "expected": "Opération retrouvée, pas de nouvelle identité ni succès local inventé.",
+      "proofs": [
+        {
+          "file": "tests/browser-lab/qr-movements.spec.ts",
+          "name": "fusion POS/QR"
+        },
+        {
+          "file": "tests/browser-lab/service-separations.spec.ts",
+          "name": "séparations natives"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : fusion POS/QR, acompte, réponse perdue et addition privée renouvelée ; séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "tests/browser-lab/qr-movements.spec.ts",
+          "name": "fusion POS/QR, acompte, réponse perdue et addition privée renouvelée",
+          "status": "passed",
+          "durationMs": 21295,
+          "executedAt": "2026-10-17T08:32:24.184Z"
+        },
+        {
+          "file": "tests/browser-lab/service-separations.spec.ts",
+          "name": "séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement",
+          "status": "passed",
+          "durationMs": 29358,
+          "executedAt": "2026-10-17T08:32:52.937Z"
+        }
+      ]
+    },
+    {
+      "id": "T23",
+      "title": "Reprise sans double préparation",
+      "prerequisites": "Ticket prêt, ligne native déplacée ou divisée.",
+      "actions": "Séparer, sauvegarder, recharger et relire la cuisine.",
+      "expected": "Un ticket initial inchangé et routage des portions, pas de nouveau lot.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/table-movements.integration.test.ts",
+          "name": "déplace une partie de ligne native"
+        },
+        {
+          "file": "tests/browser-lab/service-separations.spec.ts",
+          "name": "séparations natives"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : déplace une partie de ligne native à son prix historique sans nouvelle préparation ni débit de stock ; séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/table-movements.integration.test.ts",
+          "name": "déplace une partie de ligne native à son prix historique sans nouvelle préparation ni débit de stock",
+          "status": "passed",
+          "durationMs": 346.9444000000003,
+          "executedAt": "2026-10-17T08:25:28.665Z"
+        },
+        {
+          "file": "tests/browser-lab/service-separations.spec.ts",
+          "name": "séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement",
+          "status": "passed",
+          "durationMs": 29358,
+          "executedAt": "2026-10-17T08:32:52.937Z"
+        }
+      ]
+    },
+    {
+      "id": "T24",
+      "title": "Variantes et suppléments",
+      "prerequisites": "Catalogue avec variantes tarifées serveur.",
+      "actions": "Commander deux tailles et un supplément depuis la caisse.",
+      "expected": "Tarif persistant et ticket cuisine correct.",
+      "blocked": "Pas de variantes/suppléments tarifés par le serveur ; les modificateurs de note ne sont pas une preuve de cette fonction.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Pas de variantes/suppléments tarifés par le serveur ; les modificateurs de note ne sont pas une preuve de cette fonction.",
+      "evidence": []
+    },
+    {
+      "id": "T25",
+      "title": "Produit indisponible",
+      "prerequisites": "Produit indisponible dans le catalogue du site.",
+      "actions": "Tenter de le commander via POS et QR.",
+      "expected": "Refus serveur cohérent avec l’affichage.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "un produit inactif"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : un produit inactif ne peut être ajouté depuis un brouillon POS ni une commande QR. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "un produit inactif ne peut être ajouté depuis un brouillon POS ni une commande QR",
+          "status": "passed",
+          "durationMs": 177.35350000000005,
+          "executedAt": "2026-10-17T08:25:53.643Z"
+        }
+      ]
+    },
+    {
+      "id": "T26",
+      "title": "Clôture avec écart déclaré",
+      "prerequisites": "Caisse ouverte et encaissements fictifs.",
+      "actions": "Compter un montant différent, justifier puis rejouer la clôture.",
+      "expected": "Écart motivé, rapport figé et aucune réécriture.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/cash-drawers.integration.test.ts",
+          "name": "exige une justification de l’écart"
+        },
+        {
+          "file": "apps/backend/src/routes/cash-drawers.integration.test.ts",
+          "name": "vingt reprises de clôture"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : exige une justification de l’écart et ne réécrit pas une clôture ; vingt reprises de clôture rendent exactement le même rapport sans réécriture. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/cash-drawers.integration.test.ts",
+          "name": "exige une justification de l’écart et ne réécrit pas une clôture",
+          "status": "passed",
+          "durationMs": 24.61990000000003,
+          "executedAt": "2026-10-17T08:25:52.426Z"
+        },
+        {
+          "file": "apps/backend/src/routes/cash-drawers.integration.test.ts",
+          "name": "vingt reprises de clôture rendent exactement le même rapport sans réécriture",
+          "status": "passed",
+          "durationMs": 65.80520000000001,
+          "executedAt": "2026-10-17T08:25:52.426Z"
+        }
+      ]
+    },
+    {
+      "id": "T27",
+      "title": "Prix catalogue TTC",
+      "prerequisites": "Produit 3,50 € TTC avec taux historique.",
+      "actions": "Créer la ligne puis changer le catalogue avant règlement.",
+      "expected": "Ancien TTC et ancienne TVA conservés.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/pos.integration.test.ts",
+          "name": "fige réellement un nouveau brouillon"
+        },
+        {
+          "file": "apps/backend/src/routes/guest-visits.integration.test.ts",
+          "name": "calcule TTC et TVA côté serveur"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : fige réellement un nouveau brouillon et encaisse son tarif malgré une modification de catalogue ; calcule TTC et TVA côté serveur et rejoue sans modifier la commande émise. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/pos.integration.test.ts",
+          "name": "fige réellement un nouveau brouillon et encaisse son tarif malgré une modification de catalogue",
+          "status": "passed",
+          "durationMs": 254.4851000000001,
+          "executedAt": "2026-10-17T08:25:41.135Z"
+        },
+        {
+          "file": "apps/backend/src/routes/guest-visits.integration.test.ts",
+          "name": "calcule TTC et TVA côté serveur et rejoue sans modifier la commande émise",
+          "status": "passed",
+          "durationMs": 37.19080000000008,
+          "executedAt": "2026-10-17T08:25:49.842Z"
+        }
+      ]
+    },
+    {
+      "id": "T28",
+      "title": "Facture à prix HT",
+      "prerequisites": "Lignes HT à deux taux et centimes limites.",
+      "actions": "Créer la facture depuis des montants HT.",
+      "expected": "Calcul et arrondis par taux côté serveur.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/invoices.integration.test.ts",
+          "name": "arrondit par taux sans inventer"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : arrondit par taux sans inventer un centime entre deux groupes. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/invoices.integration.test.ts",
+          "name": "arrondit par taux sans inventer un centime entre deux groupes",
+          "status": "passed",
+          "durationMs": 34.33510000000001,
+          "executedAt": "2026-10-17T08:25:43.586Z"
+        }
+      ]
+    },
+    {
+      "id": "T29",
+      "title": "Plusieurs taux",
+      "prerequisites": "Facture et avoir fictifs avec plusieurs groupes fiscaux.",
+      "actions": "Émettre puis créditer partiellement.",
+      "expected": "Groupes fiscaux historiques reconstitués au centime.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
+          "name": "un avoir partiel puis le solde"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : un avoir partiel puis le solde reconstituent exactement chaque groupe fiscal historique. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
+          "name": "un avoir partiel puis le solde reconstituent exactement chaque groupe fiscal historique",
+          "status": "passed",
+          "durationMs": 283.10749999999985,
+          "executedAt": "2026-10-17T08:25:19.395Z"
+        }
+      ]
+    },
+    {
+      "id": "T30",
+      "title": "Remise répartie",
+      "prerequisites": "Ticket remisé et facture société issue de ce ticket.",
+      "actions": "Convertir puis contrôler les bases fiscales et les pourboires.",
+      "expected": "Remise conservée ; pas de TVA sur pourboire ni deuxième vente.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/receipt-invoices.integration.test.ts",
+          "name": "conserve TTC, remise et TVA"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : conserve TTC, remise et TVA, sans facturer à nouveau pourboire ou don. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/receipt-invoices.integration.test.ts",
+          "name": "conserve TTC, remise et TVA, sans facturer à nouveau pourboire ou don",
+          "status": "passed",
+          "durationMs": 51.38659999999993,
+          "executedAt": "2026-10-17T08:25:51.300Z"
+        }
+      ]
+    },
+    {
+      "id": "T31",
+      "title": "Avoir partiel",
+      "prerequisites": "Facture originale émise.",
+      "actions": "Créer un avoir partiel puis le complément.",
+      "expected": "Plafonds, numérotation et TVA d’origine conservés.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
+          "name": "un avoir partiel puis le solde"
+        },
+        {
+          "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
+          "name": "vingt demandes différentes"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : un avoir partiel puis le solde reconstituent exactement chaque groupe fiscal historique ; vingt demandes différentes ne dépassent jamais le montant original. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
+          "name": "un avoir partiel puis le solde reconstituent exactement chaque groupe fiscal historique",
+          "status": "passed",
+          "durationMs": 283.10749999999985,
+          "executedAt": "2026-10-17T08:25:19.395Z"
+        },
+        {
+          "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
+          "name": "vingt demandes différentes ne dépassent jamais le montant original",
+          "status": "passed",
+          "durationMs": 6769.836300000001,
+          "executedAt": "2026-10-17T08:25:19.395Z"
+        }
+      ]
+    },
+    {
+      "id": "T32",
+      "title": "Acompte puis solde",
+      "prerequisites": "Couvert natif ouvert.",
+      "actions": "Déclarer un acompte espèces puis un solde mixte.",
+      "expected": "Une seule commande, une vente et un débit de stock.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/service-sessions.integration.test.ts",
+          "name": "un acompte natif puis un solde mixte"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/service-sessions.integration.test.ts",
+          "name": "un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock",
+          "status": "passed",
+          "durationMs": 451.6213,
+          "executedAt": "2026-10-17T08:25:39.045Z"
+        }
+      ]
+    },
+    {
+      "id": "T33",
+      "title": "Facture depuis ticket sans double vente",
+      "prerequisites": "Ticket réglé fictif.",
+      "actions": "Demander vingt fois la facture puis l’émettre.",
+      "expected": "Un document et aucun revenu supplémentaire.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/receipt-invoices.integration.test.ts",
+          "name": "vingt demandes simultanées"
+        },
+        {
+          "file": "apps/backend/src/routes/receipt-invoices.integration.test.ts",
+          "name": "émet un PDF avec l’émetteur historique"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : vingt demandes simultanées retrouvent une seule facture et un seul numéro ; émet un PDF avec l’émetteur historique et le règlement déclaré, sans nouvelle écriture. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/receipt-invoices.integration.test.ts",
+          "name": "vingt demandes simultanées retrouvent une seule facture et un seul numéro",
+          "status": "passed",
+          "durationMs": 196.1988,
+          "executedAt": "2026-10-17T08:25:51.300Z"
+        },
+        {
+          "file": "apps/backend/src/routes/receipt-invoices.integration.test.ts",
+          "name": "émet un PDF avec l’émetteur historique et le règlement déclaré, sans nouvelle écriture",
+          "status": "passed",
+          "durationMs": 123.90800000000013,
+          "executedAt": "2026-10-17T08:25:51.300Z"
+        }
+      ]
+    },
+    {
+      "id": "T34",
+      "title": "Identité légale historique",
+      "prerequisites": "Facture émise et son PDF original.",
+      "actions": "Changer les coordonnées de société puis télécharger à nouveau.",
+      "expected": "Octets et empreinte identiques.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/invoices.integration.test.ts",
+          "name": "un PDF émis ne change pas"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : un PDF émis ne change pas après la modification de la société. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/invoices.integration.test.ts",
+          "name": "un PDF émis ne change pas après la modification de la société",
+          "status": "passed",
+          "durationMs": 141.32839999999987,
+          "executedAt": "2026-10-17T08:25:43.586Z"
+        }
+      ]
+    },
+    {
+      "id": "T35",
+      "title": "Numérotation concurrente",
+      "prerequisites": "Société fictive, vingt créations distinctes.",
+      "actions": "Créer vingt factures simultanément.",
+      "expected": "Vingt numéros uniques, aucun document perdu.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/invoices.integration.test.ts",
+          "name": "vingt créations concurrentes"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : vingt créations concurrentes obtiennent vingt numéros différents. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/invoices.integration.test.ts",
+          "name": "vingt créations concurrentes obtiennent vingt numéros différents",
+          "status": "passed",
+          "durationMs": 340.20219999999995,
+          "executedAt": "2026-10-17T08:25:43.586Z"
+        }
+      ]
+    },
+    {
+      "id": "T36",
+      "title": "Seuils 99,99 / 100 / 100,01 €",
+      "prerequisites": "Profil légal et clients professionnels fictifs.",
+      "actions": "Émettre les trois montants et examiner leurs mentions.",
+      "expected": "Montants exacts et document complet sur demande, sans promesse légale.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/invoices.integration.test.ts",
+          "name": "émet les seuils 99,99"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : émet les seuils 99,99, 100 et 100,01 avec document complet et PDF historique exact. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/invoices.integration.test.ts",
+          "name": "émet les seuils 99,99, 100 et 100,01 avec document complet et PDF historique exact",
+          "status": "passed",
+          "durationMs": 208.8995,
+          "executedAt": "2026-10-17T08:25:43.586Z"
+        }
+      ]
+    },
+    {
+      "id": "T37",
+      "title": "Document multipage",
+      "prerequisites": "Quarante lignes accentuées fictives.",
+      "actions": "Générer et ouvrir le PDF produit.",
+      "expected": "Vrai PDF paginé et métadonnées cohérentes.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/lib/invoice-pdf.test.ts",
+          "name": "produit un PDF ouvrable, paginé"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : produit un PDF ouvrable, paginé, avec noms accentués. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/lib/invoice-pdf.test.ts",
+          "name": "produit un PDF ouvrable, paginé, avec noms accentués",
+          "status": "passed",
+          "durationMs": 133.84150000000005,
+          "executedAt": "2026-10-17T08:27:33.443Z"
+        }
+      ]
+    },
+    {
+      "id": "T38",
+      "title": "Export fiscal réconcilié",
+      "prerequisites": "Vente, ticket, facture, avoir et remboursement fictifs.",
+      "actions": "Exporter les écritures puis comparer les catégories.",
+      "expected": "Ventes, documents, encaissements et trésorerie séparés.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
+          "name": "exporte les pièces signées séparément"
+        },
+        {
+          "file": "apps/backend/src/lib/financial-reconciliation.test.ts",
+          "name": "la facture depuis ticket ne rajoute"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : exporte les pièces signées séparément, sans créer une deuxième vente ; la facture depuis ticket ne rajoute pas une vente ; avoir et remboursement restent distincts. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
+          "name": "exporte les pièces signées séparément, sans créer une deuxième vente",
+          "status": "passed",
+          "durationMs": 127.1931999999997,
+          "executedAt": "2026-10-17T08:25:19.395Z"
+        },
+        {
+          "file": "apps/backend/src/lib/financial-reconciliation.test.ts",
+          "name": "la facture depuis ticket ne rajoute pas une vente ; avoir et remboursement restent distincts",
+          "status": "passed",
+          "durationMs": 3.3070999999999913,
+          "executedAt": "2026-10-17T08:27:38.035Z"
+        }
+      ]
+    },
+    {
+      "id": "T39",
+      "title": "Acceptation de devis et conversion unique",
+      "prerequisites": "Devis fictif accepté.",
+      "actions": "Convertir deux fois concurremment.",
+      "expected": "Une seule facture et lien de provenance.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/invoices.integration.test.ts",
+          "name": "convertit un devis concurremment"
+        },
+        {
+          "file": "tests/browser-lab/business-extended.spec.ts",
+          "name": "gestion Chrome"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : convertit un devis concurremment une seule fois, conserve son lien et retrouve la facture après réponse perdue ; gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/invoices.integration.test.ts",
+          "name": "convertit un devis concurremment une seule fois, conserve son lien et retrouve la facture après réponse perdue",
+          "status": "passed",
+          "durationMs": 81.00670000000014,
+          "executedAt": "2026-10-17T08:25:43.586Z"
+        },
+        {
+          "file": "tests/browser-lab/business-extended.spec.ts",
+          "name": "gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis",
+          "status": "passed",
+          "durationMs": 4314,
+          "executedAt": "2026-10-17T08:30:22.536Z"
+        }
+      ]
+    },
+    {
+      "id": "T40",
+      "title": "Facturation électronique XML",
+      "prerequisites": "Validateur structuré et canal de test habilité.",
+      "actions": "Valider XML correct puis incorrect et transmettre en test.",
+      "expected": "Rejet clair et statut de canal distinct de génération.",
+      "blocked": "Format/canal Peppol ou MyGuichet non qualifié ; aucun accès de recette disponible.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Format/canal Peppol ou MyGuichet non qualifié ; aucun accès de recette disponible.",
+      "evidence": []
+    },
+    {
+      "id": "T41",
+      "title": "PayPal sandbox payé",
+      "prerequisites": "Compte marchand et acheteur sandbox séparés, clés privées.",
+      "actions": "Créer et capturer une transaction dans le sandbox officiel.",
+      "expected": "Capture exacte vérifiée et affectée une seule fois.",
+      "blocked": "Aucune clé sandbox fournie au laboratoire ; aucun appel PayPal distant effectué.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "Aucune clé sandbox fournie au laboratoire ; aucun appel PayPal distant effectué.",
+      "evidence": []
+    },
+    {
+      "id": "T42",
+      "title": "Paiement refusé par le prestataire",
+      "prerequisites": "Prestataire et tentative de paiement fictifs.",
+      "actions": "Refuser l’autorisation/capture et revenir à la caisse.",
+      "expected": "Refus explicite et aucun paiement confirmé.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "un refus bancaire simulé"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : un refus bancaire simulé est visible à rapprocher sans fausse capture ni libération de réserve. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "un refus bancaire simulé est visible à rapprocher sans fausse capture ni libération de réserve",
+          "status": "passed",
+          "durationMs": 23.115999999999985,
+          "executedAt": "2026-10-17T08:25:45.281Z"
+        }
+      ]
+    },
+    {
+      "id": "T43",
+      "title": "Abandon de paiement",
+      "prerequisites": "Tentative en attente créée par un prestataire.",
+      "actions": "Abandonner l’approbation puis revenir tardivement.",
+      "expected": "Pas de fausse capture ; réserve libérée seulement sur preuve applicable.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "un abandon acheteur"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : un abandon acheteur puis son retour tardif ne vaut jamais annulation bancaire ou paiement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "un abandon acheteur puis son retour tardif ne vaut jamais annulation bancaire ou paiement",
+          "status": "passed",
+          "durationMs": 24.462600000000066,
+          "executedAt": "2026-10-17T08:25:45.281Z"
+        }
+      ]
+    },
+    {
+      "id": "T44",
+      "title": "Timeout après débit ambigu",
+      "prerequisites": "Prestataire simulé et tentative durable.",
+      "actions": "Perdre la réponse puis tenter une autre référence.",
+      "expected": "Deuxième débit refusé, résultat incertain conservé.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "après timeout une nouvelle référence"
+        },
+        {
+          "file": "apps/backend/src/routes/refunds.integration.test.ts",
+          "name": "un timeout conserve la réservation"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : après timeout une nouvelle référence ne déclenche pas un autre débit ; un timeout conserve la réservation et n’émet jamais un deuxième remboursement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "après timeout une nouvelle référence ne déclenche pas un autre débit",
+          "status": "passed",
+          "durationMs": 17.443500000000085,
+          "executedAt": "2026-10-17T08:25:45.281Z"
+        },
+        {
+          "file": "apps/backend/src/routes/refunds.integration.test.ts",
+          "name": "un timeout conserve la réservation et n’émet jamais un deuxième remboursement",
+          "status": "passed",
+          "durationMs": 136.94570000000022,
+          "executedAt": "2026-10-17T08:25:32.548Z"
+        }
+      ]
+    },
+    {
+      "id": "T45",
+      "title": "Webhook dupliqué",
+      "prerequisites": "Notification vérifiée simulée.",
+      "actions": "Recevoir deux fois le même événement.",
+      "expected": "Une seule affectation et un seul débit de stock.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "deux notifications vérifiées du même événement"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : deux notifications vérifiées du même événement produisent une seule affectation. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "deux notifications vérifiées du même événement produisent une seule affectation",
+          "status": "passed",
+          "durationMs": 30.336099999999988,
+          "executedAt": "2026-10-17T08:25:45.281Z"
+        }
+      ]
+    },
+    {
+      "id": "T46",
+      "title": "Webhook avant retour navigateur",
+      "prerequisites": "Tentative, webhook vérifié et parcours de retour ouverts.",
+      "actions": "Recevoir le webhook avant le retour, puis revenir et rejouer.",
+      "expected": "Écriture unique, navigateur non source de vérité.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "un webhook vérifié avant le retour"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : un webhook vérifié avant le retour puis deux retours navigateur ne créent qu’un seul règlement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "un webhook vérifié avant le retour puis deux retours navigateur ne créent qu’un seul règlement",
+          "status": "passed",
+          "durationMs": 34.575199999999995,
+          "executedAt": "2026-10-17T08:25:45.281Z"
+        }
+      ]
+    },
+    {
+      "id": "T47",
+      "title": "Signature falsifiée",
+      "prerequisites": "Webhook non signé ou signature Stripe erronée.",
+      "actions": "Envoyer le corps falsifié.",
+      "expected": "Rejet sans marquer payé.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "rejette un webhook non vérifié"
+        },
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "vérifie la signature Stripe sur le corps brut"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : rejette un webhook non vérifié sans marquer payé ; vérifie la signature Stripe sur le corps brut et déduplique l’événement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "rejette un webhook non vérifié sans marquer payé",
+          "status": "passed",
+          "durationMs": 4.688900000000103,
+          "executedAt": "2026-10-17T08:25:45.281Z"
+        },
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "vérifie la signature Stripe sur le corps brut et déduplique l’événement",
+          "status": "passed",
+          "durationMs": 35.97889999999984,
+          "executedAt": "2026-10-17T08:25:45.281Z"
+        }
+      ]
+    },
+    {
+      "id": "T48",
+      "title": "Montant, devise ou marchand incohérent",
+      "prerequisites": "Commande et identité marchand fictifs.",
+      "actions": "Soumettre montant/devise incohérents puis preuve incomplète.",
+      "expected": "Aucune confirmation de paiement.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "refuse un prix navigateur"
+        },
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "refuse la devise"
+        },
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "une capture sans montant ou marchand"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : refuse un prix navigateur différent du solde serveur ; refuse la devise différente de la société ; une capture sans montant ou marchand vérifié ne marque jamais payé. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "refuse un prix navigateur différent du solde serveur",
+          "status": "passed",
+          "durationMs": 13.00269999999989,
+          "executedAt": "2026-10-17T08:25:45.281Z"
+        },
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "refuse la devise différente de la société",
+          "status": "passed",
+          "durationMs": 11.586199999999963,
+          "executedAt": "2026-10-17T08:25:45.281Z"
+        },
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "une capture sans montant ou marchand vérifié ne marque jamais payé",
+          "status": "passed",
+          "durationMs": 21.47339999999997,
+          "executedAt": "2026-10-17T08:25:45.281Z"
+        }
+      ]
+    },
+    {
+      "id": "T49",
+      "title": "Événements désordonnés",
+      "prerequisites": "Remboursement simulé rapproché avant fin de création.",
+      "actions": "Recevoir ensuite un timeout de création tardif.",
+      "expected": "SUCCEEDED ne redescend jamais en UNKNOWN.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/refunds.integration.test.ts",
+          "name": "un timeout de création tardif ne rétrograde"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : un timeout de création tardif ne rétrograde pas une preuve déjà confirmée par rapprochement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/refunds.integration.test.ts",
+          "name": "un timeout de création tardif ne rétrograde pas une preuve déjà confirmée par rapprochement",
+          "status": "passed",
+          "durationMs": 186.23850000000039,
+          "executedAt": "2026-10-17T08:25:32.548Z"
+        }
+      ]
+    },
+    {
+      "id": "T50",
+      "title": "Remboursement partiel",
+      "prerequisites": "Avoir et capture fictifs, adaptateur remplacé.",
+      "actions": "Demander un remboursement puis fournir sa preuve exacte.",
+      "expected": "Demande distincte du remboursement confirmé, aucune double réserve.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/refunds.integration.test.ts",
+          "name": "une demande ne signifie pas remboursé"
+        },
+        {
+          "file": "apps/backend/src/routes/refunds.integration.test.ts",
+          "name": "deux références concurrentes"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : une demande ne signifie pas remboursé ; une preuve exacte confirme une seule fois ; deux références concurrentes ne réservent pas plus que l’avoir. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/refunds.integration.test.ts",
+          "name": "une demande ne signifie pas remboursé ; une preuve exacte confirme une seule fois",
+          "status": "passed",
+          "durationMs": 261.1511999999998,
+          "executedAt": "2026-10-17T08:25:32.548Z"
+        },
+        {
+          "file": "apps/backend/src/routes/refunds.integration.test.ts",
+          "name": "deux références concurrentes ne réservent pas plus que l’avoir",
+          "status": "passed",
+          "durationMs": 147.98910000000024,
+          "executedAt": "2026-10-17T08:25:32.548Z"
+        }
+      ]
+    },
+    {
+      "id": "T51",
+      "title": "Deux paiements du même solde",
+      "prerequisites": "Deux références simultanées et même commande.",
+      "actions": "Demander deux captures.",
+      "expected": "Une seule réserve active autorisée.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "réserve le solde contre deux références"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : réserve le solde contre deux références concurrentes. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/payments.integration.test.ts",
+          "name": "réserve le solde contre deux références concurrentes",
+          "status": "passed",
+          "durationMs": 45.42739999999992,
+          "executedAt": "2026-10-17T08:25:45.281Z"
+        }
+      ]
+    },
+    {
+      "id": "T52",
+      "title": "Espèces et carte",
+      "prerequisites": "Commande fictive ouverte.",
+      "actions": "Déclarer les deux moyens puis consulter le solde.",
+      "expected": "Moyens conservés, somme exacte, carte explicitement déclarée.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/orders.integration.test.ts",
+          "name": "un paiement mixte partiel conserve"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : un paiement mixte partiel conserve espèces et carte sans payer le reste. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/orders.integration.test.ts",
+          "name": "un paiement mixte partiel conserve espèces et carte sans payer le reste",
+          "status": "passed",
+          "durationMs": 24.99220000000014,
+          "executedAt": "2026-10-17T08:25:46.768Z"
+        }
+      ]
+    },
+    {
+      "id": "T53",
+      "title": "Terminal autonome déclaré",
+      "prerequisites": "Avoir et tender carte fictifs.",
+      "actions": "Déclarer une correction carte avec référence et motif.",
+      "expected": "Déclaration auditée, pas de fausse sortie espèces ni vérification bancaire.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/refunds.integration.test.ts",
+          "name": "une carte déclarée ne crée aucune sortie espèces"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : une carte déclarée ne crée aucune sortie espèces, reste auditée et plafonnée. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/refunds.integration.test.ts",
+          "name": "une carte déclarée ne crée aucune sortie espèces, reste auditée et plafonnée",
+          "status": "passed",
+          "durationMs": 178.5652,
+          "executedAt": "2026-10-17T08:25:32.548Z"
+        }
+      ]
+    },
+    {
+      "id": "T54",
+      "title": "Paiement en attente",
+      "prerequisites": "Capture en cours ou UNKNOWN.",
+      "actions": "Tenter un encaissement manuel concurrent.",
+      "expected": "Solde non annoncé payé et nouveau règlement refusé.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/orders.integration.test.ts",
+          "name": "une tentative incertaine empêche"
+        },
+        {
+          "file": "apps/backend/src/routes/pos.integration.test.ts",
+          "name": "une capture PayPal en cours empêche"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : une tentative incertaine empêche un second encaissement manuel ; une capture PayPal en cours empêche le règlement à une autre caisse. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/orders.integration.test.ts",
+          "name": "une tentative incertaine empêche un second encaissement manuel",
+          "status": "passed",
+          "durationMs": 24.331800000000044,
+          "executedAt": "2026-10-17T08:25:46.768Z"
+        },
+        {
+          "file": "apps/backend/src/routes/pos.integration.test.ts",
+          "name": "une capture PayPal en cours empêche le règlement à une autre caisse",
+          "status": "passed",
+          "durationMs": 67.79100000000005,
+          "executedAt": "2026-10-17T08:25:41.135Z"
+        }
+      ]
+    },
+    {
+      "id": "T55",
+      "title": "Frais, net, brut et versements",
+      "prerequisites": "Relevé fictif, capture et remboursement simulés.",
+      "actions": "Importer, rejouer et rapprocher manuellement.",
+      "expected": "Frais/retenues/net distincts des ventes et des encaissements.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/bank-payouts.integration.test.ts",
+          "name": "importe et rapproche manuellement"
+        },
+        {
+          "file": "apps/backend/src/routes/refunds.integration.test.ts",
+          "name": "rapproche capture, remboursement confirmé"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : importe et rapproche manuellement une capture, ses frais et son net sans ajouter une vente ; rapproche capture, remboursement confirmé, frais, retenue et libération sans modifier la vente. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/bank-payouts.integration.test.ts",
+          "name": "importe et rapproche manuellement une capture, ses frais et son net sans ajouter une vente",
+          "status": "passed",
+          "durationMs": 119.47969999999998,
+          "executedAt": "2026-10-17T08:25:58.835Z"
+        },
+        {
+          "file": "apps/backend/src/routes/refunds.integration.test.ts",
+          "name": "rapproche capture, remboursement confirmé, frais, retenue et libération sans modifier la vente",
+          "status": "passed",
+          "durationMs": 213.77649999999994,
+          "executedAt": "2026-10-17T08:25:32.548Z"
+        }
+      ]
+    },
+    {
+      "id": "T56",
+      "title": "Abonnement SaaS séparé des recettes",
+      "prerequisites": "Compte CréOrga et comptes marchands par société.",
+      "actions": "Tester onboarding et flux de règlement indépendants.",
+      "expected": "Aucune recette client vers le marchand SaaS.",
+      "blocked": "Onboarding multicommerçant officiel et comptes prestataires de recette non disponibles.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "Onboarding multicommerçant officiel et comptes prestataires de recette non disponibles.",
+      "evidence": []
+    },
+    {
+      "id": "T57",
+      "title": "Ticket physique 58 mm",
+      "prerequisites": "Modèle, pilote et papier qualifiés.",
+      "actions": "Imprimer un ticket de vente et comparer au document.",
+      "expected": "Lisible, complet et largeur réelle correcte.",
+      "blocked": "Aucune imprimante thermique 58 mm raccordée et qualifiée.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "Aucune imprimante thermique 58 mm raccordée et qualifiée.",
+      "evidence": []
+    },
+    {
+      "id": "T58",
+      "title": "Ticket physique 80 mm",
+      "prerequisites": "Modèle, pilote et papier qualifiés.",
+      "actions": "Imprimer un ticket de vente et comparer au document.",
+      "expected": "Lisible, complet et massicot correct.",
+      "blocked": "Aucune imprimante thermique 80 mm raccordée et qualifiée.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "Aucune imprimante thermique 80 mm raccordée et qualifiée.",
+      "evidence": []
+    },
+    {
+      "id": "T59",
+      "title": "Accents et euro imprimés",
+      "prerequisites": "Thermique et codepage réellement choisis.",
+      "actions": "Imprimer FR/DE/LU/EN/PT et symbole euro.",
+      "expected": "Aucun caractère manquant.",
+      "blocked": "PDF logiciel seul insuffisant ; imprimante/codepage absents.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "PDF logiciel seul insuffisant ; imprimante/codepage absents.",
+      "evidence": []
+    },
+    {
+      "id": "T60",
+      "title": "QR imprimé lisible",
+      "prerequisites": "Thermique et lecteur optique.",
+      "actions": "Imprimer puis scanner à plusieurs résolutions.",
+      "expected": "QR résolu vers la bonne session et aucun accès permanent.",
+      "blocked": "Aucun couple imprimante/lecteur disponible pour cet essai.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "Aucun couple imprimante/lecteur disponible pour cet essai.",
+      "evidence": []
+    },
+    {
+      "id": "T61",
+      "title": "Fin de papier",
+      "prerequisites": "Thermique et retour d’état qualifiés.",
+      "actions": "Retirer le papier pendant une tâche.",
+      "expected": "Erreur ou résultat inconnu honnête, tâche conservée.",
+      "blocked": "Matériel et agent d’impression persistante non qualifiés.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "Matériel et agent d’impression persistante non qualifiés.",
+      "evidence": []
+    },
+    {
+      "id": "T62",
+      "title": "Imprimante déconnectée puis reconnectée",
+      "prerequisites": "Imprimante et agent local.",
+      "actions": "Débrancher puis rebrancher pendant l’envoi.",
+      "expected": "Reprise explicite sans fausse preuve papier.",
+      "blocked": "Aucun appareil pour cet essai physique.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "Aucun appareil pour cet essai physique.",
+      "evidence": []
+    },
+    {
+      "id": "T63",
+      "title": "Accusé perdu à l’impression",
+      "prerequisites": "Agent local et transport d’impression contrôlable.",
+      "actions": "Perdre l’accusé après envoi.",
+      "expected": "Statut inconnu, vérification ou duplicata explicite.",
+      "blocked": "File persistante et imprimante à qualifier ; pas assimilé à une perte de réponse HTTP métier.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "File persistante et imprimante à qualifier ; pas assimilé à une perte de réponse HTTP métier.",
+      "evidence": []
+    },
+    {
+      "id": "T64",
+      "title": "Duplicata sans nouvelle vente",
+      "prerequisites": "Reçu déjà réglé et service d’impression.",
+      "actions": "Réimprimer et comparer ventes/règlements.",
+      "expected": "Même référence, aucune nouvelle écriture.",
+      "blocked": "Réimpression thermique de duplicata non qualifiée : matériel et commande persistante absents. Les relectures HTML seules ne prouvent pas ce parcours physique.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "Réimpression thermique de duplicata non qualifiée : matériel et commande persistante absents. Les relectures HTML seules ne prouvent pas ce parcours physique.",
+      "evidence": []
+    },
+    {
+      "id": "T65",
+      "title": "Tiroir fermé à la réimpression",
+      "prerequisites": "Tiroir et profil ESC/POS exacts.",
+      "actions": "Réimprimer sans droit d’ouverture du tiroir.",
+      "expected": "Aucune impulsion tiroir.",
+      "blocked": "Aucun tiroir raccordé ; aucune impulsion déclenchée.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "Aucun tiroir raccordé ; aucune impulsion déclenchée.",
+      "evidence": []
+    },
+    {
+      "id": "T66",
+      "title": "Cent lignes sur ticket",
+      "prerequisites": "Thermique 58/80 avec grandes commandes.",
+      "actions": "Imprimer cent lignes et examiner coupe et totaux.",
+      "expected": "Pas de troncature.",
+      "blocked": "Multipage A4 testé ; ticket thermique de cent lignes non testé physiquement.",
+      "blockerCategory": "EXTERNAL",
+      "status": "BLOCKED",
+      "observed": "Multipage A4 testé ; ticket thermique de cent lignes non testé physiquement.",
+      "evidence": []
+    },
+    {
+      "id": "T67",
+      "title": "Facture reçue avec vrai PDF",
+      "prerequisites": "Serveur SMTP loopback et destinataire .invalid.",
+      "actions": "Émettre et envoyer, puis lire le message reçu.",
+      "expected": "Une pièce jointe PDF identique à l’original, une seule réception locale.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/invoice-email.integration.test.ts",
+          "name": "reçoit le même PDF original"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : reçoit le même PDF original dans la boîte locale, une fois malgré le rejeu. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/invoice-email.integration.test.ts",
+          "name": "reçoit le même PDF original dans la boîte locale, une fois malgré le rejeu",
+          "status": "passed",
+          "durationMs": 90.68870000000004,
+          "executedAt": "2026-10-17T08:25:58.044Z"
+        }
+      ]
+    },
+    {
+      "id": "T68",
+      "title": "Accusé email perdu",
+      "prerequisites": "SMTP loopback accepté après DATA puis réponse perdue.",
+      "actions": "Relancer la demande d’envoi.",
+      "expected": "Pas de deuxième message ; état incertain honnête.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/invoice-email.integration.test.ts",
+          "name": "ne réexpédie pas après perte de l’accusé"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : ne réexpédie pas après perte de l’accusé, même si le serveur a reçu le message. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/invoice-email.integration.test.ts",
+          "name": "ne réexpédie pas après perte de l’accusé, même si le serveur a reçu le message",
+          "status": "passed",
+          "durationMs": 42.9366,
+          "executedAt": "2026-10-17T08:25:58.044Z"
+        }
+      ]
+    },
+    {
+      "id": "T69",
+      "title": "Lien documentaire expiré",
+      "prerequisites": "Lien temporaire de document actif puis expiré.",
+      "actions": "Télécharger après échéance.",
+      "expected": "Refus sans octets divulgués.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/invoice-document-links.integration.test.ts",
+          "name": "refuse à l’échéance décidée par le serveur"
+        },
+        {
+          "file": "apps/backend/src/routes/invoice-document-links.integration.test.ts",
+          "name": "sérialise téléchargement/révocation"
+        },
+        {
+          "file": "tests/browser-lab/reliability-documents.spec.ts",
+          "name": "vrai PDF au clavier"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : refuse à l’échéance décidée par le serveur, indépendamment de l’horloge du navigateur ; sérialise téléchargement/révocation et refuse toutes les demandes après révocation confirmée ; documents métier : vrai PDF au clavier, rejeu, rechargement et révocation sans octets divulgués. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/invoice-document-links.integration.test.ts",
+          "name": "refuse à l’échéance décidée par le serveur, indépendamment de l’horloge du navigateur",
+          "status": "passed",
+          "durationMs": 15.378000000000156,
+          "executedAt": "2026-10-17T08:25:48.597Z"
+        },
+        {
+          "file": "apps/backend/src/routes/invoice-document-links.integration.test.ts",
+          "name": "sérialise téléchargement/révocation et refuse toutes les demandes après révocation confirmée",
+          "status": "passed",
+          "durationMs": 53.62329999999997,
+          "executedAt": "2026-10-17T08:25:48.597Z"
+        },
+        {
+          "file": "tests/browser-lab/reliability-documents.spec.ts",
+          "name": "documents métier : vrai PDF au clavier, rejeu, rechargement et révocation sans octets divulgués",
+          "status": "passed",
+          "durationMs": 4637,
+          "executedAt": "2026-10-17T08:27:24.276Z"
+        }
+      ]
+    },
+    {
+      "id": "T70",
+      "title": "Pièce étrangère inaccessible",
+      "prerequisites": "Deux sociétés fictives et dossiers de salariés.",
+      "actions": "Lire/télécharger une pièce d’un autre dossier ou société.",
+      "expected": "403/404 sans contenu.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/hr-documents.integration.test.ts",
+          "name": "refuse lecture, téléchargement et écriture"
+        },
+        {
+          "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
+          "name": "télécharge un vrai PDF original"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : refuse lecture, téléchargement et écriture hors de son propre dossier ; télécharge un vrai PDF original figé de l’avoir et refuse le document étranger. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/hr-documents.integration.test.ts",
+          "name": "refuse lecture, téléchargement et écriture hors de son propre dossier",
+          "status": "passed",
+          "durationMs": 32.84699999999998,
+          "executedAt": "2026-10-17T08:25:56.068Z"
+        },
+        {
+          "file": "apps/backend/src/routes/credit-notes.integration.test.ts",
+          "name": "télécharge un vrai PDF original figé de l’avoir et refuse le document étranger",
+          "status": "passed",
+          "durationMs": 120.73489999999947,
+          "executedAt": "2026-10-17T08:25:19.395Z"
+        }
+      ]
+    },
+    {
+      "id": "T71",
+      "title": "Table 3 addition ouverte après départ",
+      "prerequisites": "Moteur d’alerte déterministe sans caméra.",
+      "actions": "Déclarer un départ avec 24 € ouverts.",
+      "expected": "Alerte prudente avec faits, délai et action humaine.",
+      "blocked": "Moteur d’alertes déterministe de départ déclaré non implémenté. Aucun événement de départ fictif ne peut traverser ce parcours inexistant ; vidéo non activée.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Moteur d’alertes déterministe de départ déclaré non implémenté. Aucun événement de départ fictif ne peut traverser ce parcours inexistant ; vidéo non activée.",
+      "evidence": []
+    },
+    {
+      "id": "T72",
+      "title": "Client revenu",
+      "prerequisites": "Alerte de départ active.",
+      "actions": "Déclarer le retour du groupe.",
+      "expected": "Alerte temporisée/clôturée sans action financière.",
+      "blocked": "Consommateur de retour humain lié aux alertes T71 non implémenté.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Consommateur de retour humain lié aux alertes T71 non implémenté.",
+      "evidence": []
+    },
+    {
+      "id": "T73",
+      "title": "Personne encore à table",
+      "prerequisites": "Source d’occupation licite et groupe présent.",
+      "actions": "Signaler une personne restante.",
+      "expected": "Pas d’accusation ni de débit automatique.",
+      "blocked": "Source d’occupation non qualifiée ; vidéo désactivée.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Source d’occupation non qualifiée ; vidéo désactivée.",
+      "evidence": []
+    },
+    {
+      "id": "T74",
+      "title": "Paiement au comptoir et alerte",
+      "prerequisites": "Alerte et paiement sur une autre caisse.",
+      "actions": "Régler puis rafraîchir l’alerte.",
+      "expected": "Alerte ne confond pas solde payé et départ.",
+      "blocked": "Raccordement paiement / résolution des alertes T71 non implémenté ; le paiement serveur est testé séparément.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Raccordement paiement / résolution des alertes T71 non implémenté ; le paiement serveur est testé séparément.",
+      "evidence": []
+    },
+    {
+      "id": "T75",
+      "title": "Table transférée et alerte",
+      "prerequisites": "Alerte rattachée à une session, transfert en cours.",
+      "actions": "Déplacer la session.",
+      "expected": "Alerte suit la bonne identité sans doublon.",
+      "blocked": "Identité et suivi des alertes lors des transferts non implémentés ; aucun transfert financier n’est présenté comme un test du moteur absent.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Identité et suivi des alertes lors des transferts non implémentés ; aucun transfert financier n’est présenté comme un test du moteur absent.",
+      "evidence": []
+    },
+    {
+      "id": "T76",
+      "title": "Compte entreprise autorisé",
+      "prerequisites": "Crédit société approuvé avec échéance.",
+      "actions": "Déclarer le départ sans encaissement immédiat.",
+      "expected": "Créance explicite et non incident de départ.",
+      "blocked": "Autorisation de crédit société et exemption d’alerte non modélisées / non implémentées ; une fiche client société seule ne vaut pas crédit approuvé.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Autorisation de crédit société et exemption d’alerte non modélisées / non implémentées ; une fiche client société seule ne vaut pas crédit approuvé.",
+      "evidence": []
+    },
+    {
+      "id": "T77",
+      "title": "Caméra perdue",
+      "prerequisites": "Installation et finalité licites, caméra qualifiée.",
+      "actions": "Couper le flux.",
+      "expected": "État inconnu, caisse indépendante.",
+      "blocked": "Vidéo désactivée ; aucune caméra ni finalité validée.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Vidéo désactivée ; aucune caméra ni finalité validée.",
+      "evidence": []
+    },
+    {
+      "id": "T78",
+      "title": "Image ancienne",
+      "prerequisites": "Flux de test horodaté et autorisé.",
+      "actions": "Rejouer une image en retard.",
+      "expected": "Rapprochement suspendu.",
+      "blocked": "Pipeline vidéo non activé ni testé.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Pipeline vidéo non activé ni testé.",
+      "evidence": []
+    },
+    {
+      "id": "T79",
+      "title": "Décalage d’horloge vidéo",
+      "prerequisites": "Équipement vidéo et référence de temps.",
+      "actions": "Introduire une dérive connue.",
+      "expected": "Incertitude visible et association refusée.",
+      "blocked": "Aucun équipement/pipeline vidéo qualifié.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Aucun équipement/pipeline vidéo qualifié.",
+      "evidence": []
+    },
+    {
+      "id": "T80",
+      "title": "Caméra déplacée",
+      "prerequisites": "Calibration initiale autorisée.",
+      "actions": "Modifier le cadrage.",
+      "expected": "Invalidation sans inventer une nouvelle association.",
+      "blocked": "Vidéo désactivée et calibration inexistante.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Vidéo désactivée et calibration inexistante.",
+      "evidence": []
+    },
+    {
+      "id": "T81",
+      "title": "Objet compté une fois",
+      "prerequisites": "Scène jouée annotée et droits appropriés.",
+      "actions": "Suivre le même contenant sur plusieurs images.",
+      "expected": "Pas de double comptage ni vente supposée.",
+      "blocked": "Recherche séparée, pas de modèle ou de scène qualifiés.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Recherche séparée, pas de modèle ou de scène qualifiés.",
+      "evidence": []
+    },
+    {
+      "id": "T82",
+      "title": "Événement porte sans table",
+      "prerequisites": "Source porte autorisée, aucune association vérifiable.",
+      "actions": "Produire un événement de sortie.",
+      "expected": "Événement général uniquement.",
+      "blocked": "Module vidéo non raccordé ; aucune association personnelle créée.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Module vidéo non raccordé ; aucune association personnelle créée.",
+      "evidence": []
+    },
+    {
+      "id": "T83",
+      "title": "Séquence manquante",
+      "prerequisites": "Extrait demandé hors disponibilité.",
+      "actions": "Consulter l’extrait absent.",
+      "expected": "Absence explicite, aucun contenu fabriqué.",
+      "blocked": "Aucun stockage vidéo ni connecteur qualifié.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Aucun stockage vidéo ni connecteur qualifié.",
+      "evidence": []
+    },
+    {
+      "id": "T84",
+      "title": "Masque de confidentialité effectif",
+      "prerequisites": "Flux direct, clips, miniature et export.",
+      "actions": "Vérifier l’occultation avant traitement dans chaque sortie.",
+      "expected": "Pixels privés réellement absents.",
+      "blocked": "Aucun pipeline vidéo activé ; masques non prouvés.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Aucun pipeline vidéo activé ; masques non prouvés.",
+      "evidence": []
+    },
+    {
+      "id": "T85",
+      "title": "Absence de son",
+      "prerequisites": "Caméra et flux multimédia de test.",
+      "actions": "Examiner chaque piste et chaque sortie.",
+      "expected": "Aucune piste audio collectée ou conservée.",
+      "blocked": "Aucun flux multimédia utilisé ; absence de traitement ne vaut pas qualification technique.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Aucun flux multimédia utilisé ; absence de traitement ne vaut pas qualification technique.",
+      "evidence": []
+    },
+    {
+      "id": "T86",
+      "title": "Purge des clips",
+      "prerequisites": "Stockage vidéo autorisé et durée configurée.",
+      "actions": "Dépasser l’échéance puis inspecter tous les dérivés.",
+      "expected": "Clips et dérivés purgés selon politique.",
+      "blocked": "Vidéo désactivée, aucune durée validée.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Vidéo désactivée, aucune durée validée.",
+      "evidence": []
+    },
+    {
+      "id": "T87",
+      "title": "Droits vidéo",
+      "prerequisites": "Rôles vidéo explicitement habilités.",
+      "actions": "Ouvrir un extrait en salarié non habilité.",
+      "expected": "Refus et journal de consultation.",
+      "blocked": "Routes vidéo non déployées ; contrôle complet non exécuté.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Routes vidéo non déployées ; contrôle complet non exécuté.",
+      "evidence": []
+    },
+    {
+      "id": "T88",
+      "title": "Disque vidéo plein",
+      "prerequisites": "Volume vidéo séparé, caisse et quotas.",
+      "actions": "Remplir le volume de test.",
+      "expected": "Vidéo suspendue avant impact sur la caisse.",
+      "blocked": "Volumes vidéo et matériel de test absents ; pas de remplissage du disque du PC.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Volumes vidéo et matériel de test absents ; pas de remplissage du disque du PC.",
+      "evidence": []
+    },
+    {
+      "id": "T89",
+      "title": "URL caméra malveillante",
+      "prerequisites": "Connecteur réseau isolé et allowlist.",
+      "actions": "Proposer une URL de métadonnées ou un rebond.",
+      "expected": "Rejet sans connexion interdite.",
+      "blocked": "Connecteur caméra non implémenté/qualifié ; pas de scan réseau.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Connecteur caméra non implémenté/qualifié ; pas de scan réseau.",
+      "evidence": []
+    },
+    {
+      "id": "T90",
+      "title": "Vidéo corrompue isolée",
+      "prerequisites": "Décodeur cloisonné et fichier de test.",
+      "actions": "Importer un média corrompu.",
+      "expected": "Échec borné sans compromettre la caisse.",
+      "blocked": "Aucun décodeur vidéo isolé en service.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Aucun décodeur vidéo isolé en service.",
+      "evidence": []
+    },
+    {
+      "id": "T91",
+      "title": "Facture fournisseur en double",
+      "prerequisites": "Import fournisseurs et document fictif.",
+      "actions": "Importer deux fois la même pièce.",
+      "expected": "Doublon détecté sans double stock/écriture.",
+      "blocked": "Connecteur d’import de factures fournisseurs, pièce source et déduplication non raccordés. inventory-ai ancien n’est pas monté dans index.ts ; aucun OCR distant lancé.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Connecteur d’import de factures fournisseurs, pièce source et déduplication non raccordés. inventory-ai ancien n’est pas monté dans index.ts ; aucun OCR distant lancé.",
+      "evidence": []
+    },
+    {
+      "id": "T92",
+      "title": "Réception partielle distincte de facture",
+      "prerequisites": "Commande fournisseur fictive.",
+      "actions": "Recevoir une partie puis joindre la facture.",
+      "expected": "Stock augmenté seulement pour les quantités réellement reçues.",
+      "blocked": "Réception partielle et lien de facture non implémentés. Une requête partielle créditait tout le stock ; elle est maintenant refusée sans écriture. Ce garde-fou ne remplace pas la réception partielle.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "une demande de réception partielle"
+        }
+      ],
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Réception partielle et lien de facture non implémentés. Une requête partielle créditait tout le stock ; elle est maintenant refusée sans écriture. Ce garde-fou ne remplace pas la réception partielle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "une demande de réception partielle non prise en charge ne crédite jamais toute la commande fournisseur",
+          "status": "passed",
+          "durationMs": 24.20010000000002,
+          "executedAt": "2026-10-17T08:25:53.643Z"
+        }
+      ]
+    },
+    {
+      "id": "T93",
+      "title": "Recettes et conversions stock",
+      "prerequisites": "Ingrédients et unités configurés.",
+      "actions": "Vendre une recette avec conversions.",
+      "expected": "Débit exact et réversible avec provenance.",
+      "blocked": "Recette enregistrable mais unités / conversions et journal de consommation d’ingrédients non unifiés avec debitOrderInventory (produits uniquement). Ne pas présenter cette chaîne comme livrée.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Recette enregistrable mais unités / conversions et journal de consommation d’ingrédients non unifiés avec debitOrderInventory (produits uniquement). Ne pas présenter cette chaîne comme livrée.",
+      "evidence": []
+    },
+    {
+      "id": "T94",
+      "title": "Inventaire et pertes",
+      "prerequisites": "Comptage physique fictif indépendant.",
+      "actions": "Déclarer une perte puis réaliser un inventaire.",
+      "expected": "Écart explicite et historique de mouvements cohérent.",
+      "blocked": "Comptage/pertes avec pièces, mouvements durables cloisonnés et rapprochement unifiés non livrés ; éditer Ingredient.currentStock ne constitue pas un inventaire traçable.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Comptage/pertes avec pièces, mouvements durables cloisonnés et rapprochement unifiés non livrés ; éditer Ingredient.currentStock ne constitue pas un inventaire traçable.",
+      "evidence": []
+    },
+    {
+      "id": "T95",
+      "title": "Réservation concurrente",
+      "prerequisites": "Table et groupes fictifs, vingt clients API.",
+      "actions": "Réserver simultanément puis tenter modification et réactivation conflictuelles.",
+      "expected": "Une réservation au créneau, dix-neuf conflits, pas de contournement.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/reservations.integration.test.ts",
+          "name": "une seule réservation gagne"
+        },
+        {
+          "file": "apps/backend/src/routes/reservations.integration.test.ts",
+          "name": "une modification ou réactivation"
+        },
+        {
+          "file": "apps/backend/src/routes/reservations.integration.test.ts",
+          "name": "le filtre journalier suit Luxembourg"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : une seule réservation gagne lors de vingt créations concurrentes sur le même créneau ; une modification ou réactivation ne peut pas contourner le conflit de table ; le filtre journalier suit Luxembourg, même lors du passage à l’heure d’été. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/reservations.integration.test.ts",
+          "name": "une seule réservation gagne lors de vingt créations concurrentes sur le même créneau",
+          "status": "passed",
+          "durationMs": 142.18350000000004,
+          "executedAt": "2026-10-17T08:25:56.851Z"
+        },
+        {
+          "file": "apps/backend/src/routes/reservations.integration.test.ts",
+          "name": "une modification ou réactivation ne peut pas contourner le conflit de table",
+          "status": "passed",
+          "durationMs": 42.02880000000005,
+          "executedAt": "2026-10-17T08:25:56.851Z"
+        },
+        {
+          "file": "apps/backend/src/routes/reservations.integration.test.ts",
+          "name": "le filtre journalier suit Luxembourg, même lors du passage à l’heure d’été",
+          "status": "passed",
+          "durationMs": 10.429200000000037,
+          "executedAt": "2026-10-17T08:25:56.851Z"
+        }
+      ]
+    },
+    {
+      "id": "T96",
+      "title": "QR d’ancienne session",
+      "prerequisites": "Ancienne visite fermée, expirée ou révoquée après fusion.",
+      "actions": "Relire addition et suivi, puis ouvrir la nouvelle visite.",
+      "expected": "Ancienne capacité refusée, nouveau groupe isolé.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/guest-visits.integration.test.ts",
+          "name": "refuse un lien expiré"
+        },
+        {
+          "file": "apps/backend/src/routes/guest-visits.integration.test.ts",
+          "name": "ferme les accès sans effacer"
+        },
+        {
+          "file": "tests/browser-lab/qr-movements.spec.ts",
+          "name": "fusion POS/QR"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : refuse un lien expiré et permet une nouvelle visite sans réutiliser l’ancien lien ; ferme les accès sans effacer une créance, puis isole la nouvelle visite ; fusion POS/QR, acompte, réponse perdue et addition privée renouvelée. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/guest-visits.integration.test.ts",
+          "name": "refuse un lien expiré et permet une nouvelle visite sans réutiliser l’ancien lien",
+          "status": "passed",
+          "durationMs": 43.96659999999997,
+          "executedAt": "2026-10-17T08:25:49.842Z"
+        },
+        {
+          "file": "apps/backend/src/routes/guest-visits.integration.test.ts",
+          "name": "ferme les accès sans effacer une créance, puis isole la nouvelle visite",
+          "status": "passed",
+          "durationMs": 85.5729,
+          "executedAt": "2026-10-17T08:25:49.842Z"
+        },
+        {
+          "file": "tests/browser-lab/qr-movements.spec.ts",
+          "name": "fusion POS/QR, acompte, réponse perdue et addition privée renouvelée",
+          "status": "passed",
+          "durationMs": 21295,
+          "executedAt": "2026-10-17T08:32:24.184Z"
+        }
+      ]
+    },
+    {
+      "id": "T97",
+      "title": "Congé selon rôle",
+      "prerequisites": "Propriétaire et deux salariés fictifs.",
+      "actions": "Déposer, approuver et relire une demande avec chaque rôle.",
+      "expected": "Salarié limité à sa demande, responsable habilité.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "un congé ne fuit pas"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : un congé ne fuit pas vers le collègue ; seul le responsable approuve et l’état persiste. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "un congé ne fuit pas vers le collègue ; seul le responsable approuve et l’état persiste",
+          "status": "passed",
+          "durationMs": 49.807000000000016,
+          "executedAt": "2026-10-17T08:25:53.643Z"
+        }
+      ]
+    },
+    {
+      "id": "T98",
+      "title": "HACCP sans mesure inventée",
+      "prerequisites": "Tâche de relevé et capteur absent.",
+      "actions": "Ouvrir une tâche sans mesure puis valider manuellement.",
+      "expected": "Valeur manquante explicite, auteur et source manuels.",
+      "proofs": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "une température manquante"
+        },
+        {
+          "file": "tests/browser-lab/business-extended.spec.ts",
+          "name": "gestion Chrome"
+        }
+      ],
+      "status": "PASS",
+      "observed": "Assertions réellement exécutées et réussies : une température manquante ne devient ni zéro ni conforme ; la mesure saisie est identifiée manuelle ; gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.",
+      "evidence": [
+        {
+          "file": "apps/backend/src/routes/business-extended.integration.test.ts",
+          "name": "une température manquante ne devient ni zéro ni conforme ; la mesure saisie est identifiée manuelle",
+          "status": "passed",
+          "durationMs": 72.0594000000001,
+          "executedAt": "2026-10-17T08:25:53.643Z"
+        },
+        {
+          "file": "tests/browser-lab/business-extended.spec.ts",
+          "name": "gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis",
+          "status": "passed",
+          "durationMs": 4314,
+          "executedAt": "2026-10-17T08:30:22.536Z"
+        }
+      ]
+    },
+    {
+      "id": "T99",
+      "title": "Langues et responsive",
+      "prerequisites": "Chrome neuf 375/768/1440 et langues proposées.",
+      "actions": "Utiliser clavier, zoom, tactile et chaque langue du périmètre.",
+      "expected": "Pas de débordement, focus visible et texte traduit.",
+      "blocked": "Traductions complètes des écrans métier non implémentées (textes français codés dans les pages, sélecteur global partiel). Les fenêtres testées à 375/768/1440 et au clavier ne valident pas toutes les langues / le zoom global.",
+      "blockerCategory": "UNIMPLEMENTED",
+      "status": "BLOCKED",
+      "observed": "Traductions complètes des écrans métier non implémentées (textes français codés dans les pages, sélecteur global partiel). Les fenêtres testées à 375/768/1440 et au clavier ne valident pas toutes les langues / le zoom global.",
+      "evidence": []
+    },
+    {
+      "id": "T100",
+      "title": "Tous les boutons et modes dégradés",
+      "prerequisites": "Inventaire exhaustif des écrans livrés et scénarios erreur/hors ligne.",
+      "actions": "Cliquer chaque contrôle et vérifier sa persistance.",
+      "expected": "Aucune action fantôme, erreurs honnêtes et droits respectés.",
+      "notRun": "Inventaire JSX/handlers/routes reproductible réalisé dans cinq apps et parcours Chrome critiques étendus exécutés ; preuves dans T100-CONTROLES-ET-PERFORMANCE.md. Les instances rendues, tous les rôles et variantes erreur/persistance restent à terminer : aucun PASS global déduit du scan. Aucun accès manquant ne justifie de cacher ce travail en BLOCKED.",
+      "status": "NOT RUN",
+      "observed": "Inventaire JSX/handlers/routes reproductible réalisé dans cinq apps et parcours Chrome critiques étendus exécutés ; preuves dans T100-CONTROLES-ET-PERFORMANCE.md. Les instances rendues, tous les rôles et variantes erreur/persistance restent à terminer : aucun PASS global déduit du scan. Aucun accès manquant ne justifie de cacher ce travail en BLOCKED.",
+      "evidence": []
+    }
+  ]
+}

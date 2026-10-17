@@ -1,22 +1,14 @@
-# Recette métier T01–T100
+# Recette métier T01–T100 — fiabilité du profil métier
 
-Complément profil professionnel après `962c01b`, code `9e15b1a` :
-[28 parcours Chrome et suites fraîches](preuves/business-only-validation-2026-10-16.json),
-[nouvel inventaire T100](preuves/business-only-inventaire-t100-2026-10-16.jsonl),
-[rapport](PROFIL-PROFESSIONNEL-SANS-JEUX.md). Statuts globaux inchangés ; les nouveaux tests
-ciblés ne valent pas recette de tous les rôles/écrans. Preuve T02 actualisée ci-dessous.
+Générée le 2026-10-17T08:53:51.085Z. Laboratoire privé Windows, PostgreSQL loopback, comptes et sociétés fictifs ; aucune production ou banque réelle.
 
-Mise à jour du lot T100 après `c0ddd81` : [validation ciblée](preuves/t100-validation-2026-10-16.json)
-et [rapport](T100-CONTROLES-ET-PERFORMANCE.md). Les statuts globaux restent inchangés ; les preuves
-historiques ci-dessous conservent leur date, notamment T03 (ancienne copie non remigrée pour ce lot
-sans nouvelle migration). Les suites unitaires/PostgreSQL et les cinq anciens parcours Chrome ont
-été relancés, avec seize parcours Chrome nouveaux. Le scénario T100 entier reste non validé.
+**55 PASS / 0 FAIL / 44 BLOCKED / 1 NOT RUN.**
 
-Générée le 2026-10-16T17:22:34.577Z. Laboratoire loopback privé ; sociétés fictives ; banque remplacée ; jamais production.
+Seules les preuves exécutées depuis 2026-10-17T07:00:00Z sont admissibles. Source des exigences : `tests/recipe/business-scenarios.mjs`. Les preuves historiques du 16 octobre restent conservées, mais ne sont pas utilisées comme preuves fraîches de ce lot. Détails horodatés : [preuve JSON actuelle](preuves/recette-metier-fiabilite-2026-10-17.json).
 
-**54 PASS / 0 FAIL / 45 BLOCKED / 1 NOT RUN.**
+PASS limité au parcours logiciel décrit. Les incidents, transports et prestataires simulés sont distingués dans les tests. Aucun PASS global de tous les écrans, rôles, matériels ou langues. Une API testée n'est pas un clic Chrome ; une banque remplacée n'est pas un sandbox officiel. T69 repose sur son expiration serveur et les parcours PDF/Chrome réellement exécutés. **T100 reste NOT RUN / partiel**, indépendamment de l'inventaire source et des contrôles ciblés. Aucun déploiement ou certification.
 
-Numérotation conservée de l’annexe du prompt maître, y compris vidéo désactivée. PASS ne couvre que le scénario logiciel décrit. Un test d’API n’est pas un clic Chrome ; une banque remplacée n’est pas le sandbox officiel. Aucune certification ou mise en production. Les scénarios non exécutés ne sont jamais déduits de l’existence du code. Détails horodatés : [preuve JSON](preuves/recette-metier-2026-10-16.json).
+Rapports : [fiabilité](FIABILITE-PROFIL-METIER.md), [T100 ciblé](T100-FIABILITE-UI.md), [liens PDF](LIENS-DOCUMENTAIRES.md), [sauvegardes](SAUVEGARDES-FIABILITE.md).
 
 ## T01 — Installation neuve complète — BLOCKED
 
@@ -28,7 +20,7 @@ Attendu : Premier démarrage sans données historiques ni manipulation manuelle 
 
 Observé : Aucune machine Windows vierge / VM de recette disponible. Les cinq builds et la base migrée ne prouvent pas une installation complète sur machine vierge.
 
-Catégorie du blocage : EXTERNAL (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : EXTERNAL ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -40,9 +32,9 @@ Actions utilisateur / API : Sauvegarder, chiffrer, restaurer dans une nouvelle b
 
 Attendu : Toutes tables, colonnes, lignes, fichiers et PDF égaux.
 
-Observé : 79 tables, 8 fichiers, 9 PDF facture et 8 avoir comparés égaux ; AES-GCM vérifié, clé séparée. 3 721 ms sur cette copie, pas un RTO. 17 contrôles de reprise, allocations peuplées 7/14/21. Limite distincte : deux dumps de rotation du lab supprimés avant correction de rétention, récupération de 27 copies vérifiées sans correspondance exacte des deux noms ; archives originales intactes.
+Observé : 81 tables, 8 fichiers et 21 PDF comparés égaux ; nouvelles tables de liens peuplées ; AES-GCM vérifié et clé séparée. 3703 ms sur cette copie, pas un RTO.
 
-Preuves : [restauration métier](preuves/restauration-business-only-2026-10-16.json) — nouvelle base locale, état equal, 2026-10-16T19:32:28.062Z ; [comparateur](../../scripts/verify-restored-copy.mjs), [incident de rotation](preuves/rotation-laboratoire-2026-10-16.json).
+Preuves : [verify-restored-copy.mjs](../../scripts/verify-restored-copy.mjs) — « restauration native chiffrée et comparaison exhaustive », passed, 2026-10-17T08:51:26.884Z
 
 ## T03 — Migration de copie ancienne — PASS
 
@@ -52,9 +44,9 @@ Actions utilisateur / API : Restaurer une copie de la version ancienne puis appl
 
 Attendu : Historique inchangé, parcours anciens encore lisibles.
 
-Observé : 7 → 34 migrations, 47 tables / 341 lignes anciennes conservées à l’identique. Cliché lu seulement, pas archive originale ni profil historique.
+Observé : 7 → 36 migrations, 47 tables / 341 lignes anciennes identiques. Cliché lu seulement ; aucune archive originale ni profil historique modifié.
 
-Preuves : [migration-ancienne-copie-2026-10-16.json](../../docs/2.0/preuves/migration-ancienne-copie-2026-10-16.json) — « migration réelle d’un cliché privé ancien vers une nouvelle base », passed, 2026-10-16T16:54:22.170Z
+Preuves : [migration-ancienne-copie-fiabilite-2026-10-17.json](../../docs/2.0/preuves/migration-ancienne-copie-fiabilite-2026-10-17.json) — « migration réelle d’un cliché privé ancien vers une nouvelle base », passed, 2026-10-17T08:34:28.770Z
 
 ## T04 — Export des anciennes ventes navigateur — BLOCKED
 
@@ -66,7 +58,7 @@ Attendu : Inventaire et empreintes conservés, aucune vente perdue.
 
 Observé : Profils historiques hors autorisation ; aucun profil ouvert. Procédure T04 conservée.
 
-Catégorie du blocage : HISTORY_AUTHORIZATION (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : HISTORY_AUTHORIZATION ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -78,9 +70,9 @@ Actions utilisateur / API : Demander des documents, paiements et relations de r�
 
 Attendu : Refus avant fuite ou mutation ; contraintes SQL incluses.
 
-Observé : Assertions exécutées et réussies : refuse une commande appartenant à une autre société ; refuse le client étranger, le ticket étranger et le rôle salarié ; refuse une table ou un client d’une autre société, y compris à la modification ; la base refuse les relations intersociétés même sans passer par HTTP. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : refuse une commande appartenant à une autre société ; refuse le client étranger, le ticket étranger et le rôle salarié ; refuse une table ou un client d’une autre société, y compris à la modification ; la base refuse les relations intersociétés même sans passer par HTTP. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « refuse une commande appartenant à une autre société », passed, 2026-10-16T17:19:08.745Z ; [receipt-invoices.integration.test.ts](../../apps/backend/src/routes/receipt-invoices.integration.test.ts) — « refuse le client étranger, le ticket étranger et le rôle salarié », passed, 2026-10-16T17:19:08.745Z ; [reservations.integration.test.ts](../../apps/backend/src/routes/reservations.integration.test.ts) — « refuse une table ou un client d’une autre société, y compris à la modification », passed, 2026-10-16T17:19:08.745Z ; [reservations.integration.test.ts](../../apps/backend/src/routes/reservations.integration.test.ts) — « la base refuse les relations intersociétés même sans passer par HTTP », passed, 2026-10-16T17:19:08.745Z
+Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « refuse une commande appartenant à une autre société », passed, 2026-10-17T08:25:45.281Z ; [receipt-invoices.integration.test.ts](../../apps/backend/src/routes/receipt-invoices.integration.test.ts) — « refuse le client étranger, le ticket étranger et le rôle salarié », passed, 2026-10-17T08:25:51.300Z ; [reservations.integration.test.ts](../../apps/backend/src/routes/reservations.integration.test.ts) — « refuse une table ou un client d’une autre société, y compris à la modification », passed, 2026-10-17T08:25:56.851Z ; [reservations.integration.test.ts](../../apps/backend/src/routes/reservations.integration.test.ts) — « la base refuse les relations intersociétés même sans passer par HTTP », passed, 2026-10-17T08:25:56.851Z
 
 ## T06 — Isolation intersites — BLOCKED
 
@@ -92,7 +84,7 @@ Attendu : Droits de site appliqués, pas seulement société.
 
 Observé : Modèle de sites et adhésions par établissement non implémenté dans le schéma actuel. Le contrôle société ne remplace pas un contrôle intersites.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -104,9 +96,9 @@ Actions utilisateur / API : Ouvrir une route protégée pendant la panne.
 
 Attendu : 503, aucun rôle propriétaire de repli.
 
-Observé : Assertions exécutées et réussies : en PRODUCTION : refuse en 503 et n'accorde AUCUN rôle. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : en PRODUCTION : refuse en 503 et n'accorde AUCUN rôle. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [requireCompany.test.ts](../../apps/backend/src/middleware/requireCompany.test.ts) — « en PRODUCTION : refuse en 503 et n'accorde AUCUN rôle », passed, 2026-10-16T17:18:59.484Z
+Preuves : [requireCompany.test.ts](../../apps/backend/src/middleware/requireCompany.test.ts) — « en PRODUCTION : refuse en 503 et n'accorde AUCUN rôle », passed, 2026-10-17T08:27:38.217Z
 
 ## T08 — Révocation d’un appareil de caisse — PASS
 
@@ -116,9 +108,9 @@ Actions utilisateur / API : Révoquer puis rejouer son ancien accès.
 
 Attendu : Ancien appareil refusé sans affecter les autres.
 
-Observé : Assertions exécutées et réussies : révoquer un jeton de caisse dans la configuration bloque immédiatement son ancien accès sans révoquer l’autre. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : révoquer un jeton de caisse dans la configuration bloque immédiatement son ancien accès sans révoquer l’autre. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [business-extended.integration.test.ts](../../apps/backend/src/routes/business-extended.integration.test.ts) — « révoquer un jeton de caisse dans la configuration bloque immédiatement son ancien accès sans révoquer l’autre », passed, 2026-10-16T17:19:08.745Z
+Preuves : [business-extended.integration.test.ts](../../apps/backend/src/routes/business-extended.integration.test.ts) — « révoquer un jeton de caisse dans la configuration bloque immédiatement son ancien accès sans révoquer l’autre », passed, 2026-10-17T08:25:53.643Z
 
 ## T09 — Restauration chiffrée externe — BLOCKED
 
@@ -130,7 +122,7 @@ Attendu : Copie externe effectivement récupérable et état complet égal.
 
 Observé : Restauration chiffrée locale exécutée en T02 ; aucun stockage externe/cloud de recette raccordé.
 
-Catégorie du blocage : EXTERNAL (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : EXTERNAL ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -142,9 +134,9 @@ Actions utilisateur / API : Comparer toutes les lignes et les PDF des deux bases
 
 Attendu : Aucun total, lien, pièce ou état changé.
 
-Observé : 79 tables, 8 fichiers, données et PDF comparés égaux ; AES-GCM vérifié, clé séparée. 2952 ms sur cette copie, pas un RTO.
+Observé : 81 tables, 8 fichiers et 21 PDF comparés égaux ; nouvelles tables de liens peuplées ; AES-GCM vérifié et clé séparée. 3703 ms sur cette copie, pas un RTO.
 
-Preuves : [verify-restored-copy.mjs](../../scripts/verify-restored-copy.mjs) — « restauration native chiffrée et comparaison exhaustive », passed, 2026-10-16T17:22:29.988Z
+Preuves : [verify-restored-copy.mjs](../../scripts/verify-restored-copy.mjs) — « restauration native chiffrée et comparaison exhaustive », passed, 2026-10-17T08:51:26.884Z
 
 ## T11 — Vente café et ouverture de caisse — PASS
 
@@ -154,9 +146,9 @@ Actions utilisateur / API : Ouvrir la caisse, enregistrer un acompte puis régle
 
 Attendu : Une vente, un débit de stock, espèces comptabilisées.
 
-Observé : Assertions exécutées et réussies : compte un acompte espèces même si la commande n’est pas encore payée entièrement ; un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : compte un acompte espèces même si la commande n’est pas encore payée entièrement ; un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [cash-drawers.integration.test.ts](../../apps/backend/src/routes/cash-drawers.integration.test.ts) — « compte un acompte espèces même si la commande n’est pas encore payée entièrement », passed, 2026-10-16T17:19:08.745Z ; [service-sessions.integration.test.ts](../../apps/backend/src/routes/service-sessions.integration.test.ts) — « un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock », passed, 2026-10-16T17:19:08.745Z
+Preuves : [cash-drawers.integration.test.ts](../../apps/backend/src/routes/cash-drawers.integration.test.ts) — « compte un acompte espèces même si la commande n’est pas encore payée entièrement », passed, 2026-10-17T08:25:52.426Z ; [service-sessions.integration.test.ts](../../apps/backend/src/routes/service-sessions.integration.test.ts) — « un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock », passed, 2026-10-17T08:25:39.045Z
 
 ## T12 — Table à plusieurs tournées QR — PASS
 
@@ -166,9 +158,9 @@ Actions utilisateur / API : Commander, demander le règlement puis rejouer.
 
 Attendu : Même solde réservé et aucune deuxième capture.
 
-Observé : Assertions exécutées et réussies : réserve et rapproche plusieurs tournées QR sans nouveau débit sur rejeu. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : réserve et rapproche plusieurs tournées QR sans nouveau débit sur rejeu. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « réserve et rapproche plusieurs tournées QR sans nouveau débit sur rejeu », passed, 2026-10-16T17:19:08.745Z
+Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « réserve et rapproche plusieurs tournées QR sans nouveau débit sur rejeu », passed, 2026-10-17T08:25:45.281Z
 
 ## T13 — Transfert de table — PASS
 
@@ -178,9 +170,9 @@ Actions utilisateur / API : Transférer puis payer uniquement le solde après pr
 
 Attendu : Identités, réserve et acompte inchangés ; une vente.
 
-Observé : Assertions exécutées et réussies : conserve acompte, tentative en cours et affectations pendant un transfert puis un solde. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : conserve acompte, tentative en cours et affectations pendant un transfert puis un solde. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [table-movements.integration.test.ts](../../apps/backend/src/routes/table-movements.integration.test.ts) — « conserve acompte, tentative en cours et affectations pendant un transfert puis un solde », passed, 2026-10-16T17:19:08.745Z
+Preuves : [table-movements.integration.test.ts](../../apps/backend/src/routes/table-movements.integration.test.ts) — « conserve acompte, tentative en cours et affectations pendant un transfert puis un solde », passed, 2026-10-17T08:25:28.665Z
 
 ## T14 — Fusion puis séparation des groupes — PASS
 
@@ -190,9 +182,9 @@ Actions utilisateur / API : Fusionner, séparer la visite puis renouveler ses li
 
 Attendu : Groupes, soldes et accès indépendants, anciens liens refusés.
 
-Observé : Assertions exécutées et réussies : sépare un groupe QR après fusion, sans déplacer l’acompte de l’autre groupe ni rouvrir les anciens QR. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : sépare un groupe QR après fusion, sans déplacer l’acompte de l’autre groupe ni rouvrir les anciens QR. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [table-movements.integration.test.ts](../../apps/backend/src/routes/table-movements.integration.test.ts) — « sépare un groupe QR après fusion, sans déplacer l’acompte de l’autre groupe ni rouvrir les anciens QR », passed, 2026-10-16T17:19:08.745Z
+Preuves : [table-movements.integration.test.ts](../../apps/backend/src/routes/table-movements.integration.test.ts) — « sépare un groupe QR après fusion, sans déplacer l’acompte de l’autre groupe ni rouvrir les anciens QR », passed, 2026-10-17T08:25:28.665Z
 
 ## T15 — Partage par article ou quantité — PASS
 
@@ -202,9 +194,9 @@ Actions utilisateur / API : Déplacer un article, recharger et régler les deux 
 
 Attendu : TVA/prix historiques ; total 35,10 €, stock diminué de trois, sans doublon.
 
-Observé : Assertions exécutées et réussies : déplace une partie de ligne native à son prix historique sans nouvelle préparation ni débit de stock ; séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : déplace une partie de ligne native à son prix historique sans nouvelle préparation ni débit de stock ; séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [table-movements.integration.test.ts](../../apps/backend/src/routes/table-movements.integration.test.ts) — « déplace une partie de ligne native à son prix historique sans nouvelle préparation ni débit de stock », passed, 2026-10-16T17:19:08.745Z ; [service-separations.spec.ts](../../tests/browser-lab/service-separations.spec.ts) — « séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement », passed, 2026-10-16T17:21:43.635Z
+Preuves : [table-movements.integration.test.ts](../../apps/backend/src/routes/table-movements.integration.test.ts) — « déplace une partie de ligne native à son prix historique sans nouvelle préparation ni débit de stock », passed, 2026-10-17T08:25:28.665Z ; [service-separations.spec.ts](../../tests/browser-lab/service-separations.spec.ts) — « séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement », passed, 2026-10-17T08:32:52.937Z
 
 ## T16 — Partage par montant et centimes résiduels — PASS
 
@@ -214,9 +206,9 @@ Actions utilisateur / API : Répartir une addition entre groupes et moyens puis 
 
 Attendu : Somme exacte et répartition des centimes explicitement conservée.
 
-Observé : Assertions exécutées et réussies : trois groupes partagent remise et acompte, règlent séparément sans nouvelle vente ni préparation et restent privés ; un nouvel acompte invalide l’aperçu, puis les paiements mixtes et concurrents conservent les parts exactes ; la vente finale conserve les centimes de TVA historiques même si PostgreSQL retourne les lignes dans un autre ordre ; refuse un ancien original entièrement couvert par ses règlements mais sans clôture, sans inventer de vente ; un ancien miroir JSON fictif ne réintroduit pas la commande répartie dans l’addition du personnel ; allocation QR : décision responsable, acomptes explicites, panne réseau, QR privés et paiement du groupe dans Chrome. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : trois groupes partagent remise et acompte, règlent séparément sans nouvelle vente ni préparation et restent privés ; un nouvel acompte invalide l’aperçu, puis les paiements mixtes et concurrents conservent les parts exactes ; la vente finale conserve les centimes de TVA historiques même si PostgreSQL retourne les lignes dans un autre ordre ; refuse un ancien original entièrement couvert par ses règlements mais sans clôture, sans inventer de vente ; un ancien miroir JSON fictif ne réintroduit pas la commande répartie dans l’addition du personnel ; allocation QR : décision responsable, acomptes explicites, panne réseau, QR privés et paiement du groupe dans Chrome. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [financial-allocations.integration.test.ts](../../apps/backend/src/routes/financial-allocations.integration.test.ts) — « trois groupes partagent remise et acompte, règlent séparément sans nouvelle vente ni préparation et restent privés », passed, 2026-10-16T17:19:08.745Z ; [financial-allocations.integration.test.ts](../../apps/backend/src/routes/financial-allocations.integration.test.ts) — « un nouvel acompte invalide l’aperçu, puis les paiements mixtes et concurrents conservent les parts exactes », passed, 2026-10-16T17:19:08.745Z ; [financial-allocations.integration.test.ts](../../apps/backend/src/routes/financial-allocations.integration.test.ts) — « la vente finale conserve les centimes de TVA historiques même si PostgreSQL retourne les lignes dans un autre ordre », passed, 2026-10-16T17:19:08.745Z ; [financial-allocations.integration.test.ts](../../apps/backend/src/routes/financial-allocations.integration.test.ts) — « refuse un ancien original entièrement couvert par ses règlements mais sans clôture, sans inventer de vente », passed, 2026-10-16T17:19:08.745Z ; [financial-allocations.integration.test.ts](../../apps/backend/src/routes/financial-allocations.integration.test.ts) — « un ancien miroir JSON fictif ne réintroduit pas la commande répartie dans l’addition du personnel », passed, 2026-10-16T17:19:08.745Z ; [financial-allocation.spec.ts](../../tests/browser-lab/financial-allocation.spec.ts) — « allocation QR : décision responsable, acomptes explicites, panne réseau, QR privés et paiement du groupe dans Chrome », passed, 2026-10-16T17:20:14.536Z
+Preuves : [financial-allocations.integration.test.ts](../../apps/backend/src/routes/financial-allocations.integration.test.ts) — « trois groupes partagent remise et acompte, règlent séparément sans nouvelle vente ni préparation et restent privés », passed, 2026-10-17T08:25:36.201Z ; [financial-allocations.integration.test.ts](../../apps/backend/src/routes/financial-allocations.integration.test.ts) — « un nouvel acompte invalide l’aperçu, puis les paiements mixtes et concurrents conservent les parts exactes », passed, 2026-10-17T08:25:36.201Z ; [financial-allocations.integration.test.ts](../../apps/backend/src/routes/financial-allocations.integration.test.ts) — « la vente finale conserve les centimes de TVA historiques même si PostgreSQL retourne les lignes dans un autre ordre », passed, 2026-10-17T08:25:36.201Z ; [financial-allocations.integration.test.ts](../../apps/backend/src/routes/financial-allocations.integration.test.ts) — « refuse un ancien original entièrement couvert par ses règlements mais sans clôture, sans inventer de vente », passed, 2026-10-17T08:25:36.201Z ; [financial-allocations.integration.test.ts](../../apps/backend/src/routes/financial-allocations.integration.test.ts) — « un ancien miroir JSON fictif ne réintroduit pas la commande répartie dans l’addition du personnel », passed, 2026-10-17T08:25:36.201Z ; [financial-allocation.spec.ts](../../tests/browser-lab/financial-allocation.spec.ts) — « allocation QR : décision responsable, acomptes explicites, panne réseau, QR privés et paiement du groupe dans Chrome », passed, 2026-10-17T08:30:52.570Z
 
 ## T17 — Offert avec droit et motif — PASS
 
@@ -226,9 +218,9 @@ Actions utilisateur / API : Offrir, encaisser et contrôler le justificatif et l
 
 Attendu : Autorisation, motif, ventilation et stock traçables.
 
-Observé : Assertions exécutées et réussies : un offert exige un motif responsable, conserve son auteur, son ticket et un seul débit de stock. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : un offert exige un motif responsable, conserve son auteur, son ticket et un seul débit de stock. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [pos.integration.test.ts](../../apps/backend/src/routes/pos.integration.test.ts) — « un offert exige un motif responsable, conserve son auteur, son ticket et un seul débit de stock », passed, 2026-10-16T17:19:08.745Z
+Preuves : [pos.integration.test.ts](../../apps/backend/src/routes/pos.integration.test.ts) — « un offert exige un motif responsable, conserve son auteur, son ticket et un seul débit de stock », passed, 2026-10-17T08:25:41.135Z
 
 ## T18 — Annulation après envoi bar — BLOCKED
 
@@ -240,9 +232,9 @@ Attendu : Correction visible sans suppression silencieuse de vente ou préparati
 
 Observé : Parcours de correction signé après préparation non implémenté. Le risque d’annulation/effacement silencieux a été reproduit puis bloqué par 409, avec test orders ; cela ne livre pas la correction métier complète.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
-Preuves : [orders.integration.test.ts](../../apps/backend/src/routes/orders.integration.test.ts) — « refuse l’effacement ou l’annulation destructive d’un QR déjà en préparation et garde le prix et la quantité », passed, 2026-10-16T17:19:08.745Z
+Preuves : [orders.integration.test.ts](../../apps/backend/src/routes/orders.integration.test.ts) — « refuse l’effacement ou l’annulation destructive d’un QR déjà en préparation et garde le prix et la quantité », passed, 2026-10-17T08:25:46.768Z
 
 ## T19 — Retour après vente — PASS
 
@@ -252,9 +244,9 @@ Actions utilisateur / API : Créer un avoir puis déclarer le remboursement esp�
 
 Attendu : Vente et facture originales inchangées, sortie unique et plafonnée.
 
-Observé : Assertions exécutées et réussies : un avoir intégral ne modifie pas la facture, son PDF, sa vente ou son règlement ; un remboursement espèces déclaré garde le justificatif et une seule sortie de caisse. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : un avoir intégral ne modifie pas la facture, son PDF, sa vente ou son règlement ; un remboursement espèces déclaré garde le justificatif et une seule sortie de caisse. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [credit-notes.integration.test.ts](../../apps/backend/src/routes/credit-notes.integration.test.ts) — « un avoir intégral ne modifie pas la facture, son PDF, sa vente ou son règlement », passed, 2026-10-16T17:19:08.745Z ; [refunds.integration.test.ts](../../apps/backend/src/routes/refunds.integration.test.ts) — « un remboursement espèces déclaré garde le justificatif et une seule sortie de caisse », passed, 2026-10-16T17:19:08.745Z
+Preuves : [credit-notes.integration.test.ts](../../apps/backend/src/routes/credit-notes.integration.test.ts) — « un avoir intégral ne modifie pas la facture, son PDF, sa vente ou son règlement », passed, 2026-10-17T08:25:19.395Z ; [refunds.integration.test.ts](../../apps/backend/src/routes/refunds.integration.test.ts) — « un remboursement espèces déclaré garde le justificatif et une seule sortie de caisse », passed, 2026-10-17T08:25:32.548Z
 
 ## T20 — Deux terminaux sur une session — PASS
 
@@ -264,9 +256,9 @@ Actions utilisateur / API : Confirmer simultanément deux changements.
 
 Attendu : Une seule version gagne ; aucune ligne écrasée.
 
-Observé : Assertions exécutées et réussies : deux versions concurrentes ne perdent pas la modification confirmée ; une séparation concurrente gagne une fois, reste rejouable et n’est pas lisible dans une autre société. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : deux versions concurrentes ne perdent pas la modification confirmée ; une séparation concurrente gagne une fois, reste rejouable et n’est pas lisible dans une autre société. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [service-sessions.integration.test.ts](../../apps/backend/src/routes/service-sessions.integration.test.ts) — « deux versions concurrentes ne perdent pas la modification confirmée », passed, 2026-10-16T17:19:08.745Z ; [table-movements.integration.test.ts](../../apps/backend/src/routes/table-movements.integration.test.ts) — « une séparation concurrente gagne une fois, reste rejouable et n’est pas lisible dans une autre société », passed, 2026-10-16T17:19:08.745Z
+Preuves : [service-sessions.integration.test.ts](../../apps/backend/src/routes/service-sessions.integration.test.ts) — « deux versions concurrentes ne perdent pas la modification confirmée », passed, 2026-10-17T08:25:39.045Z ; [table-movements.integration.test.ts](../../apps/backend/src/routes/table-movements.integration.test.ts) — « une séparation concurrente gagne une fois, reste rejouable et n’est pas lisible dans une autre société », passed, 2026-10-17T08:25:28.665Z
 
 ## T21 — Double clic sur validation — PASS
 
@@ -276,9 +268,9 @@ Actions utilisateur / API : Envoyer vingt validations concurrentes.
 
 Attendu : Un seul encaissement et même réponse au rejeu.
 
-Observé : Assertions exécutées et réussies : un seul encaissement gagne parmi vingt demandes simultanées ; un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : un seul encaissement gagne parmi vingt demandes simultanées ; un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [orders.integration.test.ts](../../apps/backend/src/routes/orders.integration.test.ts) — « un seul encaissement gagne parmi vingt demandes simultanées », passed, 2026-10-16T17:19:08.745Z ; [service-sessions.integration.test.ts](../../apps/backend/src/routes/service-sessions.integration.test.ts) — « un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock », passed, 2026-10-16T17:19:08.745Z
+Preuves : [orders.integration.test.ts](../../apps/backend/src/routes/orders.integration.test.ts) — « un seul encaissement gagne parmi vingt demandes simultanées », passed, 2026-10-17T08:25:46.768Z ; [service-sessions.integration.test.ts](../../apps/backend/src/routes/service-sessions.integration.test.ts) — « un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock », passed, 2026-10-17T08:25:39.045Z
 
 ## T22 — Réponse réseau perdue après commit local — PASS
 
@@ -288,9 +280,9 @@ Actions utilisateur / API : Perdre la réponse POST puis relire l’opération p
 
 Attendu : Opération retrouvée, pas de nouvelle identité ni succès local inventé.
 
-Observé : Assertions exécutées et réussies : fusion POS/QR, acompte, réponse perdue et addition privée renouvelée ; séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : fusion POS/QR, acompte, réponse perdue et addition privée renouvelée ; séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [qr-movements.spec.ts](../../tests/browser-lab/qr-movements.spec.ts) — « fusion POS/QR, acompte, réponse perdue et addition privée renouvelée », passed, 2026-10-16T17:21:22.913Z ; [service-separations.spec.ts](../../tests/browser-lab/service-separations.spec.ts) — « séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement », passed, 2026-10-16T17:21:43.635Z
+Preuves : [qr-movements.spec.ts](../../tests/browser-lab/qr-movements.spec.ts) — « fusion POS/QR, acompte, réponse perdue et addition privée renouvelée », passed, 2026-10-17T08:32:24.184Z ; [service-separations.spec.ts](../../tests/browser-lab/service-separations.spec.ts) — « séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement », passed, 2026-10-17T08:32:52.937Z
 
 ## T23 — Reprise sans double préparation — PASS
 
@@ -300,9 +292,9 @@ Actions utilisateur / API : Séparer, sauvegarder, recharger et relire la cuisin
 
 Attendu : Un ticket initial inchangé et routage des portions, pas de nouveau lot.
 
-Observé : Assertions exécutées et réussies : déplace une partie de ligne native à son prix historique sans nouvelle préparation ni débit de stock ; séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : déplace une partie de ligne native à son prix historique sans nouvelle préparation ni débit de stock ; séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [table-movements.integration.test.ts](../../apps/backend/src/routes/table-movements.integration.test.ts) — « déplace une partie de ligne native à son prix historique sans nouvelle préparation ni débit de stock », passed, 2026-10-16T17:19:08.745Z ; [service-separations.spec.ts](../../tests/browser-lab/service-separations.spec.ts) — « séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement », passed, 2026-10-16T17:21:43.635Z
+Preuves : [table-movements.integration.test.ts](../../apps/backend/src/routes/table-movements.integration.test.ts) — « déplace une partie de ligne native à son prix historique sans nouvelle préparation ni débit de stock », passed, 2026-10-17T08:25:28.665Z ; [service-separations.spec.ts](../../tests/browser-lab/service-separations.spec.ts) — « séparations natives : clavier, réponse perdue, prix historiques, préparation et rechargement », passed, 2026-10-17T08:32:52.937Z
 
 ## T24 — Variantes et suppléments — BLOCKED
 
@@ -314,7 +306,7 @@ Attendu : Tarif persistant et ticket cuisine correct.
 
 Observé : Pas de variantes/suppléments tarifés par le serveur ; les modificateurs de note ne sont pas une preuve de cette fonction.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -326,9 +318,9 @@ Actions utilisateur / API : Tenter de le commander via POS et QR.
 
 Attendu : Refus serveur cohérent avec l’affichage.
 
-Observé : Assertions exécutées et réussies : un produit inactif ne peut être ajouté depuis un brouillon POS ni une commande QR. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : un produit inactif ne peut être ajouté depuis un brouillon POS ni une commande QR. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [business-extended.integration.test.ts](../../apps/backend/src/routes/business-extended.integration.test.ts) — « un produit inactif ne peut être ajouté depuis un brouillon POS ni une commande QR », passed, 2026-10-16T17:19:08.745Z
+Preuves : [business-extended.integration.test.ts](../../apps/backend/src/routes/business-extended.integration.test.ts) — « un produit inactif ne peut être ajouté depuis un brouillon POS ni une commande QR », passed, 2026-10-17T08:25:53.643Z
 
 ## T26 — Clôture avec écart déclaré — PASS
 
@@ -338,9 +330,9 @@ Actions utilisateur / API : Compter un montant différent, justifier puis rejoue
 
 Attendu : Écart motivé, rapport figé et aucune réécriture.
 
-Observé : Assertions exécutées et réussies : exige une justification de l’écart et ne réécrit pas une clôture ; vingt reprises de clôture rendent exactement le même rapport sans réécriture. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : exige une justification de l’écart et ne réécrit pas une clôture ; vingt reprises de clôture rendent exactement le même rapport sans réécriture. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [cash-drawers.integration.test.ts](../../apps/backend/src/routes/cash-drawers.integration.test.ts) — « exige une justification de l’écart et ne réécrit pas une clôture », passed, 2026-10-16T17:19:08.745Z ; [cash-drawers.integration.test.ts](../../apps/backend/src/routes/cash-drawers.integration.test.ts) — « vingt reprises de clôture rendent exactement le même rapport sans réécriture », passed, 2026-10-16T17:19:08.745Z
+Preuves : [cash-drawers.integration.test.ts](../../apps/backend/src/routes/cash-drawers.integration.test.ts) — « exige une justification de l’écart et ne réécrit pas une clôture », passed, 2026-10-17T08:25:52.426Z ; [cash-drawers.integration.test.ts](../../apps/backend/src/routes/cash-drawers.integration.test.ts) — « vingt reprises de clôture rendent exactement le même rapport sans réécriture », passed, 2026-10-17T08:25:52.426Z
 
 ## T27 — Prix catalogue TTC — PASS
 
@@ -350,9 +342,9 @@ Actions utilisateur / API : Créer la ligne puis changer le catalogue avant règ
 
 Attendu : Ancien TTC et ancienne TVA conservés.
 
-Observé : Assertions exécutées et réussies : fige réellement un nouveau brouillon et encaisse son tarif malgré une modification de catalogue ; calcule TTC et TVA côté serveur et rejoue sans modifier la commande émise. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : fige réellement un nouveau brouillon et encaisse son tarif malgré une modification de catalogue ; calcule TTC et TVA côté serveur et rejoue sans modifier la commande émise. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [pos.integration.test.ts](../../apps/backend/src/routes/pos.integration.test.ts) — « fige réellement un nouveau brouillon et encaisse son tarif malgré une modification de catalogue », passed, 2026-10-16T17:19:08.745Z ; [guest-visits.integration.test.ts](../../apps/backend/src/routes/guest-visits.integration.test.ts) — « calcule TTC et TVA côté serveur et rejoue sans modifier la commande émise », passed, 2026-10-16T17:19:08.745Z
+Preuves : [pos.integration.test.ts](../../apps/backend/src/routes/pos.integration.test.ts) — « fige réellement un nouveau brouillon et encaisse son tarif malgré une modification de catalogue », passed, 2026-10-17T08:25:41.135Z ; [guest-visits.integration.test.ts](../../apps/backend/src/routes/guest-visits.integration.test.ts) — « calcule TTC et TVA côté serveur et rejoue sans modifier la commande émise », passed, 2026-10-17T08:25:49.842Z
 
 ## T28 — Facture à prix HT — PASS
 
@@ -362,9 +354,9 @@ Actions utilisateur / API : Créer la facture depuis des montants HT.
 
 Attendu : Calcul et arrondis par taux côté serveur.
 
-Observé : Assertions exécutées et réussies : arrondit par taux sans inventer un centime entre deux groupes. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : arrondit par taux sans inventer un centime entre deux groupes. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [invoices.integration.test.ts](../../apps/backend/src/routes/invoices.integration.test.ts) — « arrondit par taux sans inventer un centime entre deux groupes », passed, 2026-10-16T17:19:08.745Z
+Preuves : [invoices.integration.test.ts](../../apps/backend/src/routes/invoices.integration.test.ts) — « arrondit par taux sans inventer un centime entre deux groupes », passed, 2026-10-17T08:25:43.586Z
 
 ## T29 — Plusieurs taux — PASS
 
@@ -374,9 +366,9 @@ Actions utilisateur / API : Émettre puis créditer partiellement.
 
 Attendu : Groupes fiscaux historiques reconstitués au centime.
 
-Observé : Assertions exécutées et réussies : un avoir partiel puis le solde reconstituent exactement chaque groupe fiscal historique. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : un avoir partiel puis le solde reconstituent exactement chaque groupe fiscal historique. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [credit-notes.integration.test.ts](../../apps/backend/src/routes/credit-notes.integration.test.ts) — « un avoir partiel puis le solde reconstituent exactement chaque groupe fiscal historique », passed, 2026-10-16T17:19:08.745Z
+Preuves : [credit-notes.integration.test.ts](../../apps/backend/src/routes/credit-notes.integration.test.ts) — « un avoir partiel puis le solde reconstituent exactement chaque groupe fiscal historique », passed, 2026-10-17T08:25:19.395Z
 
 ## T30 — Remise répartie — PASS
 
@@ -386,9 +378,9 @@ Actions utilisateur / API : Convertir puis contrôler les bases fiscales et les 
 
 Attendu : Remise conservée ; pas de TVA sur pourboire ni deuxième vente.
 
-Observé : Assertions exécutées et réussies : conserve TTC, remise et TVA, sans facturer à nouveau pourboire ou don. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : conserve TTC, remise et TVA, sans facturer à nouveau pourboire ou don. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [receipt-invoices.integration.test.ts](../../apps/backend/src/routes/receipt-invoices.integration.test.ts) — « conserve TTC, remise et TVA, sans facturer à nouveau pourboire ou don », passed, 2026-10-16T17:19:08.745Z
+Preuves : [receipt-invoices.integration.test.ts](../../apps/backend/src/routes/receipt-invoices.integration.test.ts) — « conserve TTC, remise et TVA, sans facturer à nouveau pourboire ou don », passed, 2026-10-17T08:25:51.300Z
 
 ## T31 — Avoir partiel — PASS
 
@@ -398,9 +390,9 @@ Actions utilisateur / API : Créer un avoir partiel puis le complément.
 
 Attendu : Plafonds, numérotation et TVA d’origine conservés.
 
-Observé : Assertions exécutées et réussies : un avoir partiel puis le solde reconstituent exactement chaque groupe fiscal historique ; vingt demandes différentes ne dépassent jamais le montant original. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : un avoir partiel puis le solde reconstituent exactement chaque groupe fiscal historique ; vingt demandes différentes ne dépassent jamais le montant original. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [credit-notes.integration.test.ts](../../apps/backend/src/routes/credit-notes.integration.test.ts) — « un avoir partiel puis le solde reconstituent exactement chaque groupe fiscal historique », passed, 2026-10-16T17:19:08.745Z ; [credit-notes.integration.test.ts](../../apps/backend/src/routes/credit-notes.integration.test.ts) — « vingt demandes différentes ne dépassent jamais le montant original », passed, 2026-10-16T17:19:08.745Z
+Preuves : [credit-notes.integration.test.ts](../../apps/backend/src/routes/credit-notes.integration.test.ts) — « un avoir partiel puis le solde reconstituent exactement chaque groupe fiscal historique », passed, 2026-10-17T08:25:19.395Z ; [credit-notes.integration.test.ts](../../apps/backend/src/routes/credit-notes.integration.test.ts) — « vingt demandes différentes ne dépassent jamais le montant original », passed, 2026-10-17T08:25:19.395Z
 
 ## T32 — Acompte puis solde — PASS
 
@@ -410,9 +402,9 @@ Actions utilisateur / API : Déclarer un acompte espèces puis un solde mixte.
 
 Attendu : Une seule commande, une vente et un débit de stock.
 
-Observé : Assertions exécutées et réussies : un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [service-sessions.integration.test.ts](../../apps/backend/src/routes/service-sessions.integration.test.ts) — « un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock », passed, 2026-10-16T17:19:08.745Z
+Preuves : [service-sessions.integration.test.ts](../../apps/backend/src/routes/service-sessions.integration.test.ts) — « un acompte natif puis un solde mixte produisent une seule vente et un seul débit de stock », passed, 2026-10-17T08:25:39.045Z
 
 ## T33 — Facture depuis ticket sans double vente — PASS
 
@@ -422,9 +414,9 @@ Actions utilisateur / API : Demander vingt fois la facture puis l’émettre.
 
 Attendu : Un document et aucun revenu supplémentaire.
 
-Observé : Assertions exécutées et réussies : vingt demandes simultanées retrouvent une seule facture et un seul numéro ; émet un PDF avec l’émetteur historique et le règlement déclaré, sans nouvelle écriture. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : vingt demandes simultanées retrouvent une seule facture et un seul numéro ; émet un PDF avec l’émetteur historique et le règlement déclaré, sans nouvelle écriture. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [receipt-invoices.integration.test.ts](../../apps/backend/src/routes/receipt-invoices.integration.test.ts) — « vingt demandes simultanées retrouvent une seule facture et un seul numéro », passed, 2026-10-16T17:19:08.745Z ; [receipt-invoices.integration.test.ts](../../apps/backend/src/routes/receipt-invoices.integration.test.ts) — « émet un PDF avec l’émetteur historique et le règlement déclaré, sans nouvelle écriture », passed, 2026-10-16T17:19:08.745Z
+Preuves : [receipt-invoices.integration.test.ts](../../apps/backend/src/routes/receipt-invoices.integration.test.ts) — « vingt demandes simultanées retrouvent une seule facture et un seul numéro », passed, 2026-10-17T08:25:51.300Z ; [receipt-invoices.integration.test.ts](../../apps/backend/src/routes/receipt-invoices.integration.test.ts) — « émet un PDF avec l’émetteur historique et le règlement déclaré, sans nouvelle écriture », passed, 2026-10-17T08:25:51.300Z
 
 ## T34 — Identité légale historique — PASS
 
@@ -434,9 +426,9 @@ Actions utilisateur / API : Changer les coordonnées de société puis télécha
 
 Attendu : Octets et empreinte identiques.
 
-Observé : Assertions exécutées et réussies : un PDF émis ne change pas après la modification de la société. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : un PDF émis ne change pas après la modification de la société. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [invoices.integration.test.ts](../../apps/backend/src/routes/invoices.integration.test.ts) — « un PDF émis ne change pas après la modification de la société », passed, 2026-10-16T17:19:08.745Z
+Preuves : [invoices.integration.test.ts](../../apps/backend/src/routes/invoices.integration.test.ts) — « un PDF émis ne change pas après la modification de la société », passed, 2026-10-17T08:25:43.586Z
 
 ## T35 — Numérotation concurrente — PASS
 
@@ -446,9 +438,9 @@ Actions utilisateur / API : Créer vingt factures simultanément.
 
 Attendu : Vingt numéros uniques, aucun document perdu.
 
-Observé : Assertions exécutées et réussies : vingt créations concurrentes obtiennent vingt numéros différents. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : vingt créations concurrentes obtiennent vingt numéros différents. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [invoices.integration.test.ts](../../apps/backend/src/routes/invoices.integration.test.ts) — « vingt créations concurrentes obtiennent vingt numéros différents », passed, 2026-10-16T17:19:08.745Z
+Preuves : [invoices.integration.test.ts](../../apps/backend/src/routes/invoices.integration.test.ts) — « vingt créations concurrentes obtiennent vingt numéros différents », passed, 2026-10-17T08:25:43.586Z
 
 ## T36 — Seuils 99,99 / 100 / 100,01 € — PASS
 
@@ -458,9 +450,9 @@ Actions utilisateur / API : Émettre les trois montants et examiner leurs mentio
 
 Attendu : Montants exacts et document complet sur demande, sans promesse légale.
 
-Observé : Assertions exécutées et réussies : émet les seuils 99,99, 100 et 100,01 avec document complet et PDF historique exact. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : émet les seuils 99,99, 100 et 100,01 avec document complet et PDF historique exact. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [invoices.integration.test.ts](../../apps/backend/src/routes/invoices.integration.test.ts) — « émet les seuils 99,99, 100 et 100,01 avec document complet et PDF historique exact », passed, 2026-10-16T17:19:08.745Z
+Preuves : [invoices.integration.test.ts](../../apps/backend/src/routes/invoices.integration.test.ts) — « émet les seuils 99,99, 100 et 100,01 avec document complet et PDF historique exact », passed, 2026-10-17T08:25:43.586Z
 
 ## T37 — Document multipage — PASS
 
@@ -470,9 +462,9 @@ Actions utilisateur / API : Générer et ouvrir le PDF produit.
 
 Attendu : Vrai PDF paginé et métadonnées cohérentes.
 
-Observé : Assertions exécutées et réussies : produit un PDF ouvrable, paginé, avec noms accentués. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : produit un PDF ouvrable, paginé, avec noms accentués. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [invoice-pdf.test.ts](../../apps/backend/src/lib/invoice-pdf.test.ts) — « produit un PDF ouvrable, paginé, avec noms accentués », passed, 2026-10-16T17:18:59.484Z
+Preuves : [invoice-pdf.test.ts](../../apps/backend/src/lib/invoice-pdf.test.ts) — « produit un PDF ouvrable, paginé, avec noms accentués », passed, 2026-10-17T08:27:33.443Z
 
 ## T38 — Export fiscal réconcilié — PASS
 
@@ -482,9 +474,9 @@ Actions utilisateur / API : Exporter les écritures puis comparer les catégorie
 
 Attendu : Ventes, documents, encaissements et trésorerie séparés.
 
-Observé : Assertions exécutées et réussies : exporte les pièces signées séparément, sans créer une deuxième vente ; la facture depuis ticket ne rajoute pas une vente ; avoir et remboursement restent distincts. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : exporte les pièces signées séparément, sans créer une deuxième vente ; la facture depuis ticket ne rajoute pas une vente ; avoir et remboursement restent distincts. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [credit-notes.integration.test.ts](../../apps/backend/src/routes/credit-notes.integration.test.ts) — « exporte les pièces signées séparément, sans créer une deuxième vente », passed, 2026-10-16T17:19:08.745Z ; [financial-reconciliation.test.ts](../../apps/backend/src/lib/financial-reconciliation.test.ts) — « la facture depuis ticket ne rajoute pas une vente ; avoir et remboursement restent distincts », passed, 2026-10-16T17:18:59.484Z
+Preuves : [credit-notes.integration.test.ts](../../apps/backend/src/routes/credit-notes.integration.test.ts) — « exporte les pièces signées séparément, sans créer une deuxième vente », passed, 2026-10-17T08:25:19.395Z ; [financial-reconciliation.test.ts](../../apps/backend/src/lib/financial-reconciliation.test.ts) — « la facture depuis ticket ne rajoute pas une vente ; avoir et remboursement restent distincts », passed, 2026-10-17T08:27:38.035Z
 
 ## T39 — Acceptation de devis et conversion unique — PASS
 
@@ -494,9 +486,9 @@ Actions utilisateur / API : Convertir deux fois concurremment.
 
 Attendu : Une seule facture et lien de provenance.
 
-Observé : Assertions exécutées et réussies : convertit un devis concurremment une seule fois, conserve son lien et retrouve la facture après réponse perdue ; gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : convertit un devis concurremment une seule fois, conserve son lien et retrouve la facture après réponse perdue ; gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [invoices.integration.test.ts](../../apps/backend/src/routes/invoices.integration.test.ts) — « convertit un devis concurremment une seule fois, conserve son lien et retrouve la facture après réponse perdue », passed, 2026-10-16T17:19:08.745Z ; [business-extended.spec.ts](../../tests/browser-lab/business-extended.spec.ts) — « gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis », passed, 2026-10-16T17:20:05.787Z
+Preuves : [invoices.integration.test.ts](../../apps/backend/src/routes/invoices.integration.test.ts) — « convertit un devis concurremment une seule fois, conserve son lien et retrouve la facture après réponse perdue », passed, 2026-10-17T08:25:43.586Z ; [business-extended.spec.ts](../../tests/browser-lab/business-extended.spec.ts) — « gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis », passed, 2026-10-17T08:30:22.536Z
 
 ## T40 — Facturation électronique XML — BLOCKED
 
@@ -508,7 +500,7 @@ Attendu : Rejet clair et statut de canal distinct de génération.
 
 Observé : Format/canal Peppol ou MyGuichet non qualifié ; aucun accès de recette disponible.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -522,7 +514,7 @@ Attendu : Capture exacte vérifiée et affectée une seule fois.
 
 Observé : Aucune clé sandbox fournie au laboratoire ; aucun appel PayPal distant effectué.
 
-Catégorie du blocage : EXTERNAL (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : EXTERNAL ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -534,9 +526,9 @@ Actions utilisateur / API : Refuser l’autorisation/capture et revenir à la ca
 
 Attendu : Refus explicite et aucun paiement confirmé.
 
-Observé : Assertions exécutées et réussies : un refus bancaire simulé est visible à rapprocher sans fausse capture ni libération de réserve. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : un refus bancaire simulé est visible à rapprocher sans fausse capture ni libération de réserve. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « un refus bancaire simulé est visible à rapprocher sans fausse capture ni libération de réserve », passed, 2026-10-16T17:19:08.745Z
+Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « un refus bancaire simulé est visible à rapprocher sans fausse capture ni libération de réserve », passed, 2026-10-17T08:25:45.281Z
 
 ## T43 — Abandon de paiement — PASS
 
@@ -546,9 +538,9 @@ Actions utilisateur / API : Abandonner l’approbation puis revenir tardivement.
 
 Attendu : Pas de fausse capture ; réserve libérée seulement sur preuve applicable.
 
-Observé : Assertions exécutées et réussies : un abandon acheteur puis son retour tardif ne vaut jamais annulation bancaire ou paiement. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : un abandon acheteur puis son retour tardif ne vaut jamais annulation bancaire ou paiement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « un abandon acheteur puis son retour tardif ne vaut jamais annulation bancaire ou paiement », passed, 2026-10-16T17:19:08.745Z
+Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « un abandon acheteur puis son retour tardif ne vaut jamais annulation bancaire ou paiement », passed, 2026-10-17T08:25:45.281Z
 
 ## T44 — Timeout après débit ambigu — PASS
 
@@ -558,9 +550,9 @@ Actions utilisateur / API : Perdre la réponse puis tenter une autre référence
 
 Attendu : Deuxième débit refusé, résultat incertain conservé.
 
-Observé : Assertions exécutées et réussies : après timeout une nouvelle référence ne déclenche pas un autre débit ; un timeout conserve la réservation et n’émet jamais un deuxième remboursement. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : après timeout une nouvelle référence ne déclenche pas un autre débit ; un timeout conserve la réservation et n’émet jamais un deuxième remboursement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « après timeout une nouvelle référence ne déclenche pas un autre débit », passed, 2026-10-16T17:19:08.745Z ; [refunds.integration.test.ts](../../apps/backend/src/routes/refunds.integration.test.ts) — « un timeout conserve la réservation et n’émet jamais un deuxième remboursement », passed, 2026-10-16T17:19:08.745Z
+Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « après timeout une nouvelle référence ne déclenche pas un autre débit », passed, 2026-10-17T08:25:45.281Z ; [refunds.integration.test.ts](../../apps/backend/src/routes/refunds.integration.test.ts) — « un timeout conserve la réservation et n’émet jamais un deuxième remboursement », passed, 2026-10-17T08:25:32.548Z
 
 ## T45 — Webhook dupliqué — PASS
 
@@ -570,9 +562,9 @@ Actions utilisateur / API : Recevoir deux fois le même événement.
 
 Attendu : Une seule affectation et un seul débit de stock.
 
-Observé : Assertions exécutées et réussies : deux notifications vérifiées du même événement produisent une seule affectation. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : deux notifications vérifiées du même événement produisent une seule affectation. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « deux notifications vérifiées du même événement produisent une seule affectation », passed, 2026-10-16T17:19:08.745Z
+Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « deux notifications vérifiées du même événement produisent une seule affectation », passed, 2026-10-17T08:25:45.281Z
 
 ## T46 — Webhook avant retour navigateur — PASS
 
@@ -582,9 +574,9 @@ Actions utilisateur / API : Recevoir le webhook avant le retour, puis revenir et
 
 Attendu : Écriture unique, navigateur non source de vérité.
 
-Observé : Assertions exécutées et réussies : un webhook vérifié avant le retour puis deux retours navigateur ne créent qu’un seul règlement. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : un webhook vérifié avant le retour puis deux retours navigateur ne créent qu’un seul règlement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « un webhook vérifié avant le retour puis deux retours navigateur ne créent qu’un seul règlement », passed, 2026-10-16T17:19:08.745Z
+Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « un webhook vérifié avant le retour puis deux retours navigateur ne créent qu’un seul règlement », passed, 2026-10-17T08:25:45.281Z
 
 ## T47 — Signature falsifiée — PASS
 
@@ -594,9 +586,9 @@ Actions utilisateur / API : Envoyer le corps falsifié.
 
 Attendu : Rejet sans marquer payé.
 
-Observé : Assertions exécutées et réussies : rejette un webhook non vérifié sans marquer payé ; vérifie la signature Stripe sur le corps brut et déduplique l’événement. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : rejette un webhook non vérifié sans marquer payé ; vérifie la signature Stripe sur le corps brut et déduplique l’événement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « rejette un webhook non vérifié sans marquer payé », passed, 2026-10-16T17:19:08.745Z ; [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « vérifie la signature Stripe sur le corps brut et déduplique l’événement », passed, 2026-10-16T17:19:08.745Z
+Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « rejette un webhook non vérifié sans marquer payé », passed, 2026-10-17T08:25:45.281Z ; [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « vérifie la signature Stripe sur le corps brut et déduplique l’événement », passed, 2026-10-17T08:25:45.281Z
 
 ## T48 — Montant, devise ou marchand incohérent — PASS
 
@@ -606,9 +598,9 @@ Actions utilisateur / API : Soumettre montant/devise incohérents puis preuve in
 
 Attendu : Aucune confirmation de paiement.
 
-Observé : Assertions exécutées et réussies : refuse un prix navigateur différent du solde serveur ; refuse la devise différente de la société ; une capture sans montant ou marchand vérifié ne marque jamais payé. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : refuse un prix navigateur différent du solde serveur ; refuse la devise différente de la société ; une capture sans montant ou marchand vérifié ne marque jamais payé. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « refuse un prix navigateur différent du solde serveur », passed, 2026-10-16T17:19:08.745Z ; [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « refuse la devise différente de la société », passed, 2026-10-16T17:19:08.745Z ; [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « une capture sans montant ou marchand vérifié ne marque jamais payé », passed, 2026-10-16T17:19:08.745Z
+Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « refuse un prix navigateur différent du solde serveur », passed, 2026-10-17T08:25:45.281Z ; [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « refuse la devise différente de la société », passed, 2026-10-17T08:25:45.281Z ; [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « une capture sans montant ou marchand vérifié ne marque jamais payé », passed, 2026-10-17T08:25:45.281Z
 
 ## T49 — Événements désordonnés — PASS
 
@@ -618,9 +610,9 @@ Actions utilisateur / API : Recevoir ensuite un timeout de création tardif.
 
 Attendu : SUCCEEDED ne redescend jamais en UNKNOWN.
 
-Observé : Assertions exécutées et réussies : un timeout de création tardif ne rétrograde pas une preuve déjà confirmée par rapprochement. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : un timeout de création tardif ne rétrograde pas une preuve déjà confirmée par rapprochement. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [refunds.integration.test.ts](../../apps/backend/src/routes/refunds.integration.test.ts) — « un timeout de création tardif ne rétrograde pas une preuve déjà confirmée par rapprochement », passed, 2026-10-16T17:19:08.745Z
+Preuves : [refunds.integration.test.ts](../../apps/backend/src/routes/refunds.integration.test.ts) — « un timeout de création tardif ne rétrograde pas une preuve déjà confirmée par rapprochement », passed, 2026-10-17T08:25:32.548Z
 
 ## T50 — Remboursement partiel — PASS
 
@@ -630,9 +622,9 @@ Actions utilisateur / API : Demander un remboursement puis fournir sa preuve exa
 
 Attendu : Demande distincte du remboursement confirmé, aucune double réserve.
 
-Observé : Assertions exécutées et réussies : une demande ne signifie pas remboursé ; une preuve exacte confirme une seule fois ; deux références concurrentes ne réservent pas plus que l’avoir. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : une demande ne signifie pas remboursé ; une preuve exacte confirme une seule fois ; deux références concurrentes ne réservent pas plus que l’avoir. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [refunds.integration.test.ts](../../apps/backend/src/routes/refunds.integration.test.ts) — « une demande ne signifie pas remboursé ; une preuve exacte confirme une seule fois », passed, 2026-10-16T17:19:08.745Z ; [refunds.integration.test.ts](../../apps/backend/src/routes/refunds.integration.test.ts) — « deux références concurrentes ne réservent pas plus que l’avoir », passed, 2026-10-16T17:19:08.745Z
+Preuves : [refunds.integration.test.ts](../../apps/backend/src/routes/refunds.integration.test.ts) — « une demande ne signifie pas remboursé ; une preuve exacte confirme une seule fois », passed, 2026-10-17T08:25:32.548Z ; [refunds.integration.test.ts](../../apps/backend/src/routes/refunds.integration.test.ts) — « deux références concurrentes ne réservent pas plus que l’avoir », passed, 2026-10-17T08:25:32.548Z
 
 ## T51 — Deux paiements du même solde — PASS
 
@@ -642,9 +634,9 @@ Actions utilisateur / API : Demander deux captures.
 
 Attendu : Une seule réserve active autorisée.
 
-Observé : Assertions exécutées et réussies : réserve le solde contre deux références concurrentes. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : réserve le solde contre deux références concurrentes. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « réserve le solde contre deux références concurrentes », passed, 2026-10-16T17:19:08.745Z
+Preuves : [payments.integration.test.ts](../../apps/backend/src/routes/payments.integration.test.ts) — « réserve le solde contre deux références concurrentes », passed, 2026-10-17T08:25:45.281Z
 
 ## T52 — Espèces et carte — PASS
 
@@ -654,9 +646,9 @@ Actions utilisateur / API : Déclarer les deux moyens puis consulter le solde.
 
 Attendu : Moyens conservés, somme exacte, carte explicitement déclarée.
 
-Observé : Assertions exécutées et réussies : un paiement mixte partiel conserve espèces et carte sans payer le reste. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : un paiement mixte partiel conserve espèces et carte sans payer le reste. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [orders.integration.test.ts](../../apps/backend/src/routes/orders.integration.test.ts) — « un paiement mixte partiel conserve espèces et carte sans payer le reste », passed, 2026-10-16T17:19:08.745Z
+Preuves : [orders.integration.test.ts](../../apps/backend/src/routes/orders.integration.test.ts) — « un paiement mixte partiel conserve espèces et carte sans payer le reste », passed, 2026-10-17T08:25:46.768Z
 
 ## T53 — Terminal autonome déclaré — PASS
 
@@ -666,9 +658,9 @@ Actions utilisateur / API : Déclarer une correction carte avec référence et m
 
 Attendu : Déclaration auditée, pas de fausse sortie espèces ni vérification bancaire.
 
-Observé : Assertions exécutées et réussies : une carte déclarée ne crée aucune sortie espèces, reste auditée et plafonnée. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : une carte déclarée ne crée aucune sortie espèces, reste auditée et plafonnée. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [refunds.integration.test.ts](../../apps/backend/src/routes/refunds.integration.test.ts) — « une carte déclarée ne crée aucune sortie espèces, reste auditée et plafonnée », passed, 2026-10-16T17:19:08.745Z
+Preuves : [refunds.integration.test.ts](../../apps/backend/src/routes/refunds.integration.test.ts) — « une carte déclarée ne crée aucune sortie espèces, reste auditée et plafonnée », passed, 2026-10-17T08:25:32.548Z
 
 ## T54 — Paiement en attente — PASS
 
@@ -678,9 +670,9 @@ Actions utilisateur / API : Tenter un encaissement manuel concurrent.
 
 Attendu : Solde non annoncé payé et nouveau règlement refusé.
 
-Observé : Assertions exécutées et réussies : une tentative incertaine empêche un second encaissement manuel ; une capture PayPal en cours empêche le règlement à une autre caisse. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : une tentative incertaine empêche un second encaissement manuel ; une capture PayPal en cours empêche le règlement à une autre caisse. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [orders.integration.test.ts](../../apps/backend/src/routes/orders.integration.test.ts) — « une tentative incertaine empêche un second encaissement manuel », passed, 2026-10-16T17:19:08.745Z ; [pos.integration.test.ts](../../apps/backend/src/routes/pos.integration.test.ts) — « une capture PayPal en cours empêche le règlement à une autre caisse », passed, 2026-10-16T17:19:08.745Z
+Preuves : [orders.integration.test.ts](../../apps/backend/src/routes/orders.integration.test.ts) — « une tentative incertaine empêche un second encaissement manuel », passed, 2026-10-17T08:25:46.768Z ; [pos.integration.test.ts](../../apps/backend/src/routes/pos.integration.test.ts) — « une capture PayPal en cours empêche le règlement à une autre caisse », passed, 2026-10-17T08:25:41.135Z
 
 ## T55 — Frais, net, brut et versements — PASS
 
@@ -690,9 +682,9 @@ Actions utilisateur / API : Importer, rejouer et rapprocher manuellement.
 
 Attendu : Frais/retenues/net distincts des ventes et des encaissements.
 
-Observé : Assertions exécutées et réussies : importe et rapproche manuellement une capture, ses frais et son net sans ajouter une vente ; rapproche capture, remboursement confirmé, frais, retenue et libération sans modifier la vente. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : importe et rapproche manuellement une capture, ses frais et son net sans ajouter une vente ; rapproche capture, remboursement confirmé, frais, retenue et libération sans modifier la vente. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [bank-payouts.integration.test.ts](../../apps/backend/src/routes/bank-payouts.integration.test.ts) — « importe et rapproche manuellement une capture, ses frais et son net sans ajouter une vente », passed, 2026-10-16T17:19:08.745Z ; [refunds.integration.test.ts](../../apps/backend/src/routes/refunds.integration.test.ts) — « rapproche capture, remboursement confirmé, frais, retenue et libération sans modifier la vente », passed, 2026-10-16T17:19:08.745Z
+Preuves : [bank-payouts.integration.test.ts](../../apps/backend/src/routes/bank-payouts.integration.test.ts) — « importe et rapproche manuellement une capture, ses frais et son net sans ajouter une vente », passed, 2026-10-17T08:25:58.835Z ; [refunds.integration.test.ts](../../apps/backend/src/routes/refunds.integration.test.ts) — « rapproche capture, remboursement confirmé, frais, retenue et libération sans modifier la vente », passed, 2026-10-17T08:25:32.548Z
 
 ## T56 — Abonnement SaaS séparé des recettes — BLOCKED
 
@@ -704,7 +696,7 @@ Attendu : Aucune recette client vers le marchand SaaS.
 
 Observé : Onboarding multicommerçant officiel et comptes prestataires de recette non disponibles.
 
-Catégorie du blocage : EXTERNAL (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : EXTERNAL ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -718,7 +710,7 @@ Attendu : Lisible, complet et largeur réelle correcte.
 
 Observé : Aucune imprimante thermique 58 mm raccordée et qualifiée.
 
-Catégorie du blocage : EXTERNAL (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : EXTERNAL ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -732,7 +724,7 @@ Attendu : Lisible, complet et massicot correct.
 
 Observé : Aucune imprimante thermique 80 mm raccordée et qualifiée.
 
-Catégorie du blocage : EXTERNAL (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : EXTERNAL ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -746,7 +738,7 @@ Attendu : Aucun caractère manquant.
 
 Observé : PDF logiciel seul insuffisant ; imprimante/codepage absents.
 
-Catégorie du blocage : EXTERNAL (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : EXTERNAL ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -760,7 +752,7 @@ Attendu : QR résolu vers la bonne session et aucun accès permanent.
 
 Observé : Aucun couple imprimante/lecteur disponible pour cet essai.
 
-Catégorie du blocage : EXTERNAL (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : EXTERNAL ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -774,7 +766,7 @@ Attendu : Erreur ou résultat inconnu honnête, tâche conservée.
 
 Observé : Matériel et agent d’impression persistante non qualifiés.
 
-Catégorie du blocage : EXTERNAL (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : EXTERNAL ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -788,7 +780,7 @@ Attendu : Reprise explicite sans fausse preuve papier.
 
 Observé : Aucun appareil pour cet essai physique.
 
-Catégorie du blocage : EXTERNAL (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : EXTERNAL ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -802,7 +794,7 @@ Attendu : Statut inconnu, vérification ou duplicata explicite.
 
 Observé : File persistante et imprimante à qualifier ; pas assimilé à une perte de réponse HTTP métier.
 
-Catégorie du blocage : EXTERNAL (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : EXTERNAL ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -816,7 +808,7 @@ Attendu : Même référence, aucune nouvelle écriture.
 
 Observé : Réimpression thermique de duplicata non qualifiée : matériel et commande persistante absents. Les relectures HTML seules ne prouvent pas ce parcours physique.
 
-Catégorie du blocage : EXTERNAL (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : EXTERNAL ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -830,7 +822,7 @@ Attendu : Aucune impulsion tiroir.
 
 Observé : Aucun tiroir raccordé ; aucune impulsion déclenchée.
 
-Catégorie du blocage : EXTERNAL (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : EXTERNAL ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -844,7 +836,7 @@ Attendu : Pas de troncature.
 
 Observé : Multipage A4 testé ; ticket thermique de cent lignes non testé physiquement.
 
-Catégorie du blocage : EXTERNAL (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : EXTERNAL ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -856,9 +848,9 @@ Actions utilisateur / API : Émettre et envoyer, puis lire le message reçu.
 
 Attendu : Une pièce jointe PDF identique à l’original, une seule réception locale.
 
-Observé : Assertions exécutées et réussies : reçoit le même PDF original dans la boîte locale, une fois malgré le rejeu. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : reçoit le même PDF original dans la boîte locale, une fois malgré le rejeu. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [invoice-email.integration.test.ts](../../apps/backend/src/routes/invoice-email.integration.test.ts) — « reçoit le même PDF original dans la boîte locale, une fois malgré le rejeu », passed, 2026-10-16T17:19:08.745Z
+Preuves : [invoice-email.integration.test.ts](../../apps/backend/src/routes/invoice-email.integration.test.ts) — « reçoit le même PDF original dans la boîte locale, une fois malgré le rejeu », passed, 2026-10-17T08:25:58.044Z
 
 ## T68 — Accusé email perdu — PASS
 
@@ -868,11 +860,11 @@ Actions utilisateur / API : Relancer la demande d’envoi.
 
 Attendu : Pas de deuxième message ; état incertain honnête.
 
-Observé : Assertions exécutées et réussies : ne réexpédie pas après perte de l’accusé, même si le serveur a reçu le message. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : ne réexpédie pas après perte de l’accusé, même si le serveur a reçu le message. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [invoice-email.integration.test.ts](../../apps/backend/src/routes/invoice-email.integration.test.ts) — « ne réexpédie pas après perte de l’accusé, même si le serveur a reçu le message », passed, 2026-10-16T17:19:08.745Z
+Preuves : [invoice-email.integration.test.ts](../../apps/backend/src/routes/invoice-email.integration.test.ts) — « ne réexpédie pas après perte de l’accusé, même si le serveur a reçu le message », passed, 2026-10-17T08:25:58.044Z
 
-## T69 — Lien documentaire expiré — BLOCKED
+## T69 — Lien documentaire expiré — PASS
 
 Préconditions et données : Lien temporaire de document actif puis expiré.
 
@@ -880,11 +872,9 @@ Actions utilisateur / API : Télécharger après échéance.
 
 Attendu : Refus sans octets divulgués.
 
-Observé : Pas de lien documentaire signé temporaire implémenté. Les documents restent soumis à authentification et société ; l’expiration d’un QR n’est pas celle d’un document.
+Observé : Assertions réellement exécutées et réussies : refuse à l’échéance décidée par le serveur, indépendamment de l’horloge du navigateur ; sérialise téléchargement/révocation et refuse toutes les demandes après révocation confirmée ; documents métier : vrai PDF au clavier, rejeu, rechargement et révocation sans octets divulgués. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
-
-Preuves : Aucune exécution complète du scénario revendiquée.
+Preuves : [invoice-document-links.integration.test.ts](../../apps/backend/src/routes/invoice-document-links.integration.test.ts) — « refuse à l’échéance décidée par le serveur, indépendamment de l’horloge du navigateur », passed, 2026-10-17T08:25:48.597Z ; [invoice-document-links.integration.test.ts](../../apps/backend/src/routes/invoice-document-links.integration.test.ts) — « sérialise téléchargement/révocation et refuse toutes les demandes après révocation confirmée », passed, 2026-10-17T08:25:48.597Z ; [reliability-documents.spec.ts](../../tests/browser-lab/reliability-documents.spec.ts) — « documents métier : vrai PDF au clavier, rejeu, rechargement et révocation sans octets divulgués », passed, 2026-10-17T08:27:24.276Z
 
 ## T70 — Pièce étrangère inaccessible — PASS
 
@@ -894,9 +884,9 @@ Actions utilisateur / API : Lire/télécharger une pièce d’un autre dossier o
 
 Attendu : 403/404 sans contenu.
 
-Observé : Assertions exécutées et réussies : refuse lecture, téléchargement et écriture hors de son propre dossier ; télécharge un vrai PDF original figé de l’avoir et refuse le document étranger. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : refuse lecture, téléchargement et écriture hors de son propre dossier ; télécharge un vrai PDF original figé de l’avoir et refuse le document étranger. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [hr-documents.integration.test.ts](../../apps/backend/src/routes/hr-documents.integration.test.ts) — « refuse lecture, téléchargement et écriture hors de son propre dossier », passed, 2026-10-16T17:19:08.745Z ; [credit-notes.integration.test.ts](../../apps/backend/src/routes/credit-notes.integration.test.ts) — « télécharge un vrai PDF original figé de l’avoir et refuse le document étranger », passed, 2026-10-16T17:19:08.745Z
+Preuves : [hr-documents.integration.test.ts](../../apps/backend/src/routes/hr-documents.integration.test.ts) — « refuse lecture, téléchargement et écriture hors de son propre dossier », passed, 2026-10-17T08:25:56.068Z ; [credit-notes.integration.test.ts](../../apps/backend/src/routes/credit-notes.integration.test.ts) — « télécharge un vrai PDF original figé de l’avoir et refuse le document étranger », passed, 2026-10-17T08:25:19.395Z
 
 ## T71 — Table 3 addition ouverte après départ — BLOCKED
 
@@ -908,7 +898,7 @@ Attendu : Alerte prudente avec faits, délai et action humaine.
 
 Observé : Moteur d’alertes déterministe de départ déclaré non implémenté. Aucun événement de départ fictif ne peut traverser ce parcours inexistant ; vidéo non activée.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -922,7 +912,7 @@ Attendu : Alerte temporisée/clôturée sans action financière.
 
 Observé : Consommateur de retour humain lié aux alertes T71 non implémenté.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -936,7 +926,7 @@ Attendu : Pas d’accusation ni de débit automatique.
 
 Observé : Source d’occupation non qualifiée ; vidéo désactivée.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -950,7 +940,7 @@ Attendu : Alerte ne confond pas solde payé et départ.
 
 Observé : Raccordement paiement / résolution des alertes T71 non implémenté ; le paiement serveur est testé séparément.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -964,7 +954,7 @@ Attendu : Alerte suit la bonne identité sans doublon.
 
 Observé : Identité et suivi des alertes lors des transferts non implémentés ; aucun transfert financier n’est présenté comme un test du moteur absent.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -978,7 +968,7 @@ Attendu : Créance explicite et non incident de départ.
 
 Observé : Autorisation de crédit société et exemption d’alerte non modélisées / non implémentées ; une fiche client société seule ne vaut pas crédit approuvé.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -992,7 +982,7 @@ Attendu : État inconnu, caisse indépendante.
 
 Observé : Vidéo désactivée ; aucune caméra ni finalité validée.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1006,7 +996,7 @@ Attendu : Rapprochement suspendu.
 
 Observé : Pipeline vidéo non activé ni testé.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1020,7 +1010,7 @@ Attendu : Incertitude visible et association refusée.
 
 Observé : Aucun équipement/pipeline vidéo qualifié.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1034,7 +1024,7 @@ Attendu : Invalidation sans inventer une nouvelle association.
 
 Observé : Vidéo désactivée et calibration inexistante.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1048,7 +1038,7 @@ Attendu : Pas de double comptage ni vente supposée.
 
 Observé : Recherche séparée, pas de modèle ou de scène qualifiés.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1062,7 +1052,7 @@ Attendu : Événement général uniquement.
 
 Observé : Module vidéo non raccordé ; aucune association personnelle créée.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1076,7 +1066,7 @@ Attendu : Absence explicite, aucun contenu fabriqué.
 
 Observé : Aucun stockage vidéo ni connecteur qualifié.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1090,7 +1080,7 @@ Attendu : Pixels privés réellement absents.
 
 Observé : Aucun pipeline vidéo activé ; masques non prouvés.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1104,7 +1094,7 @@ Attendu : Aucune piste audio collectée ou conservée.
 
 Observé : Aucun flux multimédia utilisé ; absence de traitement ne vaut pas qualification technique.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1118,7 +1108,7 @@ Attendu : Clips et dérivés purgés selon politique.
 
 Observé : Vidéo désactivée, aucune durée validée.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1132,7 +1122,7 @@ Attendu : Refus et journal de consultation.
 
 Observé : Routes vidéo non déployées ; contrôle complet non exécuté.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1146,7 +1136,7 @@ Attendu : Vidéo suspendue avant impact sur la caisse.
 
 Observé : Volumes vidéo et matériel de test absents ; pas de remplissage du disque du PC.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1160,7 +1150,7 @@ Attendu : Rejet sans connexion interdite.
 
 Observé : Connecteur caméra non implémenté/qualifié ; pas de scan réseau.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1174,7 +1164,7 @@ Attendu : Échec borné sans compromettre la caisse.
 
 Observé : Aucun décodeur vidéo isolé en service.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1188,7 +1178,7 @@ Attendu : Doublon détecté sans double stock/écriture.
 
 Observé : Connecteur d’import de factures fournisseurs, pièce source et déduplication non raccordés. inventory-ai ancien n’est pas monté dans index.ts ; aucun OCR distant lancé.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1202,9 +1192,9 @@ Attendu : Stock augmenté seulement pour les quantités réellement reçues.
 
 Observé : Réception partielle et lien de facture non implémentés. Une requête partielle créditait tout le stock ; elle est maintenant refusée sans écriture. Ce garde-fou ne remplace pas la réception partielle.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
-Preuves : [business-extended.integration.test.ts](../../apps/backend/src/routes/business-extended.integration.test.ts) — « une demande de réception partielle non prise en charge ne crédite jamais toute la commande fournisseur », passed, 2026-10-16T17:19:08.745Z
+Preuves : [business-extended.integration.test.ts](../../apps/backend/src/routes/business-extended.integration.test.ts) — « une demande de réception partielle non prise en charge ne crédite jamais toute la commande fournisseur », passed, 2026-10-17T08:25:53.643Z
 
 ## T93 — Recettes et conversions stock — BLOCKED
 
@@ -1216,7 +1206,7 @@ Attendu : Débit exact et réversible avec provenance.
 
 Observé : Recette enregistrable mais unités / conversions et journal de consommation d’ingrédients non unifiés avec debitOrderInventory (produits uniquement). Ne pas présenter cette chaîne comme livrée.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1230,7 +1220,7 @@ Attendu : Écart explicite et historique de mouvements cohérent.
 
 Observé : Comptage/pertes avec pièces, mouvements durables cloisonnés et rapprochement unifiés non livrés ; éditer Ingredient.currentStock ne constitue pas un inventaire traçable.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1242,9 +1232,9 @@ Actions utilisateur / API : Réserver simultanément puis tenter modification et
 
 Attendu : Une réservation au créneau, dix-neuf conflits, pas de contournement.
 
-Observé : Assertions exécutées et réussies : une seule réservation gagne lors de vingt créations concurrentes sur le même créneau ; une modification ou réactivation ne peut pas contourner le conflit de table ; le filtre journalier suit Luxembourg, même lors du passage à l’heure d’été. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : une seule réservation gagne lors de vingt créations concurrentes sur le même créneau ; une modification ou réactivation ne peut pas contourner le conflit de table ; le filtre journalier suit Luxembourg, même lors du passage à l’heure d’été. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [reservations.integration.test.ts](../../apps/backend/src/routes/reservations.integration.test.ts) — « une seule réservation gagne lors de vingt créations concurrentes sur le même créneau », passed, 2026-10-16T17:19:08.745Z ; [reservations.integration.test.ts](../../apps/backend/src/routes/reservations.integration.test.ts) — « une modification ou réactivation ne peut pas contourner le conflit de table », passed, 2026-10-16T17:19:08.745Z ; [reservations.integration.test.ts](../../apps/backend/src/routes/reservations.integration.test.ts) — « le filtre journalier suit Luxembourg, même lors du passage à l’heure d’été », passed, 2026-10-16T17:19:08.745Z
+Preuves : [reservations.integration.test.ts](../../apps/backend/src/routes/reservations.integration.test.ts) — « une seule réservation gagne lors de vingt créations concurrentes sur le même créneau », passed, 2026-10-17T08:25:56.851Z ; [reservations.integration.test.ts](../../apps/backend/src/routes/reservations.integration.test.ts) — « une modification ou réactivation ne peut pas contourner le conflit de table », passed, 2026-10-17T08:25:56.851Z ; [reservations.integration.test.ts](../../apps/backend/src/routes/reservations.integration.test.ts) — « le filtre journalier suit Luxembourg, même lors du passage à l’heure d’été », passed, 2026-10-17T08:25:56.851Z
 
 ## T96 — QR d’ancienne session — PASS
 
@@ -1254,9 +1244,9 @@ Actions utilisateur / API : Relire addition et suivi, puis ouvrir la nouvelle vi
 
 Attendu : Ancienne capacité refusée, nouveau groupe isolé.
 
-Observé : Assertions exécutées et réussies : refuse un lien expiré et permet une nouvelle visite sans réutiliser l’ancien lien ; ferme les accès sans effacer une créance, puis isole la nouvelle visite ; fusion POS/QR, acompte, réponse perdue et addition privée renouvelée. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : refuse un lien expiré et permet une nouvelle visite sans réutiliser l’ancien lien ; ferme les accès sans effacer une créance, puis isole la nouvelle visite ; fusion POS/QR, acompte, réponse perdue et addition privée renouvelée. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [guest-visits.integration.test.ts](../../apps/backend/src/routes/guest-visits.integration.test.ts) — « refuse un lien expiré et permet une nouvelle visite sans réutiliser l’ancien lien », passed, 2026-10-16T17:19:08.745Z ; [guest-visits.integration.test.ts](../../apps/backend/src/routes/guest-visits.integration.test.ts) — « ferme les accès sans effacer une créance, puis isole la nouvelle visite », passed, 2026-10-16T17:19:08.745Z ; [qr-movements.spec.ts](../../tests/browser-lab/qr-movements.spec.ts) — « fusion POS/QR, acompte, réponse perdue et addition privée renouvelée », passed, 2026-10-16T17:21:22.913Z
+Preuves : [guest-visits.integration.test.ts](../../apps/backend/src/routes/guest-visits.integration.test.ts) — « refuse un lien expiré et permet une nouvelle visite sans réutiliser l’ancien lien », passed, 2026-10-17T08:25:49.842Z ; [guest-visits.integration.test.ts](../../apps/backend/src/routes/guest-visits.integration.test.ts) — « ferme les accès sans effacer une créance, puis isole la nouvelle visite », passed, 2026-10-17T08:25:49.842Z ; [qr-movements.spec.ts](../../tests/browser-lab/qr-movements.spec.ts) — « fusion POS/QR, acompte, réponse perdue et addition privée renouvelée », passed, 2026-10-17T08:32:24.184Z
 
 ## T97 — Congé selon rôle — PASS
 
@@ -1266,9 +1256,9 @@ Actions utilisateur / API : Déposer, approuver et relire une demande avec chaqu
 
 Attendu : Salarié limité à sa demande, responsable habilité.
 
-Observé : Assertions exécutées et réussies : un congé ne fuit pas vers le collègue ; seul le responsable approuve et l’état persiste. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : un congé ne fuit pas vers le collègue ; seul le responsable approuve et l’état persiste. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [business-extended.integration.test.ts](../../apps/backend/src/routes/business-extended.integration.test.ts) — « un congé ne fuit pas vers le collègue ; seul le responsable approuve et l’état persiste », passed, 2026-10-16T17:19:08.745Z
+Preuves : [business-extended.integration.test.ts](../../apps/backend/src/routes/business-extended.integration.test.ts) — « un congé ne fuit pas vers le collègue ; seul le responsable approuve et l’état persiste », passed, 2026-10-17T08:25:53.643Z
 
 ## T98 — HACCP sans mesure inventée — PASS
 
@@ -1278,9 +1268,9 @@ Actions utilisateur / API : Ouvrir une tâche sans mesure puis valider manuellem
 
 Attendu : Valeur manquante explicite, auteur et source manuels.
 
-Observé : Assertions exécutées et réussies : une température manquante ne devient ni zéro ni conforme ; la mesure saisie est identifiée manuelle ; gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis. Portée : laboratoire logiciel, banque simulée lorsqu’impliquée, aucune preuve matérielle.
+Observé : Assertions réellement exécutées et réussies : une température manquante ne devient ni zéro ni conforme ; la mesure saisie est identifiée manuelle ; gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis. Portée : laboratoire logiciel ; prestataires et incidents simulés lorsqu’indiqués. Pas de preuve matérielle ou bancaire réelle.
 
-Preuves : [business-extended.integration.test.ts](../../apps/backend/src/routes/business-extended.integration.test.ts) — « une température manquante ne devient ni zéro ni conforme ; la mesure saisie est identifiée manuelle », passed, 2026-10-16T17:19:08.745Z ; [business-extended.spec.ts](../../tests/browser-lab/business-extended.spec.ts) — « gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis », passed, 2026-10-16T17:20:05.787Z
+Preuves : [business-extended.integration.test.ts](../../apps/backend/src/routes/business-extended.integration.test.ts) — « une température manquante ne devient ni zéro ni conforme ; la mesure saisie est identifiée manuelle », passed, 2026-10-17T08:25:53.643Z ; [business-extended.spec.ts](../../tests/browser-lab/business-extended.spec.ts) — « gestion Chrome : température manuelle, erreur visible, persistance et conversion du devis », passed, 2026-10-17T08:30:22.536Z
 
 ## T99 — Langues et responsive — BLOCKED
 
@@ -1292,7 +1282,7 @@ Attendu : Pas de débordement, focus visible et texte traduit.
 
 Observé : Traductions complètes des écrans métier non implémentées (textes français codés dans les pages, sélecteur global partiel). Les fenêtres testées à 375/768/1440 et au clavier ne valident pas toutes les langues / le zoom global.
 
-Catégorie du blocage : UNIMPLEMENTED (voir ALLOCATION-FINANCIERE-ET-RECETTE.md).
+Catégorie du blocage : UNIMPLEMENTED ; voir [BLOCAGES-FIABILITE.md](BLOCAGES-FIABILITE.md).
 
 Preuves : Aucune exécution complète du scénario revendiquée.
 
@@ -1304,6 +1294,6 @@ Actions utilisateur / API : Cliquer chaque contrôle et vérifier sa persistance
 
 Attendu : Aucune action fantôme, erreurs honnêtes et droits respectés.
 
-Observé : Inventaire actuel 399 fichiers / 3 680 contrôles / 157 routes / 826 gabarits ; 28 parcours Chrome ciblés dans dix fichiers, incluant modules, planning, portail et relecture réelle salle. [Rapport courant](PROFIL-PROFESSIONNEL-SANS-JEUX.md), [preuves ciblées](preuves/business-only-validation-2026-10-16.json), [inventaire source](preuves/business-only-inventaire-t100-2026-10-16.jsonl). Toutes les entrées statiques restent NOT RUN ; jeux classés profil complet, pas supprimés. Instances rendues, tous les rôles et variantes erreur/persistance restent à terminer. Aucun PASS global déduit du scan ni travail restant caché en BLOCKED.
+Observé : Inventaire JSX/handlers/routes reproductible réalisé dans cinq apps et parcours Chrome critiques étendus exécutés ; preuves dans T100-CONTROLES-ET-PERFORMANCE.md. Les instances rendues, tous les rôles et variantes erreur/persistance restent à terminer : aucun PASS global déduit du scan. Aucun accès manquant ne justifie de cacher ce travail en BLOCKED.
 
 Preuves : Aucune exécution complète du scénario revendiquée.
