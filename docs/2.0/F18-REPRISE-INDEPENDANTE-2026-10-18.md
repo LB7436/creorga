@@ -1,7 +1,9 @@
 # F18-L3 — reprise indépendante autorisée le 18 octobre 2026
 
 État final : contre-essais Chrome notes/drainage GREEN, trois arrêts normaux,
-restauration82tables/21466lignes/14fichiers/26PDF égaux. Correctifs validés,
+restauration82tables/21466lignes/14fichiers/26PDF égaux. Correctifs publiés sous
+[`087a2b82b5f756316a1ee94c47106f8ad829aa13`](https://github.com/LB7436/creorga/commit/087a2b82b5f756316a1ee94c47106f8ad829aa13),
+PC/GitHub vérifiés identiques après push sur la seule branche2.0 ;
 campagne **NON LIVRÉE**, pilote **NON QUALIFIÉ**. Le complément final et le registre
 en fin de document priment sur le point15:55UTC conservé ci-dessous.
 

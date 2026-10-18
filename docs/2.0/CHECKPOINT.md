@@ -2,10 +2,20 @@
 
 ## F18-L3 — état final vérifié du18octobre, après16:49UTC
 
-**Correctifs validés, publication sur la branche2.0 en préparation ; campagne
-NON LIVRÉE ; pilote NON QUALIFIÉ.** Le présent état prime sur les checkpoints
+**Correctifs publiés et vérifiés sur GitHub ; campagne NON LIVRÉE ; pilote
+NON QUALIFIÉ.** Commit logiciel/documentaire
+[`087a2b82b5f756316a1ee94c47106f8ad829aa13`](https://github.com/LB7436/creorga/commit/087a2b82b5f756316a1ee94c47106f8ad829aa13),
+PC et branche distante identiques au relevé après push. Le présent état prime sur les checkpoints
 intermédiaires conservés ci-dessous. Base `ab0d735f60f01bbfd0c7f914a43c2b997f280e2e`,
 branche `codex/creorga-2-0-2026-10-08`, master inchangé. Profil métier sans jeux.
+
+La mise à jour présente est documentaire, sans changement du code testé.
+Master distant reste `350b35120f44d2508d863a3a73f644eb0aa6b141` ; aucune branche
+master locale recréée. La preuve machine L3 est datée avant commit et conserve
+son empreinte ; son champ « awaiting commit » décrit cet instant, pas le statut
+de publication actuel. Aucun déploiement ni CI distante déclaré réussi ; les
+suites et compilations citées sont les exécutions locales datées.
+
 [Rapport L3](F18-REPRISE-INDEPENDANTE-2026-10-18.md),
 [preuve machine](preuves/f18-l3-validation-2026-10-18.json),
 [18parcours et prochaines actions](RECETTE-FINALE-18-PARCOURS-2026-10-18.md).
