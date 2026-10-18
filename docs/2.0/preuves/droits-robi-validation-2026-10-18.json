@@ -1806,5 +1806,15 @@
   "noProductionDeployment": true,
   "noHistoricalProfilesOpened": true,
   "noArchivesDeleted": true,
-  "recordStatus": "FINAL_CODE_VALIDATED_CAMPAIGN_PARTIAL_PENDING_PUBLICATION"
+  "recordStatus": "CODE_COMMIT_PUBLISHED_CAMPAIGN_PARTIAL",
+  "publication": {
+    "codeCommit": "f136bdd72c32405e955f1dbdf9655162a9d5aa34",
+    "codeCommitUrl": "https://github.com/LB7436/creorga/commit/f136bdd72c32405e955f1dbdf9655162a9d5aa34",
+    "branch": "codex/creorga-2-0-2026-10-08",
+    "codeCommitConfirmedOnPcAndRemote": true,
+    "followingCheckpointCommitIsDocumentationOnly": true,
+    "masterUnchanged": "350b35120f44d2508d863a3a73f644eb0aa6b141",
+    "noDeployment": true,
+    "remoteCiExecutionAttested": false
+  }
 }

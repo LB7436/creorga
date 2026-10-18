@@ -1,6 +1,13 @@
 # Droits fins, Robi et recette multi-établissements — 18 octobre 2026
 
-**Campagne NON LIVRÉE ; pilote NON QUALIFIÉ.** Le code correctif validé peut être publié sur la seule branche `codex/creorga-2-0-2026-10-08` ; cette publication n'est pas la fin de la recette. Base vérifiée : `976b21a500f58d09fdca33616a9c243a66ae5161`. Aucun déploiement, changement de master, encaissement bancaire, purge ou ouverture de profil historique.
+**Campagne NON LIVRÉE ; pilote NON QUALIFIÉ.** Le code correctif validé est publié sur la seule branche `codex/creorga-2-0-2026-10-08` ; cette publication n'est pas la fin de la recette. Base vérifiée : `976b21a500f58d09fdca33616a9c243a66ae5161`. Aucun déploiement, changement de master, encaissement bancaire, purge ou ouverture de profil historique.
+
+**Publication vérifiée :** code
+[`f136bdd72c32405e955f1dbdf9655162a9d5aa34`](https://github.com/LB7436/creorga/commit/f136bdd72c32405e955f1dbdf9655162a9d5aa34),
+PC et branche distante identiques au relevé après push. Le complément de checkpoint
+est documentaire ; ces références distinguent le code testé de son compte rendu.
+Master distant reste `350b35120f44d2508d863a3a73f644eb0aa6b141`. Pas de qualification
+GitHub Actions déduite du push, le workflow ne cible pas la branche2.0.
 
 **Code correctif validé, campagne partielle.** Les suites finales ci-dessous incluent
 le drain HTTP et les derniers correctifs d'inventaire. Les preuves de08:38 restent

@@ -1,14 +1,17 @@
-# Checkpoint CréOrga 2.0 — 17 octobre 2026
+# Checkpoint CréOrga 2.0 — 18 octobre 2026
 
 ## Reprise droits fins / Robi — 18 octobre 2026 — EN COURS, NON LIVRÉ
 
 ### Relevé courant après restauration finale du18octobre09:47UTC
 
 Branche `codex/creorga-2-0-2026-10-08`, base locale/distante vérifiée avant publication
-`976b21a500f58d09fdca33616a9c243a66ae5161`. Correctifs validés encore locaux à ce
-relevé ; aucune modification de master ni déploiement. Empreinte des791sources
+`976b21a500f58d09fdca33616a9c243a66ae5161`. Correctifs maintenant committés et
+publiés : **`f136bdd72c32405e955f1dbdf9655162a9d5aa34`**, confirmé identique sur
+PC/GitHub. Le présent complément de checkpoint est documentaire ; le code validé
+est celui de ce commit. Aucune modification de master ni déploiement. Empreinte des791sources
 Windows testées : `127fa535ef8844e11c549ac5a3bf719393b0763028305c3c285ea67175002211`.
-Un relevé de publication distinct indiquera le SHA du code effectivement publié.
+[Commit du code](https://github.com/LB7436/creorga/commit/f136bdd72c32405e955f1dbdf9655162a9d5aa34),
+[branche2.0](https://github.com/LB7436/creorga/tree/codex/creorga-2-0-2026-10-08).
 
 - Validation finale fraîche, même empreinte et0échec/ignoré : **1183unitaires
   =587backend/435web/161POS**, **348PG**, puis **47fixtures locales** séparées.
@@ -60,14 +63,23 @@ Copie additive finale avant publication :
 manifeste SHA `f9af5b888ddd6ba0c6c189105ca150427b581d0c04679117f77e32082610af70`.
 Le plan de publication ne sélectionne que170fichiers de code/tests/docs/migration,
 exclut596fichiers privés/générés/utilisateur et ne trouve aucune des26valeurs
-privées contrôlées. Le SHA Git publié sera relevé après commit/push, pas inventé.
+privées contrôlées. Le premier commit contient exactement170fichiers, sans fichier
+utilisateur, secret, base, archive ni fichier privé. Master distant vérifié inchangé :
+`350b35120f44d2508d863a3a73f644eb0aa6b141`. Aucun GitHub Actions attesté pour ce push :
+le workflow existant ne cible pas cette branche. Les tests rapportés sont locaux.
 
-**Prochaine action exacte :** contrôler le contenu expurgé et publier uniquement
-les correctifs validés sur branche2.0, puis reprendre les visites QR déjà existantes
+**Prochaine action exacte :** reprendre les visites QR déjà existantes
 et les parcours non exécutés des six profils dans les trois sociétés. Qualifier
 les octets CSV/PDF et captures seulement si l'outil officiel autorise l'opération.
 Traiter la reprise après abandon HTTP sans arrêt forcé, puis matériels/prestataires.
 **Campagne NON LIVRÉE, pilote NON QUALIFIÉ ; T100 toujours partiel.**
+
+Reprise technique : vérifier d'abord le HEAD distant de branche2.0 et conserver les
+deux exclusions locales ; utiliser le raccourci existant ou le lanceur officiel
+privé en profil métier. Aucun service applicatif n'est laissé actif après la
+sauvegarde finale, PG5450est conservé. Ne pas recréer les trois sociétés, leurs
+cinq comptes, ventes, avoirs, remboursements ou documents prouvés. Refaire seulement
+les contre-essais touchés par un futur correctif et conserver chaque preuve datée.
 
 [Rapport actuel](DROITS-FINS-ROBI-RECETTE-2026-10-18.md),
 [T100 détaillé](T100-DROITS-2026-10-18.md),
