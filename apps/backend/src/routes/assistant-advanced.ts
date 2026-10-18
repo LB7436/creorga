@@ -15,12 +15,10 @@ import { internalHeaders } from '../lib/security'
 const router = Router()
 const DATA_DIR = path.resolve(process.cwd(), 'data')
 
-// Les fonctions historiques ci-dessous (undo, mémoire, alias, audit, sites)
-// stockent des fichiers globaux. Le chaînage `/workflow` ne persiste rien et
-// délègue aux intents désormais filtrés ; toutes les autres routes restent
-// fermées jusqu'à leur migration par entreprise.
-router.use((req, res, next) => {
-  if (req.path === '/workflow') return next()
+// Les fonctions historiques restent fermées jusqu'à leur migration par
+// entreprise. Le workflow doit aussi partager le budget et la révision de
+// droits d'une seule demande avant de pouvoir être réactivé.
+router.use((_req, res) => {
   res.status(503).json({
     code: 'ASSISTANT_ADVANCED_MIGRATION_REQUIRED',
     message: "Cette fonction avancée de Robi est temporairement indisponible pendant son isolation par entreprise.",

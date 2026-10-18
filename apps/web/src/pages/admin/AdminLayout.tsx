@@ -12,11 +12,10 @@ const navItems = [
 ]
 
 export default function AdminLayout() {
-  const companies = useAuthStore((s) => s.companies)
-  const currentRole = companies[0]?.role ?? 'EMPLOYEE'
+  const access = useAuthStore((s) => s.businessAccess)
   const navigate = useNavigate()
 
-  if (currentRole !== 'OWNER' && currentRole !== 'MANAGER') {
+  if (!access?.capabilities.some(capability => ['hr.manage', 'permissions.manage', 'settings.manage', 'catalog.prices.write'].includes(capability))) {
     return <Navigate to="/modules" replace />
   }
 

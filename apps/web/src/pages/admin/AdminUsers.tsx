@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { CheckCircle2, Plus, RefreshCw, Search, ShieldCheck, UserRound, UsersRound, XCircle } from 'lucide-react'
 import api from '@/lib/api'
 import { toastError, toastSuccess } from '@/lib/toast'
 import { useAuthStore } from '@/stores/authStore'
 
-type MemberRole = 'OWNER' | 'MANAGER' | 'EMPLOYEE'
+type MemberRole = 'OWNER' | 'ADMIN' | 'MANAGER' | 'SERVER' | 'CASHIER' | 'EMPLOYEE'
 type Member = {
   id: string
   userId: string
@@ -12,16 +12,28 @@ type Member = {
   role: MemberRole | string
   isActive: boolean
   createdAt: string
+  capabilities?: Record<string, boolean>
+  accessVersion?: number
   user: { id: string; firstName: string; lastName: string; email: string }
 }
 
 const ROLE_LABELS: Record<MemberRole, string> = {
-  OWNER: 'Propriétaire', MANAGER: 'Responsable', EMPLOYEE: 'Employé',
+  OWNER: 'Propriétaire', ADMIN: 'Administrateur métier', MANAGER: 'Responsable', SERVER: 'Serveur', CASHIER: 'Caissier', EMPLOYEE: 'Employé limité',
+}
+const CAPABILITY_LABELS: Record<string, string> = {
+  'finance.revenue.read': 'Voir le chiffre d’affaires et les ventes', 'finance.costs.read': 'Voir les coûts d’achat et marges', 'finance.manage': 'Gérer la comptabilité et la trésorerie',
+  'inventory.quantities.read': 'Voir les quantités de stock', 'inventory.adjust': 'Modifier les stocks', 'catalog.read': 'Lire le catalogue', 'catalog.prices.write': 'Modifier les prix et le catalogue',
+  'service.read': 'Consulter la salle et la préparation', 'service.manage': 'Prendre et transférer les commandes', 'payments.receive': 'Encaisser et reprendre ses règlements',
+  'discounts.grant': 'Accorder des remises et répartitions financières', 'complimentary.grant': 'Autoriser les offerts', 'orders.cancel': 'Annuler les commandes', 'refunds.declare': 'Déclarer les remboursements',
+  'cash.open': 'Ouvrir un tiroir-caisse', 'cash.close': 'Compter et clôturer le tiroir (hors CA)', 'invoices.read': 'Lire les factures et avoirs', 'invoices.write': 'Créer et émettre les documents financiers', 'exports.read': 'Partager et exporter les documents',
+  'hr.manage': 'Gérer les dossiers et demandes du personnel', 'hr.self': 'Consulter son dossier et ses pointages', 'hr.schedule.read': 'Lire son planning', 'hr.schedule.manage': 'Gérer et publier les plannings de l’équipe',
+  'settings.manage': 'Gérer les paramètres de l’établissement', 'permissions.manage': 'Administrer les autorisations déléguées', 'assistant.use': 'Ouvrir l’assistant', 'assistant.business.read': 'Consulter les données autorisées avec Robi',
+  'haccp.record': 'Consigner les relevés HACCP', 'haccp.manage': 'Gérer les procédures HACCP', 'crm.customers.read': 'Consulter les clients', 'marketing.read': 'Consulter le marketing', 'reputation.read': 'Consulter la réputation',
 }
 
 export default function AdminUsers() {
   const currentUser = useAuthStore((state) => state.user)
-  const currentRole = useAuthStore((state) => state.role)
+  const access = useAuthStore((state) => state.businessAccess)
   const company = useAuthStore((state) => state.company)
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
@@ -30,6 +42,9 @@ export default function AdminUsers() {
   const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('all')
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
+  const editing = useRef(false)
+  const [permissionDraft, setPermissionDraft] = useState<Member | null>(null)
+  const [permissionReason, setPermissionReason] = useState('')
   const [newMember, setNewMember] = useState({ firstName: '', lastName: '', email: '', password: '', role: 'EMPLOYEE' as Exclude<MemberRole, 'OWNER'> })
 
   const load = useCallback(async () => {
@@ -53,20 +68,26 @@ export default function AdminUsers() {
     return haystack.includes(search.trim().toLowerCase())
   }), [members, search, status])
 
-  const updateMember = async (member: Member, patch: Partial<Pick<Member, 'role' | 'isActive'>>) => {
+  const updateMember = async (member: Member, patch: Partial<Pick<Member, 'role' | 'isActive' | 'capabilities'>>, reason: string) => {
+    if (editing.current) return false
+    editing.current = true
     setUpdating(member.userId)
     try {
-      const { data } = await api.patch<Member>(`/companies/members/${member.userId}`, patch)
+      const { data } = await api.patch<Member>(`/companies/members/${member.userId}`, { ...patch, expectedAccessVersion: member.accessVersion ?? 0, reason })
       setMembers((items) => items.map((item) => item.userId === member.userId ? data : item))
       toastSuccess('Accès enregistré sur le serveur')
+      return true
     } catch (error: any) {
       toastError(error?.response?.data?.message || "Impossible de modifier l'accès")
+      return false
     } finally {
+      editing.current = false
       setUpdating(null)
     }
   }
 
-  const isOwner = currentRole === 'owner'
+  const isOwner = access?.capabilities.includes('permissions.manage') === true
+  const editPermissions = (member: Member) => { setPermissionDraft({ ...member, capabilities: { ...member.capabilities } }); setPermissionReason('') }
 
   const createMember = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -110,7 +131,7 @@ export default function AdminUsers() {
             <label style={fieldStyle}>Nom<input required maxLength={80} autoComplete="family-name" value={newMember.lastName} onChange={(event) => setNewMember((value) => ({ ...value, lastName: event.target.value }))} style={inputStyle} /></label>
             <label style={fieldStyle}>Email<input required type="email" autoComplete="email" value={newMember.email} onChange={(event) => setNewMember((value) => ({ ...value, email: event.target.value }))} style={inputStyle} /></label>
             <label style={fieldStyle}>Mot de passe temporaire<input required type="password" minLength={8} maxLength={128} autoComplete="new-password" value={newMember.password} onChange={(event) => setNewMember((value) => ({ ...value, password: event.target.value }))} style={inputStyle} /></label>
-            <label style={fieldStyle}>Rôle<select value={newMember.role} onChange={(event) => setNewMember((value) => ({ ...value, role: event.target.value as Exclude<MemberRole, 'OWNER'> }))} style={selectStyle}><option value="EMPLOYEE">Serveuse / employé</option><option value="MANAGER">Responsable</option></select></label>
+            <label style={fieldStyle}>Rôle<select value={newMember.role} onChange={(event) => setNewMember((value) => ({ ...value, role: event.target.value as Exclude<MemberRole, 'OWNER'> }))} style={selectStyle}>{Object.entries(ROLE_LABELS).filter(([role]) => role !== 'OWNER').map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></label>
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
             <button type="button" onClick={() => setShowCreate(false)} disabled={creating} style={secondaryButton}>Annuler</button>
@@ -152,21 +173,38 @@ export default function AdminUsers() {
                   </div>
                   <label style={{ display: 'grid', gap: 4, color: '#64748b', fontSize: 11 }}>
                     Rôle
-                    <select value={normalizeRole(member.role)} disabled={disabled} onChange={(event) => void updateMember(member, { role: event.target.value as MemberRole })} style={selectStyle}>
-                      {(member.role === 'OWNER' ? [['OWNER', ROLE_LABELS.OWNER]] : [['MANAGER', ROLE_LABELS.MANAGER], ['EMPLOYEE', ROLE_LABELS.EMPLOYEE]]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    <select value={normalizeRole(member.role)} disabled={disabled} onChange={(event) => editPermissions({ ...member, role: event.target.value as MemberRole })} style={selectStyle}>
+                      {(member.role === 'OWNER' ? [['OWNER', ROLE_LABELS.OWNER]] : Object.entries(ROLE_LABELS).filter(([role]) => role !== 'OWNER')).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                     </select>
                   </label>
-                  <button type="button" disabled={disabled} onClick={() => void updateMember(member, { isActive: !member.isActive })}
+                  <button type="button" disabled={disabled} onClick={() => void updateMember(member, { isActive: !member.isActive }, member.isActive ? 'Désactivation explicite du compte depuis Administration' : 'Réactivation explicite du compte depuis Administration')}
                     style={{ ...statusButton, background: member.isActive ? '#ecfdf5' : '#fef2f2', color: member.isActive ? '#047857' : '#b91c1c', opacity: disabled && !self ? 0.6 : 1 }}>
                     {member.isActive ? <CheckCircle2 size={15} /> : <XCircle size={15} />}
                     {updating === member.userId ? 'Enregistrement…' : member.isActive ? 'Actif' : 'Désactivé'}
                   </button>
+                  {member.role !== 'OWNER' && <button type="button" disabled={disabled} onClick={() => editPermissions(member)} style={{ ...secondaryButton, gridColumn: '2 / -1', justifySelf: 'start' }}>Droits et autorisations</button>}
                 </article>
               )
             })}
           </div>
         )}
       </section>
+
+      {permissionDraft && <section style={cardStyle} aria-label="Éditeur des droits">
+        <h2>Autorisations de {permissionDraft.user.firstName} {permissionDraft.user.lastName}</h2>
+        <p>Les capacités héritées suivent le rôle choisi. Un refus explicite prime sur ce rôle ; aucune autorisation ne donne accès à une autre société ou à la plateforme.</p>
+        <label style={fieldStyle}>Rôle métier<select value={permissionDraft.role} onChange={event => setPermissionDraft({ ...permissionDraft, role: event.target.value })} style={selectStyle}>{Object.entries(ROLE_LABELS).filter(([role]) => role !== 'OWNER').map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></label>
+        <div style={{ ...createGridStyle, marginTop: 16 }}>{Object.entries(CAPABILITY_LABELS).map(([key, label]) => <label key={key} style={fieldStyle}>{label}<select aria-label={label} value={permissionDraft.capabilities?.[key] === undefined ? 'inherit' : String(permissionDraft.capabilities[key])} style={selectStyle} onChange={event => {
+          const overrides = { ...permissionDraft.capabilities }
+          if (event.target.value === 'inherit') delete overrides[key]; else overrides[key] = event.target.value === 'true'
+          setPermissionDraft({ ...permissionDraft, capabilities: overrides })
+        }}><option value="inherit">Hérité du rôle</option><option value="false">Refuser explicitement</option><option value="true">Autoriser explicitement</option></select></label>)}</div>
+        <label style={{ ...fieldStyle, marginTop: 16 }}>Motif de la décision<textarea value={permissionReason} onChange={event => setPermissionReason(event.target.value)} minLength={5} maxLength={500} style={inputStyle} /></label>
+        <p>Le changement est versionné et journalisé. Un conflit impose une relecture ; une ancienne réponse ne remplace pas des droits plus récents.</p>
+        <div style={{ display: 'flex', gap: 10 }}><button type="button" disabled={!!updating || permissionReason.trim().length < 5} style={primaryButton} onClick={async () => {
+          if (await updateMember(permissionDraft, { role: permissionDraft.role, capabilities: permissionDraft.capabilities ?? {} }, permissionReason)) setPermissionDraft(null)
+        }}>Enregistrer les droits</button><button type="button" style={secondaryButton} onClick={() => setPermissionDraft(null)}>Annuler</button></div>
+      </section>}
 
       <aside style={{ ...cardStyle, background: '#f8fafc', color: '#475569', fontSize: 13, lineHeight: 1.55 }}>
         <strong style={{ color: '#172033' }}>Sécurité des accès</strong><br />
@@ -177,7 +215,7 @@ export default function AdminUsers() {
 }
 
 function normalizeRole(role: string): MemberRole {
-  if (role === 'OWNER' || role === 'MANAGER') return role
+  if (Object.prototype.hasOwnProperty.call(ROLE_LABELS, role)) return role as MemberRole
   return 'EMPLOYEE'
 }
 

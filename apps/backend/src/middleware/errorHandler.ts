@@ -2,6 +2,7 @@ import { type Request, type Response, type NextFunction } from 'express'
 import logger from '../lib/logger'
 import { captureError } from '../lib/monitoring'
 import { push as pushEvenement } from '../lib/eventSink'
+import { BusinessPermissionError } from '../lib/business-permission-transaction'
 
 /**
  * Erreur levée par express.json() quand le corps n'est pas du JSON valide.
@@ -19,6 +20,10 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ): void {
+  if (err instanceof BusinessPermissionError) {
+    res.status(403).json({ message: err.message })
+    return
+  }
   if ((err as any).type === 'entity.too.large' || (err as any).status === 413) {
     res.status(413).json({ message: 'Fichier ou requête trop volumineux. Les documents RH sont limités à 25 Mo.' })
     return

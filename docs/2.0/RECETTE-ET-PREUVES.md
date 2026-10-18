@@ -1,5 +1,20 @@
 # Recette actuelle
 
+## Droits et Robi — relevé du 18 octobre
+
+[Résultats frais du code figé](preuves/droits-robi-validation-2026-10-18.json) :
+1183unitaires(587backend/435web/161POS),348PG,0échec/ignoré ;47fixtures locales
+séparées et deux profils compilés,cinq applications chacun. Restaurations neuves
+incluant les droits : copie finale09:47UTC82tables/18997lignes/14fichiers/26PDF égaux,
+clé de chiffrement séparée. Ces suites
+ne s'ajoutent pas aux ciblés historiques. [Rejeux/limites](DROITS-FINS-ROBI-RECETTE-2026-10-18.md)
+et [T100 ciblé](T100-DROITS-2026-10-18.md) séparent clic, HTTP, PG et simulation.
+Deux cycles d'arrêt/reprise via lanceur officiel sont confirmés avec Chrome ouvert,
+PID absents/ports libres et stock/refus relus. L'abandon HTTP incertain, le double
+clic Windows et les pannes physiques restent non qualifiés. **NON LIVRÉ** : recettes
+de rôles incomplètes, fournisseur réel, octets téléchargés et PNG non qualifiés.
+Aucun déploiement ; états antérieurs conservés dans l'instantané avant drain.
+
 ## Campagne intensive après 475f67a — 17 octobre, EN COURS / NON LIVRÉ
 
 ### Consolidation après les rejoués — 19:31:36 UTC

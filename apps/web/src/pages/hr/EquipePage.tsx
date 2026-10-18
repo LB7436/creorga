@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { BriefcaseBusiness, Mail, Search, Settings, UserRound, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { fetchAuth } from '@/lib/fetchAuth'
 import { toastError } from '@/lib/toast'
 import DossierEmployeModal from './DossierEmployeModal'
+import { useAuthStore } from '@/stores/authStore'
+import { authDataScope } from '@/lib/authScope'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
 interface Employee {
   id: string
+  userId: string
   role: string
   isActive: boolean
   prenom: string
@@ -24,6 +27,18 @@ interface Employee {
 }
 
 export default function EquipePage() {
+  const scope = useAuthStore(authDataScope)
+  const access = useAuthStore(state => state.businessAccess)
+  if (!access?.capabilities.some(value => value === 'hr.manage' || value === 'hr.self')) return <main role="alert">Accès RH non autorisé ou en cours de vérification.</main>
+  return <ScopedEquipePage key={scope} scope={scope} />
+}
+
+function ScopedEquipePage({ scope }: { scope: string }) {
+  const access = useAuthStore(state => state.businessAccess)
+  const selfId = useAuthStore(state => state.user?.id)
+  const mounted = useRef(true), generation = useRef(0)
+  const isCurrent = () => mounted.current && scope === authDataScope(useAuthStore.getState())
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -32,20 +47,26 @@ export default function EquipePage() {
   const [canManage, setCanManage] = useState(false)
 
   async function load() {
+    if (!isCurrent()) return
+    const read = ++generation.current
+    const currentRead = () => isCurrent() && read === generation.current
     setLoading(true)
     setError(false)
     try {
       const response = await fetchAuth(`${BACKEND}/api/hr-dossier/employes`)
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const data = await response.json()
-      setEmployees(Array.isArray(data?.employes) ? data.employes : [])
-      setCanManage(data?.permissions?.canManage === true)
+      if (!currentRead()) return
+      const manage = access?.capabilities.includes('hr.manage') === true && data?.permissions?.canManage === true
+      setEmployees(Array.isArray(data?.employes) ? data.employes.filter((employee: Employee) => manage || employee.userId === selfId) : [])
+      setCanManage(manage)
     } catch (loadError: any) {
+      if (!currentRead()) return
       setEmployees([])
       setError(true)
       toastError(`Équipe non chargée : ${loadError?.message || 'erreur inconnue'}`)
     } finally {
-      setLoading(false)
+      if (currentRead()) setLoading(false)
     }
   }
 
@@ -71,7 +92,7 @@ export default function EquipePage() {
           <h1 style={{ margin: 0, fontSize: 'clamp(27px, 4vw, 38px)', letterSpacing: '-.03em' }}>{canManage ? 'Équipe' : 'Mes documents'}</h1>
           <p style={{ margin: '8px 0 0', color: '#64748b' }}>{canManage ? 'Gérez les dossiers et les documents de votre établissement.' : 'Consultez vos documents personnels. Leur gestion est réservée à votre responsable.'}</p>
         </div>
-        {canManage && <Link to="/admin/users" style={primaryLink}><Settings size={17} /> Gérer les accès</Link>}
+        {canManage && <Link to="/admin/users" style={primaryLink}><Settings size={17} /> {access?.capabilities.includes('permissions.manage') ? 'Gérer les accès' : 'Consulter les utilisateurs'}</Link>}
       </header>
 
       <section className="team-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 13, marginTop: 24 }}>
@@ -97,7 +118,7 @@ export default function EquipePage() {
               const contract = employee.profil?.contrat
               const activeEmployee = employee.isActive && employee.profil?.statut !== 'SORTI'
               return (
-                <button key={employee.id} type="button" onClick={() => setDossierId(employee.id)} style={card}>
+                <button key={employee.id} type="button" onClick={() => { if (isCurrent()) setDossierId(employee.id) }} style={card}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                     {employee.avatar ? <img src={employee.avatar} alt="" style={avatar} /> : <span style={avatar}>{initials(employee)}</span>}
                     <div style={{ minWidth: 0, flex: 1 }}>

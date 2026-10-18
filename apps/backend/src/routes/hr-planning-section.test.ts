@@ -18,8 +18,9 @@ vi.mock('../lib/email', async original => ({
   },
 }))
 import hr from './hr'
+import { accessFor } from '../lib/business-permissions'
 const app = express().use(express.json()).use('/api/hr', (req: any, _res, next) => {
-  req.companyId = 'section-company-fictive'; req.company = { name: 'SOCIÉTÉ FICTIVE' }; req.role = 'MANAGER'; next()
+  req.companyId = 'section-company-fictive'; req.company = { name: 'SOCIÉTÉ FICTIVE' }; req.role = 'MANAGER'; req.businessAccess = accessFor({ role: 'MANAGER', companyId: req.companyId }); next()
 }, hr)
 const member = (userId: string) => ({ userId, companyId: 'section-company-fictive', isActive: true, role: 'EMPLOYEE',
   user: { id: userId, firstName: 'Collaborateur', lastName: userId, email: userId + '@fixture.invalid' } })

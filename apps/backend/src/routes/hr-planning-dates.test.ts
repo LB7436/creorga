@@ -19,9 +19,10 @@ vi.mock('../lib/email', async original => ({
   },
 }))
 import hr from './hr'
+import { accessFor } from '../lib/business-permissions'
 
 const app = express().use(express.json()).use('/api/hr', (req: any, _res, next) => {
-  req.companyId = 'planning-dates-company-fictive'; req.company = { name: 'ÉTABLISSEMENT FICTIF' }; req.role = 'MANAGER'; next()
+  req.companyId = 'planning-dates-company-fictive'; req.company = { name: 'ÉTABLISSEMENT FICTIF' }; req.role = 'MANAGER'; req.businessAccess = accessFor({ role: 'MANAGER', companyId: req.companyId }); next()
 }, hr)
 beforeEach(() => {
   vi.stubEnv('TZ', 'Europe/Luxembourg'); vi.clearAllMocks(); envelopes.length = 0

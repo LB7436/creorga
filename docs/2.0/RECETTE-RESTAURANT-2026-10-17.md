@@ -1,5 +1,22 @@
 # Recette établissement B — RESTAURANT DES JARDINS
 
+## Suite ciblée du 18 octobre — PARTIELLE, NON LIVRÉE
+
+Cinq identités existantes connectées, pas cinq recettes intégrales. OWNER : facture
+existante31,50 consultée, demande PDF A4/HTTP200 ; aucun nouveau document émis.
+ADMIN métier : équipe5 sans coûts, membres visibles mais droits/rôles non modifiables.
+MANAGER : planning et coûts autorisés. SERVER : POS sans CA. EMPLOYEE : planning
+personnel, équipe1. Deux décisions de rôle via UI et audit, aucun nouveau compte.
+CLIENT QR et scénarios restants non rejoués, anciennes preuves conservées.
+
+Dernière comparaison read-only : **4 ventes/5 commandes payées, 84,50TTC =81,42HT
++3,08TVA** ; avoir/remboursement déclaré6,10 et clôture276,10/276,05 inchangés.
+Six empreintes financières/stock identiques. Inspection détaillée du téléchargement
+refusée par la protection officielle : **BLOCKED**, pas de contournement ni preuve
+d'octets Chrome déduite des PDF sauvegardés en base.
+[Preuves](preuves/droits-robi-validation-2026-10-18.json),
+[rapport](DROITS-FINS-ROBI-RECETTE-2026-10-18.md). Campagne/pilote non qualifiés.
+
 ## Consolidation technique postérieure aux rejoués de 21:30
 
 La [preuve finale v3](preuves/intensive-validation-finale-2026-10-17-2135-v3.json) et le résultat privé relu confirment la restauration achevée à **21:31:36.908 Luxembourg**, **après** les nouveaux règlements et clôtures : **81 tables / 10 083 lignes / 14 fichiers / 26 PDF**, zéro différence, empreintes concordantes. **X02 devient PASS pour cette copie** ; l'ancien bloc « restauration attendue » ci-dessous reste historique. Archive SHA `372728371f2f262541e5bf3151555b1b2c3be62e3a13cf81db10f6be7fc92d48`.

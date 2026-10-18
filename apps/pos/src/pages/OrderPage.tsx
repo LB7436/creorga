@@ -5,6 +5,8 @@ import { useEcranEtroit } from '../lib/ecran'
 import { api } from '../lib/server'
 import { flushFloor, moveTableServer, separateServiceServer } from '../lib/floorBridge'
 import AllocationEditor from './AllocationEditor'
+import { BusinessGuard } from '../components/BusinessGuard'
+import { hasCapability } from '../lib/business-access'
 
 interface Props {
   tableId: string
@@ -79,7 +81,10 @@ const fmt = (n: number) => n.toFixed(2).replace('.', ',')
 const isWeighted = (_item: { name: string; category?: string }) => false // Vente au poids : unité et balance à configurer.
 
 // ─── Page ─────────────────────────────────────────────────────────────────
-export default function OrderPage({ tableId, onBack, onPay }: Props) {
+export default function OrderPage(props: Props) {
+  return <BusinessGuard capability="service.manage" onBack={props.onBack}><OrderContent {...props} /></BusinessGuard>
+}
+function OrderContent({ tableId, onBack, onPay }: Props) {
   // Telephone : ticket et menu s'empilent au lieu de se partager 30 %/70 %
   // d'un ecran de 375 px (colonnes de 110 px, panneau hors ecran).
   const etroit = useEcranEtroit()
@@ -92,6 +97,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
   const setItemNote = usePOS(s => s.setItemNote)
   const removeItem = usePOS(s => s.removeItem)
   const addCover = usePOS(s => s.addCover)
+  const access = usePOS(s => s.businessAccess)
 
   const [activeCover, setActiveCover] = useState<string | null>(null)
   const [category, setCategory] = useState<string>(categories[0] || '')
@@ -114,7 +120,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
   // Data state
   const [clients, setClients] = useState<MockClient[]>([])
   const [operationError, setOperationError] = useState('')
-  useEffect(() => { api<MockClient[]>('/pos/customers').then(setClients).catch(e => setOperationError(e.message)) }, [])
+  useEffect(() => { if (hasCapability('crm.customers.read')) api<MockClient[]>('/pos/customers').then(setClients).catch(e => setOperationError(e.message)) }, [])
   const selectedClient = clients.find(c => c.id === table?.customerId) || null
   const setSelectedClient = (client: MockClient | null) => usePOS.getState().updateTable(tableId, { customerId: client?.id || null })
   const discount = table?.orderDiscount || null
@@ -164,10 +170,10 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return
-      if (e.key === 'F1') { e.preventDefault(); setShowRemise(true) }
+      if (e.key === 'F1' && (hasCapability('discounts.grant') || hasCapability('complimentary.grant'))) { e.preventDefault(); setShowRemise(true) }
       else if (e.key === 'F2') { e.preventDefault(); setShowNote(true) }
       else if (e.key === 'F3') { e.preventDefault(); setShowCuisine(true) }
-      else if (e.key === 'F4') { e.preventDefault(); onPay() }
+      else if (e.key === 'F4' && hasCapability('payments.receive')) { e.preventDefault(); onPay() }
       else if (e.key === 'Escape') { e.preventDefault(); onBack() }
     }
     window.addEventListener('keydown', handler)
@@ -394,7 +400,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
                           animate={{ opacity: 1, height: 'auto' }}
                           style={{ marginTop: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}
                         >
-                          <MiniBtn onClick={e => { e.stopPropagation(); setItemQty(tableId, it.id, it.qty - 1) }}>−</MiniBtn>
+                          <MiniBtn disabled={!hasCapability('orders.cancel', access)} onClick={e => { e.stopPropagation(); if (!hasCapability('orders.cancel')) { setOperationError('La permission d’annuler une consommation est nécessaire.'); return }; setItemQty(tableId, it.id, it.qty - 1) }}>−</MiniBtn>
                           <MiniBtn onClick={e => { e.stopPropagation(); setItemQty(tableId, it.id, it.qty + 1) }}>+</MiniBtn>
                           <MiniBtn onClick={e => { e.stopPropagation(); setShowModifiers(it.id) }}>🎛 Modif.</MiniBtn>
                           <MiniBtn onClick={e => {
@@ -406,7 +412,7 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
                             <MiniBtn onClick={e => { e.stopPropagation(); setShowWeight(it.id) }}>⚖ Poids</MiniBtn>
                           )}
                           <MiniBtn onClick={e => { e.stopPropagation(); setShowSplitItem(true) }}>✂ Split</MiniBtn>
-                          <MiniBtn danger onClick={e => { e.stopPropagation(); removeItem(tableId, it.id); setSelectedItemId(null) }}>🗑</MiniBtn>
+                          <MiniBtn danger disabled={!hasCapability('orders.cancel', access)} onClick={e => { e.stopPropagation(); if (!hasCapability('orders.cancel')) { setOperationError('La permission d’annuler une consommation est nécessaire.'); return }; removeItem(tableId, it.id); setSelectedItemId(null) }}>🗑</MiniBtn>
                         </motion.div>
                       )}
                     </motion.div>
@@ -452,33 +458,34 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
           {/* Action buttons */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginTop: 12 }}>
             <span data-tour="discount-btn" style={{ display: 'contents' }}>
-              <ActionBtn label="Remise" sub="F1" onClick={() => setShowRemise(true)} />
+              {(hasCapability('discounts.grant', access) || hasCapability('complimentary.grant', access)) && <ActionBtn label="Remise" sub="F1" onClick={() => setShowRemise(true)} />}
             </span>
             <ActionBtn label="Note" sub="F2" onClick={() => setShowNote(true)} />
             <ActionBtn label="Cuisine" sub="F3" onClick={() => setShowCuisine(true)} />
             <ActionBtn label={onHold ? 'Reprise' : 'En attente'} onClick={() => setOnHold(!onHold)} color={onHold ? '#fbbf24' : undefined} />
             <ActionBtn label="Transfert" onClick={() => setShowTransfer(true)} />
             <ActionBtn label="Séparer le groupe" onClick={() => { setOperationError(''); setShowSeparateGroup(true) }} />
-            {currentCover?.id.startsWith('guest:') && !currentCover.id.startsWith('guest:share:') && ['OWNER', 'MANAGER'].includes(usePOS.getState().currentStaff?.role || '') && <ActionBtn label="Répartir la commande QR" onClick={() => setShowAllocation(true)} />}
-            <ActionBtn label="Offrir" onClick={() => {
+            {currentCover?.id.startsWith('guest:') && !currentCover.id.startsWith('guest:share:') && hasCapability('finance.manage', access) && <ActionBtn label="Répartir la commande QR" onClick={() => setShowAllocation(true)} />}
+            {hasCapability('complimentary.grant', access) && <ActionBtn label="Offrir" onClick={() => {
               if (!selectedItemId) { alert('Sélectionnez un article'); return }
-              if (!['OWNER', 'MANAGER'].includes(usePOS.getState().currentStaff?.role || '')) { setOperationError('Connectez-vous comme responsable pour un geste commercial.'); return }
+              if (!hasCapability('complimentary.grant')) { setOperationError('La permission d’offrir une consommation est nécessaire.'); return }
               setOfferedItems(prev => {
                 const s = new Set(prev)
                 if (s.has(selectedItemId)) s.delete(selectedItemId); else s.add(selectedItemId)
                 return s
               })
-            }} />
+            }} />}
             <ActionBtn label="Séparer une ligne" onClick={() => { if (!selectedItemId) { setOperationError('Sélectionnez d’abord une ligne de commande.'); return }; setOperationError(''); setShowSplitItem(true) }} />
-            <ActionBtn label="Historique" onClick={() => {
+            {hasCapability('finance.revenue.read', access) && <ActionBtn label="Historique" onClick={() => {
+              if (!hasCapability('finance.revenue.read')) return
               const sales = [...usePOS.getState().ventes, ...usePOS.getState().clotures.flatMap(c => c.ventes)].filter(v => v.tableId === tableId)
               alert(sales.length ? sales.map(v => `Ticket n° ${v.numero} · ${new Date(v.horodatage).toLocaleString('fr-LU')} · ${fmt(v.total)} €`).join('\n') : 'Aucun règlement enregistré pour cette table.')
-            }} />
+            }} />}
           </div>
 
           <button
-            onClick={onPay}
-            disabled={rawTotal === 0}
+            onClick={() => { if (hasCapability('payments.receive')) onPay(); else setOperationError('La permission d’encaisser est nécessaire.') }}
+            disabled={rawTotal === 0 || !hasCapability('payments.receive', access)}
             style={{
               marginTop: 10, width: '100%',
               padding: '14px', borderRadius: 12,
@@ -718,14 +725,14 @@ export default function OrderPage({ tableId, onBack, onPay }: Props) {
 }
 
 // ─── UI bits ────────────────────────────────────────────────────────────────
-function MiniBtn({ children, onClick, danger }: { children: React.ReactNode; onClick: (e: React.MouseEvent) => void; danger?: boolean }) {
+function MiniBtn({ children, onClick, danger, disabled }: { children: React.ReactNode; onClick: (e: React.MouseEvent) => void; danger?: boolean; disabled?: boolean }) {
   return (
-    <button onClick={onClick} style={{
+    <button disabled={disabled} onClick={onClick} style={{
       padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
       background: danger ? 'rgba(244,63,94,0.1)' : 'rgba(255,255,255,0.06)',
       border: `1px solid ${danger ? 'rgba(244,63,94,0.25)' : 'rgba(255,255,255,0.08)'}`,
       color: danger ? '#f43f5e' : '#cbd5e1',
-      cursor: 'pointer',
+      cursor: disabled ? 'not-allowed' : 'pointer',
     }}>{children}</button>
   )
 }
@@ -876,11 +883,12 @@ function ClientSearchModal({ clients, onClose, onSelect }: { clients: MockClient
 function RemiseModal({ onClose, onConfirm, rawTotal }: { onClose: () => void; onConfirm: (d: { type: 'percent' | 'amount' | 'free'; value: number }) => void; rawTotal: number }) {
   const [type, setType] = useState<'percent' | 'amount' | 'free'>('percent')
   const [val, setVal] = useState('')
-  const canDiscount = ['OWNER', 'MANAGER'].includes(usePOS(s => s.currentStaff)?.role || '')
+  const access = usePOS(s => s.businessAccess)
+  const canDiscount = hasCapability(type === 'free' ? 'complimentary.grant' : 'discounts.grant', access)
   const [error, setError] = useState('')
 
   const submit = () => {
-    if (!canDiscount) { setError('Une connexion propriétaire ou responsable est nécessaire.'); return }
+    if (!hasCapability(type === 'free' ? 'complimentary.grant' : 'discounts.grant')) { setError('La permission correspondant à cette remise ou consommation offerte est nécessaire.'); return }
     if (type === 'free') {
 
       onConfirm({ type: 'free', value: rawTotal })
@@ -898,7 +906,7 @@ function RemiseModal({ onClose, onConfirm, rawTotal }: { onClose: () => void; on
     <ModalShell onClose={onClose} title="Appliquer une remise" icon="💸" color="#a78bfa">
       <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
         {(['percent', 'amount', 'free'] as const).map(t => (
-          <button key={t} onClick={() => setType(t)} style={{
+          <button key={t} disabled={!hasCapability(t === 'free' ? 'complimentary.grant' : 'discounts.grant', access)} onClick={() => setType(t)} style={{
             flex: 1, padding: 8, borderRadius: 8, fontSize: 12, fontWeight: 700,
             background: type === t ? (t === 'free' ? 'rgba(251,191,36,0.2)' : 'rgba(167,139,250,0.2)') : 'rgba(255,255,255,0.04)',
             border: `1px solid ${type === t ? (t === 'free' ? 'rgba(251,191,36,0.5)' : 'rgba(167,139,250,0.4)') : 'rgba(255,255,255,0.08)'}`,
@@ -932,7 +940,7 @@ function RemiseModal({ onClose, onConfirm, rawTotal }: { onClose: () => void; on
 
       <div style={{ display: 'flex', gap: 6, marginTop: 14 }}>
         <button onClick={onClose} style={{ flex: 1, padding: 10, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
-        <button onClick={submit} style={{ flex: 1, padding: 10, borderRadius: 8, background: '#a78bfa', border: 'none', color: '#0f0f17', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>Appliquer</button>
+        <button disabled={!canDiscount} onClick={submit} style={{ flex: 1, padding: 10, borderRadius: 8, background: '#a78bfa', border: 'none', color: '#0f0f17', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>Appliquer</button>
       </div>
     </ModalShell>
   )

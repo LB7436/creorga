@@ -22,7 +22,12 @@ const originalLine = () => ({ id: 'historique', menuItemId: 'ancien-cafe', name:
 const product = { id: 'espresso', name: 'Espresso FICTIF', price: 2.6, taxRate: 17, category: 'Cafés', emoji: '', active: true }
 const chair = (): Seat => ({ id: 'chaise', tableId: 'table', position: 0, createdAt: 1, status: 'occupied', items: [originalLine()] })
 const table = (): Table => ({ id: 'table', name: 'Table FICTIVE', section: 'salle', shape: 'round', seats: 2, x: 160, y: 140, status: 'occupied', mergedWith: [], covers: [{ id: coverId, label: 'Place FICTIVE', items: [originalLine()] }] })
-const fixture = () => ({ companyId: transport.company, revision: 1, currentStaff: { id: 'caissier' }, tables: [table()], seats: [chair()], editor: { rooms: [], fixtures: [], scenes: [], background: null }, ventes: [], clotures: [] })
+// Profil fictif privilégié : le droit de lecture du journal est explicitement
+// délégué à ce caissier pour les assertions de projection financière ci-dessous.
+// Le profil CASHIER par défaut sans ce droit est couvert séparément.
+const fixture = () => ({ companyId: transport.company, revision: 1,
+  businessAccess: { role: 'CASHIER', revision: `cashier-journal:${transport.company}`, version: 1, capabilities: ['service.read', 'service.manage', 'payments.receive', 'finance.revenue.read'] },
+  currentStaff: { id: 'caissier', role: 'CASHIER' }, tables: [table()], seats: [chair()], editor: { rooms: [], fixtures: [], scenes: [], background: null }, ventes: [], clotures: [] })
 const lines = () => usePOS.getState().tables[0].covers.flatMap(cover => cover.items)
 const canonical = () => useSeats.getState().seats.find(seat => seat.id === 'chaise')!
 const draftKey = 'creorga-pos-draft:place-societe:caissier'

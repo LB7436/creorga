@@ -1,5 +1,5 @@
 import { toastSuccess, toastError, toastInfo } from '@/lib/toast'
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -20,6 +20,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { downloadCsv } from '@/lib/csv'
 import api from '@/lib/api'
 import { createPlanningRange, readPlanningTiming, planningNetHours, planningEmployeeRows, planningCalendarSegment } from './planningTime'
+import { authDataScope } from '@/lib/authScope'
 
 const C = {
   bg: '#f8fafc',
@@ -190,6 +191,32 @@ const card: React.CSSProperties = {
 }
 
 export default function PlanningPage() {
+  const scope = useAuthStore(authDataScope)
+  const access = useAuthStore(state => state.businessAccess)
+  const userId = useAuthStore(state => state.user?.id)
+  const companyId = useAuthStore(state => state.companyId)
+  useEffect(() => {
+    const current = useAuthStore.getState()
+    // Initialize a display preference only, never the real membership role.
+    if (access?.capabilities.includes('hr.schedule.manage') && current.role === 'employee' && current.viewAsEmployeeId === userId) current.setViewMode('owner')
+  }, [access?.revision, userId, companyId])
+  if (!access?.capabilities.includes('hr.schedule.read')) return <main role="alert">Accès au planning non autorisé ou en cours de vérification.</main>
+  return <ScopedPlanningPage key={scope} scope={scope} />
+}
+
+function ScopedPlanningPage({ scope }: { scope: string }) {
+  const access = useAuthStore(state => state.businessAccess)
+  const self = useAuthStore(state => state.user)
+  const canManageHr = access?.capabilities.includes('hr.manage') === true
+  const canEdit = access?.capabilities.includes('hr.schedule.manage') === true
+  const canReadCosts = access?.capabilities.includes('finance.costs.read') === true
+  const canExportCosts = canReadCosts && access?.capabilities.includes('exports.read') === true
+  const canReadReservations = access?.capabilities.includes('service.read') === true
+  const canUseAssistant = canEdit && access?.capabilities.includes('assistant.use') === true
+  const mounted = useRef(true), readGeneration = useRef(0)
+  const isCurrent = useCallback(() => mounted.current && scope === authDataScope(useAuthStore.getState()), [scope])
+  const mayEditNow = () => isCurrent() && useAuthStore.getState().businessAccess?.capabilities.includes('hr.schedule.manage') === true
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   // v3.18.1 fix C1 : honore ?view= query param (utilisé par bouton "Nouvel onglet")
   const [searchParams, setSearchParams] = useSearchParams()
   const initialView = (searchParams.get('view') as ViewType) || 'week'
@@ -226,23 +253,28 @@ export default function PlanningPage() {
   const [toast, setToast] = useState<string | null>(null)
 
   const showToast = (msg: string) => {
+    if (!isCurrent()) return
     setToast(msg)
     setTimeout(() => setToast(null), 2800)
   }
 
   const loadPlanning = useCallback(async () => {
+    if (!isCurrent()) return
+    const read = ++readGeneration.current
+    const currentRead = () => isCurrent() && read === readGeneration.current
     setLoadingPlanning(true)
     try {
       const [teamResponse, shiftsResponse, reservationsResponse, leavesResponse] = await Promise.all([
-        api.get('/hr/team'),
+        canManageHr ? api.get('/hr/team') : Promise.resolve({ data: self ? [{ userId: self.id, user: self }] : [] }),
         api.get('/hr/shifts'),
-        api.get('/reservations'),
-        api.get('/hr/leave-requests'),
+        canReadReservations ? api.get('/reservations') : Promise.resolve({ data: [] }),
+        access?.capabilities.some(value => value === 'hr.self' || value === 'hr.manage') ? api.get('/hr/leave-requests') : Promise.resolve({ data: [] }),
       ])
+      if (!currentRead()) return
       const équipe: Employee[] = (teamResponse.data || []).map((membership: any) => {
         const profil = membership.profile || {}
         const heures = Number(profil.heuresHebdo) || 0
-        const salaire = Number(profil.salaireBrut) || 0
+        const salaire = canReadCosts ? Number(profil.salaireBrut) || 0 : 0
         const hourlyRate = heures > 0 && salaire > 0 ? salaire / (heures * 4.33) : 0
         const skills = String(profil.competences || '')
           .split(',')
@@ -259,9 +291,15 @@ export default function PlanningPage() {
           weeklyHours: heures,
         }
       })
+      // A schedule manager without hr.manage may use identities already
+      // returned by the authorized shifts endpoint, not an expanded HR API.
+      if (canEdit && !canManageHr) for (const raw of shiftsResponse.data || []) {
+        if (raw.userId && raw.user && !équipe.some(employee => employee.id === raw.userId)) équipe.push({ id: raw.userId,
+          name: `${raw.user.firstName || ''} ${raw.user.lastName || ''}`.trim() || 'Employé', email: '', role: normaliseRole(raw.role), skills: [], hourlyRate: 0, availability: [], weeklyHours: 0 })
+      }
       const équipeParId = new Map(équipe.map((employee) => [employee.id, employee]))
       setEmployees(équipe)
-      setShifts((shiftsResponse.data || []).map((raw: any): Shift => {
+      setShifts((shiftsResponse.data || []).filter((raw: any) => canEdit || raw.userId === self?.id).map((raw: any): Shift => {
         const timing = readPlanningTiming(raw.startTime, raw.endTime, Number(raw.breakMinutes) || 0)
         const employé = équipeParId.get(raw.userId)
         return {
@@ -291,7 +329,7 @@ export default function PlanningPage() {
         }
       }))
       const nomParId = new Map(équipe.map((employee) => [employee.id, employee.name]))
-      const leaves = leavesResponse.data || []
+      const leaves = (leavesResponse.data || []).filter((leave: any) => canManageHr || leave.userId === self?.id)
       setSickLeaves(leaves.filter((leave: any) => leave.type === 'SICK').map((leave: any) => ({
         id: leave.id,
         userId: leave.userId,
@@ -310,11 +348,11 @@ export default function PlanningPage() {
         approved: leave.status === 'APPROVED',
       })))
     } catch (error: any) {
-      toastError(error?.response?.data?.message || 'Impossible de charger le planning réel')
+      if (currentRead()) toastError(error?.response?.data?.message || 'Impossible de charger le planning réel')
     } finally {
-      setLoadingPlanning(false)
+      if (currentRead()) setLoadingPlanning(false)
     }
-  }, [])
+  }, [isCurrent, canManageHr, canReadCosts, canReadReservations, canEdit, self, access])
 
   useEffect(() => { void loadPlanning() }, [loadPlanning])
 
@@ -364,8 +402,10 @@ export default function PlanningPage() {
 
   // v3.18.6 — RH permissions par rôle : si viewMode='employee', filtre les
   // shifts pour ne montrer QUE ceux de l'employé sélectionné. Patron voit tout.
-  const viewMode = useAuthStore((s) => s.viewMode)
-  const viewAsEmployeeId = useAuthStore((s) => s.viewAsEmployeeId)
+  const requestedViewMode = useAuthStore((s) => s.viewMode)
+  const requestedEmployeeId = useAuthStore((s) => s.viewAsEmployeeId)
+  const viewMode = canEdit ? requestedViewMode : 'employee'
+  const viewAsEmployeeId = canEdit ? requestedEmployeeId : self?.id ?? null
   const scopedShifts = useMemo(() => planningEmployeeRows(shifts, viewMode, viewAsEmployeeId), [shifts, viewMode, viewAsEmployeeId])
 
   const filteredShifts = useMemo(() => {
@@ -397,14 +437,17 @@ export default function PlanningPage() {
   const overtimeAlerts = Object.values(weeklyHoursByEmp).filter(entry => entry.hours >= 45).length
   // Cost forecast for the week
   const weeklyCost = useMemo(() => {
+    if (!canReadCosts) return null
     return scopedShifts.filter(s => weekDays.some(d => isSameDay(d, s.date)))
       .reduce((acc, s) => {
         const hrs = planningNetHours(s)
         return acc + hrs * s.hourlyRate
       }, 0)
-  }, [scopedShifts, weekDays])
+  }, [scopedShifts, weekDays, canReadCosts])
 
   const handleExportCSV = () => {
+    const current = useAuthStore.getState().businessAccess
+    if (!isCurrent() || !current?.capabilities.includes('finance.costs.read') || !current.capabilities.includes('exports.read')) return
     // Export de paie : les colonnes chiffrées DOIVENT rester sommables dans
     // Excel FR. `toFixed()` produisait « 15.00 » — lu comme du texte, total
     // impossible. downloadCsv passe les nombres bruts et met la virgule.
@@ -432,6 +475,7 @@ export default function PlanningPage() {
   }
 
   const handlePublish = async () => {
+    if (!mayEditNow() || actionBusy) return
     const période = view === 'month' ? monthDays : visibleDays
     const startDate = période[0]
     const endDate = période[période.length - 1]
@@ -442,16 +486,18 @@ export default function PlanningPage() {
         startDate: startDate.toISOString(),
         endDate: new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999).toISOString(),
       })
+      if (!isCurrent()) return
       await loadPlanning()
+      if (!isCurrent()) return
       if (data.failedRecipients > 0) {
         toastError(`Publication partielle : ${data.recipients} email(s) confirmé(s), ${data.failedRecipients} échec(s). Les shifts non livrés restent à publier.`)
       } else {
         toastSuccess(`Planning publié : ${data.confirmedShifts ?? data.shifts} shift(s), ${data.recipients} email(s) confirmé(s)`)
       }
     } catch (error: any) {
-      toastError(error?.response?.data?.message || 'Le planning n’a pas été envoyé')
+      if (isCurrent()) toastError(error?.response?.data?.message || 'Le planning n’a pas été envoyé')
     } finally {
-      setActionBusy(false)
+      if (isCurrent()) setActionBusy(false)
     }
   }
 
@@ -465,6 +511,7 @@ export default function PlanningPage() {
     breakMinutes: number
     secondaryRole?: RoleType
   }) => {
+    if (!mayEditNow()) throw new Error('Permission de gestion du planning requise')
     const range = createPlanningRange(data.date, data.startHour, data.endHour)
     await api.post('/hr/shifts', {
       userId: data.userId,
@@ -478,10 +525,12 @@ export default function PlanningPage() {
   }
 
   const handleOcrShifts = async (parsed: Array<{ employee: string; day: string; start: string; end: string; role?: string }>) => {
+    if (!mayEditNow()) return
     const jours: Record<string, number> = { lundi: 0, mardi: 1, mercredi: 2, jeudi: 3, vendredi: 4, samedi: 5, dimanche: 6 }
     let importés = 0
     const erreurs: string[] = []
     for (const shift of parsed) {
+      if (!mayEditNow()) return
       const employee = employees.find((entry) => {
         const nom = entry.name.toLowerCase()
         const demandé = String(shift.employee || '').toLowerCase().trim()
@@ -506,17 +555,20 @@ export default function PlanningPage() {
           breakMinutes: range.durationMinutes >= 360 ? 30 : 0,
           notes: 'section:Salle;source:ocr',
         })
+        if (!isCurrent()) return
         importés += 1
       } catch (error: any) {
         erreurs.push(error?.response?.data?.message || error?.message || `Échec pour ${shift.employee}`)
       }
     }
     await loadPlanning()
+    if (!isCurrent()) return
     if (importés) toastSuccess(`${importés} shift(s) OCR enregistrés dans le planning`)
     if (erreurs.length) toastError(erreurs.slice(0, 3).join(' · '))
   }
 
   const handleCellClick = (day: Date, hour: number) => {
+    if (!mayEditNow()) return
     setAddDate(day)
     setAddHour(hour)
     setShowAddModal(true)
@@ -534,7 +586,7 @@ export default function PlanningPage() {
             <ClipboardList size={24} color={C.indigo} /> Planning équipe
           </h1>
           <p style={{ color: C.muted, margin: '4px 0 0', fontSize: 13 }}>
-            Planification intelligente · Conformité droit luxembourgeois · Prévision coûts
+            {canEdit ? 'Gestion du planning selon vos permissions' : 'Votre planning personnel · Consultation'}{canReadCosts ? ' · Prévision des coûts' : ''}
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -548,7 +600,7 @@ export default function PlanningPage() {
       {/* Stats row */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
         <StatCard icon={<Users size={16} />} label="Shifts semaine" value={scopedShifts.filter(s => weekDays.some(d => isSameDay(d, s.date))).length} sub="planifiés" color={C.indigo} bg={C.indigoSoft} />
-        <StatCard icon={<Euro size={16} />} label="Coût prévu" value={`${weeklyCost.toFixed(0)}€`} sub="masse salariale" color={C.green} bg={C.greenSoft} />
+        {canReadCosts && weeklyCost !== null && <StatCard icon={<Euro size={16} />} label="Coût prévu" value={`${weeklyCost.toFixed(0)}€`} sub="masse salariale estimée" color={C.green} bg={C.greenSoft} />}
         <StatCard icon={<AlertTriangle size={16} />} label="Alertes 48h" value={overtimeAlerts} sub="employés proches" color={C.red} bg={C.redSoft} />
         <StatCard icon={<Heart size={16} />} label="Équipe" value={viewMode === 'employee' ? employees.filter(employee => employee.id === viewAsEmployeeId).length : employees.length} sub="employés actifs" color={C.purple} bg={C.purpleSoft} />
       </motion.div>
@@ -556,9 +608,9 @@ export default function PlanningPage() {
       {/* Action bar */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <span data-tour="ocr-import" style={{ display: 'contents' }}>
+          {canEdit && <span data-tour="ocr-import" style={{ display: 'contents' }}>
             <PlanningOCRImport onShifts={(parsed) => { void handleOcrShifts(parsed) }} />
-          </span>
+          </span>}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.border}`, background: C.card }}>
@@ -590,10 +642,10 @@ export default function PlanningPage() {
               </button>
             ))}
           </div>
-          <button onClick={handleExportCSV} style={btnGhost}><Download size={14} /> Payroll</button>
-          <button data-tour="publish-planning" onClick={handlePublish} disabled={actionBusy || loadingPlanning} style={{ ...btnPrimary, background: C.green, opacity: actionBusy || loadingPlanning ? 0.6 : 1 }}>
+          {canExportCosts && <button onClick={handleExportCSV} style={btnGhost}><Download size={14} /> Payroll</button>}
+          {canEdit && <button data-tour="publish-planning" onClick={handlePublish} disabled={actionBusy || loadingPlanning} style={{ ...btnPrimary, background: C.green, opacity: actionBusy || loadingPlanning ? 0.6 : 1 }}>
             {actionBusy ? <RefreshCcw size={14} /> : <Send size={14} />} {actionBusy ? 'Envoi en cours…' : 'Publier et envoyer'}
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -611,7 +663,7 @@ export default function PlanningPage() {
           <FilterCheckbox label="Shifts" checked={showShifts} onChange={setShowShifts} color={C.indigo} />
           <FilterCheckbox label="Congés" checked={showConges} onChange={setShowConges} color={C.cyan} />
           <FilterCheckbox label="Maladies" checked={showMaladies} onChange={setShowMaladies} color={C.red} />
-          <FilterCheckbox label="Réservations" checked={showReservations} onChange={setShowReservations} color={C.purple} />
+          {canReadReservations && <FilterCheckbox label="Réservations" checked={showReservations} onChange={setShowReservations} color={C.purple} />}
         </div>
       </div>
 
@@ -637,7 +689,7 @@ export default function PlanningPage() {
             sickLeaves={getSickLeavesForDay}
             vacations={getVacationsForDay}
             getHoliday={getHoliday}
-            onCellClick={handleCellClick}
+            onCellClick={canEdit ? handleCellClick : undefined}
           />
         ) : view === 'week' ? (
           <WeekView
@@ -647,22 +699,23 @@ export default function PlanningPage() {
             sickLeaves={getSickLeavesForDay}
             vacations={getVacationsForDay}
             getHoliday={getHoliday}
-            onCellClick={handleCellClick}
+            onCellClick={canEdit ? handleCellClick : undefined}
           />
         ) : view === '6weeks' ? (
-          <MonthView days={visibleDays} currentDate={currentDate} shifts={getShiftsForDay} getHoliday={getHoliday} />
+          <MonthView days={visibleDays} currentDate={currentDate} shifts={getShiftsForDay} getHoliday={getHoliday} showCosts={canReadCosts} showAssistant={canUseAssistant} />
         ) : (
-          <MonthView days={monthDays} currentDate={currentDate} shifts={getShiftsForDay} getHoliday={getHoliday} />
+          <MonthView days={monthDays} currentDate={currentDate} shifts={getShiftsForDay} getHoliday={getHoliday} showCosts={canReadCosts} showAssistant={canUseAssistant} />
         )}
       </div>
 
       <AddShiftModal
-        isOpen={showAddModal}
+        isOpen={showAddModal && canEdit}
         onClose={() => setShowAddModal(false)}
         date={addDate}
         hour={addHour}
         onToast={showToast}
         employees={employees}
+        showCosts={canReadCosts}
         onSave={handleAddShift}
       />
 
@@ -711,7 +764,7 @@ function WeekView({ days, shifts, reservations, sickLeaves, vacations, getHolida
   sickLeaves: (day: Date) => SickLeave[]
   vacations: (day: Date) => Vacation[]
   getHoliday: (day: Date) => Holiday | undefined
-  onCellClick: (day: Date, hour: number) => void
+  onCellClick?: (day: Date, hour: number) => void
 }) {
   const CELL_H = 50
 
@@ -767,12 +820,12 @@ function WeekView({ days, shifts, reservations, sickLeaves, vacations, getHolida
               >
                 {/* Le bouton d'ajout ne contient pas les cartes : un bouton ARIA
                     aplatirait leur contenu et masquerait l'employé aux lecteurs d'écran. */}
-                <button
+                {onCellClick && <button
                   type="button"
                   aria-label={`Ajouter un shift ${format(day, 'dd/MM/yyyy')} ${String(hour).padStart(2, '0')}:00`}
                   onClick={() => onCellClick(day, hour)}
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0, padding: 0, background: 'transparent', cursor: 'pointer' }}
-                />
+                />}
                 {dayShifts.map((s, si) => (
                   s.startHour === hour && (
                     <motion.article
@@ -877,8 +930,8 @@ function WeekView({ days, shifts, reservations, sickLeaves, vacations, getHolida
   )
 }
 
-function MonthView({ days, currentDate, shifts, getHoliday }: {
-  days: Date[]; currentDate: Date; shifts: (day: Date) => Shift[]; getHoliday: (day: Date) => Holiday | undefined
+function MonthView({ days, currentDate, shifts, getHoliday, showCosts, showAssistant }: {
+  days: Date[]; currentDate: Date; shifts: (day: Date) => Shift[]; getHoliday: (day: Date) => Holiday | undefined; showCosts: boolean; showAssistant: boolean
 }) {
   const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 
@@ -902,7 +955,7 @@ function MonthView({ days, currentDate, shifts, getHoliday }: {
           const holiday = getHoliday(day)
           const inMonth = isSameMonth(day, currentDate)
           const counts = countByRole(day)
-          const cost = costForDay(day)
+          const cost = showCosts ? costForDay(day) : 0
           return (
             <motion.div
               key={i}
@@ -946,18 +999,19 @@ function MonthView({ days, currentDate, shifts, getHoliday }: {
       </div>
 
       {/* Planning assistant — multi-select / OCR / IA / events */}
-      <PlanningAssistant />
+      {showAssistant && <PlanningAssistant />}
     </div>
   )
 }
 
-function AddShiftModal({ isOpen, onClose, date, hour, onToast, employees, onSave }: {
+function AddShiftModal({ isOpen, onClose, date, hour, onToast, employees, showCosts, onSave }: {
   isOpen: boolean
   onClose: () => void
   date: Date | null
   hour: number
   onToast: (m: string) => void
   employees: Employee[]
+  showCosts: boolean
   onSave: (data: {
     userId: string; role: RoleType; section: SectionType; date: Date
     startHour: number; endHour: number; breakMinutes: number; secondaryRole?: RoleType
@@ -1059,7 +1113,7 @@ function AddShiftModal({ isOpen, onClose, date, hour, onToast, employees, onSave
               <div style={{ padding: 10, background: C.indigoSoft, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Sparkles size={14} color={C.indigo} />
                 <div style={{ fontSize: 12, color: C.text }}>
-                  Suggestion : <strong>{employeeRec.name}</strong> ({employeeRec.hourlyRate}€/h)
+                  Suggestion : <strong>{employeeRec.name}</strong>{showCosts && employeeRec.hourlyRate > 0 ? ` (${employeeRec.hourlyRate.toFixed(2)}€/h)` : ''}
                 </div>
               </div>
             )}

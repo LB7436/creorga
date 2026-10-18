@@ -35,7 +35,7 @@ const drawers = new Map<string, string>()
 const token = (userId = ownerId) => jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: '30m' })
 const auth = (r: any, companyId = companyA, userId = ownerId) => r.set('Authorization', 'Bearer ' + token(userId)).set('x-company-id', companyId)
 const call = (body: any, companyId = companyA, userId = ownerId) => auth(request(app).post('/api/payments/manual-refunds'), companyId, userId).send(body)
-const noProof = (response: any) => { expect(response.body.code).toBeUndefined(); expect(response.body.outcome).toBeUndefined(); expect(response.body.requestId).toBeUndefined() }
+const noProof = (response: any) => { expect([undefined, 'CAPABILITY_REQUIRED']).toContain(response.body.code); expect(response.body.outcome).toBeUndefined(); expect(response.body.requestId).toBeUndefined() }
 async function fixture(companyId = companyA, method: 'CASH' | 'CARD' = 'CASH', tenderCents = 225, creditCents = 250) {
   const order = await prisma.order.create({ data: { companyId, orderNumber: orderNumber++, subtotal: 8.76, taxAmount: 1.49, total: 10.25, status: 'PAID', paidAt: new Date() } })
   const invoiceResult = await auth(request(app).post('/api/invoices'), companyId).send({ orderId: order.id, items: [{ description: 'Service FICTIF', quantity: 1, unitPrice: 8.76, taxRate: 17 }] }).expect(201)

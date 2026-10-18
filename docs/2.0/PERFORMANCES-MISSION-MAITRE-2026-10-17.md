@@ -1,5 +1,27 @@
 # Performance — mission maître, 17 octobre 2026
 
+## Observations nouvelles du18octobre, non benchmark causal
+
+11échantillons au repos par phase : working sets moyens1438,43→1327,90MiB,
+processus31→23, CPU normalisé arrondi0%, somme moteursGPU0, allocationGPU dédiée
+118,24MiB. Profils/services+descendants+PG, Chrome non inclus ; nombre d'onglets
+différent et redémarrage/cache chaud : **pas de gain attribué aux jeux ou à une
+correction, aucune conversion en watts/euros**. Pages partagées potentiellement
+comptées plusieurs fois.
+
+Même table Café sauvegardée inchangée par UI avant/après :35,6et29,8ms HTTP,
+**un échantillon chacune**, pasp95. Les35,6ms précèdent la compilation finale,
+les29,8ms suivent son redémarrage. Ce n'est pas comparable à l'ancien lot2,42sp95.
+Charge concurrente/profilSQL prolongé et latences exhaustives des modules NOTRUN.
+Builds finaux métier103,514s/complet87,365s,5applications chacun ; le premier partage
+une partie de sa fenêtre avec les intégrationsPG, donc pas de comparaison causale
+avec les63,897s/64,297s antérieurs. Ce ne sont pas les temps d'ouverture des écrans.
+Deux relances officielles finales cache chaud3,127s/3,404s, puis deux arrêts confirmés
+avec trois onglets ouverts, PID absents et ports libres. Le2,335s antérieur reste
+historique ; aucun RTO promis, abandon HTTP incertain toujours non qualifié.
+[Preuves](preuves/droits-robi-validation-2026-10-18.json),
+[rapport/Node portable/Rust-Go](DROITS-FINS-ROBI-RECETTE-2026-10-18.md).
+
 Campagne **NON LIVRÉE**. Ce rapport sépare les séries historiques, observations
 opérationnelles et mesures non exécutées. Pas de nouveau gain énergétique,
 de débit garanti, de p99 inventé ou de benchmark de langage.

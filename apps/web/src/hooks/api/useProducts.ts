@@ -1,4 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useBusinessQuery } from './useBusinessQuery'
 import api from '@/lib/api'
 import { toastError, toastSuccess } from '@/lib/toast'
 
@@ -26,22 +27,24 @@ export interface Category {
   _count?: { products: number }
 }
 
-export function useProducts(categoryId?: string) {
-  return useQuery<Product[]>({
+export function useProducts(categoryId?: string, options: { enabled?: boolean } = {}) {
+  return useBusinessQuery<Product[]>('catalog.read', {
     queryKey: ['products', categoryId ?? 'all'],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       api
         .get('/products', {
           params: categoryId ? { categoryId } : undefined,
+          signal,
         })
         .then((r) => r.data),
+    enabled: options.enabled,
   })
 }
 
 export function useProduct(id?: string) {
-  return useQuery<Product>({
+  return useBusinessQuery<Product>('catalog.read', {
     queryKey: ['products', 'detail', id],
-    queryFn: () => api.get(`/products/${id}`).then((r) => r.data),
+    queryFn: ({ signal }) => api.get(`/products/${id}`, { signal }).then((r) => r.data),
     enabled: Boolean(id),
   })
 }
@@ -86,9 +89,9 @@ export function useDeleteProduct() {
 }
 
 export function useCategories() {
-  return useQuery<Category[]>({
+  return useBusinessQuery<Category[]>('catalog.read', {
     queryKey: ['categories'],
-    queryFn: () => api.get('/categories').then((r) => r.data),
+    queryFn: ({ signal }) => api.get('/categories', { signal }).then((r) => r.data),
   })
 }
 

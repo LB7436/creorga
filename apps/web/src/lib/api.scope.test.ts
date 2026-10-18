@@ -4,6 +4,9 @@ import api, { refreshSession } from './api'
 import { fetchAuth } from './fetchAuth'
 import { useAuthStore } from '@/stores/authStore'
 import type { User, UserCompany } from '@/types'
+import { toastError } from './toast'
+
+vi.mock('./toast', () => ({ toastError: vi.fn() }))
 
 const adapter = api.defaults.adapter
 const user: User = { id: 'fixture-user-a', email: 'a@fixture.invalid', firstName: 'A', lastName: 'Test', avatar: null }
@@ -16,6 +19,7 @@ const login = (id = user.id) => useAuthStore.getState().setAuth({ accessToken: t
 const response = (config: InternalAxiosRequestConfig, data: unknown, status = 200) => ({ config, data, status, statusText: 'fixture', headers: {} })
 
 beforeEach(() => {
+  vi.mocked(toastError).mockClear()
   vi.stubGlobal('window', { location: { pathname: '/dashboard' }, localStorage: { getItem: () => null } })
   login()
 })
@@ -26,6 +30,55 @@ afterEach(() => {
 })
 
 describe('réponses HTTP et renouvellement isolés par session', () => {
+  it('annonce le refus hors du panneau avant son invalidation, sans révéler la réponse privée', async () => {
+    useAuthStore.getState().setBusinessAccess({ role: 'EMPLOYEE', capabilities: ['assistant.use'], revision: 'limited-refusal', version: 1 }, 'company-a', user.id)
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('PRIVATE_OTHER_COMPANY_SENTINEL', { status: 403 })))
+    expect((await fetchAuth('/api/agent/super-ask')).status).toBe(403)
+    expect(toastError).toHaveBeenCalledOnce()
+    expect(vi.mocked(toastError).mock.calls[0][0]).toContain('Accès refusé')
+    expect(JSON.stringify(vi.mocked(toastError).mock.calls)).not.toContain('PRIVATE_OTHER_COMPANY_SENTINEL')
+    expect(useAuthStore.getState().businessAccess).toBeNull()
+    expect(fetch).toHaveBeenCalledOnce()
+  })
+
+  it('annonce aussi un refus axios courant, sans rejouer la demande', async () => {
+    api.defaults.adapter = vi.fn(async config => { throw new AxiosError('fixture forbidden', 'ERR_BAD_REQUEST', config, {}, response(config, {}, 403)) })
+    await expect(api.get('/accounting')).rejects.toMatchObject({ response: { status: 403 } })
+    expect(toastError).toHaveBeenCalledOnce()
+    expect(api.defaults.adapter).toHaveBeenCalledOnce()
+  })
+
+  it('un ancien refus ne produit pas de notification dans la nouvelle société', async () => {
+    let complete!: (value: Response) => void
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(resolve => { complete = resolve })))
+    const pending = fetchAuth('/api/agent/super-ask').catch(error => error)
+    useAuthStore.getState().setActiveCompany('company-b')
+    complete(new Response('Refus ancien', { status: 403 }))
+    expect(await pending).toMatchObject({ code: 'ERR_CANCELED' })
+    expect(toastError).not.toHaveBeenCalled()
+  })
+
+  it('un refus courant retire immédiatement les vues sensibles sans rejouer la mutation', async () => {
+    useAuthStore.getState().setBusinessAccess({ role: 'OWNER', capabilities: ['finance.revenue.read'], revision: 'autorise-fixture', version: 1 }, 'company-a', user.id)
+    api.defaults.adapter = vi.fn(async config => { throw new AxiosError('fixture forbidden', 'ERR_BAD_REQUEST', config, {}, response(config, {}, 403)) })
+    await expect(api.post('/invoices', {})).rejects.toMatchObject({ response: { status: 403 } })
+    expect(useAuthStore.getState().businessAccess).toBeNull()
+    expect(api.defaults.adapter).toHaveBeenCalledOnce()
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+  })
+
+  it('un changement de société n’adopte pas les droits d’une adhésion persistée', () => {
+    useAuthStore.setState({ companies: companies.map(member => ({ ...member, businessAccess: { role: 'OWNER', capabilities: ['finance.revenue.read'], revision: 'ancienne-fixture', version: 1 } })) })
+    useAuthStore.getState().setActiveCompany('company-b')
+    expect(useAuthStore.getState().businessAccess).toBeNull()
+  })
+  it('le refus d’un téléchargement fetch retire aussi les anciennes vues sensibles', async () => {
+    useAuthStore.getState().setBusinessAccess({ role: 'OWNER', capabilities: ['invoices.read', 'exports.read'], revision: 'document-fixture', version: 1 }, 'company-a', user.id)
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Refus fictif', { status: 403 })))
+    expect((await fetchAuth('/api/invoices/fixture/pdf')).status).toBe(403)
+    expect(useAuthStore.getState().businessAccess).toBeNull()
+  })
+
   it('une session déconnectée ne récupère pas un compte depuis un cookie partagé', async () => {
     useAuthStore.getState().logout()
     const refresh = vi.spyOn(axios, 'post').mockResolvedValue({ data: { accessToken: token('fixture-user-b') } })

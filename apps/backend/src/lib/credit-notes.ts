@@ -4,6 +4,7 @@ import prisma from './prisma'
 import { avecReprisesNumerotation, nextNumber } from './numerotation'
 import { allocateMinor, moneyMinor, totalsFromTtc, type TaxGroup } from './money'
 import { invoicePdf, type PrintableInvoice } from './invoice-pdf'
+import { assertTransactionCapabilities, BusinessPermissionError } from './business-permission-transaction'
 
 type CreditNotIssuedProof = {
   code: 'CREDIT_AMOUNT_EXCEEDS_AVAILABLE'; outcome: 'NOT_ISSUED'; requestId: string
@@ -20,6 +21,8 @@ export async function createCreditNote(companyId: string, actorId: string, invoi
   const requestHash = createHash('sha256').update(JSON.stringify({ companyId, actorId, invoiceId, ...input })).digest('hex')
   return avecReprisesNumerotation(() => prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext(${`invoice-credit:${invoiceId}`}))::text`
+    try { await assertTransactionCapabilities(tx, { companyId, user: { userId: actorId } }, 'invoices.write') }
+    catch (error) { if (error instanceof BusinessPermissionError) throw new CreditError(403, error.message); throw error }
     const invoice = await tx.invoice.findFirst({ where: { id: invoiceId, companyId } })
     if (!invoice) throw new CreditError(404, 'Facture introuvable dans cette société.')
     const existing = await tx.creditNote.findUnique({ where: { id: input.requestId } })

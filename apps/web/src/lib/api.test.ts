@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import axios from 'axios'
 
+// Boundary simulated only for these transport/session tests; refusal notices
+// and scope invalidation are asserted in api.scope.test.ts, not by a fake DOM.
+vi.mock('./toast', () => ({ toastError: vi.fn() }))
+
 /**
  * Non-régression du défaut 4.2 : boucle de rechargement infinie.
  *

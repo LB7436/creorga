@@ -8,6 +8,8 @@ import { requestTablePayment } from '../lib/table-payment'
 import { moneyMinor } from '../../../backend/src/lib/money'
 import PricingReview from './PricingReview'
 import PartialPaymentPanel from './PartialPaymentPanel'
+import { BusinessGuard } from '../components/BusinessGuard'
+import { hasCapability } from '../lib/business-access'
 
 interface Props {
   tableId: string
@@ -322,7 +324,10 @@ function SuccessOverlay({
 }
 
 /* ── Main ────────────────────────────────────────────────────────────────────── */
-export default function PaymentPage({ tableId, onBack, onDone }: Props) {
+export default function PaymentPage(props: Props) {
+  return <BusinessGuard capability="payments.receive" onBack={props.onBack}><PaymentContent {...props} /></BusinessGuard>
+}
+function PaymentContent({ tableId, onBack, onDone }: Props) {
   const table = usePOS(s => s.tables.find(t => t.id === tableId))
   const [confirmed, setConfirmed] = useState<{ sale: Vente; change: number | null } | null>(null)
   const [paying, setPaying] = useState(false)
@@ -495,6 +500,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   }
 
   async function applyPromo() {
+    if (!hasCapability('discounts.grant')) { setPromoError('La permission d’accorder une remise est nécessaire.'); return }
     const code = promoCode.trim().toUpperCase()
     if (!code) return
     try {
@@ -528,6 +534,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
    * inscrit sur la seule méthode principale.
    */
   async function handleConfirm() {
+    if (!hasCapability('payments.receive')) { setErreurEncaissement('La permission d’encaisser a été retirée. Aucune nouvelle demande envoyée ; références en attente conservées.'); return }
     if (paying || onlineBusy) return
     if (appliedGesture > 0 && commercialReason.trim().length < 10) { setErreurEncaissement('Précisez le motif du geste commercial (10 caractères minimum).'); return }
     if (payingCovers.some(c => c.payment)) { setErreurEncaissement('Un acompte existe : utilisez le panneau Acompte / solde.'); return }
@@ -602,6 +609,7 @@ export default function PaymentPage({ tableId, onBack, onDone }: Props) {
   const mixedFullyPaid = mixedMode && moneyMinor(paidSoFar) === moneyMinor(totalToPay)
 
   async function startOnlinePayment() {
+    if (!hasCapability('payments.receive')) { setErreurEncaissement('La permission d’encaisser a été retirée.'); return }
     if (onlineBusy || paying || !onlineProvider) return
     if (!covers.length || covers.some(c => !c.id.startsWith('guest:'))) { setErreurEncaissement('Le paiement en ligne est disponible pour les commandes du portail QR. Pour cette addition, utilisez les espèces ou votre terminal bancaire.'); return }
     if (splitMode !== 'full' || totalDiscount > 0 || giftAmount > 0 || tipAmount > 0 || charityAmount > 0 || mixedMode) { setErreurEncaissement('Le paiement en ligne règle l’addition QR complète. Pour un partage, une remise ou un paiement mixte, utilisez la caisse.'); return }

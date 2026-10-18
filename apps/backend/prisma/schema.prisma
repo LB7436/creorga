@@ -178,14 +178,34 @@ model UserCompany {
   userId    String
   companyId String
   role      String   @default("EMPLOYEE")
+  capabilities Json  @default("{}")
+  accessVersion Int  @default(0)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
   user    User    @relation(fields: [userId], references: [id])
   company Company @relation(fields: [companyId], references: [id])
   profile EmployeeProfile?
+  permissionEvents BusinessPermissionEvent[]
 
   @@unique([userId, companyId])
+}
+
+// Journal additif des décisions explicites : aucune réécriture des anciens rôles.
+model BusinessPermissionEvent {
+  id String @id @default(uuid())
+  membershipId String
+  companyId String
+  userId String
+  actorId String
+  beforeVersion Int
+  afterVersion Int
+  before Json
+  after Json
+  reason String
+  createdAt DateTime @default(now())
+  membership UserCompany @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  @@index([companyId, userId, createdAt])
 }
 
 model RefreshToken {

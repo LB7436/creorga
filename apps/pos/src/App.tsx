@@ -11,9 +11,11 @@ import FloorPlanEditor from './pages/FloorPlanEditor'
 import WaiterMode from './pages/WaiterMode'
 import KitchenDisplay from './pages/KitchenDisplay'
 import JournalPage from './pages/JournalPage'
+import CashDrawerPage from './pages/CashDrawerPage'
 import { usePOS } from './store/posStore'
+import { hasCapability } from './lib/business-access'
 
-export type AppView = 'pin_login' | 'floor' | 'order' | 'payment' | 'config' | 'kiosk' | 'editor' | 'waiter' | 'kitchen' | 'journal'
+export type AppView = 'pin_login' | 'floor' | 'order' | 'payment' | 'config' | 'kiosk' | 'editor' | 'waiter' | 'kitchen' | 'journal' | 'cash'
 
 export default function App() {
   const [ready, setReady] = useState(false)
@@ -23,6 +25,11 @@ export default function App() {
   const tables = usePOS(s => s.tables)
   const settings = usePOS(s => s.settings)
   const currentStaff = usePOS(s => s.currentStaff)
+  const access = usePOS(s => s.businessAccess)
+  const canService = hasCapability('service.manage', access)
+  const canRevenue = hasCapability('finance.revenue.read', access)
+  const canSettings = hasCapability('settings.manage', access)
+  const canConfigure = canSettings || hasCapability('catalog.prices.write', access) || hasCapability('hr.manage', access)
   const logoutStaff = useCallback(() => { logoutServer(); setReady(false); setView('pin_login') }, [])
   const currentStaffId = currentStaff?.id
   const kioskMode = usePOS(s => s.kioskMode)
@@ -69,11 +76,13 @@ export default function App() {
   const occupiedCount = tables.filter(t => t.status === 'occupied').length
 
   function openOrder(tableId: string) {
+    if (!hasCapability('service.manage')) return
     setActiveTableId(tableId)
     setView('order')
   }
 
   function openPayment(tableId: string) {
+    if (!hasCapability('payments.receive')) return
     setActiveTableId(tableId)
     setView('payment')
   }
@@ -104,7 +113,7 @@ export default function App() {
         if (view !== 'floor') { e.preventDefault(); goBack() }
         return
       }
-      if (touche === 'n' && view === 'floor') {
+      if (touche === 'n' && view === 'floor' && hasCapability('service.manage')) {
         e.preventDefault()
         const libre = tables.find(t => t.status === 'available')
         if (libre) { usePOS.getState().openTable(libre.id, 2); openOrder(libre.id) }
@@ -115,7 +124,7 @@ export default function App() {
         openPayment(activeTableId)
         return
       }
-      if (touche === 'k' && view === 'floor') {
+      if (touche === 'k' && view === 'floor' && (hasCapability('service.read') || hasCapability('service.manage'))) {
         e.preventDefault()
         setView('kitchen')
         return
@@ -173,6 +182,7 @@ export default function App() {
   if (view === 'journal') {
     return <JournalPage onExit={() => setView('floor')} />
   }
+  if (view === 'cash') return <CashDrawerPage onExit={() => setView('floor')} />
 
   // ── Breadcrumb segments ──
   function renderBreadcrumb() {
@@ -271,7 +281,7 @@ export default function App() {
           )}
 
           {/* Cuisine (KDS) button */}
-          {view === 'floor' && (
+          {view === 'floor' && (canService || hasCapability('service.read', access)) && (
             <button
               onClick={() => setView('kitchen')}
               style={headerBtn()}
@@ -284,8 +294,8 @@ export default function App() {
             </button>
           )}
 
-          {/* Journal des ventes — la caisse n'enregistrait rien avant. */}
-          {view === 'floor' && (
+          {/* Journal financier : jamais dérivé des seules commandes du serveur. */}
+          {view === 'floor' && canRevenue && (
             <button
               onClick={() => setView('journal')}
               style={headerBtn()}
@@ -300,8 +310,10 @@ export default function App() {
             </button>
           )}
 
+          {view === 'floor' && (hasCapability('cash.open', access) || hasCapability('cash.close', access)) && <button onClick={() => setView('cash')} style={headerBtn()}>Tiroir</button>}
+
           {/* Serveur (Waiter) button */}
-          {view === 'floor' && (
+          {view === 'floor' && canService && (
             <button
               onClick={() => setView('waiter')}
               style={headerBtn()}
@@ -317,7 +329,7 @@ export default function App() {
           )}
 
           {/* Kiosque button */}
-          {view === 'floor' && (
+          {view === 'floor' && canSettings && (
             <button
               onClick={async () => { try { await enterPublicKiosk(); setReady(false); setView('kiosk') } catch (e: any) { setSync({ message: e.message, error: true }) } }}
               style={headerBtn()}
@@ -327,7 +339,7 @@ export default function App() {
           )}
 
           {/* Editor button */}
-          {view === 'floor' && (
+          {view === 'floor' && canSettings && (
             <button onClick={() => setView('editor')} style={headerBtn()}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
@@ -337,7 +349,7 @@ export default function App() {
           )}
 
           {/* Config (gear) button */}
-          {view !== 'config' && view !== 'editor' && (
+          {view !== 'config' && view !== 'editor' && canConfigure && (
             <button onClick={() => setView('config')} style={headerBtn()}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3"/>

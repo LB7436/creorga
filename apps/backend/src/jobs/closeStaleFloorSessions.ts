@@ -1,6 +1,7 @@
 /** Une ancienne session est signalée, jamais encaissée ou effacée automatiquement. */
 import { getLoadedFloorStates, type FloorState } from '../routes/floorState'
 import logger from '../lib/logger'
+import { publicFloorInvalidation } from '../lib/live-channels'
 
 const MAX_HOURS = Number(process.env.STALE_TABLE_MAX_HOURS) || 8
 const TICK_MS = 30 * 60 * 1000
@@ -23,11 +24,13 @@ export function startStaleSessionJanitor() {
     for (const { companyId, state } of getLoadedFloorStates()) {
       const stale = findStaleSessions(state)
       if (!stale.length) continue
-      logger.warn('[salles] Sessions anciennes à vérifier ; additions et chaises conservées', { companyId, sessions: stale })
+      logger.warn('[salles] Sessions anciennes à vérifier via l’API autorisée ; additions et chaises conservées')
       const broadcast = (globalThis as any).liveBroadcast
       if (typeof broadcast === 'function') {
-        try { broadcast(`floor-${companyId}`, 'floor-stale-sessions', { sessions: stale }) }
-        catch (err) { logger.warn('[salles] Notification des sessions anciennes indisponible', err) }
+        // floor-* est volontairement public pour le QR. Une invalidation ne
+        // divulgue ni table, ni durée, ni montant ; la relecture exige les droits.
+        try { broadcast(`floor-${companyId}`, 'floor-updated', publicFloorInvalidation()) }
+        catch { logger.warn('[salles] Notification des sessions anciennes indisponible') }
       }
     }
   }

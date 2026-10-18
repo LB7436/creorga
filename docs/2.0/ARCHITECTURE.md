@@ -1,5 +1,21 @@
 # Architecture de reprise
 
+## Relevé actuel — droits et autorité locale,18octobre2026
+
+Le laboratoire utilise `CREORGA_BUSINESS_ONLY` et une seule autorité de salle
+PostgreSQL : FloorWorkspace et les sessions/lignes/affectations transactionnelles.
+Les anciens fichiers restent conservés, pas promus automatiquement en source SQL ;
+leurs mutations HTTP sont refusées503avant effet métier quand l'autorité requise
+manque. Des configurations/pièces et brouillons navigateur restent séparés ;
+ne pas lire le paragraphe historique ci-dessous comme une nouvelle autorité fichiers.
+Les droits vivent dans l'adhésion active UserCompany, révisionnée et auditée.
+Robi lit localement les données autorisées ; son provider génératif et les anciens
+workflows ne sont pas qualifiés. Le drain coordonné reste fail-closed en cas
+d'abandon de réponse HTTP, sans déconnecter une base potentiellement utilisée.
+[Détails, tests et limites](DROITS-FINS-ROBI-RECETTE-2026-10-18.md).
+
+## Décisions initiales conservées
+
 Décision : conserver Express, Prisma/PostgreSQL et les applications React/Vite existantes.
 Le backend local constitue l'autorité d'écriture du laboratoire ; aucun second serveur central
 ne reçoit de ventes et aucune synchronisation « double maître » n'est activée.

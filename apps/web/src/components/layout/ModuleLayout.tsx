@@ -4,12 +4,16 @@ import { ChevronLeft, Maximize2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useThemeColors, useTheme } from '@/lib/theme'
 import RobiSuggestionBanner from '@/components/RobiSuggestionBanner'
+import { useAuthStore } from '@/stores/authStore'
+import { mayOpenBusinessPage } from '@/lib/businessPageAccess'
 
 interface NavItem { label: string; path: string; icon: LucideIcon }
 interface ModuleLayoutProps { title: string; color: string; items: NavItem[]; backPath?: string; banner?: React.ReactNode }
 
 export default function ModuleLayout({ title, color, items, backPath = '/modules', banner }: ModuleLayoutProps) {
   const navigate = useNavigate()
+  const access = useAuthStore(state => state.businessAccess)
+  const visibleItems = access ? items.filter(item => mayOpenBusinessPage(item.path, access)) : []
   const colors = useThemeColors()
   const isDark = useTheme((s) => s.resolvedTheme) === 'dark'
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false)
@@ -84,7 +88,7 @@ export default function ModuleLayout({ title, color, items, backPath = '/modules
           <h2 style={{ fontWeight: 700, fontSize: 14, color: colors.text, margin: 0 }}>{title}</h2>
         </div>
         <nav style={{ flex: 1, paddingLeft: 8, paddingRight: 8 }}>
-          {items.map(item => (
+          {visibleItems.map(item => (
             <NavLink
               key={item.path}
               to={item.path}
@@ -154,12 +158,12 @@ export default function ModuleLayout({ title, color, items, backPath = '/modules
             {banner}
           </div>
         )}
-        <RobiSuggestionBanner />
+        {access?.capabilities.includes('assistant.use') && <RobiSuggestionBanner key={access.revision} />}
         <Outlet />
       </div>
       {isMobile && !kiosk && (
-        <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 70, height: 64, background: colors.bgSidebar, borderTop: `1px solid ${colors.border}`, display: 'grid', gridTemplateColumns: `repeat(${Math.min(4, items.length)}, 1fr)` }}>
-          {items.slice(0, 4).map((item) => (
+        <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 70, height: 64, background: colors.bgSidebar, borderTop: `1px solid ${colors.border}`, display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, Math.min(4, visibleItems.length))}, 1fr)` }}>
+          {visibleItems.slice(0, 4).map((item) => (
             <NavLink
               key={item.path}
               to={item.path}

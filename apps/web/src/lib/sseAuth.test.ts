@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
+// No DOM is provided by the stream harness; visual refusal is covered by the
+// transport scope tests and the real browser, not by this SSE parser fixture.
+vi.mock('./toast', () => ({ toastError: vi.fn() }))
+
 /**
  * Non-régression du P0 n°1 : le flux opérateur de Robi partait sans jeton.
  *

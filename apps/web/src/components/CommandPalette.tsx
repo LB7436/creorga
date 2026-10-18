@@ -93,11 +93,10 @@ function getTimeGreeting(): string {
 
 export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const navigate = useNavigate()
-  // Mêmes clés react-query que les écrans Clients et Catalogue : la palette
-  // est montée partout, mais elle se sert du cache déjà rempli par ces écrans
-  // au lieu de déclencher deux requêtes supplémentaires par page.
-  const { data: clientsApi } = useCustomers()
-  const { data: produitsApi } = useProducts()
+  // Mêmes clés que les écrans métier ; aucun chargement global tant que la
+  // palette reste fermée, ni lecture sans les capacités effectives courantes.
+  const { data: clientsApi } = useCustomers(undefined, { enabled: open })
+  const { data: produitsApi } = useProducts(undefined, { enabled: open })
   const clients = clientsApi || []
   const produits = produitsApi || []
   const [query, setQuery] = useState('')

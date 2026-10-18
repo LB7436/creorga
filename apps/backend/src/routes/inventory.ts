@@ -1,8 +1,19 @@
 import { Router, type Response } from 'express'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
+import { hasCapability } from '../lib/business-permissions'
+import { requireCapabilities } from '../lib/business-permission-transaction'
 
 const router = Router()
+const ingredientSelect = (req: any) => ({ id: true, companyId: true, name: true, unit: true,
+  currentStock: true, minStockLevel: true, supplierId: true, createdAt: true, updatedAt: true,
+  costPerUnit: hasCapability(req, 'finance.costs.read') })
+function visibleIngredient(ingredient: any, req: any) {
+  if (hasCapability(req, 'finance.costs.read')) return ingredient
+  const { costPerUnit: _cost, supplier: _supplier, ...visible } = ingredient
+  return visible
+}
+const visibleRecipes = (recipes: any[], req: any) => recipes.map(recipe => ({ ...recipe, ingredient: visibleIngredient(recipe.ingredient, req) }))
 
 function nombreValide(value: unknown, minimum = 0) {
   const nombre = Number(value)
@@ -26,10 +37,10 @@ router.get('/ingredients', async (req: any, res: Response) => {
   try {
     const ingredients = await prisma.ingredient.findMany({
       where: { companyId: req.companyId },
-      include: { supplier: true },
+      select: { ...ingredientSelect(req), supplier: hasCapability(req, 'finance.costs.read') },
       orderBy: { name: 'asc' },
     })
-    const withAlerts = ingredients.map((i) => ({ ...i, lowStock: i.currentStock <= i.minStockLevel }))
+    const withAlerts = ingredients.map((i) => ({ ...visibleIngredient(i, req), lowStock: i.currentStock <= i.minStockLevel }))
     res.json(withAlerts)
   } catch (error) {
     logger.error('Erreur GET /ingredients:', error)
@@ -37,9 +48,10 @@ router.get('/ingredients', async (req: any, res: Response) => {
   }
 })
 
-router.post('/ingredients', async (req: any, res: Response) => {
+router.post('/ingredients', requireCapabilities('inventory.adjust'), async (req: any, res: Response) => {
   try {
     const { name, unit, costPerUnit, currentStock, minStockLevel, supplierId } = req.body
+    if (costPerUnit !== undefined && !hasCapability(req, 'finance.manage')) return res.status(403).json({ message: 'La modification des coûts nécessite un droit financier.' })
     if (!String(name || '').trim()) return res.status(400).json({ message: 'Nom requis' })
     const cost = nombreValide(costPerUnit ?? 0)
     const stock = nombreValide(currentStock ?? 0)
@@ -61,15 +73,16 @@ router.post('/ingredients', async (req: any, res: Response) => {
         supplierId: supplierId || null,
       },
     })
-    res.status(201).json(ingredient)
+    res.status(201).json(visibleIngredient(ingredient, req))
   } catch (error) {
     logger.error('Erreur POST /ingredients:', error)
     res.status(500).json({ message: 'Erreur serveur' })
   }
 })
 
-router.put('/ingredients/:id', async (req: any, res: Response) => {
+router.put('/ingredients/:id', requireCapabilities('inventory.adjust'), async (req: any, res: Response) => {
   try {
+    if (req.body.costPerUnit !== undefined && !hasCapability(req, 'finance.manage')) return res.status(403).json({ message: 'La modification des coûts nécessite un droit financier.' })
     const existing = await prisma.ingredient.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Ingrédient non trouvé' }); return }
     const data: any = {}
@@ -95,14 +108,14 @@ router.put('/ingredients/:id', async (req: any, res: Response) => {
       where: { id: req.params.id },
       data,
     })
-    res.json(ingredient)
+    res.json(visibleIngredient(ingredient, req))
   } catch (error) {
     logger.error('Erreur PUT /ingredients/:id:', error)
     res.status(500).json({ message: 'Erreur serveur' })
   }
 })
 
-router.delete('/ingredients/:id', async (req: any, res: Response) => {
+router.delete('/ingredients/:id', requireCapabilities('inventory.adjust'), async (req: any, res: Response) => {
   try {
     const existing = await prisma.ingredient.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Ingrédient non trouvé' }); return }
@@ -129,7 +142,7 @@ router.get('/suppliers', async (req: any, res: Response) => {
   }
 })
 
-router.post('/suppliers', async (req: any, res: Response) => {
+router.post('/suppliers', requireCapabilities('inventory.adjust'), async (req: any, res: Response) => {
   try {
     const { name, contactName, email, phone, notes } = req.body
     const nom = String(name || '').trim()
@@ -151,7 +164,7 @@ router.post('/suppliers', async (req: any, res: Response) => {
   }
 })
 
-router.put('/suppliers/:id', async (req: any, res: Response) => {
+router.put('/suppliers/:id', requireCapabilities('inventory.adjust'), async (req: any, res: Response) => {
   try {
     const existing = await prisma.supplier.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Fournisseur non trouvé' }); return }
@@ -170,7 +183,7 @@ router.put('/suppliers/:id', async (req: any, res: Response) => {
 
 // ─── PURCHASE ORDERS ──────────────────────────────────
 
-router.get('/purchase-orders', async (req: any, res: Response) => {
+router.get('/purchase-orders', requireCapabilities('finance.costs.read'), async (req: any, res: Response) => {
   try {
     const orders = await prisma.purchaseOrder.findMany({
       where: { companyId: req.companyId },
@@ -184,7 +197,7 @@ router.get('/purchase-orders', async (req: any, res: Response) => {
   }
 })
 
-router.post('/purchase-orders', async (req: any, res: Response) => {
+router.post('/purchase-orders', requireCapabilities('inventory.adjust', 'finance.manage', 'finance.costs.read'), async (req: any, res: Response) => {
   try {
     const { supplierId, notes, items } = req.body
     if (!supplierId || !await fournisseurDeLaSociete(req.companyId, String(supplierId))) {
@@ -223,7 +236,7 @@ router.post('/purchase-orders', async (req: any, res: Response) => {
   }
 })
 
-router.put('/purchase-orders/:id/receive', async (req: any, res: Response) => {
+router.put('/purchase-orders/:id/receive', requireCapabilities('inventory.adjust'), async (req: any, res: Response) => {
   try {
     if (req.body && Object.keys(req.body).length) return res.status(409).json({ message: 'Réception partielle non implémentée : aucune quantité créditée. Ce bouton ne valide qu’une réception complète, avec un corps vide.' })
     const order = await prisma.purchaseOrder.findFirst({
@@ -253,7 +266,8 @@ router.put('/purchase-orders/:id/receive', async (req: any, res: Response) => {
       }
       return tx.purchaseOrder.findUniqueOrThrow({ where: { id: req.params.id } })
     })
-    res.json(updated)
+    if (hasCapability(req, 'finance.costs.read')) res.json(updated)
+    else { const { total: _total, ...visible } = updated; res.json(visible) }
   } catch (error: any) {
     if (error?.message === 'PURCHASE_ORDER_ALREADY_RECEIVED') {
       return res.status(409).json({ message: 'Ce bon de commande a déjà été réceptionné' })
@@ -271,16 +285,16 @@ router.get('/recipes/:productId', async (req: any, res: Response) => {
     if (!product) return res.status(404).json({ message: 'Produit non trouvé' })
     const recipes = await prisma.recipe.findMany({
       where: { productId: req.params.productId },
-      include: { ingredient: true },
+      include: { ingredient: { select: ingredientSelect(req) } },
     })
-    res.json(recipes)
+    res.json(visibleRecipes(recipes, req))
   } catch (error) {
     logger.error('Erreur GET /recipes/:productId:', error)
     res.status(500).json({ message: 'Erreur serveur' })
   }
 })
 
-router.put('/recipes/:productId', async (req: any, res: Response) => {
+router.put('/recipes/:productId', requireCapabilities('inventory.adjust'), async (req: any, res: Response) => {
   try {
     const { items } = req.body // [{ingredientId, quantity}]
     const product = await prisma.product.findFirst({ where: { id: req.params.productId, companyId: req.companyId }, select: { id: true } })
@@ -305,9 +319,9 @@ router.put('/recipes/:productId', async (req: any, res: Response) => {
     })
     const recipes = await prisma.recipe.findMany({
       where: { productId: req.params.productId },
-      include: { ingredient: true },
+      include: { ingredient: { select: ingredientSelect(req) } },
     })
-    res.json(recipes)
+    res.json(visibleRecipes(recipes, req))
   } catch (error) {
     logger.error('Erreur PUT /recipes/:productId:', error)
     res.status(500).json({ message: 'Erreur serveur' })

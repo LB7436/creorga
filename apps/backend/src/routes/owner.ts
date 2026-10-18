@@ -3,11 +3,9 @@ import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import { readAuditEntries } from '../middleware/audit-log'
-import { safeReadJson, safeWriteJson } from '../lib/safe-json'
 
 const router = Router()
 const DATA_DIR = path.resolve(process.cwd(), 'data')
-const CUSTOMERS_FILE = path.join(DATA_DIR, 'customers.json')
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
@@ -29,12 +27,11 @@ function writeJson(file: string, data: any) {
 }
 
 /**
- * Une société ne doit voir que son propre journal. Les entrées historiques
- * (antérieures à l'estampille companyId) restent visibles pendant la
- * transition : la fenêtre de 1 000 entrées les évacue d'elle-même.
+ * L'historique sans société reste conservé mais n'appartient pas implicitement
+ * à tous les propriétaires. Une attribution exige une migration séparée revue.
  */
 export function filtrerParSociete(entries: any[], companyId: string | undefined): any[] {
-  return entries.filter((entry) => entry.companyId == null || entry.companyId === companyId)
+  return typeof companyId === 'string' && !!companyId ? entries.filter((entry) => entry.companyId === companyId) : []
 }
 
 export function macroFileForCompany(companyId: string | undefined): string {
@@ -67,19 +64,10 @@ router.get('/audit', (req, res) => {
   res.json({ items: entries.slice(start, start + limit), total: entries.length, page, limit })
 })
 
-router.post('/audit', (req, res) => {
-  const entries = readAuditEntries()
-  // companyId imposé côté serveur : une société ne peut pas forger une entrée
-  // au nom d'une autre.
-  const entry = {
-    id: Math.random().toString(36).slice(2, 10),
-    ts: new Date().toISOString(),
-    ...(req.body || {}),
-    companyId: (req as any).companyId ?? null,
-  }
-  writeJson(path.join(DATA_DIR, 'audit-log.json'), [entry, ...entries].slice(0, 1000))
-  res.status(201).json(entry)
+router.post('/audit', (_req, res) => {
+  return res.status(503).json({ code: 'AUDIT_APPEND_ONLY_REQUIRED', message: 'Le journal serveur ne peut pas être réécrit depuis un formulaire.' })
 })
+
 
 router.get('/macros', (req, res) => {
   res.json(readJson(macroFileForCompany((req as any).companyId), []))
@@ -118,17 +106,7 @@ router.delete('/macros/:id', (req, res) => {
 // purge directement data/customers.json (fallback historique) au lieu
 // de passer par Prisma via crm.ts.
 router.post('/purge-inactive-customers', (_req, res) => {
-  const threeYearsAgo = new Date()
-  threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3)
-
-  const all = safeReadJson<any[]>(CUSTOMERS_FILE, [])
-  const kept = all.filter((c) => {
-    const last = new Date(c.lastVisit || c.updatedAt || c.createdAt || 0)
-    return last >= threeYearsAgo
-  })
-  const purged = all.length - kept.length
-  safeWriteJson(CUSTOMERS_FILE, kept)
-  res.json({ ok: true, purged })
+  return res.status(503).json({ code: 'CUSTOMER_RETENTION_SCOPE_REQUIRED', message: 'Aucune purge automatique : politique de conservation et périmètre société à valider séparément.' })
 })
 
 export default router

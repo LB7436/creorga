@@ -2,7 +2,8 @@ import { Router, type Request, type Response } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma'
 import { deviceOrUserAuth } from '../middleware/deviceAuth'
-import { requireCompany, requireRole } from '../middleware/requireCompany'
+import { requireCompany } from '../middleware/requireCompany'
+import { assertTransactionCapabilities, BusinessPermissionError } from '../lib/business-permission-transaction'
 import { guestTables, resolveGuestTable } from '../lib/guest-tables'
 import { GuestAccessError, GUEST_VISIT_HOURS, issueGuestAccess, lockGuestTable } from '../lib/guest-visits'
 import { lockOrderPayment, activePaymentExists } from '../lib/payments/ledger'
@@ -11,13 +12,12 @@ import { shareBalance } from '../lib/financial-allocations'
 
 const router = Router()
 router.use(deviceOrUserAuth, requireCompany)
-router.use(requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', 'CASHIER'))
 router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next() })
 const company = (req: Request): string => (req as Request & { companyId: string }).companyId
 const actor = (req: Request): string => (req as Request & { user?: { userId: string } }).user?.userId || 'registered-device'
 const run = (fn: (req: Request, res: Response) => Promise<unknown>) => async (req: Request, res: Response) => {
   try { await fn(req, res) } catch (error) {
-    const status = error instanceof GuestAccessError ? error.status : error instanceof z.ZodError ? 400 : 503
+    const status = error instanceof BusinessPermissionError ? 403 : error instanceof GuestAccessError ? error.status : error instanceof z.ZodError ? 400 : 503
     res.status(status).json({ error: error instanceof GuestAccessError ? error.message : status === 400 ? 'Demande de visite invalide.' : 'Visite non confirmée. Réessayez après vérification.' })
   }
 }
@@ -33,6 +33,7 @@ router.post('/', run(async (req, res) => {
   if (!tableId) throw new GuestAccessError(404, 'Table inconnue du plan de salle.')
   const visit = await prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, companyId)
+    await assertTransactionCapabilities(tx, req as any, 'service.manage')
     await lockGuestTable(tx, companyId, tableId)
     const now = new Date()
     await tx.guestVisit.updateMany({ where: { companyId, tableId, closedAt: null, expiresAt: { lte: now } }, data: { closedAt: now, closedBy: 'server-expiration', closeReason: 'Durée maximale atteinte. Aucun paiement déclaré.' } })
@@ -45,6 +46,7 @@ router.post('/:id/link', run(async (req, res) => {
   const companyId = company(req)
   const result = await prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, companyId)
+    await assertTransactionCapabilities(tx, req as any, 'service.manage')
     const visit = await tx.guestVisit.findFirst({ where: { id: req.params.id, companyId } })
     if (!visit) throw new GuestAccessError(404, 'Visite introuvable.')
     await lockGuestTable(tx, companyId, visit.tableId)
@@ -60,6 +62,7 @@ router.post('/:id/close', run(async (req, res) => {
   const companyId = company(req)
   const result = await prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, companyId)
+    await assertTransactionCapabilities(tx, req as any, 'service.manage')
     const visit = await tx.guestVisit.findFirst({ where: { id: req.params.id, companyId } })
     if (!visit) throw new GuestAccessError(404, 'Visite introuvable.')
     await lockGuestTable(tx, companyId, visit.tableId)

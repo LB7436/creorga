@@ -4,8 +4,9 @@ import request from 'supertest'
 const db = vi.hoisted(() => ({ userCompany: { findMany: vi.fn(), findFirst: vi.fn() }, employeeDocument: { findFirst: vi.fn() } }))
 vi.mock('../lib/prisma', () => ({ default: db }))
 import router from './rh-dossier'
+import { accessFor } from '../lib/business-permissions'
 function app(role = 'EMPLOYEE', userId = 'alice') {
-  const a = express(); a.use(express.json()); a.use((req: any, _res, next) => { req.role = role; req.user = { userId }; req.companyId = 'A'; next() }); a.use(router); return a
+  const a = express(); a.use(express.json()); a.use((req: any, _res, next) => { req.role = role; req.businessAccess = accessFor({ role, userId, companyId: 'A' }); req.user = { userId }; req.companyId = 'A'; next() }); a.use(router); return a
 }
 beforeEach(() => vi.clearAllMocks())
 describe('droits dossiers RH', () => {

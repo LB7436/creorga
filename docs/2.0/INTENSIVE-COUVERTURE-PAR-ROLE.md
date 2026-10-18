@@ -1,5 +1,24 @@
 # Recette intensive — couverture factuelle par établissement et rôle
 
+## Complément du 18 octobre : droits fins, pas recette intégrale des rôles
+
+OWNER/ADMIN métier/MANAGER/SERVER/EMPLOYEE existants ont été connectés dans les
+trois sociétés. ADMIN et SERVER proviennent de changements explicites UI avec
+motif/audit, pas d'identités recréées. CLIENT QR n'est pas intégralement rejoué dans
+ce lot et chaque rôle garde des contrôles non exécutés : **NON LIVRÉ**.
+Les données financières sont refusées par défaut aux profils limités. Le défaut
+CA Bar ci-dessous est une preuve historique RED, avec contre-essai actuel dans
+[D01](T100-DROITS-2026-10-18.md). Robi dispose de lectures locales sans IA générative,
+pas d'un fournisseur réel qualifié. [Rapport actuel](DROITS-FINS-ROBI-RECETTE-2026-10-18.md).
+Ne pas compter des identités connectées comme18 recettes de profils.
+
+Complément après builds finaux : Café ADMIN/EMPLOYEE/OWNER ont repris stock/refus/
+bon reçu dans trois contextes Chrome isolés après deux cycles contrôlés du lanceur,
+sans nouvelle donnée. Journal du lot :223tentativesUI/221retours/2erreurs et80clics/
+79retours/1erreur ; pas des contrôles uniques. L'erreur de capture2144 et le refus
+PDF2102 restent BLOCKED. Les1183unitaires/348PG/47fixtures locales et la restauration
+82tables/18997lignes/14fichiers/26PDF sont des preuves séparées, pas18parcours réussis.
+
 ## Consolidation technique après la coupure UI de 21:30
 
 **PARTIEL — CAMPAGNE NON LIVRÉE.** Les [preuves finales v3](preuves/intensive-validation-finale-2026-10-17-2135-v3.json) sont relues sans nouvelle exécution : **861 unitaires (391/349/121), 295 PG, 47 fixtures locales**, tous réussis, et deux builds finaux business/full **5 applications chacun**. Les anciennes défaillances et observations RED restent conservées. La correction v3 ne fait que lire la bonne clé du diagnostic des pointages historiques ; ce n'est pas une nouvelle recette ou une suppression de données.

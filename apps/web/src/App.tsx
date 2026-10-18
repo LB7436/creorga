@@ -7,8 +7,9 @@ import FloatingHub from '@/components/FloatingHub'
 import DailyBriefingPill from '@/components/DailyBriefingPill'
 import UniversalSearch from '@/components/UniversalSearch'
 import RequireAuth from '@/components/auth/RequireAuth'
+import BusinessAccessWatcher from '@/components/auth/BusinessAccessWatcher'
+import OnboardingRedirect from '@/components/auth/OnboardingRedirect'
 import RequireRole from '@/components/auth/RequireRole'
-import { useAuthStore } from '@/stores/authStore'
 import AppShell from '@/components/layout/AppShell'
 import Login from '@/pages/Login'
 const DemoLanding = lazy(() => import('@/pages/DemoLanding'))
@@ -104,7 +105,6 @@ const ChangelogPage = lazy(() => import('@/pages/changelog/ChangelogPage'))
 import OnboardingTour from '@/components/OnboardingTour'
 import PosLockScreen from '@/components/PosLockScreen'
 import { registerPush } from '@/lib/pushNotifications'
-import { isOnboardingComplete } from '@/lib/onboarding'
 
 function RouteLoadingFallback() {
   return (
@@ -121,8 +121,6 @@ function RouteLoadingFallback() {
 
 function App() {
   const location = useLocation()
-  const user = useAuthStore((s) => s.user)
-  const companyId = useAuthStore((s) => s.companyId)
   const demoActive = useDemoMode((s) => s.active)
   const demoExit = useDemoMode((s) => s.exitDemoMode)
   const demoExpiresAt = useDemoMode((s) => s.expiresAt)
@@ -149,23 +147,10 @@ function App() {
   const demoMinutes = Math.floor(demoRemaining / 60000)
   const demoSeconds = Math.floor((demoRemaining % 60000) / 1000)
 
-  useEffect(() => {
-    if (user && location.pathname !== '/login' && location.pathname !== '/setup' && location.pathname !== '/demo') {
-      const done = isOnboardingComplete(companyId)
-      if (!done) {
-        // Full setup wizard on first boot — has floor plan editor + Ollama step
-        if (location.pathname === '/' || location.pathname === '/modules') {
-          // Nav via window to avoid loops; the Routes will pick up
-          if (!window.location.pathname.startsWith('/setup')) {
-            window.location.href = '/setup'
-          }
-        }
-      }
-    }
-  }, [user, companyId, location.pathname])
-
   return (
     <>
+    <BusinessAccessWatcher />
+    <OnboardingRedirect />
     <Suspense fallback={<RouteLoadingFallback />}>
     <Routes>
       {/* Public */}

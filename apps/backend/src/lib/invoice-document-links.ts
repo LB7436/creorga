@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import prisma from './prisma'
 import { documentCapabilityId, signDocumentCapability, verifyDocumentCapability } from './document-link-token'
+import { BusinessPermissionError, transactionBusinessAccess } from './business-permission-transaction'
 
 export class DocumentLinkError extends Error {
   constructor(public status: number, message: string) { super(message) }
@@ -15,8 +16,13 @@ const secret = () => process.env.JWT_SECRET || ''
 type Tx = Prisma.TransactionClient
 
 async function manager(tx: Tx, companyId: string, actorId: string) {
-  const memberships = await tx.$queryRaw<{ role: string }[]>`SELECT "role" FROM "UserCompany" WHERE "companyId" = ${companyId} AND "userId" = ${actorId} AND "isActive" = true FOR SHARE`
-  if (!memberships.some(m => ['OWNER', 'MANAGER'].includes(m.role))) throw new DocumentLinkError(403, 'Action réservée aux responsables actifs de cette société.')
+  try {
+    const access = await transactionBusinessAccess(tx, companyId, actorId)
+    if (!access.capabilities.includes('invoices.read') || !access.capabilities.includes('exports.read')) throw new BusinessPermissionError()
+  } catch (error) {
+    if (error instanceof BusinessPermissionError) throw new DocumentLinkError(403, 'L’accès aux documents et à leur export doit être encore autorisé dans cette société.')
+    throw error
+  }
 }
 async function original(tx: Tx, companyId: string, invoiceId: string) {
   await tx.$queryRaw`SELECT "id" FROM "Invoice" WHERE "companyId" = ${companyId} AND "id" = ${invoiceId} FOR SHARE`

@@ -1,5 +1,6 @@
 import { Package, ShoppingCart, Truck } from 'lucide-react'
 import ModuleLayout from '@/components/layout/ModuleLayout'
+import { useAuthStore } from '@/stores/authStore'
 
 const items = [
   { label: 'Stock', path: '/inventory/stock', icon: Package },
@@ -8,5 +9,7 @@ const items = [
 ]
 
 export default function InventoryLayout() {
-  return <ModuleLayout title="Inventaire" color="#92400E" items={items} />
+  const access = useAuthStore(state => state.businessAccess)
+  const visibleItems = items.filter(item => access?.capabilities.includes(item.path === '/inventory/stock' ? 'inventory.quantities.read' : 'finance.costs.read'))
+  return <ModuleLayout title="Inventaire" color="#92400E" items={visibleItems} />
 }

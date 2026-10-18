@@ -7,9 +7,17 @@ import { requireCompany } from '../middleware/requireCompany'
 import { validate } from '../middleware/validate'
 import type { AuthRequest } from '../middleware/auth'
 import { lockPortalConfiguration, nextPortalRevision } from '../lib/portal-config-lock'
+import { accessFor, hasCapability, validCapabilityOverrides } from '../lib/business-permissions'
+import { transactionBusinessAccess, BusinessPermissionError } from '../lib/business-permission-transaction'
 
 const router = Router()
 router.use(authenticate)
+
+// Sonde indépendante des brouillons POS : aucune donnée commerciale ou
+// politique d'un autre collaborateur n'est transmise.
+router.get('/access', requireCompany, (req, res) => {
+  res.set('Cache-Control', 'private, no-store').json((req as any).businessAccess)
+})
 
 const updateSchema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -27,12 +35,17 @@ const updateSchema = z.object({
     legalMention: z.string().trim().max(1000), rcsExemptionReason: z.string().trim().max(500) }).strict().optional(),
 })
 
+const capabilitiesSchema = z.record(z.boolean()).refine(validCapabilityOverrides, { message: 'Capacité inconnue ou valeur invalide' })
+const memberRoleSchema = z.enum(['ADMIN', 'MANAGER', 'SERVER', 'CASHIER', 'EMPLOYEE'])
 const updateMemberSchema = z.object({
   // Le propriétaire unique est créé lors de l'inscription/migration. Les
   // comptes équipe ne peuvent pas être promus propriétaire depuis l'UI.
-  role: z.enum(['MANAGER', 'EMPLOYEE']).optional(),
+  role: memberRoleSchema.optional(),
   isActive: z.boolean().optional(),
-}).refine((value) => value.role !== undefined || value.isActive !== undefined, {
+  capabilities: capabilitiesSchema.optional(),
+  expectedAccessVersion: z.number().int().nonnegative(),
+  reason: z.string().trim().min(5).max(500),
+}).strict().refine((value) => value.role !== undefined || value.isActive !== undefined || value.capabilities !== undefined, {
   message: 'Aucune modification demandée',
 })
 
@@ -41,8 +54,16 @@ const createMemberSchema = z.object({
   password: z.string().min(8, 'Le mot de passe doit contenir au moins 8 caractères').max(128),
   firstName: z.string().trim().min(1, 'Prénom requis').max(80),
   lastName: z.string().trim().min(1, 'Nom requis').max(80),
-  role: z.enum(['MANAGER', 'EMPLOYEE']).default('EMPLOYEE'),
-})
+  role: memberRoleSchema.default('EMPLOYEE'),
+  capabilities: capabilitiesSchema.default({}),
+}).strict()
+
+function permissionConflict(message: string, status = 409) { return Object.assign(new Error(message), { status }) }
+function mayDelegate(actor: ReturnType<typeof accessFor>, candidate: ReturnType<typeof accessFor>) {
+  if (actor.role === 'OWNER') return
+  if (!actor.capabilities.includes('permissions.manage') || candidate.capabilities.includes('permissions.manage')
+    || candidate.capabilities.some(capability => !actor.capabilities.includes(capability))) throw new BusinessPermissionError()
+}
 
 async function currentMembership(req: AuthRequest) {
   const companyId = (req as any).companyId as string
@@ -59,7 +80,7 @@ router.get('/members', requireCompany, async (req: AuthRequest, res, next) => {
     const companyId = (req as any).companyId as string
 
     const caller = await currentMembership(req)
-    if (!caller || !caller.isActive || (caller.role !== 'OWNER' && caller.role !== 'MANAGER')) {
+    if (!caller || !caller.isActive || (!hasCapability(req as any, 'hr.manage') && !hasCapability(req as any, 'permissions.manage'))) {
       res.status(403).json({ message: 'Accès réservé aux responsables' })
       return
     }
@@ -79,7 +100,7 @@ router.get('/members', requireCompany, async (req: AuthRequest, res, next) => {
       orderBy: { role: 'asc' },
     })
 
-    res.json(members)
+    res.json(members.map(member => ({ ...member, businessAccess: accessFor(member) })))
   } catch (err) {
     next(err)
   }
@@ -92,15 +113,17 @@ router.post('/members', requireCompany, validate(createMemberSchema), async (req
   try {
     const companyId = (req as any).companyId as string
     const caller = await currentMembership(req)
-    if (!caller || !caller.isActive || caller.role !== 'OWNER') {
+    if (!caller || !caller.isActive || !hasCapability(req as any, 'permissions.manage')) {
       res.status(403).json({ message: 'Accès réservé au propriétaire' })
       return
     }
 
-    const { email, password, firstName, lastName, role } = req.body
+    const { email, password, firstName, lastName, role, capabilities } = req.body
     const hashedPassword = await bcrypt.hash(password, 12)
 
     const membership = await prisma.$transaction(async (tx) => {
+      const actor = await transactionBusinessAccess(tx, companyId, req.user!.userId)
+      mayDelegate(actor, accessFor({ role, capabilities }))
       const existingUser = await tx.user.findUnique({ where: { email } })
       if (existingUser) {
         const existingMembership = await tx.userCompany.findUnique({
@@ -121,15 +144,18 @@ router.post('/members', requireCompany, validate(createMemberSchema), async (req
       const user = await tx.user.create({
         data: { email, password: hashedPassword, firstName, lastName },
       })
-      return tx.userCompany.create({
-        data: { userId: user.id, companyId, role, isActive: true },
+      const created = await tx.userCompany.create({
+        data: { userId: user.id, companyId, role, capabilities, isActive: true },
         include: {
           user: { select: { id: true, firstName: true, lastName: true, email: true } },
         },
       })
+      await tx.businessPermissionEvent.create({ data: { membershipId: created.id, companyId, userId: user.id, actorId: req.user!.userId,
+        beforeVersion: 0, afterVersion: 0, before: { existed: false }, after: { role, capabilities, isActive: true }, reason: 'Création explicite du compte métier' } })
+      return created
     })
 
-    res.status(201).json(membership)
+    res.status(201).json({ ...membership, businessAccess: accessFor(membership) })
   } catch (err: any) {
     if (err?.status === 409 || err?.code === 'P2002') {
       res.status(409).json({ message: err?.message || 'Cet email est déjà utilisé' })
@@ -143,49 +169,38 @@ router.post('/members', requireCompany, validate(createMemberSchema), async (req
 router.patch('/members/:userId', requireCompany, validate(updateMemberSchema), async (req: AuthRequest, res, next) => {
   try {
     const companyId = (req as any).companyId as string
-    const caller = await currentMembership(req)
-    if (!caller || !caller.isActive || caller.role !== 'OWNER') {
-      res.status(403).json({ message: 'Accès réservé au propriétaire' })
-      return
-    }
-
-    const target = await prisma.userCompany.findUnique({
-      where: { userId_companyId: { userId: req.params.userId, companyId } },
-    })
-    if (!target) {
-      res.status(404).json({ message: 'Utilisateur introuvable dans cette société' })
-      return
-    }
-
-    const requestedRole = req.body.role as string | undefined
-    const requestedActive = req.body.isActive as boolean | undefined
-    if (target.userId === req.user!.userId && (requestedActive === false || (requestedRole && requestedRole !== 'OWNER'))) {
-      res.status(400).json({ message: 'Vous ne pouvez pas retirer votre propre accès propriétaire' })
-      return
-    }
-
-    if (target.role === 'OWNER' && (requestedActive === false || (requestedRole && requestedRole !== 'OWNER'))) {
-      const ownerCount = await prisma.userCompany.count({
-        where: { companyId, role: 'OWNER', isActive: true },
-      })
-      if (ownerCount <= 1) {
-        res.status(400).json({ message: 'La société doit conserver au moins un propriétaire actif' })
-        return
+    const updated = await prisma.$transaction(async tx => {
+      // Les changements d'accès sont sérialisés par société. Les opérations
+      // métier relisent l'acteur sous FOR SHARE après leur propre verrou.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext('business-permissions'))`
+      const actor = await transactionBusinessAccess(tx, companyId, req.user!.userId)
+      if (!actor.capabilities.includes('permissions.manage')) throw new BusinessPermissionError()
+      const target = await tx.userCompany.findUnique({ where: { userId_companyId: { userId: req.params.userId, companyId } } })
+      if (!target) throw permissionConflict('Utilisateur introuvable dans cette société', 404)
+      if (target.role === 'OWNER' || target.userId === req.user!.userId) throw permissionConflict('Ce parcours ne peut pas modifier votre propre accès ou un propriétaire.', 403)
+      if (target.accessVersion !== req.body.expectedAccessVersion) throw permissionConflict('Les droits ont changé. Rechargez avant de confirmer une nouvelle décision.')
+      // Une désactivation n'est pas une façon de contourner le plafond de
+      // délégation : contrôler aussi les droits du compte AVANT modification.
+      mayDelegate(actor, accessFor({ ...target, isActive: true }))
+      if (req.body.role && req.body.role !== target.role && Object.keys(target.capabilities as object).length && req.body.capabilities === undefined) {
+        throw permissionConflict('Choisissez explicitement les capacités à conserver ou remplacer pour ce nouveau rôle.')
       }
-    }
-
-    const updated = await prisma.userCompany.update({
-      where: { id: target.id },
-      data: {
-        ...(requestedRole !== undefined ? { role: requestedRole } : {}),
-        ...(requestedActive !== undefined ? { isActive: requestedActive } : {}),
-      },
-      include: {
-        user: { select: { id: true, firstName: true, lastName: true, email: true } },
-      },
+      const candidate = { ...target, ...(req.body.role !== undefined ? { role: req.body.role } : {}),
+        ...(req.body.isActive !== undefined ? { isActive: req.body.isActive } : {}),
+        ...(req.body.capabilities !== undefined ? { capabilities: req.body.capabilities } : {}) }
+      mayDelegate(actor, accessFor(candidate))
+      const saved = await tx.userCompany.update({ where: { id: target.id }, data: { role: candidate.role, isActive: candidate.isActive,
+        capabilities: candidate.capabilities as any, accessVersion: { increment: 1 } },
+        include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } } })
+      await tx.businessPermissionEvent.create({ data: { membershipId: target.id, companyId, userId: target.userId, actorId: req.user!.userId,
+        beforeVersion: target.accessVersion, afterVersion: saved.accessVersion,
+        before: { role: target.role, capabilities: target.capabilities, isActive: target.isActive },
+        after: { role: saved.role, capabilities: saved.capabilities, isActive: saved.isActive }, reason: req.body.reason } })
+      return saved
     })
-    res.json(updated)
-  } catch (err) {
+    res.json({ ...updated, businessAccess: accessFor(updated) })
+  } catch (err: any) {
+    if (err?.status) return res.status(err.status).json({ message: err.message })
     next(err)
   }
 })
@@ -205,7 +220,7 @@ router.put('/:id', requireCompany, validate(updateSchema), async (req: AuthReque
     const uc = await prisma.userCompany.findUnique({
       where: { userId_companyId: { userId: req.user!.userId, companyId } },
     })
-    if (!uc || (uc.role !== 'OWNER' && uc.role !== 'MANAGER')) {
+    if (!uc || !uc.isActive || !accessFor(uc).capabilities.includes('settings.manage')) {
       return res.status(403).json({ message: 'Accès réservé aux admins' })
     }
 
@@ -213,6 +228,8 @@ router.put('/:id', requireCompany, validate(updateSchema), async (req: AuthReque
     // Le premier démarrage enregistre identité visuelle et couleur du portail
     // dans une seule transaction : pas d'état « nom sauvegardé, couleur perdue ».
     const company = await prisma.$transaction(async (tx) => {
+      const access = await transactionBusinessAccess(tx, companyId, req.user!.userId)
+      if (!access.capabilities.includes('settings.manage')) throw new BusinessPermissionError()
       if (portalAccentColor) await lockPortalConfiguration(tx, companyId)
       const updated = await tx.company.update({
         where: { id },

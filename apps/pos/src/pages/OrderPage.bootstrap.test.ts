@@ -45,7 +45,8 @@ import { clearSession, setSession } from '../lib/server'
 const app = express(); app.use(express.json())
 app.use('/pos', (req, res, next) => {
   fixture.previous = structuredClone(fixture.saved); fixture.working = structuredClone(fixture.saved)
-  Object.assign(req, { companyId: 'restaurant-fictif', company: { name: 'RESTAURANT FICTIF' }, role: 'EMPLOYEE', user: { userId: 'caissier-fictif' } })
+  Object.assign(req, { companyId: 'restaurant-fictif', company: { name: 'RESTAURANT FICTIF' }, role: 'SERVER', user: { userId: 'caissier-fictif' },
+    businessAccess: { role: 'SERVER', revision: 'restaurant-service-fictif', version: 1, capabilities: ['catalog.read', 'service.read', 'service.manage', 'crm.customers.read'] } })
   const send = res.json.bind(res)
   res.json = ((body: any) => {
     if (req.method === 'PUT' && res.statusCode < 400) {

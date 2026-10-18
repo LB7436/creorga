@@ -26,10 +26,15 @@ export interface UserCompany {
   id: string
   userId: string
   companyId: string
-  role: 'OWNER' | 'MANAGER' | 'EMPLOYEE' | 'WAITER'
+  role: 'OWNER' | 'ADMIN' | 'MANAGER' | 'SERVER' | 'CASHIER' | 'EMPLOYEE' | 'WAITER'
+  capabilities?: Record<string, boolean>
+  accessVersion?: number
+  businessAccess?: BusinessAccess
   isActive: boolean
   company: Company
 }
+
+export interface BusinessAccess { role: string; capabilities: string[]; revision: string; version: number }
 
 export interface AuthResponse {
   accessToken: string

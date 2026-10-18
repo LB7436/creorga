@@ -2,6 +2,7 @@ import { Router, type Response } from 'express'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
 import { moduleRowsFor } from '../lib/company-modules'
+import { hasCapability } from '../lib/business-permissions'
 
 const router = Router()
 
@@ -30,7 +31,7 @@ router.get('/', async (req: any, res: Response) => {
 
 router.put('/:moduleId', async (req: any, res: Response) => {
   try {
-    if (req.role !== 'OWNER' && req.role !== 'MANAGER') {
+    if (!hasCapability(req, 'settings.manage')) {
       res.status(403).json({ message: 'Accès réservé aux responsables' })
       return
     }

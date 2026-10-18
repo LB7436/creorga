@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/server'
 import { previewAllocationServer, confirmAllocationServer, retryAllocationServer, type AllocationDecision, type AllocationDraft } from '../lib/floorBridge'
+import { BusinessGuard } from '../components/BusinessGuard'
 
 const field = { display: 'block', width: '100%', minHeight: 40, boxSizing: 'border-box' as const, padding: 8, background: '#111827', color: '#f8fafc', border: '1px solid #94a3b8', borderRadius: 6 }
 const money = (n: number) => (n / 100).toFixed(2).replace('.', ',') + ' €'
 type Group = AllocationDraft['groups'][number] & { quantities: Record<string, number>; payments: Record<string, string> }
-export default function AllocationEditor({ orderId, tables, onDone }: { orderId: string; tables: { id: string; name: string }[]; onDone: () => void }) {
+type Props = { orderId: string; tables: { id: string; name: string }[]; onDone: () => void }
+export default function AllocationEditor(props: Props) {
+  return <BusinessGuard capability="finance.manage" onBack={props.onDone}><AllocationContent {...props} /></BusinessGuard>
+}
+function AllocationContent({ orderId, tables, onDone }: Props) {
   const [source, setSource] = useState<any>(null), [groups, setGroups] = useState<Group[]>([]), [reason, setReason] = useState('')
   const [decision, setDecision] = useState<AllocationDecision | null>(null), [ack, setAck] = useState(false), [error, setError] = useState(''), [busy, setBusy] = useState(false)
   const previewHeading = useRef<HTMLHeadingElement>(null)

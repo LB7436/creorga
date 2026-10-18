@@ -35,6 +35,7 @@ vi.mock('./floorState', async importActual => {
 })
 import pos from './pos'
 import { canonicalizeFloorPricing, floorLines } from '../lib/pos-pricing'
+import { accessFor } from '../lib/business-permissions'
 
 // Le stockage est une frontière de test en mémoire. Le vrai bootstrap, le parsing
 // Zod, les autorisations, la tarification et la route draft sont exécutés.
@@ -46,7 +47,8 @@ app.use('/pos', (req, res, next) => {
   const id = req.get('x-company-id') || company, saved = registry.get(id)
   if (!saved) return void res.status(403).json({ error: 'Société inaccessible dans la fixture.' })
   state.original = structuredClone(saved); state.working = structuredClone(saved)
-  Object.assign(req, { companyId: id, company: { name: 'SOCIÉTÉ FICTIVE' }, role: 'EMPLOYEE', user: { userId: 'caissier-fictif' } })
+  Object.assign(req, { companyId: id, company: { name: 'SOCIÉTÉ FICTIVE' }, role: 'SERVER', user: { userId: 'caissier-fictif' },
+    businessAccess: accessFor({ companyId: id, userId: 'caissier-fictif', role: 'SERVER', capabilities: { 'orders.cancel': true } }) })
   const json = res.json.bind(res)
   res.json = ((body: any) => {
     if (req.method === 'PUT' && res.statusCode < 400) {
@@ -128,6 +130,21 @@ for (const useCapture of sourceCapture ? [false, true] : [false]) describe(`Brou
     payload.editor.rooms[0].x += 1
     const response = await sendDraft(payload, bootstrap.revision)
     expect(response.status).toBe(403); expect(registry.get(company)).toEqual(before)
+  })
+
+  it('le roundtrip de scène expurgée conserve son historique côté autorité sans faux changement de configuration', async () => {
+    if (useCapture) return
+    const floor = registry.get(company)!
+    floor.posEditor = { rooms: [], fixtures: [], background: null, scenes: [{ id: 'scene-historique', label: 'Scène fictive', createdAt: 10, rooms: [], fixtures: [], tables: [{
+      id: 'ancienne-table', name: 'Ancienne', shape: 'round', seats: 2, x: 0, y: 0, section: 'salle', status: 'occupied', mergedWith: [],
+      covers: [{ id: 'ancien-couvert', label: 'Payé', paidAt: 11, paidMethod: 'cash', items: [{ id: 'ancien-prix', name: 'Ancien', menuItemId: 'espresso', price: 999, qty: 1, note: '', coverId: 'ancien-couvert' }] }],
+    }] }] }
+    const before = structuredClone(floor.posEditor)
+    const { bootstrap, payload } = await serviceDraft()
+    expect(JSON.stringify(bootstrap.editor)).not.toContain('ancien-prix')
+    expect(bootstrap.editor.scenes[0].tables[0].covers).toEqual([])
+    await sendDraft(payload, bootstrap.revision).expect(200)
+    expect(registry.get(company)!.posEditor).toEqual(before)
   })
 
   it('refuse toujours un déplacement volontaire de table', async () => {

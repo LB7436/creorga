@@ -35,7 +35,7 @@ async function mount() { await act(async () => { renderer = create(createElement
 
 beforeEach(() => {
   openOrder.mockReset()
-  usePOS.setState({ tables: [table('salle-1', 'salle'), table('terrasse-1', 'terrasse'), table('comptoir-1', 'comptoir')], editor: { rooms, fixtures: [], scenes: [], background: null }, staff: [], reservations: [] })
+  usePOS.setState({ businessAccess: { role: 'SERVER', revision: 'salle-service-fictif', version: 1, capabilities: ['service.read', 'service.manage'] }, tables: [table('salle-1', 'salle'), table('terrasse-1', 'terrasse'), table('comptoir-1', 'comptoir')], editor: { rooms, fixtures: [], scenes: [], background: null }, staff: [], reservations: [] })
   useSeats.setState({ seats: [] })
   // Pas de DOM synthétique ni de transport remplacé : vrais composants et stores.
   // Ces tests n'exécutent aucun paiement, sauvegarde ou appel réseau.
@@ -100,7 +100,7 @@ describe('Sélection de table par salle sans conversion des coordonnées histori
   })
 
   it('garde les centimes dans le CA en cours et le libellé de table', async () => {
-    usePOS.setState({ tables: [table('salle-1', 'salle')] })
+    usePOS.setState({ businessAccess: { role: 'OWNER', revision: 'salle-revenu-fictif', version: 1, capabilities: ['service.read', 'service.manage', 'finance.revenue.read'] }, tables: [table('salle-1', 'salle')] })
     await mount()
     const totals = renderer!.root.findAllByType('span').filter(node => text(node) === '2.50 €')
     expect(totals.length).toBeGreaterThan(0)

@@ -4,6 +4,11 @@ import prisma from './prisma'
 import { floorHash } from './floor-workspace'
 import { lockFinancialCompany } from './financial-lock'
 import { PaymentError } from './payments/ledger'
+import { assertTransactionCapabilities, BusinessPermissionError } from './business-permission-transaction'
+async function payoutActor(tx: Prisma.TransactionClient, companyId: string, actorId: string) {
+  try { await assertTransactionCapabilities(tx, { companyId, user: { userId: actorId } }, 'finance.manage') }
+  catch (error) { if (error instanceof BusinessPermissionError) throw new PaymentError(403, error.message); throw error }
+}
 const ref = z.string().trim().min(1).max(200), minor = z.number().int().nonnegative().max(1e9)
 const line = z.object({ kind: z.enum(['CAPTURE', 'REFUND', 'FEE', 'HOLD', 'RELEASE']), externalRef: ref, amountCents: minor.positive() }).strict()
 export const statementSchema = z.object({ requestId: z.string().uuid(), fictional: z.literal(true), statementRef: ref, provider: z.enum(['paypal', 'stripe', 'manual']), merchantId: ref,
@@ -50,6 +55,7 @@ export async function importStatement(companyId: string, actorId: string, raw: u
   const hash = floorHash({ companyId, actorId, ...input }), contentHash = floorHash(content)
   return prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, companyId)
+    await payoutActor(tx, companyId, actorId)
     const previous = await tx.payoutStatement.findUnique({ where: { id: requestId } })
     if (previous) { if (previous.companyId !== companyId || previous.requestHash !== hash) throw new PaymentError(409, 'Référence d’import réutilisée.'); return { created: false, statement: await statementDto(tx, previous) } }
     const duplicate = await tx.payoutStatement.findUnique({ where: { companyId_contentHash: { companyId, contentHash } } })
@@ -74,6 +80,7 @@ export async function validatePayout(companyId: string, actorId: string, id: str
   const hash = floorHash({ companyId, actorId, id, ...input })
   return prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, companyId)
+    await payoutActor(tx, companyId, actorId)
     const previous = await tx.payoutDecision.findUnique({ where: { id: input.requestId } })
     if (previous) { if (previous.companyId !== companyId || previous.requestHash !== hash) throw new PaymentError(409, 'Référence de validation réutilisée.'); return (previous.snapshot as any).result }
     const row = await tx.bankPayout.findFirst({ where: { companyId, id } })
@@ -91,6 +98,7 @@ export async function refreshPayout(companyId: string, actorId: string, id: stri
   const input = z.object({ requestId: z.string().uuid(), reason: z.string().trim().min(5).max(500) }).strict().parse(raw), hash = floorHash({ companyId, actorId, id, action: 'REFRESH', ...input })
   return prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, companyId)
+    await payoutActor(tx, companyId, actorId)
     const previous = await tx.payoutDecision.findUnique({ where: { id: input.requestId } })
     if (previous) { if (previous.companyId !== companyId || previous.requestHash !== hash) throw new PaymentError(409, 'Référence de relecture réutilisée.'); return (previous.snapshot as any).result }
     const payout = await tx.bankPayout.findFirst({ where: { companyId, id }, include: { lines: true } })

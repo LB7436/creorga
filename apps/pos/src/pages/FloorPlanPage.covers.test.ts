@@ -39,7 +39,7 @@ async function mount(status: Table['status'] = 'available') {
 
 beforeEach(() => {
   openOrder.mockReset()
-  usePOS.setState({ tables: [], staff: [], reservations: [], ventes: [], clotures: [], editor: {
+  usePOS.setState({ businessAccess: { role: 'SERVER', revision: 'service-couverts-fictif', version: 1, capabilities: ['service.read', 'service.manage'] }, tables: [], staff: [], reservations: [], ventes: [], clotures: [], editor: {
     rooms: [{ id: 'terrasse', label: 'Terrasse FICTIVE', color: '#10b981', x: 20, y: 20, w: 600, h: 636 }],
     fixtures: [], scenes: [], background: null,
   } })

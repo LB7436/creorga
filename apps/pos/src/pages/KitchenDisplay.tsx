@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/server'
+import { BusinessGuard } from '../components/BusinessGuard'
+import { hasCapability } from '../lib/business-access'
+import { usePOS } from '../store/posStore'
 
 type Ticket = { id: string; tableName: string; coverLabel: string; status: string; createdAt: number; updatedAt: number; items: Array<{ id: string; name: string; qty: number; note: string }>; routing?: Array<{ tableName: string; coverLabel: string; name: string; qty: number; kitchenNote?: string; barNote?: string }> }
 const columns = [{ id: 'waiting', label: 'À préparer', next: 'preparing', action: 'Commencer', color: '#fbbf24' }, { id: 'preparing', label: 'En préparation', next: 'ready', action: 'Marquer prêt', color: '#93c5fd' }, { id: 'ready', label: 'Prêt à servir', next: 'served', action: 'Marquer servi', color: '#86efac' }]
 
 /** Aucun ticket de démonstration : toutes les actions sont confirmées par le serveur. */
-export default function KitchenDisplay({ onExit }: { onExit: () => void }) {
+export default function KitchenDisplay(props: { onExit: () => void }) {
+  return <BusinessGuard anyOf={['service.read', 'service.manage']} onBack={props.onExit}><KitchenContent {...props} /></BusinessGuard>
+}
+function KitchenContent({ onExit }: { onExit: () => void }) {
+  const access = usePOS(state => state.businessAccess)
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
@@ -18,6 +25,7 @@ export default function KitchenDisplay({ onExit }: { onExit: () => void }) {
   }
   useEffect(() => { void refresh(); const timer = setInterval(() => void refresh(), 4000); return () => clearInterval(timer) }, [])
   async function change(ticket: Ticket, status: string) {
+    if (!hasCapability(status === 'cancelled' ? 'orders.cancel' : 'service.manage')) { setError('La permission nécessaire à cette action a été retirée.'); return }
     if (busy) return
     setBusy(ticket.id)
     try { await api('/pos/kitchen/' + encodeURIComponent(ticket.id), { method: 'PATCH', body: JSON.stringify({ status, updatedAt: ticket.updatedAt }) }); await refresh() }
@@ -33,6 +41,7 @@ export default function KitchenDisplay({ onExit }: { onExit: () => void }) {
     </header>
     <p>Commandes caisse et QR · Dernière lecture : {stamp ? new Date(stamp).toLocaleTimeString('fr-LU') : 'en cours'}</p>
     <p>Un paiement ne clôture pas la préparation. Marquez le ticket servi une fois la commande remise au client.</p>
+    {!hasCapability('service.manage', access) && <p>Lecture seule — les changements de préparation nécessitent une permission de service.</p>}
     {error && <p role="alert" style={{ color: '#fecdd3', border: '1px solid #fb7185', padding: 16 }}>Confirmation impossible : {error}. Les derniers tickets restent affichés.</p>}
     <label>Filtrer les tables ou les produits <input value={query} onChange={e => setQuery(e.target.value)} style={{ padding: 12, font: 'inherit', maxWidth: '100%', boxSizing: 'border-box' }} /></label>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,300px),1fr))', gap: 20, marginTop: 24 }}>
@@ -42,11 +51,11 @@ export default function KitchenDisplay({ onExit }: { onExit: () => void }) {
           {!!ticket.routing?.length && <div role="note"><strong>Routage après séparation — ne pas préparer une seconde fois</strong><ul>{ticket.routing.map((r, i) => <li key={i}>{r.qty} × {r.name} → {r.tableName} · {r.coverLabel}{r.kitchenNote && <div>Cuisine : {r.kitchenNote}</div>}{r.barNote && <div>Bar : {r.barNote}</div>}</li>)}</ul></div>}
           <p>{Math.max(0, Math.floor((Date.now() - ticket.createdAt) / 60000))} min · {new Date(ticket.createdAt).toLocaleTimeString('fr-LU')}</p>
           <ul>{ticket.items.map(item => <li key={item.id} style={{ margin: '12px 0' }}><strong>{item.qty} × {item.name}</strong>{item.note && <p style={{ color: '#fde68a' }}>{item.note}</p>}</li>)}</ul>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {hasCapability('service.manage', access) && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button disabled={!!busy} style={button} onClick={() => void change(ticket, column.next)}>{busy === ticket.id ? 'Enregistrement…' : column.action}</button>
             {column.id !== 'waiting' && <button disabled={!!busy} style={button} onClick={() => void change(ticket, 'waiting')}>À reprendre</button>}
-            {!ticket.id.startsWith('guest:') && <button disabled={!!busy} style={button} onClick={() => { if (window.confirm('Annuler uniquement la préparation ? L’addition reste à traiter séparément.')) void change(ticket, 'cancelled') }}>Annuler la préparation</button>}
-          </div>
+            {!ticket.id.startsWith('guest:') && hasCapability('orders.cancel', access) && <button disabled={!!busy} style={button} onClick={() => { if (window.confirm('Annuler uniquement la préparation ? L’addition reste à traiter séparément.')) void change(ticket, 'cancelled') }}>Annuler la préparation</button>}
+          </div>}
         </article>)}
         {!tickets.some(t => t.status === column.id) && <p>Aucun ticket dans cette colonne.</p>}
       </section>)}

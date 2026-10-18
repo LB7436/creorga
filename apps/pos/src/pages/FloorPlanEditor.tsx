@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { BusinessGuard } from '../components/BusinessGuard'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePOS, Table, TableShape, makeTable, DEFAULT_TABLES } from '../store/posStore'
 import { appendLayoutHistory, layoutSnapshot, parseLayout, restoreLayout, type LayoutSnapshot, type TableGeometry } from '../lib/layout-snapshot'
@@ -627,7 +628,10 @@ function EditorRoomBg({ room, isActive, onClick }: {
    MAIN COMPONENT
    ══════════════════════════════════════════════════════════════════════════════ */
 
-export default function FloorPlanEditor({ onBack }: Props) {
+export default function FloorPlanEditor(props: Props) {
+  return <BusinessGuard capability="settings.manage" onBack={props.onBack}><FloorEditorContent {...props} /></BusinessGuard>
+}
+function FloorEditorContent({ onBack }: Props) {
   const tables = usePOS(s => s.tables)
   const moveTable = usePOS(s => s.moveTable)
   const addTable = usePOS(s => s.addTable)

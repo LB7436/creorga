@@ -3,6 +3,7 @@ import { api, sessionHeaders, sessionCompany, clearSession, setSession, endSessi
 import { useSeats } from '../store/seatStore'
 import { reconcileDraftPricing } from './floor-pricing'
 import { assertSeatProjection, seatCoverId, SeatProjectionError } from './seat-projection'
+import { accessEpoch, adoptBusinessAccess, hasCapability, invalidateBusinessAccess, requireCapability } from './business-access'
 
 // Aucune clé de terminal ni aucun code administrateur n'est intégré au navigateur.
 export const deviceHeaders = sessionHeaders
@@ -13,6 +14,9 @@ let unsubscribe: (() => void) | undefined
 let unsubscribeSeats: (() => void) | undefined
 let timer: ReturnType<typeof setTimeout> | undefined
 let poll: ReturnType<typeof setInterval> | undefined
+let accessPoll: ReturnType<typeof setInterval> | undefined
+let accessProbe: Promise<void> | null = null
+let lastObservedDraft = ''
 let writing: Promise<void> | null = null
 let scope = ''
 let bridgeEpoch = 0
@@ -29,19 +33,44 @@ function apply(data: any) {
   applying = true
   try {
     revision = data.revision
-    usePOS.setState({ ...data, kioskMode: false })
+    if (!adoptBusinessAccess(data.businessAccess)) return
+    const canReadRevenue = hasCapability('finance.revenue.read')
+    usePOS.setState({ ...data, businessAccess: usePOS.getState().businessAccess, kioskMode: false,
+      currentStaff: data.currentStaff ? { ...data.currentStaff, role: usePOS.getState().businessAccess?.role || data.currentStaff.role } : null,
+      ventes: canReadRevenue && Array.isArray(data.ventes) ? data.ventes : [],
+      clotures: canReadRevenue && Array.isArray(data.clotures) ? data.clotures : [], financialDataReady: canReadRevenue,
+    })
     useSeats.setState({ seats: data.seats || [] })
     clean = serial()
+    lastObservedDraft = clean
   } finally { applying = false }
 }
 export async function loadServerState() {
-  const epoch = bridgeEpoch
+  const epoch = bridgeEpoch, rights = accessEpoch()
   const before = serial()
   const data = await api('/pos/bootstrap')
-  if (epoch !== bridgeEpoch || before !== serial() || writing || checkingPayment) return
+  if (epoch !== bridgeEpoch || rights !== accessEpoch() || before !== serial() || writing || checkingPayment) return
   if (data.companyId !== sessionCompany()) throw new Error('Les données reçues appartiennent à un autre établissement. Reconnectez cette caisse.')
   apply(data)
   status('Données enregistrées sur le serveur')
+}
+async function refreshBusinessAccess() {
+  if (accessProbe) return accessProbe
+  const epoch = bridgeEpoch, rights = accessEpoch(), company = sessionCompany(), staffId = usePOS.getState().currentStaff?.id
+  const task = (async () => {
+    try {
+      const result = await api('/companies/access')
+      if (epoch !== bridgeEpoch || rights !== accessEpoch() || company !== sessionCompany() || staffId !== usePOS.getState().currentStaff?.id) return
+      adoptBusinessAccess(result)
+    } catch {
+      if (epoch === bridgeEpoch && rights === accessEpoch() && company === sessionCompany()) {
+        invalidateBusinessAccess()
+        status('Permissions non confirmées. Actions suspendues ; brouillons et références en attente conservés.', true)
+      }
+    }
+  })()
+  accessProbe = task
+  try { await task } finally { if (accessProbe === task) accessProbe = null }
 }
 export async function startFloorBridge() {
   stopFloorBridge()
@@ -49,7 +78,7 @@ export async function startFloorBridge() {
   await loadServerState()
   assertBridge(epoch)
   scope = `${sessionCompany()}:${usePOS.getState().currentStaff?.id}`
-  for (const key of Object.keys(localStorage).filter(k => k.startsWith(`creorga-pos-allocation:${scope}:`))) {
+  for (const key of Object.keys(localStorage).filter(k => hasCapability('service.manage') && k.startsWith(`creorga-pos-allocation:${scope}:`))) {
     try {
       const pending = JSON.parse(localStorage.getItem(key)!)
       await api(`/pos/table-movements/${encodeURIComponent(pending.requestId)}`)
@@ -57,7 +86,7 @@ export async function startFloorBridge() {
       status('Répartition financière retrouvée. Les groupes et les soldes du serveur sont conservés.')
     } catch { assertBridge(epoch); status('Une allocation financière reste à vérifier. Sa décision est conservée, sans nouvelle référence.', true) }
   }
-  for (const key of Object.keys(localStorage).filter(k => k.startsWith(`creorga-pos-separation:${scope}:`))) {
+  for (const key of Object.keys(localStorage).filter(k => hasCapability('service.manage') && k.startsWith(`creorga-pos-separation:${scope}:`))) {
     try {
       const pending = JSON.parse(localStorage.getItem(key)!)
       await api(`/pos/table-movements/${encodeURIComponent(pending.requestId)}`)
@@ -65,7 +94,7 @@ export async function startFloorBridge() {
       status('Séparation retrouvée. Les groupes et leurs soldes sont ceux du serveur.')
     } catch { assertBridge(epoch); status('Une séparation reste à vérifier. Sa référence est conservée ; réessayez la même sélection.', true) }
   }
-  for (const key of Object.keys(localStorage).filter(k => k.startsWith(`creorga-pos-move:${scope}:`))) {
+  for (const key of Object.keys(localStorage).filter(k => hasCapability('service.manage') && k.startsWith(`creorga-pos-move:${scope}:`))) {
     try {
       const pending = JSON.parse(localStorage.getItem(key)!)
       await api(`/pos/table-movements/${encodeURIComponent(pending.requestId)}`)
@@ -73,7 +102,7 @@ export async function startFloorBridge() {
       status('Transfert retrouvé sur le serveur. Renouvelez séparément les QR des groupes concernés.')
     } catch { assertBridge(epoch); status('Un transfert reste à vérifier. Sa référence est conservée ; réessayez la même destination.', true) }
   }
-  for (const key of Object.keys(localStorage).filter(k => k.startsWith(`creorga-pos-partial:${scope}:`))) {
+  for (const key of Object.keys(localStorage).filter(k => hasCapability('payments.receive') && k.startsWith(`creorga-pos-partial:${scope}:`))) {
     try {
       const pending = JSON.parse(localStorage.getItem(key)!)
       const result = await api<PartialResult>(`/pos/payments/${encodeURIComponent(pending.requestId)}`)
@@ -82,7 +111,7 @@ export async function startFloorBridge() {
     } catch { assertBridge(epoch); status('Un acompte reste à vérifier. Utilisez Réessayer dans Acompte / solde ; sa référence est conservée.', true) }
   }
   // Rapprocher les réponses perdues avant une nouvelle vente, y compris après fermeture.
-  for (const key of Object.keys(localStorage).filter(k => k.startsWith(`creorga-pos-pending:${scope}:`))) {
+  for (const key of Object.keys(localStorage).filter(k => hasCapability('payments.receive') && k.startsWith(`creorga-pos-pending:${scope}:`))) {
     try {
       const pending = JSON.parse(localStorage.getItem(key)!)
       const sale = await api<Vente>(`/pos/sales/${encodeURIComponent(pending.requestId)}`)
@@ -107,22 +136,29 @@ export async function startFloorBridge() {
       status('Brouillon local illisible : données serveur conservées.', true)
     }
   }
+  // Une sonde de permissions n'est pas une nouvelle saisie. En particulier,
+  // reprendre un ancien brouillon n'autorise pas son envoi automatique.
+  lastObservedDraft = rawSerial()
   const onDraftChanged = () => {
     if (applying) return
     const snapshot = rawSerial()
+    if (snapshot === lastObservedDraft) return
+    lastObservedDraft = snapshot
     if (snapshot === clean) return
     try { localStorage.setItem(draftKey(), JSON.stringify({ revision, ...JSON.parse(snapshot) })) }
     catch { status('Stockage local indisponible. Gardez cette page ouverte.', true) }
     clearTimeout(timer)
     try { serial() } catch (error) { status((error as Error).message, true); return }
     status('Modifications en attente de confirmation')
-    timer = setTimeout(() => { void flushFloor().catch(() => {}) }, 450)
+    if (hasCapability('service.manage') || hasCapability('settings.manage')) timer = setTimeout(() => { void flushFloor().catch(() => {}) }, 450)
   }
   unsubscribe = usePOS.subscribe(onDraftChanged)
   unsubscribeSeats = useSeats.subscribe(onDraftChanged)
   poll = setInterval(() => {
     if (!writing && !checkingPayment && serial() === clean) void loadServerState().catch(() => status('Connexion serveur interrompue. Vos dernières données restent affichées.', true))
   }, 5000)
+  // Indépendant de la propreté du brouillon et des opérations financières.
+  accessPoll = setInterval(() => { void refreshBusinessAccess() }, 5000)
 }
 export function stopFloorBridge() {
   bridgeEpoch++
@@ -130,12 +166,14 @@ export function stopFloorBridge() {
   unsubscribe?.(); unsubscribe = undefined
   unsubscribeSeats?.(); unsubscribeSeats = undefined
   clearTimeout(timer); clearInterval(poll)
+  clearInterval(accessPoll); accessProbe = null
 }
 export async function flushFloor(): Promise<void> {
   const currentEpoch = bridgeEpoch
   try { serial() } catch (error) { status((error as Error).message, true); throw error }
   if (writing) { await writing; assertBridge(currentEpoch); if (serial() !== clean) return flushFloor(); return }
   if (serial() === clean) return
+  if (!hasCapability('service.manage')) requireCapability('settings.manage')
   const snapshot = serial(), expected = revision, epoch = bridgeEpoch
   const task = (async () => {
     try {
@@ -145,7 +183,7 @@ export async function flushFloor(): Promise<void> {
       clean = JSON.stringify(reconcileDraftPricing(JSON.parse(snapshot), result))
       const current = reconcileDraftPricing(JSON.parse(serial()), result)
       applying = true
-      try { usePOS.setState({ tables: current.tables }); useSeats.setState({ seats: current.seats }) }
+      try { usePOS.setState({ tables: current.tables }); useSeats.setState({ seats: current.seats }); lastObservedDraft = rawSerial() }
       finally { applying = false }
       if (serial() === clean) localStorage.removeItem(draftKey())
       else localStorage.setItem(draftKey(), JSON.stringify({ revision, ...JSON.parse(serial()) }))
@@ -156,6 +194,7 @@ export async function flushFloor(): Promise<void> {
   try { await task } finally { if (writing === task) writing = null }
 }
 export async function moveTableServer(fromTableId: string, intoTableId: string, kind: 'TRANSFER' | 'MERGE') {
+  requireCapability('service.manage')
   if (checkingPayment) throw new Error('Une opération de caisse est déjà en cours.')
   const epoch = bridgeEpoch, key = `creorga-pos-move:${scope}:${fromTableId}`
   checkingPayment = true
@@ -185,6 +224,7 @@ export type AllocationDraft = { orderId: string; reason: string; groups: Array<{
   tenderDecisions: Array<{ tenderId: string; parts: Array<{ groupKey: string; amountCents: number }> }> }
 export type AllocationDecision = { input: AllocationDraft & { requestId: string; expectedRevision: number }; confirmHash: string; plan?: any }
 export async function previewAllocationServer(draft: AllocationDraft): Promise<AllocationDecision> {
+  requireCapability('finance.manage')
   const epoch = bridgeEpoch
   await flushFloor(); assertBridge(epoch)
   const input = { ...draft, requestId: crypto.randomUUID(), expectedRevision: revision }
@@ -193,6 +233,7 @@ export async function previewAllocationServer(draft: AllocationDraft): Promise<A
   return { input, ...result }
 }
 export async function confirmAllocationServer(decision: AllocationDecision) {
+  requireCapability('finance.manage')
   if (checkingPayment) throw new Error('Une opération de caisse est déjà en cours.')
   const epoch = bridgeEpoch, key = `creorga-pos-allocation:${scope}:${decision.input.orderId}`
   checkingPayment = true
@@ -221,6 +262,7 @@ export async function retryAllocationServer(orderId: string) {
   return confirmAllocationServer({ input, confirmHash })
 }
 export async function separateServiceServer(input: ServiceSelection) {
+  requireCapability('service.manage')
   if (checkingPayment) throw new Error('Une opération de caisse est déjà en cours.')
   const epoch = bridgeEpoch, key = `creorga-pos-separation:${scope}:${input.coverId}`
   checkingPayment = true
@@ -244,6 +286,7 @@ export async function separateServiceServer(input: ServiceSelection) {
   } finally { if (epoch === bridgeEpoch) checkingPayment = false }
 }
 export async function reviewLinePricing(lineId: string, input: { productId: string; price: number; taxRate: number; reason: string }) {
+  requireCapability('catalog.prices.write')
   const epoch = bridgeEpoch
   await flushFloor()
   assertBridge(epoch)
@@ -254,7 +297,7 @@ export async function reviewLinePricing(lineId: string, input: { productId: stri
   const reconciled = reconcileDraftPricing(JSON.parse(serial()), result)
   applying = true
   try { usePOS.setState({ tables: reconciled.tables }); useSeats.setState({ seats: reconciled.seats }) }
-  finally { applying = false }
+  finally { applying = false; lastObservedDraft = rawSerial() }
   clean = JSON.stringify(reconcileDraftPricing(JSON.parse(snapshot), result))
   if (serial() === clean) localStorage.removeItem(draftKey())
   else localStorage.setItem(draftKey(), JSON.stringify({ revision, ...JSON.parse(serial()) }))
@@ -262,6 +305,7 @@ export async function reviewLinePricing(lineId: string, input: { productId: stri
 }
 export async function checkoutServer(tableId: string, method: PayMethod, tip: number, coverIds: string[] | undefined,
   options: OptionsPaiement, expectedTotal: number, cashReceived?: number): Promise<Vente> {
+  requireCapability('payments.receive')
   if (checkingPayment) throw new Error('Un règlement est déjà en cours de vérification.')
   const epoch = bridgeEpoch, paymentScope = scope
   checkingPayment = true
@@ -295,7 +339,7 @@ export async function checkoutServer(tableId: string, method: PayMethod, tip: nu
   let locallyReconciled = false
   applying = true
   try {
-    usePOS.setState(s => ({ ventes: [sale, ...s.ventes.filter(v => v.id !== sale.id)] }))
+    if (hasCapability('finance.revenue.read')) usePOS.setState(s => ({ ventes: [sale, ...s.ventes.filter(v => v.id !== sale.id)] }))
     if (ids.size && !newerDraft) {
       useSeats.setState(s => ({ seats: s.seats.map(seat => (seat.tableId || `standalone-seat:${seat.id}`) === tableId && ids.has(seatCoverId(seat))
         ? { ...seat, items: [], status: 'free' as const, customerName: undefined } : seat) }))
@@ -327,6 +371,7 @@ export type PartialInput = { tableId: string; coverIds: string[]; amountCents: n
   cashReceivedCents?: number; allocations?: Array<{ method: 'CASH' | 'CARD'; amountCents: number }> }
 export type PartialResult = { requestId: string; status: 'PARTIAL' | 'SETTLED'; confirmation: 'manual_declaration'; paidCents: number; outstandingCents: number; cashChangeCents: number; sales: Vente[] }
 export async function payPartServer(input: PartialInput): Promise<PartialResult> {
+  requireCapability('payments.receive')
   if (checkingPayment) throw new Error('Un règlement est déjà en cours de vérification.')
   const epoch = bridgeEpoch, key = `creorga-pos-partial:${scope}:${input.tableId}`
   checkingPayment = true
@@ -354,6 +399,7 @@ export async function payPartServer(input: PartialInput): Promise<PartialResult>
   } finally { if (epoch === bridgeEpoch) checkingPayment = false }
 }
 export async function closeServerDay(): Promise<Cloture> {
+  requireCapability('cash.close')
   const epoch = bridgeEpoch, closureScope = scope
   await flushFloor()
   assertBridge(epoch)
@@ -363,7 +409,7 @@ export async function closeServerDay(): Promise<Cloture> {
   const closure = await api<Cloture>('/pos/close', { method: 'POST', body: JSON.stringify({ requestId }) })
   assertBridge(epoch)
   applying = true
-  try { usePOS.setState(s => ({ ventes: [], clotures: [closure, ...s.clotures.filter(c => c.id !== closure.id)] })) }
+  try { if (hasCapability('finance.revenue.read')) usePOS.setState(s => ({ ventes: [], clotures: [closure, ...s.clotures.filter(c => c.id !== closure.id)] })) }
   finally { applying = false }
   localStorage.removeItem(key)
   return closure
@@ -373,7 +419,7 @@ export function logoutServer() {
   endSession()
   useSeats.setState({ seats: [] })
   applying = true
-  try { usePOS.setState({ currentStaff: null, tables: [], menu: [], staff: [], ventes: [], clotures: [], kioskMode: false }) }
+  try { usePOS.setState({ currentStaff: null, tables: [], menu: [], staff: [], ventes: [], clotures: [], businessAccess: null, financialDataReady: false, kioskMode: false }) }
   finally { applying = false }
 }
 
@@ -387,7 +433,7 @@ export async function enterPublicKiosk() {
   stopFloorBridge()
   clearSession(); setSession('', companyId)
   useSeats.setState({ seats: [] })
-  usePOS.setState(s => ({ currentStaff: null, staff: [], ventes: [], clotures: [], reservations: [], kioskMode: true,
+  usePOS.setState(s => ({ currentStaff: null, staff: [], ventes: [], clotures: [], businessAccess: null, financialDataReady: false, reservations: [], kioskMode: true,
     tables: s.tables.map(t => ({ ...t, covers: [], openedAt: undefined, status: 'available' as const })),
   }))
 }

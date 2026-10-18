@@ -15,6 +15,7 @@ import { lockFinancialCompany } from '../lib/financial-lock'
 import { PosError } from '../lib/pos-ledger'
 import { createTablePayment, reconcilePayment, merchantFor, PaymentError } from '../lib/payments/ledger'
 import { shareBalance } from '../lib/financial-allocations'
+import { hasCapability } from '../lib/business-permissions'
 
 /**
  * Endpoints du portail client (le convive scanne le QR, sans compte) :
@@ -76,7 +77,7 @@ router.use((req, res, next) => {
   if (!req.headers.authorization && !req.headers['x-device-token']) return next()
   deviceOrUserAuth(req, res, () => requireCompany(req, res, () => {
     const context = req as any
-    if (!context.device && !['OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', 'CASHIER'].includes(context.role)) {
+    if (!context.device && !hasCapability(context, 'service.read')) {
       res.status(403).json({ error: 'Accès au service réservé au personnel habilité.' }); return
     }
     context.guestStaff = true

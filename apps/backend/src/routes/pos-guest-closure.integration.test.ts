@@ -131,7 +131,7 @@ describe('Fin de table POS : capacités QR closes dans la transaction finale', (
 
   it('le salarié autorisé à encaisser termine aussi les accès sans obtenir un rôle propriétaire', async () => {
     const f = await fixture(), body = await input(f)
-    await prisma.userCompany.update({ where: { userId_companyId: { userId: f.userId, companyId: f.companyId } }, data: { role: 'EMPLOYEE' } })
+    await prisma.userCompany.update({ where: { userId_companyId: { userId: f.userId, companyId: f.companyId } }, data: { role: 'EMPLOYEE', capabilities: { 'service.manage': true, 'payments.receive': true }, accessVersion: { increment: 1 } } })
     await checkout(f, body).expect(200)
     await bill(f).expect(403)
     expect((await prisma.userCompany.findUniqueOrThrow({ where: { userId_companyId: { userId: f.userId, companyId: f.companyId } } })).role).toBe('EMPLOYEE')

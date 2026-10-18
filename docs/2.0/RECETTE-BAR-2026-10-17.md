@@ -1,5 +1,27 @@
 # Recette établissement C — BAR DES AMIS
 
+## Suite ciblée du 18 octobre — PARTIELLE, NON LIVRÉE
+
+Le défaut CA visible à EMPLOYEE ci-dessous a son contre-essai actuel : autorisation
+temporaire explicite puis révocation UI/audit, ancien Journal masqué et nouvelle
+connexion POS sans CA ni Journal. Aucun montant historique effacé. OWNER, ADMIN,
+MANAGER, SERVER et EMPLOYEE existants connectés ; pas tous les parcours des rôles.
+ADMIN voit le planning nuit sans coûts, EMPLOYEE seulement ses créneaux. Le cycle
+global403/remontage du planning a été reproduit puis corrigé et rejoué. Mobile390px
+observé, pas qualification tactile/contraste intégrale.
+
+Robi : OWNER CA du18octobre0 cohérent avec ventes du17 ; EMPLOYEE CA403 avec
+message visible, stock et planning personnel en lecture locale explicitement
+sans IA générative. Fournisseur réel **BLOCKED**, pas de contenu envoyé au cloud.
+CLIENT QR non rejoué intégralement dans ce lot ; anciennes visites préservées.
+
+PG final : **3 ventes/38,04TTC =34,17HT +3,87TVA**, espèces19 et carte déclarée19,04,
+stocks96/79/58/19 et clôture119/118,90 inchangés. Six empreintes égales. Quatre
+événements de droits conservés, aucun compte/vente/remboursement recréé.
+[Preuves](preuves/droits-robi-validation-2026-10-18.json),
+[rapport](DROITS-FINS-ROBI-RECETTE-2026-10-18.md). Arrêt runtime et campagne restent
+non qualifiés, aucun paiement bancaire ou essai matériel réel.
+
 ## Consolidation technique postérieure aux rejoués de 21:30
 
 Les [preuves finales v3](preuves/intensive-validation-finale-2026-10-17-2135-v3.json) confirment **861 unitaires / 295 PG / 47 fixtures locales** et les deux builds finaux, cinq applications chacun. La restauration réalisée à **21:31:36.908 Luxembourg** inclut la copie postérieure à ces ventes/clôtures : **81 tables, 10 083 lignes, 14 fichiers et 26 PDF**, mêmes empreintes, zéro différence. **X02 devient PASS ciblé**, sans effacer les états précédents ni transformer l'audit en qualification de production.

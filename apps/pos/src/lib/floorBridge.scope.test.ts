@@ -8,7 +8,9 @@ vi.mock('../store/posStore', () => ({ usePOS: {
 } }))
 vi.mock('../store/seatStore', () => ({ useSeats: { getState: () => ({ seats: state.seats }), setState: (value: { seats: unknown[] }) => { state.seats = value.seats }, subscribe: () => () => {} } }))
 import { checkoutServer, payPartServer, moveTableServer, separateServiceServer, previewAllocationServer, confirmAllocationServer, closeServerDay, startFloorBridge, stopFloorBridge, loadServerState } from './floorBridge'
-const fixture = (companyId: string) => ({ companyId, revision: 1, currentStaff: { id: 'owner-' + companyId }, tables: [{ id: 'table-a', covers: [{ id: 'cover-a', items: [{ id: 'line-a', price: 2, qty: 1 }] }] }], editor: {}, ventes: [], clotures: [], seats: [] })
+const fixture = (companyId: string) => ({ companyId, revision: 1,
+  businessAccess: { role: 'OWNER', revision: `owner:${companyId}`, version: 1, capabilities: ['service.read', 'service.manage', 'payments.receive', 'finance.revenue.read', 'finance.manage', 'cash.close', 'catalog.prices.write', 'discounts.grant'] },
+  currentStaff: { id: 'owner-' + companyId, role: 'OWNER' }, tables: [{ id: 'table-a', covers: [{ id: 'cover-a', items: [{ id: 'line-a', price: 2, qty: 1 }] }] }], editor: {}, ventes: [], clotures: [], seats: [] })
 const values = new Map<string, string>()
 const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value) }, removeItem: (key: string) => { values.delete(key) } }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r }); return { promise, resolve } }

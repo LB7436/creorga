@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
-import { requireRole } from '../middleware/requireCompany'
+import { assertTransactionCapabilities, requireCapabilities, BusinessPermissionError } from '../lib/business-permission-transaction'
 import { lockFinancialCompany } from '../lib/financial-lock'
 import { PosError } from '../lib/pos-ledger'
 const router = Router()
@@ -14,6 +14,7 @@ const fields = z.object({ tableId: z.string().min(1).max(100).nullish(), custome
 const wrap = (fn: (req: any, res: any) => Promise<any>) => async (req: any, res: any) => {
   try { await fn(req, res) } catch (e) {
     if (e instanceof z.ZodError) return res.status(400).json({ message: 'Réservation invalide : vérifiez date, coordonnées et nombre de personnes.' })
+    if (e instanceof BusinessPermissionError) return res.status(403).json({ message: e.message })
     if (e instanceof PosError) return res.status(e.status).json({ message: e.message })
     logger.error('Réservation non confirmée', e)
     res.status(503).json({ message: 'Confirmation indisponible. Relisez les réservations avant de réessayer.' })
@@ -36,11 +37,12 @@ router.get('/', wrap(async (req, res) => {
   // Les relations anciennes ne sont pas réécrites. Une relation incohérente ne divulgue pas sa société.
   res.json(rows.map(r => r.table && r.table.companyId !== req.companyId ? { ...r, table: null, linkWarning: 'Relation de table historique à vérifier par un responsable.' } : r))
 }))
-router.use(requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', 'CASHIER'))
+router.use(requireCapabilities('service.manage'))
 router.post('/', wrap(async (req, res) => {
   const input = fields.parse(req.body)
   const result = await prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, req.companyId)
+    await assertTransactionCapabilities(tx, req, 'service.manage')
     await check(tx, req.companyId, input)
     return tx.reservation.create({ data: { ...input, companyId: req.companyId, guestPhone: input.guestPhone || null, guestEmail: input.guestEmail || null, partySize: input.partySize || 2 }, include: { table: true } })
   }, { maxWait: 15000, timeout: 20000 })
@@ -50,6 +52,7 @@ router.put('/:id', wrap(async (req, res) => {
   const input = fields.partial().parse(req.body)
   const result = await prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, req.companyId)
+    await assertTransactionCapabilities(tx, req, 'service.manage')
     const row = await tx.reservation.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!row) throw new PosError('Réservation non trouvée.', 404)
     await check(tx, req.companyId, { ...row, ...input })
@@ -61,6 +64,7 @@ router.put('/:id/status', wrap(async (req, res) => {
   const input = z.object({ status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'SEATED', 'NO_SHOW']) }).strict().parse(req.body)
   const result = await prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, req.companyId)
+    await assertTransactionCapabilities(tx, req, 'service.manage')
     const row = await tx.reservation.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!row) throw new PosError('Réservation non trouvée.', 404)
     await check(tx, req.companyId, { ...row, ...input })
@@ -71,6 +75,7 @@ router.put('/:id/status', wrap(async (req, res) => {
 router.delete('/:id', wrap(async (req, res) => {
   await prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, req.companyId)
+    await assertTransactionCapabilities(tx, req, 'service.manage')
     if (!await tx.reservation.findFirst({ where: { id: req.params.id, companyId: req.companyId } })) throw new PosError('Réservation non trouvée.', 404)
     await tx.reservation.delete({ where: { id: req.params.id } })
   })

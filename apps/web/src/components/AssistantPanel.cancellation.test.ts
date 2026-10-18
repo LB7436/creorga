@@ -47,7 +47,7 @@ beforeEach(() => {
   transport = async () => { throw Error('Unexpected fixture network operation') }
   vi.stubGlobal('fetch', async (input: string | URL, init: RequestInit = {}) => {
     const url = String(input)
-    if (url !== 'http://localhost:3002/api/agent/super-ask') throw Error('Unapproved fixture destination')
+    if (!['http://localhost:3002/api/agent/super-ask', 'http://localhost:3002/api/agent/process-pdf'].includes(url)) throw Error('Unapproved fixture destination')
     requests.push({ url, init }); return transport(url, init)
   })
   axios.defaults.adapter = async () => { throw Error('Unexpected fixture auth operation') }
@@ -113,6 +113,20 @@ describe('Robi : arrêt explicite et réponses tardives', () => {
 })
 
 describe('Robi : une attente utilisateur bornée et honnête', () => {
+  it('borne aussi un PDF joint à 25 secondes sans promettre une analyse réussie', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const held = deferred<Response>(); transport = async () => held.promise
+    await mount()
+    await act(async () => { useAssistant.getState().addAttachment({ kind: 'file', name: 'fixture.pdf', mimeType: 'application/pdf', size: 20, dataUrl: 'data:application/pdf;base64,JVBERi0xLjQKJSBmaWN0aWY=' }) })
+    await send('Analyse ce PDF fictif sans rien modifier')
+    expect(requests[0]?.url).toMatch(/process-pdf$/)
+    await act(async () => { await vi.advanceTimersByTimeAsync(25_001) })
+    expect(requests[0].init.signal?.aborted).toBe(true)
+    expect(useAssistant.getState().mode).toBe('idle')
+    expect(lastMessage()?.text).toMatch(/délai|temps.*dépass/i)
+    held.resolve(Response.json({ text: 'Retour PDF périmé' })); await flush()
+    expect(messages().some(message => message.text.includes('Retour PDF périmé'))).toBe(false)
+  })
   it.each(['headers', 'body'] as const)('termine après le budget utilisateur si les %s restent bloqués', async stage => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const held = deferred<Response>(), body = deferred<any>()

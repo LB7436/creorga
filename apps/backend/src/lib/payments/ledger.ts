@@ -8,6 +8,7 @@ import { lockGuestTable, requireGuestAccess } from '../guest-visits'
 import { orderPaymentBalance } from '../order-tenders'
 import { lockFinancialCompany } from '../financial-lock'
 import { activeCashDrawerId } from '../cash-ledger'
+import { assertTransactionCapabilities, BusinessPermissionError } from '../business-permission-transaction'
 
 export class PaymentError extends Error {
   constructor(public status: number, message: string) { super(message) }
@@ -63,6 +64,10 @@ export async function createPayment(companyId: string, userId: string | null, ra
   const reservation = await prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, companyId)
     await lockOrderPayment(tx, companyId, input.orderId)
+    if (userId !== null) {
+      try { await assertTransactionCapabilities(tx, { companyId, user: { userId } }, 'payments.receive') }
+      catch (error) { if (error instanceof BusinessPermissionError) throw new PaymentError(403, error.message); throw error }
+    }
     const existing = await tx.paymentAttempt.findUnique({ where: { companyId_requestId: { companyId, requestId: input.requestId } } })
     if (existing) {
       if (existing.requestHash !== requestHash || existing.userId !== userId) throw new PaymentError(409, 'Référence réutilisée avec une autre demande.')
@@ -86,7 +91,14 @@ export async function createPayment(companyId: string, userId: string | null, ra
       allocations: { create: { orderId: order.id, amountCents } } } })
     return { attempt, created: true }
   })
-  return dispatchReservation(reservation, successUrl, cancelUrl)
+  const result = await dispatchReservation(reservation, successUrl, cancelUrl)
+  // Garder la preuve d'une demande prestataire engagée, mais ne plus exposer
+  // son résultat à un membre révoqué pendant l'appel réseau.
+  if (userId !== null) {
+    try { await prisma.$transaction(tx => assertTransactionCapabilities(tx, { companyId, user: { userId } }, 'payments.receive')) }
+    catch (error) { if (error instanceof BusinessPermissionError) throw new PaymentError(403, error.message); throw error }
+  }
+  return result
 }
 
 async function dispatchReservation(reservation: { attempt: any; created: boolean }, successUrl: string, cancelUrl: string) {

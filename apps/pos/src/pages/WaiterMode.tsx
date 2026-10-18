@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { checkoutServer, flushFloor, separateServiceServer } from '../lib/floorBridge'
+import { BusinessGuard } from '../components/BusinessGuard'
+import { hasCapability } from '../lib/business-access'
 import {
   usePOS,
   MENU_CATEGORIES,
@@ -38,12 +40,16 @@ const INITIAL_STATS = {
   tables: 14, avgTime: 42, tips: 58.5, orders: 47,
 }
 
-export default function WaiterMode({ onExit }: { onExit: () => void }) {
+export default function WaiterMode(props: { onExit: () => void }) {
+  return <BusinessGuard capability="service.manage" onBack={props.onExit}><WaiterContent {...props} /></BusinessGuard>
+}
+function WaiterContent({ onExit }: { onExit: () => void }) {
   const tables = usePOS(s => s.tables)
   const menu = usePOS(s => s.menu).filter(m => m.active)
   const categories = [...new Set(menu.map(m => m.category))]
   const settings = usePOS(s => s.settings)
   const currentStaff = usePOS(s => s.currentStaff)
+  const access = usePOS(s => s.businessAccess)
   const addItem = usePOS(s => s.addItem)
   const removeItem = usePOS(s => s.removeItem)
   const setItemQty = usePOS(s => s.setItemQty)
@@ -197,6 +203,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
   }
 
   async function handlePayment() {
+    if (!hasCapability('payments.receive')) { setToast({ text: 'La permission d’encaisser est nécessaire.', color: '#fb7185' }); return }
     if (paying || !window.confirm('Confirmer que le paiement a été accepté par votre terminal bancaire ?')) return
     setPaying(true)
     try {
@@ -350,7 +357,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
           </motion.button>
 
           {/* Stats toggle */}
-          <button
+          {hasCapability('finance.revenue.read', access) && <button
             onClick={() => setStatsOpen(v => !v)}
             style={{
               padding: '6px 12px', borderRadius: 8,
@@ -361,7 +368,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
             }}
           >
             📊 {stats.tips.toFixed(0)}€
-          </button>
+          </button>}
 
           {/* Multi-table toggle */}
           <button
@@ -774,9 +781,9 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
                           <button
-                            disabled={frozen || transferring}
+                            disabled={frozen || transferring || !hasCapability('orders.cancel', access)}
                             title={frozen ? 'Ligne financière figée : correction depuis la caisse' : 'Diminuer la quantité'}
-                            onClick={() => setItemQty(selectedTableId, item.id, item.qty - 1)}
+                            onClick={() => { if (hasCapability('orders.cancel')) setItemQty(selectedTableId, item.id, item.qty - 1) }}
                             style={{
                               width: 28, height: 28, borderRadius: 7,
                               background: 'rgba(244,63,94,0.1)',
@@ -838,9 +845,9 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
                           style={{ padding: 7, borderRadius: 7, background: '#26264a', border: '1px solid #818cf8', color: '#c7d2fe', cursor: 'pointer' }}
                         >↔</button>
                         <button
-                          disabled={frozen || transferring}
+                          disabled={frozen || transferring || !hasCapability('orders.cancel', access)}
                           title={frozen ? 'Ligne financière figée : correction depuis la caisse' : 'Retirer la ligne'}
-                          onClick={() => removeItem(selectedTableId, item.id)}
+                          onClick={() => { if (hasCapability('orders.cancel')) removeItem(selectedTableId, item.id) }}
                           style={{
                             width: 26, height: 26, borderRadius: 7,
                             background: 'rgba(244,63,94,0.08)',
@@ -910,6 +917,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
               <div style={{ display: 'flex', gap: 6, padding: '0 14px 14px' }}>
                 <motion.button
                   onClick={handlePayment}
+                  disabled={!hasCapability('payments.receive', access)}
                   whileTap={{ scale: 0.96 }}
                   style={{
                     flex: 5, height: 46, borderRadius: 10,
@@ -956,7 +964,7 @@ export default function WaiterMode({ onExit }: { onExit: () => void }) {
 
       {/* ══════════ STATS PANEL (sliding) ══════════ */}
       <AnimatePresence>
-        {statsOpen && (
+        {statsOpen && hasCapability('finance.revenue.read', access) && (
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}

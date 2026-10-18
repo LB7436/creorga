@@ -61,7 +61,7 @@ interface AssistantHistory {
 function authScopeKey(): string | null {
   const auth = useAuthStore.getState()
   return auth.isAuthenticated && auth.user?.id && auth.companyId
-    ? JSON.stringify([auth.user.id, auth.companyId]) : null
+    ? JSON.stringify([auth.user.id, auth.companyId, auth.businessAccess?.revision ?? 'unverified', auth.viewMode, auth.viewAsEmployeeId]) : null
 }
 
 const newId = () => Math.random().toString(36).slice(2, 12)
@@ -354,8 +354,7 @@ export const useAssistant = create<AssistantState>()(
 
 // La portée change avant le prochain rendu, pas seulement au montage du panneau.
 const unsubscribeAuthScope = useAuthStore.subscribe((auth, previous) => {
-  if (auth.sessionVersion === previous.sessionVersion && auth.companyId === previous.companyId
-    && auth.user?.id === previous.user?.id && auth.isAuthenticated === previous.isAuthenticated) return
+  if (authDataScope(auth) === authDataScope(previous)) return
   const state = useAssistant.getState()
   const histories = { ...state.histories }
   if (state.scopeKey) histories[state.scopeKey] = { conversations: state.conversations, currentConversationId: state.currentConversationId }

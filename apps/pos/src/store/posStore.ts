@@ -2,13 +2,14 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useSeats } from './seatStore'
 import { projectSeatCovers, seatCoverId, SeatProjectionError } from '../lib/seat-projection'
+import type { BusinessAccess } from '../lib/business-access'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 export type TableShape = 'round' | 'square' | 'rect' | 'bar'
 export type TableStatus = 'available' | 'occupied' | 'reserved' | 'dirty'
 export type PayMethod = 'cash' | 'card' | 'contactless' | 'GIFT_CARD'
-export type StaffRole = 'OWNER' | 'WAITER' | 'KITCHEN' | 'MANAGER'
+export type StaffRole = 'OWNER' | 'ADMIN' | 'MANAGER' | 'SERVER' | 'CASHIER' | 'EMPLOYEE' | 'WAITER' | 'KITCHEN'
 
 export interface StaffMember {
   id: string
@@ -500,6 +501,8 @@ const DEFAULT_STAFF: StaffMember[] = [
 // ─── Store ───────────────────────────────────────────────────────────────────
 
 interface POSStore {
+  businessAccess: BusinessAccess | null
+  financialDataReady: boolean
   reservations: Array<{ id: string; tableId: string | null; guestName: string; date: string }>
   editor: { rooms: any[]; fixtures: any[]; scenes: any[]; background: string | null }
   tables: Table[]
@@ -618,6 +621,8 @@ export function migrerEtatPersistant(etat: any, versionPrecedente: number): any 
 export const usePOS = create<POSStore>()(
   persist(
     (set, get) => ({
+      businessAccess: null,
+      financialDataReady: false,
       reservations: [],
       editor: { rooms: [], fixtures: [], scenes: [], background: null },
       tables: import.meta.env.MODE === 'test' ? DEFAULT_TABLES : [],

@@ -5,6 +5,8 @@ import { useSeats, seatTotal, type Seat } from '../store/seatStore'
 import SeatPanel from '../components/SeatPanel'
 import { moveTableServer } from '../lib/floorBridge'
 import { ambiguousFloorGeometry, floorViewBox, floorViews } from '../lib/floor-view'
+import { hasCapability } from '../lib/business-access'
+import { BusinessGuard } from '../components/BusinessGuard'
 
 interface Props {
   onOpenOrder: (tableId: string) => void
@@ -588,6 +590,7 @@ interface ModalProps {
 }
 
 function TableModal({ table, roomLabel, onClose, onOpenOrder }: ModalProps) {
+  const access = usePOS(state => state.businessAccess)
   const [covers, setCovers] = useState(2)
   // Refus du store (table impayée) : la modale RESTE ouverte avec le motif,
   // au lieu de se fermer comme si l'action avait réussi.
@@ -601,21 +604,23 @@ function TableModal({ table, roomLabel, onClose, onOpenOrder }: ModalProps) {
   const time = elapsed(table.openedAt)
   const waiter = isOccupied ? assignWaiter(table.id) : null
 
-  function handleOpen() { openTable(table.id, covers); onOpenOrder(table.id); onClose() }
-  function handleGoToOrder() { onOpenOrder(table.id); onClose() }
+  function handleOpen() { if (!hasCapability('service.manage')) return; openTable(table.id, covers); onOpenOrder(table.id); onClose() }
+  function handleGoToOrder() { if (!hasCapability('service.manage')) return; onOpenOrder(table.id); onClose() }
   // Le store refuse « dirty »/« available » sur une table qui a des
   // consommations non réglées — c'était par ici que « Fermer la table »
   // contournait closeTable et faisait disparaître du chiffre d'affaires.
   const MOTIF_IMPAYE = 'Cette table a des consommations non réglées : encaissez-la avant de la fermer.'
   function handleMarkDirty() {
+    if (!hasCapability('service.manage')) return
     if (setTableStatus(table.id, 'dirty')) onClose()
     else setRefus(MOTIF_IMPAYE)
   }
   function handleMarkAvailable() {
+    if (!hasCapability('service.manage')) return
     if (setTableStatus(table.id, 'available')) onClose()
     else setRefus(MOTIF_IMPAYE)
   }
-  function handleMarkReserved() { setTableStatus(table.id, 'reserved'); onClose() }
+  function handleMarkReserved() { if (!hasCapability('service.manage')) return; setTableStatus(table.id, 'reserved'); onClose() }
 
   const gradientBtn = (c: string, bgBase: string): React.CSSProperties => ({
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -648,6 +653,11 @@ function TableModal({ table, roomLabel, onClose, onOpenOrder }: ModalProps) {
       </div>
     </div>
   )
+
+  if (!hasCapability('service.manage', access)) return <section role="dialog" aria-label={table.name} style={{ position: 'fixed', inset: '20% 10%', zIndex: 200, padding: 24, background: '#111827', color: '#f8fafc' }}>
+    <h2>{table.name} · {roomLabel}</h2><p>Lecture seule — la gestion du service nécessite une permission active.</p>
+    <button onClick={onClose}>Fermer</button>
+  </section>
 
   return (
     <motion.div
@@ -834,11 +844,13 @@ function ReassignPopup({ current, onSelect, onClose }: {
 
 // ─── Floor statistics bar ───────────────────────────────────────────────────
 function FloorStatsBar({ tables }: { tables: Table[] }) {
+  const access = usePOS(state => state.businessAccess)
+  const revenueVisible = hasCapability('finance.revenue.read', access)
   const visible = tables.filter(t => !t.isMergedInto)
   const occupied = visible.filter(t => t.status === 'occupied')
   const occupiedCount = occupied.length
   const totalCount = visible.length
-  const ca = occupied.reduce((s, t) => s + tableTotal(t), 0)
+  const ca = revenueVisible ? occupied.reduce((s, t) => s + tableTotal(t), 0) : null
   const covers = occupied.reduce((s, t) => s + t.covers.length, 0)
   const avgMins = occupied.length > 0
     ? Math.round(occupied.reduce((s, t) => s + (t.openedAt ? (Date.now() - t.openedAt) / 60000 : 0), 0) / occupied.length)
@@ -868,8 +880,8 @@ function FloorStatsBar({ tables }: { tables: Table[] }) {
     }}>
       {stat('Tables occupées', `${occupiedCount}/${totalCount}`, '#e2e8f0')}
       <div style={{ width: 1, height: 30, background: 'rgba(255,255,255,0.06)' }} />
-      {stat('CA en cours', `${ca.toFixed(2)} €`, '#10b981')}
-      <div style={{ width: 1, height: 30, background: 'rgba(255,255,255,0.06)' }} />
+      {ca !== null && <>{stat('CA en cours', `${ca.toFixed(2)} €`, '#10b981')}
+      <div style={{ width: 1, height: 30, background: 'rgba(255,255,255,0.06)' }} /></>}
       {stat('Couverts actifs', String(covers), '#a5b4fc')}
       <div style={{ width: 1, height: 30, background: 'rgba(255,255,255,0.06)' }} />
       {stat('Temps moyen', `${avgMins} min`, '#fbbf24')}
@@ -979,7 +991,10 @@ function useGhosts(show: boolean, tables: Table[]): Ghost[] {
 }
 
 // ─── Main component ─────────────────────────────────────────────────────────
-export default function FloorPlanPage({ onOpenOrder }: Props) {
+export default function FloorPlanPage(props: Props) {
+  return <BusinessGuard anyOf={['service.read', 'service.manage']}><FloorContent {...props} /></BusinessGuard>
+}
+function FloorContent({ onOpenOrder }: Props) {
   const tables = usePOS(s => s.tables)
   const rooms = usePOS(s => s.editor.rooms)
   const seats = useSeats(s => s.seats)
@@ -1041,6 +1056,7 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
 
   const handleTableClick = useCallback((table: Table, e: React.MouseEvent) => {
     if (table.isMergedInto) return
+    if (!hasCapability('service.manage')) { setSelectedTable(table); return }
     // Un relâchement Alt-drag ne doit pas provoquer une seconde opération
     // quand Chrome émet ensuite son clic, y compris après une annulation.
     if (consumedTransferClick.current === table.id) { consumedTransferClick.current = null; return }
@@ -1066,7 +1082,7 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
 
   const handleContextMenu = useCallback((table: Table, e: React.MouseEvent) => {
     e.preventDefault()
-    if (table.isMergedInto) return
+    if (table.isMergedInto || !hasCapability('service.manage')) return
     setContextMenu({ x: e.clientX, y: e.clientY, table })
   }, [])
 
@@ -1120,6 +1136,7 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
 
   // Transfer via drag
   async function performTransfer(fromId: string, intoId: string) {
+    if (!hasCapability('service.manage')) { setTransferNotice('La permission de gérer le service est nécessaire.'); return }
     if (transferBusy.current || fromId === intoId) return
     const current = usePOS.getState().tables, src = current.find(t => t.id === fromId), dst = current.find(t => t.id === intoId)
     if (!src || !dst) { setTransferNotice('Table indisponible. Rechargez le plan.'); return }
@@ -1134,6 +1151,7 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
     finally { transferBusy.current = false }
   }
   function onTableMouseDown(id: string, e: React.MouseEvent) {
+    if (!hasCapability('service.manage')) return
     if (!transferBusy.current && e.button === 0 && e.altKey) {
       consumedTransferClick.current = null
       transferGesture.current = { mode: 'drag', from: id, into: null }
@@ -1229,7 +1247,7 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
           </button><div role="group" aria-label={`Places de ${table.name} — ${activeView?.label || table.section}`} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingTop: 8 }}>
             {Array.from({ length: table.seats }, (_, position) => <button key={position} data-seat-table-id={table.id}
               aria-label={`${table.name} — ${activeView?.label || table.section} — place ${position + 1}`}
-              onClick={() => { const seat = ensureSeat(table.id, position); setSelectedSeatId(seat.id) }}
+              onClick={() => { if (!hasCapability('service.manage')) return; const seat = ensureSeat(table.id, position); setSelectedSeatId(seat.id) }}
               style={{ minWidth: 40, minHeight: 40, borderRadius: 8, border: '1px solid #a78bfa', background: '#151526', color: '#f1f5f9', cursor: 'pointer' }}>
               {position + 1}
             </button>)}
@@ -1295,6 +1313,7 @@ export default function FloorPlanPage({ onOpenOrder }: Props) {
               selected={selectedIds.has(table.id)}
               transferTarget={transferFrom === table.id || transferTo === table.id}
               onSeatClick={(tableId, position) => {
+                if (!hasCapability('service.manage')) return
                 const seat = ensureSeat(tableId, position)
                 setSelectedSeatId(seat.id === selectedSeatId ? null : seat.id)
               }}

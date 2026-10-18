@@ -17,7 +17,9 @@ let token: string, staffToken: string, colleagueToken: string, productId: string
 const app = express().use(express.json())
 for (const [url, router] of [['hr', hr], ['haccp', haccp], ['inventory', inventory]] as const) app.use('/api/' + url, deviceOrUserAuth, requireCompany, router)
 app.use('/api/pos', deviceOrUserAuth, requireCompany, floorCompanyContext, pos); app.use('/api/guest', guest)
-app.get('/api/probe-device', deviceOrUserAuth, requireCompany, (req: any, res) => res.json({ companyId: req.companyId }))
+// Sonde du middleware de terminal avec le chemin contractuel de lecture des
+// accès, sans appeler le bootstrap POS qui exige une identité de salarié.
+app.get('/api/companies/access', deviceOrUserAuth, requireCompany, (req: any, res) => res.json({ companyId: req.companyId, role: req.role }))
 const auth = (r: any, access = () => token) => r.set('Authorization', 'Bearer ' + access()).set('x-company-id', companyId)
 describe('Recette étendue : parcours réellement accessibles en laboratoire', () => {
   beforeAll(async () => {
@@ -64,7 +66,9 @@ describe('Recette étendue : parcours réellement accessibles en laboratoire', (
   it('révoquer un jeton de caisse dans la configuration bloque immédiatement son ancien accès sans révoquer l’autre', async () => {
     vi.stubEnv('POS_DEVICE_TOKEN', '')
     vi.stubEnv('POS_DEVICE_TOKENS', `${companyId}:fixture-device-one,${companyId}:fixture-device-two`)
-    const device = (value: string) => request(app).get('/api/probe-device').set('x-company-id', companyId).set('x-device-token', value)
+    // Utiliser une vraie route autorisée au terminal, pas un préfixe de test
+    // inconnu désormais refusé par la politique fail-closed.
+    const device = (value: string) => request(app).get('/api/companies/access').set('x-company-id', companyId).set('x-device-token', value)
     await device('fixture-device-one').expect(200); await device('fixture-device-two').expect(200)
     vi.stubEnv('POS_DEVICE_TOKENS', `${companyId}:fixture-device-two`)
     await device('fixture-device-one').expect(401); await device('fixture-device-two').expect(200)

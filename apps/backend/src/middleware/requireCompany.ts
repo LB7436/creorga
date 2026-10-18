@@ -2,11 +2,29 @@ import { Request, Response, NextFunction } from 'express'
 import prisma from '../lib/prisma'
 import { fallbackAdminAllowed, isProduction } from '../lib/security'
 import logger from '../lib/logger'
+import { accessFor, hasCapability, type BusinessMember } from '../lib/business-permissions'
+import { routeCapabilities } from '../lib/business-route-policy'
 
 const FALLBACK_COMPANY = {
   id: 'fallback-company',
   name: 'Café um Rond-Point',
   email: 'contact@creorga.local',
+}
+
+function admitted(req: Request, res: Response, next: NextFunction, member: BusinessMember) {
+  ;(req as any).businessAccess = accessFor(member)
+  res.set?.('Cache-Control', 'private, no-store')
+  // Le terminal ne reçoit jamais de rôle humain ; ses opérations existantes
+  // restent soumises à leurs gardes de ressource et d'action.
+  if (req.originalUrl && req.method && member.role !== 'OWNER') {
+    const required = routeCapabilities(req.method, req.originalUrl)
+    const allowed = required && (Array.isArray(required) ? required.every(capability => hasCapability(req as any, capability)) : required.any.some(capability => hasCapability(req as any, capability)))
+    if (!allowed) {
+      res.status(403).json({ code: 'CAPABILITY_REQUIRED', message: 'Votre accès ne permet pas cette action.' })
+      return
+    }
+  }
+  next()
 }
 
 export async function requireCompany(req: Request, res: Response, next: NextFunction) {
@@ -24,7 +42,7 @@ export async function requireCompany(req: Request, res: Response, next: NextFunc
     ;(req as any).companyId = FALLBACK_COMPANY.id
     ;(req as any).company = FALLBACK_COMPANY
     ;(req as any).role = 'OWNER'
-    return next()
+    return admitted(req, res, next, { role: 'OWNER', userId: user.userId, companyId: FALLBACK_COMPANY.id })
   }
 
   try {
@@ -63,7 +81,7 @@ export async function requireCompany(req: Request, res: Response, next: NextFunc
         ;(req as any).companyId = companyId
         ;(req as any).company = company
         ;(req as any).role = null
-        return next()
+        return admitted(req, res, next, { role: 'SERVER', companyId })
       }
       // L'absence d'identité ne crée jamais une adhésion, même en local.
       res.status(401).json({ error: 'Authentification requise' })
@@ -80,7 +98,7 @@ export async function requireCompany(req: Request, res: Response, next: NextFunc
         ;(req as any).companyId = first.companyId
         ;(req as any).company = first.company
         ;(req as any).role = first.role
-        return next()
+        return admitted(req, res, next, first)
       }
     }
 
@@ -101,7 +119,7 @@ export async function requireCompany(req: Request, res: Response, next: NextFunc
     ;(req as any).companyId = companyId
     ;(req as any).company = membership.company
     ;(req as any).role = membership.role
-    next()
+    admitted(req, res, next, membership)
   } catch (error: any) {
     // Les installations locales contiennent aussi des données métier. Une
     // panne ne doit jamais transformer un membre en propriétaire du stockage

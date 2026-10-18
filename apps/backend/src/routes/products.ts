@@ -2,7 +2,9 @@ import { Router, type Response } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma'
 import { authenticate, type AuthRequest } from '../middleware/auth'
-import { requireCompany, requireRole } from '../middleware/requireCompany'
+import { requireCompany } from '../middleware/requireCompany'
+import { hasCapability } from '../lib/business-permissions'
+import { requireCapabilities } from '../lib/business-permission-transaction'
 import { validate } from '../middleware/validate'
 import logger from '../lib/logger'
 
@@ -11,7 +13,13 @@ router.use(authenticate)
 // Adhésion vérifiée : le header x-company-id était cru tel quel, et les routes
 // par id n'avaient aucun filtre société.
 router.use(requireCompany)
-router.use((req, res, next) => ['GET', 'HEAD'].includes(req.method) ? next() : requireRole('OWNER', 'MANAGER')(req, res, next))
+router.use((req, res, next) => ['GET', 'HEAD'].includes(req.method) ? next() : requireCapabilities('catalog.prices.write')(req, res, next))
+router.use((req, res, next) => {
+  if (!['GET', 'HEAD'].includes(req.method) && req.body && Object.prototype.hasOwnProperty.call(req.body, 'stock') && !hasCapability(req as any, 'inventory.adjust')) {
+    return void res.status(403).json({ message: 'La modification des stocks demande une autorisation distincte du catalogue.' })
+  }
+  next()
+})
 
 // ─── GET /api/products ─────────────────────────────────
 
@@ -31,7 +39,11 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       include: { category: true },
     })
 
-    res.json(products)
+    res.json(products.map(product => {
+      if (hasCapability(req as any, 'inventory.quantities.read')) return product
+      const { stock, ...catalogue } = product
+      return catalogue
+    }))
   } catch (error) {
     logger.error('Erreur GET /products:', error)
     res.status(500).json({ message: 'Erreur serveur' })

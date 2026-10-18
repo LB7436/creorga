@@ -6,10 +6,12 @@ vi.mock('../lib/safe-json', async importOriginal => ({ ...(await importOriginal<
 import { JsonStoreUnavailableError } from '../lib/safe-json'
 import router, { floorCompanyContext, getFloorState } from './floorState'
 import { findStaleSessions } from '../jobs/closeStaleFloorSessions'
+import { accessFor } from '../lib/business-permissions'
 
 function appFor(companyId: string, gate?: { entered: () => void; resume: Promise<void> }) {
   const app = express().use(express.json())
-  app.use((req, _res, next) => { (req as any).companyId = companyId; (req as any).role = 'OWNER'; next() })
+  app.use((req, _res, next) => { Object.assign(req, { companyId, role: 'OWNER', user: { userId: 'fixture-owner' },
+    businessAccess: accessFor({ companyId, userId: 'fixture-owner', role: 'OWNER' }) }); next() })
   app.use(floorCompanyContext)
   app.post('/delayed', async (_req, res) => {
     getFloorState().zones.push({ id: 'delayed', name: 'Conflit' })
@@ -22,19 +24,23 @@ function appFor(companyId: string, gate?: { entered: () => void; resume: Promise
 }
 beforeEach(() => { disk.write.mockReset(); disk.read.mockReset(); disk.read.mockImplementation((_file, fallback) => fallback) })
 describe('Salle — sauvegarde transactionnelle', () => {
-  it('écrit avant le succès et conserve les données sur un nouveau GET', async () => {
+  it('conserve le fichier historique en lecture seule sans succès local de sauvegarde', async () => {
     const app = appFor('persist-ok')
+    const before = (await request(app).get('/')).body
     const result = await request(app).post('/zones').send({ name: 'Terrasse' })
-    expect(result.status).toBe(200)
-    expect(disk.write).toHaveBeenCalledOnce()
-    expect((await request(app).get('/')).body.zones).toEqual(result.body.zones)
+    expect(result.status).toBe(503)
+    expect(result.body.code).toBe('FLOOR_AUTHORITY_REQUIRED')
+    expect(disk.write).not.toHaveBeenCalled()
+    expect((await request(app).get('/')).body).toEqual(before)
   })
-  it('un disque plein refuse la modification et garde le dernier état', async () => {
+  it('refuse avant toute écriture fichier et garde le dernier état même si le disque est indisponible', async () => {
     const app = appFor('persist-failed')
     const before = (await request(app).get('/')).body
     disk.write.mockImplementationOnce(() => { throw new Error('ENOSPC') })
     const result = await request(app).post('/zones').send({ name: 'Non enregistrée' })
     expect(result.status).toBe(503)
+    expect(result.body.code).toBe('FLOOR_AUTHORITY_REQUIRED')
+    expect(disk.write).not.toHaveBeenCalled()
     expect((await request(app).get('/')).body).toEqual(before)
   })
   it('une salle corrompue refuse lecture et écriture sans créer un plan vide', async () => {
@@ -58,17 +64,20 @@ describe('Salle — sauvegarde transactionnelle', () => {
     await request(app).post('/zones').set('If-Match', '1').send({ name: 'Périmé' }).expect(409)
     expect(disk.write).not.toHaveBeenCalled()
   })
-  it('une requête lente n’écrase pas la modification concurrente', async () => {
+  it('deux requêtes fichier concurrentes refusées ne modifient ni le cache ni le disque', async () => {
     let entered!: () => void, resume!: () => void
     const started = new Promise<void>(resolve => { entered = resolve })
     const finish = new Promise<void>(resolve => { resume = resolve })
     const app = appFor('persist-concurrent', { entered, resume: finish })
+    const before = (await request(app).get('/')).body
     const delayed = request(app).post('/delayed').send({}).then((res) => res)
     await started
-    await request(app).post('/zones').send({ name: 'Prioritaire' }).expect(200)
+    const refused = await request(app).post('/zones').send({ name: 'Prioritaire' }).expect(503)
+    expect(refused.body.code).toBe('FLOOR_AUTHORITY_REQUIRED')
     resume()
-    expect((await delayed).status).toBe(409)
-    expect((await request(app).get('/')).body.zones.map((z: any) => z.name)).toEqual(['Salle principale', 'Prioritaire'])
+    expect((await delayed).status).toBe(503)
+    expect((await request(app).get('/')).body).toEqual(before)
+    expect(disk.write).not.toHaveBeenCalled()
   })
   it('une vieille addition de 45 € et ses chaises restent intactes', () => {
     const state = structuredClone(getFloorState('stale-safe'))

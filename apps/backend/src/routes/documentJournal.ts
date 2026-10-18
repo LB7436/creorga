@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma'
 import { moneyMinor } from '../lib/money'
-import { requireRole } from '../middleware/requireCompany'
+import { assertTransactionCapabilities, BusinessPermissionError, requireCapabilities } from '../lib/business-permission-transaction'
 
 export const journalPeriod = (query: unknown) => {
   const period = z.object({ startDate: z.string().datetime({ offset: true }).optional(), endDate: z.string().datetime({ offset: true }).optional() }).parse(query)
@@ -11,10 +11,11 @@ export const journalPeriod = (query: unknown) => {
 }
 const groups = z.array(z.object({ taxRate: z.number().min(0).max(100), baseCents: z.number().int().nonnegative(), taxCents: z.number().int().nonnegative(), totalCents: z.number().int().nonnegative() })).min(1)
 const router = Router()
-router.get('/document-journal', requireRole('OWNER', 'MANAGER'), async (req: any, res) => {
+router.get('/document-journal', requireCapabilities('finance.revenue.read'), async (req: any, res) => {
   try {
     const { period, dates } = journalPeriod(req.query)
     const documents = await prisma.$transaction(async tx => {
+      await assertTransactionCapabilities(tx, req, 'finance.revenue.read')
       const [invoices, credits] = await Promise.all([
         tx.invoice.findMany({ where: { companyId: req.companyId, issuedAt: { not: null, ...dates } }, select: { id: true, number: true, currency: true, issuedAt: true, issuedSnapshot: true, orderId: true, sourcePosSaleId: true, total: true, subtotal: true, taxAmount: true }, orderBy: { issuedAt: 'asc' }, take: 1001 }),
         tx.creditNote.findMany({ where: { companyId: req.companyId, createdAt: dates }, select: { id: true, invoiceId: true, number: true, currency: true, createdAt: true, taxGroups: true, totalCents: true, baseCents: true, taxCents: true }, orderBy: { createdAt: 'asc' }, take: 1001 }),
@@ -35,7 +36,8 @@ router.get('/document-journal', requireRole('OWNER', 'MANAGER'), async (req: any
     }, { isolationLevel: 'RepeatableRead' })
     res.set('Cache-Control', 'private, no-store').json({ period, basis: 'documents_not_additional_sales_or_bank_receipts', documents,
       warning: 'Journal de pièces uniquement. Ne pas additionner ces factures aux tickets/commandes, ni déduire un remboursement d’un avoir. Format comptable à qualifier.' })
-  } catch {
+  } catch (error) {
+    if (error instanceof BusinessPermissionError) return void res.status(403).json({ message: error.message })
     res.status(409).json({ code: 'DOCUMENT_JOURNAL_REVIEW_REQUIRED', message: 'Période invalide/trop large ou pièce non réconciliée. Aucun export complet annoncé ; vérification requise.' })
   }
 })

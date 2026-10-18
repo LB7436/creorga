@@ -1,5 +1,19 @@
 # CréOrga 2.0 — traçabilité UI → HTTP → PostgreSQL
 
+## Complément du 18 octobre
+
+La [matrice D01–D22](T100-DROITS-2026-10-18.md) et ses
+[preuves datées](preuves/droits-robi-validation-2026-10-18.json) complètent les32
+critères historiques ci-dessous sans les effacer ni additionner leurs PASS à des
+scénarios globaux. Le CA EMPLOYEE et Robi local ont des contre-essais effectifs ;
+les anciens RED restent disponibles. Les téléchargements en octets, le fournisseur
+réel, les captures PNG et les six profils complets restent non qualifiés. D18–D20
+prouvent deux cycles d'arrêt/reprise contrôlés et des lectures de stock/achats
+après redémarrage ; pas panne réseau totale, abandon HTTP incertain ou double clic
+Windows. Stock5kg et six empreintes financières/stock conservés. Le premier retour
+clic Actualiser2119 ne vaut pas nouvelle requête : GET76/200 est observé après2123.
+**Campagne NON LIVRÉE, T100 partiel**, aucune assimilation suite technique/clics/PG.
+
 ## Consolidation technique après la coupure UI de 21:30
 
 **CAMPAGNE TOUJOURS PARTIELLE — NON LIVRÉE.** Les nouvelles [preuves finales v3](preuves/intensive-validation-finale-2026-10-17-2135-v3.json) confirment les validations ci-dessous. SHA-256 du fichier : `0a7b52ba69f28bb77d9b38bbfe0704a291d61641c5206c4aab7424dc1056674b`. Cette consolidation n'est pas un nouveau parcours UI ni une exécution de test/restauration par le rédacteur. Les versions antérieures restent conservées : v3 corrige uniquement la lecture de la clé `duplicateOpenByUser`, sans nouveau test, donnée ou restauration, et sans nier les deux pointages historiques.

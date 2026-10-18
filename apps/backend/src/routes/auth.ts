@@ -10,6 +10,7 @@ import logger from '../lib/logger'
 import { fallbackAdminAllowed } from '../lib/security'
 import { push as pushEvenement } from '../lib/eventSink'
 import { moduleRowsFor } from '../lib/company-modules'
+import { accessFor } from '../lib/business-permissions'
 
 const router = Router()
 const refreshInFlight = new Set<string>()
@@ -126,7 +127,7 @@ router.post('/register', validate(registerSchema), async (req, res) => {
     res.status(201).json({
       accessToken,
       user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, avatar: user.avatar },
-      companies,
+      companies: companies.map(member => ({ ...member, businessAccess: accessFor(member) })),
     })
   } catch (error: any) {
     // Une requête concurrente peut franchir le findUnique avant la première
@@ -228,7 +229,7 @@ router.post('/login', validate(loginSchema), async (req, res) => {
       res.json({
         accessToken,
         user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, avatar: user.avatar },
-        companies,
+        companies: companies.map(member => ({ ...member, businessAccess: accessFor(member) })),
       })
       return
     }
@@ -396,7 +397,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
     })
     if (!companies.length) { noActiveCompany(res); return }
 
-    res.json({ user, companies })
+    res.set('Cache-Control', 'private, no-store').json({ user, companies: companies.map(member => ({ ...member, businessAccess: accessFor(member) })) })
   } catch (error: any) {
     // L'identité et les adhésions doivent être lues, jamais inventées lorsque
     // PostgreSQL manque : les droits affichés suivent l'autorité persistée.

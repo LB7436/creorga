@@ -1,5 +1,127 @@
 # Checkpoint CréOrga 2.0 — 17 octobre 2026
 
+## Reprise droits fins / Robi — 18 octobre 2026 — EN COURS, NON LIVRÉ
+
+### Relevé courant après restauration finale du18octobre09:47UTC
+
+Branche `codex/creorga-2-0-2026-10-08`, base locale/distante vérifiée avant publication
+`976b21a500f58d09fdca33616a9c243a66ae5161`. Correctifs validés encore locaux à ce
+relevé ; aucune modification de master ni déploiement. Empreinte des791sources
+Windows testées : `127fa535ef8844e11c549ac5a3bf719393b0763028305c3c285ea67175002211`.
+Un relevé de publication distinct indiquera le SHA du code effectivement publié.
+
+- Validation finale fraîche, même empreinte et0échec/ignoré : **1183unitaires
+  =587backend/435web/161POS**, **348PG**, puis **47fixtures locales** séparées.
+  Deux profils compilés5applications ; profil complet non démarré. Preuves datées
+  dans l'[agrégat](preuves/droits-robi-validation-2026-10-18.json) ; les suites ciblées
+  et résultats antérieurs ne sont pas additionnés au total final.
+- Droits fins, révocations salle/Robi et projections financières corrigés. Robi
+  fournit des lectures locales clairement **sans IA générative** ; fournisseur
+  réel BLOCKED. Nouveau correctif inventaire : quantités accessibles sans fournisseurs
+  ni coûts, pas de zéro inventé, écritures/scopes gardés, route Commandes corrigée.
+- Chrome : cinq profils internes existants connectés par société, seulement des
+  parcours ciblés, pas18recettes intégrales. Nouveaux clics stock Café ADMIN/EMPLOYEE/
+  OWNER et reprise :5kg inchangés, coûts masqués ou18unité/90estimés selon droit,
+  refus URL achats à EMPLOYEE, bon63,00 déjà reçu non rejoué. Journal daté, salle
+  rechargée et lectures Robi/planning précédentes conservées avec leurs dates.
+  **341événements,223tentativesUI/221retours/2erreurs,80clics/79retours/1erreur** :
+  ni contrôles uniques ni parcours qualifiés ; cinq heures actives non mesurées.
+- Six empreintes financières/stock identiques pour Café/Restaurant/Bar, aucun
+  compte/société/vente/document/remboursement recréé. Deux pointages ouverts Café
+  historiques conservés. Huit événements explicites de droits tracés/restaurés.
+- Nouvelle restauration après deux arrêts confirmés : **82tables/18997lignes/
+  14fichiers/26PDF**,8événements de droits, zéro différence,09:47:14.564UTC,
+  AES-GCM/clé séparée,23,954s cache chaud(nonRTO). Archive SHA
+  `f88bf3e0048876104b7575375d5d62f17b625d9dfd5a164538be6fcb2c91efee`.
+  Copies v1/v2 et27copies récupérées conservées ; tailles/SHA de ces27 égaux.
+- Ancien PID13784 disparu après fermeture manuelle de Chrome par le propriétaire.
+  Drain HTTP corrigé,19tests ciblés sur Node22.19 et22.23.3. Deux nouvelles relances
+  officielles puis STOPPED, PID absents/ports libres, trois onglets laissés ouverts.
+  Rechargement après reprise confirmé. **Limite :** un abandon prématuré de réponse
+  HTTP horsEngineIO, même antérieur à l'arrêt, mémorise une incertitude ; pas de
+  confirmation d'arrêt ni déconnexion forcée de la base dans ce cas. Reprise de ce
+  cas non qualifiée. Pas de kill, patch Windows ou désactivation de protection.
+- Raccourci préservé, pas de double clic natif testé. Profil métier sans jeux,
+  99fichiers jeux récupérables ; Node global inchangé. Profil arrêté à la fin de la
+  recette, PostgreSQL conservé. Le lanceur officiel permet de le rouvrir.
+- Outil officiel : PDF2102 refusé pour risque, capture fichier2144 refusée par
+  racines configurées. **BLOCKED**, aucune tentative de contournement. Pas d'octets
+  de téléchargement ni de PNG attesté ; les26PDF restaurés sont une autre preuve.
+
+Travail utilisateur préservé : copie additive de759fichiers
+`worktree-preserved-2026-10-18T09-00-28-287Z-794fa8f1`, manifeste SHA
+`28a859fc9f5fc882a8d9d1a9364eea5776417388d07b883464dc9e03c1deefd0` ; copie initiale
+également conservée. `apps/guest/tsconfig.tsbuildinfo` reste identique à l'original
+et exclu ; `.tmp-permissions-surface/` reste privé/exclu. Secrets, bases et archives
+ne doivent jamais être ajoutés au commit.
+
+Copie additive finale avant publication :
+`worktree-preserved-2026-10-18T09-55-13-029Z-61c37ea0`, **766fichiers identiques**,
+manifeste SHA `f9af5b888ddd6ba0c6c189105ca150427b581d0c04679117f77e32082610af70`.
+Le plan de publication ne sélectionne que170fichiers de code/tests/docs/migration,
+exclut596fichiers privés/générés/utilisateur et ne trouve aucune des26valeurs
+privées contrôlées. Le SHA Git publié sera relevé après commit/push, pas inventé.
+
+**Prochaine action exacte :** contrôler le contenu expurgé et publier uniquement
+les correctifs validés sur branche2.0, puis reprendre les visites QR déjà existantes
+et les parcours non exécutés des six profils dans les trois sociétés. Qualifier
+les octets CSV/PDF et captures seulement si l'outil officiel autorise l'opération.
+Traiter la reprise après abandon HTTP sans arrêt forcé, puis matériels/prestataires.
+**Campagne NON LIVRÉE, pilote NON QUALIFIÉ ; T100 toujours partiel.**
+
+[Rapport actuel](DROITS-FINS-ROBI-RECETTE-2026-10-18.md),
+[T100 détaillé](T100-DROITS-2026-10-18.md),
+[téléchargements](TELECHARGEMENTS-DROITS-2026-10-18.md).
+
+### Historique de reprise antérieur à ce relevé
+
+Branche `codex/creorga-2-0-2026-10-08`, base locale et distante vérifiée
+`976b21a500f58d09fdca33616a9c243a66ae5161`. Les modifications de ce lot sont
+**encore locales et non commitées**. Le fichier utilisateur préexistant
+`apps/guest/tsconfig.tsbuildinfo` est conservé et restera exclu du commit.
+Les paragraphes précédemment dits courants ci-dessous sont historiques.
+
+- Politique de 32 capacités par adhésion, rôle ADMIN métier distinct, migration
+  additive appliquée seulement à `creorga_local` et `creorga_tests` ; journal
+  versionné des décisions. Aucun rôle historique automatiquement converti.
+- Le vrai parcours Bar prouve le refus du CA à EMPLOYEE et le retrait de la
+  lecture d'un journal déjà ouvert après révocation. Les comptes fictifs
+  existants Café/Restaurant ont été promus serveur et administrateur métier
+  dans Chrome, avec motif et audit, sans créer de vente ou d'identité.
+- Robi dispose de lectures déterministes PostgreSQL explicitement marquées
+  **sans IA générative**. Fournisseur réel toujours BLOCKED. La revue a fait
+  corriger les réponses après révocation, les sauvegardes de salle en attente
+  et les remises/offerts introduits via import de plan. Les écritures en mode
+  fichiers historique sont désormais refusées avant effet métier ; fichiers
+  lisibles et intacts, autorité PostgreSQL nécessaire pour sauvegarder.
+- Suites ciblées récentes : Robi **102/102 + 16 PG**, salle **54/54 + 19 PG**,
+  journal POS **161/161**, refus HTTP visible **16/16**. Ce ne sont pas une
+  nouvelle suite globale ni des clics Chrome. La suite web complète **390/390**
+  précède les dernières corrections. Les essais sandbox EACCES/EPERM sont
+  conservés et ne sont pas déclarés défauts métier ou succès.
+- **Blocage logiciel en correction :** planning limité/ADMIN instable car les
+  composants globaux demandent factures/clients sans droit, puis provoquent une
+  boucle 403 → invalidation → remontage. Les onglets ont été retirés de cet
+  écran, sans effacement. Corriger les hooks et leurs caches avant nouveau build
+  et rejeu. Nouveau refus générique visible et libellé de période du journal
+  corrigés sous tests, pas encore rejoués sur un nouveau binaire.
+
+Runtime métier redémarré le 18 octobre via le lanceur officiel, sans jeux.
+Pas de nouveau dump final depuis les dernières décisions de droits : sauvegarde
+et restauration neuve indispensables après arrêt normal et gel des sources.
+Les 27 copies récupérées ont été recontrôlées le 17 octobre, aucune supprimée.
+Node portable 22.23.3 a été essayé isolément ; Node Windows reste 22.19.0.
+
+**Prochaine action exacte :** terminer les gardes des requêtes de fond, figer le
+code, relancer suites globales/compilations, rejouer planning et refus Robi dans
+Chrome, réconcilier les trois sociétés, restaurer une nouvelle copie, puis publier
+seulement le code validé. T100 et les parcours complets des six profils pour
+chaque établissement restent partiels. Campagne **NON LIVRÉE**, pilote
+**NON QUALIFIÉ**. Aucun déploiement, paiement réel, modification de `master`,
+profil historique ouvert ou suppression d'archive.
+
+[Rapport du lot](DROITS-FINS-ET-ROBI-2026-10-17.md).
+
 ## Nouvelle campagne intensive — EN COURS / NON LIVRÉ
 
 Reprise à partir de `475f67ac1357e07af478f4f237a1f6bb001bb93a`, branche dédiée

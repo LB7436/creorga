@@ -110,4 +110,16 @@ describe('cloisonnement des conversations de l’assistant', () => {
     const other = merge(persisted, useAssistant.getState())
     expect(other.messages).toEqual([])
   })
+
+  it('masque l’ancien contexte financier après retrait de droits sans supprimer son historique', () => {
+    login()
+    useAuthStore.getState().setBusinessAccess({ role: 'OWNER', capabilities: ['assistant.use', 'finance.revenue.read'], revision: 'grant-v1', version: 1 }, 'societe-a', 'utilisateur-a')
+    useAssistant.getState().newConversation()
+    useAssistant.getState().addMessage({ role: 'bot', text: 'CA FICTIF confidentiel 38,04 EUR' })
+    const context = useAssistant.getState().captureContext()
+    useAuthStore.getState().setBusinessAccess({ role: 'EMPLOYEE', capabilities: ['assistant.use'], revision: 'deny-v2', version: 2 }, 'societe-a', 'utilisateur-a')
+    expect(useAssistant.getState().messages).toEqual([])
+    expect(useAssistant.getState().addMessageForContext(context, { role: 'bot', text: 'Ancien calcul tardif' })).toBe(false)
+    expect(JSON.stringify(useAssistant.getState().histories)).toContain('CA FICTIF confidentiel 38,04 EUR')
+  })
 })

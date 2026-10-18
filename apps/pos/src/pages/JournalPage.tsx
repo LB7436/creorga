@@ -3,6 +3,8 @@ import { motion } from 'framer-motion'
 import { usePOS, type Cloture } from '../store/posStore'
 import { closeServerDay } from '../lib/floorBridge'
 import { sessionCompany, sessionGeneration } from '../lib/server'
+import { hasCapability } from '../lib/business-access'
+import { BusinessGuard } from '../components/BusinessGuard'
 
 /**
  * Journal des ventes et clôture de journée (ticket Z).
@@ -20,11 +22,11 @@ import { sessionCompany, sessionGeneration } from '../lib/server'
 const euro = (n: number) => `${n.toFixed(2).replace('.', ',')} €`
 
 const heure = (ms: number) =>
-  new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(new Date(ms))
+  new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Luxembourg', hour: '2-digit', minute: '2-digit' }).format(new Date(ms))
 
 const dateComplete = (ms: number) =>
   new Intl.DateTimeFormat('fr-FR', {
-    weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+    timeZone: 'Europe/Luxembourg', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
   }).format(new Date(ms))
 
 const NOM_METHODE: Record<string, string> = {
@@ -36,21 +38,23 @@ const NOM_METHODE: Record<string, string> = {
 
 const journalScope = () => {
   const staff = usePOS.getState().currentStaff
-  return JSON.stringify([sessionGeneration(), sessionCompany(), staff?.id, staff?.role])
+  return JSON.stringify([sessionGeneration(), sessionCompany(), staff?.id, staff?.role, usePOS.getState().businessAccess?.revision])
 }
 
 export default function JournalPage(props: { onExit: () => void }) {
   // Les confirmations, tickets et erreurs appartiennent à cette identité seulement.
   const staff = usePOS(s => s.currentStaff)
-  const scope = JSON.stringify([sessionGeneration(), sessionCompany(), staff?.id, staff?.role])
-  return <ScopedJournalPage key={scope} scope={scope} {...props} />
+  const access = usePOS(s => s.businessAccess)
+  const scope = JSON.stringify([sessionGeneration(), sessionCompany(), staff?.id, staff?.role, access?.revision])
+  return <BusinessGuard capability="finance.revenue.read" onBack={props.onExit}><ScopedJournalPage key={scope} scope={scope} {...props} /></BusinessGuard>
 }
 
 function ScopedJournalPage({ onExit, scope }: { onExit: () => void; scope: string }) {
   const ventes = usePOS(s => s.ventes)
   const clotures = usePOS(s => s.clotures)
-  const role = usePOS(s => s.currentStaff?.role)
-  const canClose = role === 'OWNER' || role === 'MANAGER'
+  const access = usePOS(s => s.businessAccess)
+  const financialDataReady = usePOS(s => s.financialDataReady)
+  const canClose = hasCapability('cash.close', access)
   // Sans URL de gestion configurée, seul le laboratoire local connaît son port.
   const backoffice = import.meta.env.VITE_BACKOFFICE_URL || (['localhost', '127.0.0.1'].includes(window.location.hostname) ? `${window.location.protocol}//${window.location.hostname}:5174` : '')
   const invoiceUrl = (id: string) => {
@@ -81,13 +85,13 @@ function ScopedJournalPage({ onExit, scope }: { onExit: () => void; scope: strin
   const totalTva = ventes.reduce((s, v) => s + v.tva, 0)
   const financialNotice = <aside aria-label="Périmètre financier du journal" style={{ ...carte, color: '#94a3b8', fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
     <p style={{ margin: '0 0 8px' }}>Ventes finalisées, hors pourboires et arrondis caritatifs, avant les avoirs. Ce journal n’est pas le solde de trésorerie : acomptes, avoirs et remboursements sont à rapprocher séparément.</p>
+    <p style={{ margin: '0 0 8px' }}>Le registre non archivé peut couvrir plusieurs dates : il ne correspond ni au chiffre d’affaires du jour civil, ni à la clôture du tiroir. Dates affichées en Europe/Luxembourg.</p>
     {canClose && reconciliationUrl ? <a href={reconciliationUrl} target="_blank" rel="noreferrer" style={{ color: '#a5b4fc' }}>Ouvrir le rapprochement financier</a>
       : <span>Demandez au responsable de consulter Comptabilité → Rapports → Rapprochement financier.</span>}
   </aside>
 
   async function cloturer() {
-    const currentRole = usePOS.getState().currentStaff?.role
-    if (closingRef.current || !isCurrent() || (currentRole !== 'OWNER' && currentRole !== 'MANAGER')) return
+    if (closingRef.current || !isCurrent() || !hasCapability('cash.close')) return
     // Un second clic peut arriver avant le prochain rendu React.
     closingRef.current = true
     setCloseError(null)
@@ -105,6 +109,11 @@ function ScopedJournalPage({ onExit, scope }: { onExit: () => void; scope: strin
       if (isCurrent()) setClosing(false)
     }
   }
+
+  if (!financialDataReady) return <section role="status" style={fond}>
+    <button onClick={onExit} style={bouton}>← Retour</button>
+    <p>Actualisation des données financières autorisées en attente. Aucun total nul n’est déduit d’un cache vide.</p>
+  </section>
 
   // ─── Ticket Z affiché après clôture ───────────────────────────────────────
   if (ticket) {
@@ -158,7 +167,7 @@ function ScopedJournalPage({ onExit, scope }: { onExit: () => void; scope: strin
         <button onClick={onExit} style={bouton}>← Retour</button>
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Journal des ventes</h1>
-          <div style={{ fontSize: 12, color: '#64748b' }}>Journée en cours</div>
+          <div style={{ fontSize: 12, color: '#64748b' }}>Ventes non archivées dans un ticket Z</div>
         </div>
       </div>
 
@@ -203,7 +212,7 @@ function ScopedJournalPage({ onExit, scope }: { onExit: () => void; scope: strin
                   {v.lignes.map(l => `${l.qty}× ${l.name}`).join(', ')}
                 </div>
                 <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
-                  {heure(v.horodatage)} · {v.vendeur}
+                  {dateComplete(v.horodatage)} · {v.vendeur}
                   {v.pourboire > 0 && ` · pourboire ${euro(v.pourboire)}`}
                 </div>
                 <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
@@ -212,7 +221,7 @@ function ScopedJournalPage({ onExit, scope }: { onExit: () => void; scope: strin
                     {v.reglements.some(part => part.methode === 'card' || part.methode === 'contactless') && <div>Confirmation bancaire non vérifiée ici</div>}
                   </> : <div>Ventilation non renseignée · Moyen principal historique : {NOM_METHODE[v.methode] || v.methode}</div>}
                 </div>
-                {['OWNER', 'MANAGER'].includes(role || '') && invoiceUrl(v.id) && <a href={invoiceUrl(v.id)!} aria-label={`Facture société du ticket ${v.numero}`} style={{ color: '#a5b4fc', display: 'inline-block', padding: '10px 0', fontSize: 13 }}>Facture société →</a>}
+                {hasCapability('invoices.read', access) && invoiceUrl(v.id) && <a href={invoiceUrl(v.id)!} aria-label={`Facture société du ticket ${v.numero}`} style={{ color: '#a5b4fc', display: 'inline-block', padding: '10px 0', fontSize: 13 }}>Facture société →</a>}
               </div>
               <div style={{ fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap' }}>{euro(v.total)}</div>
             </motion.div>

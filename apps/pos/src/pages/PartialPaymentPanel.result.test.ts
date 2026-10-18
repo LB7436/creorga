@@ -18,6 +18,7 @@ vi.hoisted(() => {
 vi.mock('../lib/floorBridge', () => ({ payPartServer: payment.send }))
 import PartialPaymentPanel from './PartialPaymentPanel'
 import { clearSession, setSession } from '../lib/server'
+import { usePOS } from '../store/posStore'
 
 const cover = (id = 'couvert-cafe', price = 10.25): Cover => ({ id, label: 'Groupe FICTIF', items: [
   { id: `ligne-${id}`, menuItemId: 'produit-fictif', name: 'Commande FICTIVE', price, qty: 1, taxRate: 3, note: '', coverId: id },
@@ -64,6 +65,7 @@ async function settle() {
 beforeEach(() => {
   payment.send.mockReset(); done.mockReset()
   setSession('jeton-fictif-cafe', 'societe-cafe')
+  usePOS.setState({ businessAccess: { role: 'CASHIER', revision: 'paiement-fictif', version: 1, capabilities: ['service.read', 'payments.receive'] } })
   props = { tableId: 'table-cafe', covers: [cover()], onDone: done }
 })
 afterEach(async () => { await act(async () => { renderer?.unmount() }); renderer = undefined; clearSession() })
@@ -112,7 +114,7 @@ describe('Récapitulatif du règlement déclaré : composant React réel', () =>
 
   it('ne transporte pas le résultat vers une autre société utilisant le même identifiant de table', async () => {
     await mount(); await settle()
-    setSession('jeton-fictif-boulangerie', 'societe-boulangerie')
+    await act(async () => { setSession('jeton-fictif-boulangerie', 'societe-boulangerie'); usePOS.setState({ businessAccess: { role: 'CASHIER', revision: 'paiement-boulangerie-fictif', version: 1, capabilities: ['service.read', 'payments.receive'] } }) })
     await update({ covers: [] })
     expect(summary()).toBe('Déjà enregistré : 0.00 € · Restant dû : 0.00 €')
     expect(statuses()).toBe('')
@@ -120,7 +122,7 @@ describe('Récapitulatif du règlement déclaré : composant React réel', () =>
 
   it('retire le résultat à la reconnexion d’un autre utilisateur de la même société', async () => {
     await mount(); await settle()
-    setSession('jeton-fictif-autre-employe', 'societe-cafe')
+    await act(async () => { setSession('jeton-fictif-autre-employe', 'societe-cafe'); usePOS.setState({ businessAccess: { role: 'CASHIER', revision: 'paiement-autre-employe-fictif', version: 1, capabilities: ['service.read', 'payments.receive'] } }) })
     await update({ covers: [] })
     expect(statuses()).toBe('')
     expect(summary()).toContain('Déjà enregistré : 0.00 €')
@@ -165,7 +167,7 @@ describe('Récapitulatif du règlement déclaré : composant React réel', () =>
     await mount()
     const pending = deferred(); payment.send.mockReturnValueOnce(pending.promise)
     const { operation } = await startPayment()
-    setSession('jeton-fictif-autre', 'autre-societe')
+    await act(async () => { setSession('jeton-fictif-autre', 'autre-societe') })
     await finish(pending, operation)
     expect(statuses()).toBe('')
   })

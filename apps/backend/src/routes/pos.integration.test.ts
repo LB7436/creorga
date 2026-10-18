@@ -2,36 +2,60 @@ import express from 'express'
 import request from 'supertest'
 import jwt from 'jsonwebtoken'
 import { randomUUID } from 'node:crypto'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import prisma from '../lib/prisma'
 import { deviceOrUserAuth } from '../middleware/deviceAuth'
 import { requireCompany } from '../middleware/requireCompany'
 import pos from './pos'
 import floorRouter, { floorCompanyContext, remplacerPlanDeSalle, getFloorState } from './floorState'
 import { canonicalizeFloorPricing } from '../lib/pos-pricing'
+import { floorHash } from '../lib/floor-workspace'
+
+const mirrors = vi.hoisted(() => ({ directory: '' }))
+vi.mock('../middleware/audit-log', async importActual => ({
+  ...await importActual<typeof import('../middleware/audit-log')>(),
+  dataPath: (filename: string) => {
+    if (!mirrors.directory) throw Error('Répertoire fictif des miroirs POS absent')
+    return path.join(mirrors.directory, filename)
+  },
+}))
 
 const app = express(); app.use(express.json()); app.use('/api/pos', deviceOrUserAuth, requireCompany, floorCompanyContext, pos)
 app.use('/api/floor-state', deviceOrUserAuth, requireCompany, floorCompanyContext, floorRouter)
-const companyId = 'integration-pos', userId = 'integration-pos-owner', tableId = 'integration-pos-table'
+const companyId = `integration-pos-${randomUUID()}`, userId = `${companyId}-owner`, tableId = `${companyId}-table`
 let token: string, productId: string, orderId: string
-let databaseVerified = false
 const auth = (req: any) => req.set('Authorization', 'Bearer ' + token).set('x-company-id', companyId)
 const body = () => ({ requestId: randomUUID(), tableId, coverIds: [`guest:${orderId}`], expectedTotal: 11.7, tip: 0, method: 'cash', cashReceived: 20 })
-function nativeBody(legacy = false) {
+// Seuls les clichés de cette société UUID sont préparés directement. Les ventes,
+// règlements, provenances et assertions restent exercés par les vraies routes.
+async function fixtureFloor(floor: any) {
+  const snapshot = JSON.parse(JSON.stringify({ ...floor, storageAuthority: 'postgres' }))
+  const snapshotHash = floorHash(snapshot)
+  await prisma.floorWorkspace.upsert({ where: { companyId },
+    create: { companyId, revision: BigInt(snapshot.updatedAt), snapshot, snapshotHash, initialSnapshot: snapshot, initialHash: snapshotHash },
+    update: { revision: BigInt(snapshot.updatedAt), snapshot, snapshotHash, updatedAt: new Date() } })
+  remplacerPlanDeSalle(snapshot, companyId)
+}
+async function nativeBody(legacy = false) {
   const coverId = `native:${randomUUID()}`
   const floor = { tables: [{ id: tableId, name: 'Table recette', seats: 2, section: 'Salle', shape: 'round', status: 'OCCUPEE', x: 0, y: 0, items: [],
     posCovers: [{ id: coverId, label: 'Couvert fictif', items: [{ id: randomUUID(), menuItemId: productId, name: 'Café TTC', price: 11.7, qty: 1, note: '', coverId }] }] } as any],
     chairs: [], photos: [], zones: [], updatedAt: Date.now() }
   if (!legacy) canonicalizeFloorPricing({ tables: [], chairs: [] }, floor, [{ id: productId, name: 'Café TTC', price: 11.7, taxRate: 17, isActive: true }])
-  remplacerPlanDeSalle(floor, companyId)
+  await fixtureFloor(floor)
   return { ...body(), coverIds: [coverId], cashReceived: 2 }
 }
 describe('Caisse native : verrou commun et centimes', () => {
   beforeAll(async () => {
-    if (process.env.CREORGA_TEST_DATABASE !== 'creorga_tests' || !new URL(process.env.DATABASE_URL!).pathname.endsWith('/creorga_tests')) throw new Error('Base de tests obligatoire')
-    databaseVerified = true
+    const target = new URL(process.env.DATABASE_URL || 'http://invalid')
+    if (process.env.CREORGA_TEST_DATABASE !== 'creorga_tests' || target.hostname !== '127.0.0.1' || target.port !== '5450' || target.pathname !== '/creorga_tests') throw new Error('Base de tests gardée obligatoire')
+    vi.stubEnv('CREORGA_FLOOR_AUTHORITY', 'postgres')
+    mirrors.directory = await mkdtemp(path.join(tmpdir(), 'creorga-pos-fixture-mirrors-'))
     await prisma.company.create({ data: { id: companyId, name: 'Caisse fictive de recette' } })
-    await prisma.user.create({ data: { id: userId, email: 'pos-test@localhost.invalid', firstName: 'Test', lastName: 'Owner', password: 'unused' } })
+    await prisma.user.create({ data: { id: userId, email: `${userId}@localhost.invalid`, firstName: 'Test', lastName: 'Owner', password: 'unused' } })
     await prisma.userCompany.create({ data: { userId, companyId, role: 'OWNER' } })
     const category = await prisma.category.create({ data: { companyId, name: 'Café' } })
     productId = (await prisma.product.create({ data: { companyId, categoryId: category.id, name: 'Café TTC', price: 11.7, taxRate: 17, stock: 20 } })).id
@@ -43,15 +67,11 @@ describe('Caisse native : verrou commun et centimes', () => {
     const max = await prisma.order.aggregate({ where: { companyId }, _max: { orderNumber: true } })
     orderId = (await prisma.order.create({ data: { companyId, source: 'GUEST', externalTableId: tableId, publicToken: randomUUID(), orderNumber: (max._max.orderNumber || 0) + 1,
       total: 11.7, subtotal: 10, taxAmount: 1.7, items: { create: { productId, productName: 'Café TTC', quantity: 1, unitPrice: 11.7, taxRate: 17 } } } })).id
-    remplacerPlanDeSalle({ tables: [], chairs: [], photos: [], zones: [], updatedAt: Date.now() }, companyId)
+    await fixtureFloor({ tables: [], chairs: [], photos: [], zones: [], updatedAt: Date.now() })
   })
   afterAll(async () => {
-    if (!databaseVerified) return
-    await prisma.posReceiptDelivery.deleteMany({ where: { companyId } }); await prisma.posCoverPayment.deleteMany({ where: { companyId } }); await prisma.posSale.deleteMany({ where: { companyId } })
-    await prisma.paymentAttempt.deleteMany({ where: { companyId } }); await prisma.order.deleteMany({ where: { companyId } })
-    await prisma.table.deleteMany({ where: { companyId } }); await prisma.product.deleteMany({ where: { companyId } }); await prisma.category.deleteMany({ where: { companyId } })
-    await prisma.giftCard.deleteMany({ where: { companyId } })
-    await prisma.userCompany.deleteMany({ where: { companyId } }); await prisma.user.deleteMany({ where: { id: userId } }); await prisma.company.deleteMany({ where: { id: companyId } })
+    // Fixtures uniques conservées pour preuve : aucun registre financier effacé.
+    vi.unstubAllEnvs()
     await prisma.$disconnect()
   })
   it('une capture PayPal en cours empêche le règlement à une autre caisse', async () => {
@@ -73,7 +93,7 @@ describe('Caisse native : verrou commun et centimes', () => {
   })
   it('une carte prépayée règle dix euros sans diminuer la vente ni sa TVA et son rejeu ne redébite pas', async () => {
     const gift = await prisma.giftCard.create({ data: { companyId, code: randomUUID(), initialValue: 10, currentBalance: 10 } })
-    const input = { ...nativeBody(), options: { giftCard: { code: gift.code, amount: 10 } } }
+    const input = { ...await nativeBody(), options: { giftCard: { code: gift.code, amount: 10 } } }
     const first = await auth(request(app).post('/api/pos/checkout')).send(input).expect(200)
     expect(first.body.total).toBe(11.7); expect(first.body.sousTotal).toBe(10); expect(first.body.tva).toBe(1.7)
     expect(first.body.remises).toEqual([])
@@ -86,12 +106,12 @@ describe('Caisse native : verrou commun et centimes', () => {
   })
   it('annule le débit de carte cadeau si le total confirmé est incorrect', async () => {
     const gift = await prisma.giftCard.create({ data: { companyId, code: randomUUID(), initialValue: 10, currentBalance: 10 } })
-    await auth(request(app).post('/api/pos/checkout')).send({ ...nativeBody(), expectedTotal: 1.7, options: { giftCard: { code: gift.code, amount: 10 } } }).expect(409)
+    await auth(request(app).post('/api/pos/checkout')).send({ ...await nativeBody(), expectedTotal: 1.7, options: { giftCard: { code: gift.code, amount: 10 } } }).expect(409)
     expect((await prisma.giftCard.findUniqueOrThrow({ where: { id: gift.id } })).currentBalance).toBe(10)
   })
   it('ventile cadeau, espèces, pourboire et don sans gonfler la vente ni sa TVA', async () => {
     const gift = await prisma.giftCard.create({ data: { companyId, code: randomUUID(), initialValue: 10, currentBalance: 10 } })
-    const result = await auth(request(app).post('/api/pos/checkout')).send({ ...nativeBody(), cashReceived: 5, expectedTotal: 13.8, tip: 2,
+    const result = await auth(request(app).post('/api/pos/checkout')).send({ ...await nativeBody(), cashReceived: 5, expectedTotal: 13.8, tip: 2,
       options: { giftCard: { code: gift.code, amount: 10 }, arrondiCaritatif: .1 } }).expect(200)
     const tenders = await prisma.orderTender.findMany({ where: { companyId, saleId: result.body.id }, orderBy: { method: 'asc' } })
     expect(tenders.map(p => ({ method: p.method, amountCents: p.amountCents, tipCents: p.tipCents, charityCents: p.charityCents }))).toEqual([
@@ -102,11 +122,11 @@ describe('Caisse native : verrou commun et centimes', () => {
     expect(result.body.cashChange).toBe(1.2)
   })
   it('refuse le format historique qui déduisait une carte cadeau de la TVA', async () => {
-    await auth(request(app).post('/api/pos/checkout')).send({ ...nativeBody(), expectedTotal: 1.7, options: { remises: [{ type: 'carte_cadeau', code: 'test', libelle: 'Ancien format', montant: 10 }] } }).expect(400)
+    await auth(request(app).post('/api/pos/checkout')).send({ ...await nativeBody(), expectedTotal: 1.7, options: { remises: [{ type: 'carte_cadeau', code: 'test', libelle: 'Ancien format', montant: 10 }] } }).expect(400)
   })
   it('fige les coordonnées et la ventilation fiscale utilisées par le reçu', async () => {
     await prisma.company.update({ where: { id: companyId }, data: { name: 'Émetteur original', address: 'Adresse originale de recette', vatNumber: 'TVA-FICTIVE' } })
-    const result = await auth(request(app).post('/api/pos/checkout')).send({ ...nativeBody(), cashReceived: 12 }).expect(200)
+    const result = await auth(request(app).post('/api/pos/checkout')).send({ ...await nativeBody(), cashReceived: 12 }).expect(200)
     expect(result.body.taxGroups).toEqual([{ taxRate: 17, baseCents: 1000, taxCents: 170, totalCents: 1170 }])
     expect(result.body.lignes[0].taxRate).toBe(17)
     const before = await auth(request(app).get(`/api/pos/sales/${result.body.id}/receipt`)).expect(200)
@@ -127,7 +147,7 @@ describe('Caisse native : verrou commun et centimes', () => {
     expect(sale.body.total).toBe(11.7); expect(sale.body.tva).toBe(1.7)
   })
   it('requiert une revue explicite des lignes anciennes, puis conserve auteur, motif et prix observé', async () => {
-    const input = { ...nativeBody(true), cashReceived: 12 }
+    const input = { ...await nativeBody(true), cashReceived: 12 }
     await auth(request(app).post('/api/pos/checkout')).send(input).expect(409)
     const boot = await auth(request(app).get('/api/pos/bootstrap')).expect(200)
     const item = boot.body.tables[0].covers.find((c: any) => !c.id.startsWith('guest:')).items[0]
@@ -138,7 +158,7 @@ describe('Caisse native : verrou commun et centimes', () => {
     await auth(request(app).post('/api/pos/checkout')).send(input).expect(200)
   })
   it('refuse la revue par un salarié et l’import d’un faux registre de prix', async () => {
-    nativeBody(true)
+    await nativeBody(true)
     const floor = getFloorState(companyId), item = (floor.tables[0] as any).posCovers[0].items[0]
     await prisma.userCompany.update({ where: { userId_companyId: { userId, companyId } }, data: { role: 'EMPLOYEE' } })
     try { await auth(request(app).post(`/api/pos/pricing/${item.id}/review`)).set('If-Match', String(floor.updatedAt)).send({ productId, price: 1, taxRate: 0, reason: 'Tentative refusée' }).expect(403) }
@@ -147,7 +167,7 @@ describe('Caisse native : verrou commun et centimes', () => {
     expect(getFloorState(companyId).posPricing).toBeUndefined()
   })
   it('une ancienne projection récupérée ne permet pas de vendre deux fois la même ligne sous un nouveau couvert', async () => {
-    const input = { ...nativeBody(), cashReceived: 12 }
+    const input = { ...await nativeBody(), cashReceived: 12 }
     const before = structuredClone(getFloorState(companyId))
     const salesBefore = await prisma.posSale.count({ where: { companyId } })
     const stockBefore = (await prisma.product.findUniqueOrThrow({ where: { id: productId } })).stock!
@@ -156,9 +176,9 @@ describe('Caisse native : verrou commun et centimes', () => {
     const replacementCover = `recovered:${randomUUID()}`
     old.posCovers[0].id = replacementCover
     old.posCovers[0].items[0].coverId = replacementCover
-    // Reproduit une projection JSON ancienne après perte de réponse/échec disque.
-    // La vente PostgreSQL reste intacte et est la source de vérité financière.
-    remplacerPlanDeSalle(before, companyId)
+    // Reproduit un cliché de salle ancien récupéré dans la fixture PostgreSQL.
+    // La vente et sa provenance restent intactes et font autorité financière.
+    await fixtureFloor(before)
     await auth(request(app).post('/api/pos/checkout')).send({ ...input, requestId: randomUUID(), coverIds: [replacementCover] }).expect(409)
     expect(await prisma.posSale.count({ where: { companyId } })).toBe(salesBefore + 1)
     expect((await prisma.product.findUniqueOrThrow({ where: { id: productId } })).stock).toBe(stockBefore - 1)
@@ -166,7 +186,7 @@ describe('Caisse native : verrou commun et centimes', () => {
     expect((await auth(request(app).get('/api/pos/bootstrap')).expect(200)).body.tables[0].covers.filter((c: any) => !c.id.startsWith('guest:'))).toEqual([])
   })
   it('refuse dans un nouveau brouillon une ligne déjà réglée et déplacée dans un autre couvert', async () => {
-    const input = { ...nativeBody(), cashReceived: 12 }
+    const input = { ...await nativeBody(), cashReceived: 12 }
     const old: any = structuredClone(getFloorState(companyId).tables[0])
     await auth(request(app).post('/api/pos/checkout')).send(input).expect(200)
     const boot = await auth(request(app).get('/api/pos/bootstrap')).expect(200)
@@ -175,15 +195,16 @@ describe('Caisse native : verrou commun et centimes', () => {
     await auth(request(app).put('/api/pos/draft')).set('If-Match', String(boot.body.revision)).send({ tables: [table], seats: [] }).expect(409)
   })
   it('une ligne QR ne devient pas une deuxième vente native en changeant de couvert', async () => {
-    const input = { ...nativeBody(), cashReceived: 12 }
+    const input = { ...await nativeBody(), cashReceived: 12 }
     const guestLine = await prisma.orderItem.findFirstOrThrow({ where: { orderId } })
     const floor: any = getFloorState(companyId), item = floor.tables[0].posCovers[0].items[0]
     floor.posPricing[guestLine.id] = floor.posPricing[item.id]; item.id = guestLine.id
+    await fixtureFloor(floor)
     await auth(request(app).post('/api/pos/checkout')).send(input).expect(409)
     expect((await prisma.order.findUniqueOrThrow({ where: { id: orderId } })).paidAt).toBeNull()
   })
   it('un offert exige un motif responsable, conserve son auteur, son ticket et un seul débit de stock', async () => {
-    const input = { ...nativeBody(), expectedTotal: 0, cashReceived: 0, options: { remises: [{ type: 'geste', libelle: 'Offert', montant: 11.7 }] } }
+    const input = { ...await nativeBody(), expectedTotal: 0, cashReceived: 0, options: { remises: [{ type: 'geste', libelle: 'Offert', montant: 11.7 }] } }
     const beforeStock = (await prisma.product.findUniqueOrThrow({ where: { id: productId } })).stock!
     await auth(request(app).post('/api/pos/checkout')).send(input).expect(400)
     await prisma.userCompany.update({ where: { userId_companyId: { companyId, userId } }, data: { role: 'WAITER' } })

@@ -33,6 +33,7 @@ const closure = (): Cloture => ({ id: 'closure-fictive-a', horodatage: Date.pars
   parMethode: { cash: 6.25, card: 4, contactless: 0, GIFT_CARD: 0 }, ventes: [sale()] })
 const fixture = (companyId = 'company-fictive-a', userId = 'owner-fictif-a', role: 'OWNER' | 'MANAGER' = 'OWNER') => ({
   companyId, revision: 1, currentStaff: { id: userId, name: 'Compte FICTIF', pin: '', color: '#fff', role },
+  businessAccess: { role, revision: `journal:${companyId}:${role}`, version: 1, capabilities: ['service.read', 'finance.revenue.read', 'cash.close', 'invoices.read'] }, financialDataReady: true,
   tables: [], seats: [], menu: [], staff: [], editor: { rooms: [], fixtures: [], scenes: [], background: null }, ventes: [sale()], clotures: [],
 })
 const mount = async () => { await act(async () => { renderer = create(createElement(JournalPage, { onExit() {} })) }) }
@@ -57,8 +58,20 @@ beforeEach(async () => {
 afterEach(async () => { await act(async () => { renderer?.unmount() }); renderer = undefined; stopFloorBridge(); clearSession(); vi.unstubAllGlobals() })
 
 describe('Journal POS réel : clôture honnête, non bloquante et cloisonnée', () => {
-  it('EMPLOYEE ne voit aucun bouton de clôture malgré des ventes présentes', async () => {
-    usePOS.setState({ currentStaff: { ...bootstrap.currentStaff, role: 'EMPLOYEE' } as any })
+  it('ne présente pas les ventes non archivées de plusieurs dates comme le CA du jour civil', async () => {
+    await mount()
+    const visible = text(renderer!.root)
+    expect(visible).not.toContain('Journée en cours')
+    expect(visible).toContain('Ventes non archivées dans un ticket Z')
+    expect(visible).toContain('jour civil')
+    expect(visible).toContain('17 octobre 2026')
+    expect(visible).toContain('10,25 €')
+    expect(usePOS.getState().ventes).toEqual([sale()])
+    expect(closeRequests).toEqual([])
+  })
+
+  it('EMPLOYEE avec lecture des ventes déléguée ne clôture pas sans cash.close', async () => {
+    usePOS.setState({ currentStaff: { ...bootstrap.currentStaff, role: 'EMPLOYEE' } as any, businessAccess: { role: 'EMPLOYEE', revision: 'journal-readonly', version: 2, capabilities: ['finance.revenue.read'] } })
     await mount()
     expect(text(renderer!.root)).toContain('Table FICTIVE')
     expect(buttons('Clôturer la journée (ticket Z)')).toHaveLength(0)
@@ -67,7 +80,7 @@ describe('Journal POS réel : clôture honnête, non bloquante et cloisonnée', 
   })
 
   it.each(['OWNER', 'MANAGER'])('%s conserve une confirmation explicite avant la clôture', async role => {
-    usePOS.setState({ currentStaff: { ...bootstrap.currentStaff, role } as any })
+    usePOS.setState({ currentStaff: { ...bootstrap.currentStaff, role } as any, businessAccess: { ...bootstrap.businessAccess, role, revision: `journal-${role}` } })
     await mount(); await ask()
     expect(closeRequests).toEqual([])
     expect(buttons('Annuler')).toHaveLength(1)
@@ -119,7 +132,7 @@ describe('Journal POS réel : clôture honnête, non bloquante et cloisonnée', 
   it('un ancien handler de confirmation ne clôture pas après retrait du rôle', async () => {
     await mount(); await ask()
     const stale = buttons('Clôturer')[0].props.onClick
-    await act(async () => { usePOS.setState({ currentStaff: { ...bootstrap.currentStaff, role: 'EMPLOYEE' } as any }) })
+    await act(async () => { usePOS.setState({ currentStaff: { ...bootstrap.currentStaff, role: 'EMPLOYEE' } as any, businessAccess: { role: 'EMPLOYEE', revision: 'journal-readonly-2', version: 2, capabilities: ['finance.revenue.read'] } }) })
     await act(async () => { await stale() })
     expect(closeRequests).toEqual([])
     expect(buttons('Clôturer')).toHaveLength(0)

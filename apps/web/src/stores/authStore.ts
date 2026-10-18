@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { User, Company, UserCompany } from '@/types'
+import type { User, Company, UserCompany, BusinessAccess } from '@/types'
 
 // v3.18.6 — viewMode permet au patron de basculer en "vue employé" pour
 // voir uniquement les données du collaborateur sélectionné. Par défaut le
@@ -24,7 +24,7 @@ function userDisplayName(user: User | null): string | null {
 function clearedSession(sessionVersion: number) {
   return {
     sessionVersion, accessToken: null, user: null, companies: [] as UserCompany[], company: null, companyId: null,
-    isAuthenticated: false, role: 'owner' as const, viewMode: 'owner' as const, viewAsEmployeeId: null, viewAsEmployeeName: null,
+    isAuthenticated: false, businessAccess: null, role: 'employee' as const, viewMode: 'employee' as const, viewAsEmployeeId: null, viewAsEmployeeName: null,
   }
 }
 
@@ -37,6 +37,9 @@ interface AuthState {
   company: Company | null
   companyId: string | null
   isAuthenticated: boolean
+  businessAccess: BusinessAccess | null
+  businessAccessGeneration: number
+  setBusinessAccess: (access: BusinessAccess | null, companyId: string, userId: string) => void
   /** Marqueur sans secret : accès local verrouillé, cookie serveur à révoquer. */
   logoutRevocationPending: boolean
 
@@ -71,11 +74,13 @@ export const useAuthStore = create<AuthState>()(
       company: null,
       companyId: null,
       isAuthenticated: false,
+      businessAccess: null,
+      businessAccessGeneration: 0,
       logoutRevocationPending: false,
 
-      // v3.18.6 — defaults : patron voit tout
-      role: 'owner',
-      viewMode: 'owner',
+      // Sans réponse serveur courante, aucune vue privilégiée par défaut.
+      role: 'employee',
+      viewMode: 'employee',
       viewAsEmployeeId: null,
       viewAsEmployeeName: null,
 
@@ -97,11 +102,20 @@ export const useAuthStore = create<AuthState>()(
           company: activeCompany,
           companyId: activeCompany?.id ?? null,
           isAuthenticated: true,
+          businessAccess: companies[0]?.businessAccess ?? null,
           role: userRole,
           viewMode: userRole === 'employee' ? 'employee' : 'owner',
           viewAsEmployeeId: userRole === 'employee' ? (user as any)?.id : null,
           viewAsEmployeeName: userRole === 'employee' ? userDisplayName(user) : null,
         }))
+      },
+      setBusinessAccess: (access, companyId, userId) => {
+        const current = get()
+        if (!current.isAuthenticated || current.companyId !== companyId || current.user?.id !== userId) return
+        if (access && current.businessAccess && access.version < current.businessAccess.version) return
+        if (access && (!Array.isArray(access.capabilities) || !access.capabilities.every(value => typeof value === 'string') || !access.revision || !Number.isSafeInteger(access.version))) return
+        if (current.businessAccess?.revision === access?.revision) return
+        set({ businessAccess: access, businessAccessGeneration: current.businessAccessGeneration + 1 })
       },
       setRole: (role) => set((state) => ({
         role,
@@ -124,14 +138,16 @@ export const useAuthStore = create<AuthState>()(
         const uc = companies.find((c) => c.companyId === companyId)
         if (uc && uc.isActive !== false) {
           const role = membershipRole(uc.role)
-          set({
+          set(state => ({
             company: uc.company,
             companyId: uc.companyId,
+            businessAccess: null,
+            businessAccessGeneration: state.businessAccessGeneration + 1,
             role,
             viewMode: role === 'employee' ? 'employee' : 'owner',
             viewAsEmployeeId: role === 'employee' ? user?.id ?? null : null,
             viewAsEmployeeName: role === 'employee' ? userDisplayName(user) : null,
-          })
+          }))
         }
       },
 
@@ -152,7 +168,8 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'creorga-auth',
       merge: (persisted, current) => {
-        const next = { ...current, ...(persisted as Partial<AuthState> | undefined) }
+        // Les droits persistés d'un ancien onglet ne sont jamais une autorité.
+        const next = { ...current, ...(persisted as Partial<AuthState> | undefined), businessAccess: null }
         // Un ancien cookie ou un vieux champ persisté ne réouvre jamais la
         // session pendant une révocation incertaine après rechargement.
         return next.logoutRevocationPending

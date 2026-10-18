@@ -18,6 +18,7 @@ const buttons = (label: string) => renderer!.root.findAllByType('button').filter
 const identity = (role: 'OWNER' | 'MANAGER' | 'EMPLOYEE') => useAuthStore.getState().setAuth({ accessToken: 'fixture-token',
   user: { id: 'leave-employee-fictif', email: 'leave-employee@fixture.invalid', firstName: 'Employé', lastName: 'Fictif', avatar: null },
   companies: [{ id: 'leave-membership-fictif', userId: 'leave-employee-fictif', companyId: 'leave-company-fictive', role, isActive: true,
+    businessAccess: { role, capabilities: role === 'EMPLOYEE' ? ['hr.self'] : ['hr.self', 'hr.manage'], revision: `leave-${role}`, version: 1 },
     company: { id: 'leave-company-fictive', name: 'Congés FICTIFS', legalName: null, vatNumber: null, currency: 'EUR' } }],
 })
 const mount = async (role: 'OWNER' | 'MANAGER' | 'EMPLOYEE') => { identity(role); await act(async () => { renderer = create(createElement(HrTimePage, { view: 'leaves' })) }) }
@@ -64,7 +65,7 @@ describe('Congés montés : les décisions reflètent les rôles réellement att
   it('le retrait du rôle masque les décisions et neutralise un ancien handler de décision conservé', async () => {
     await mount('MANAGER')
     const staleAction = buttons('Approuver')[0].props.onClick
-    await act(async () => { useAuthStore.getState().setRole('employee') })
+    await act(async () => { useAuthStore.getState().setBusinessAccess({ role: 'EMPLOYEE', capabilities: ['hr.self'], revision: 'leave-revoked', version: 2 }, 'leave-company-fictive', 'leave-employee-fictif') })
     await act(async () => { staleAction() })
     expect(requests.filter(request => request.method === 'put')).toEqual([])
     expect(buttons('Approuver')).toHaveLength(0)

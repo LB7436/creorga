@@ -1,5 +1,24 @@
 # Fiabilité des sauvegardes — gel de suppression et inventaire de reprise
 
+## Contrôle supplémentaire du18octobre2026
+
+Les27copies récupérées ont été relues : tailles et SHA identiques à l'index original
+`0a966a2baac58179529017d6d7af2344e9cb1e0aa4131ea09176e511805b1358`.
+Il ne s'agit ni d'une nouvelle récupération ni de27restaurations. Les deux noms
+des anciens dumps supprimés restent non identifiés. **Gel des suppressions inchangé**.
+
+Trois nouvelles copies finales v1/v2/v3 ont été restaurées dans de nouvelles bases,
+sans purge. La dernière après le second arrêt confirmé est égale : **82tables/
+18997lignes/14fichiers/26PDF**,8événements de droits inclus,09:47:14.564UTC,
+23,954s mesurées cache chaud(nonRTO). ArchiveSHA
+`f88bf3e0048876104b7575375d5d62f17b625d9dfd5a164538be6fcb2c91efee`.
+[Preuve expurgée](preuves/droits-robi-validation-2026-10-18.json),
+[procédure et limite d'arrêt](MIGRATION-REPRISE-ROLLBACK.md). Aucune ancienne archive
+ou base restaurée supprimée. Aucune conclusion RPO/RTO de production ou essai
+Windows d'arrêt réussi déduite de la seule restauration. Les deux arrêts contrôlés
+avec Chrome ouvert ont des preuves séparées PID/ports/UI ; ils ne qualifient ni
+coupure électrique, ni abandon HTTP incertain, ni double clic natif du raccourci.
+
 Lot du 17 octobre 2026, branche `codex/creorga-2-0-2026-10-08`, base `f198c98`.
 Ce document distingue les garanties logicielles, l'inventaire des octets et une
 restauration effective. Aucun de ces éléments n'est une qualification de production.

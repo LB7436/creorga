@@ -1,4 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useBusinessQuery } from './useBusinessQuery'
 import api from '@/lib/api'
 import { toastError, toastSuccess } from '@/lib/toast'
 
@@ -119,17 +120,18 @@ function messageErreur(e: any, defaut: string): string {
 
 // ─── Factures ───────────────────────────────────────────────────────────
 
-export function useInvoices(filters: InvoiceFilters = {}) {
-  return useQuery<Invoice[]>({
+export function useInvoices(filters: InvoiceFilters = {}, options: { enabled?: boolean } = {}) {
+  return useBusinessQuery<Invoice[]>('invoices.read', {
     queryKey: ['invoices', filters],
-    queryFn: () => api.get('/invoices', { params: filters }).then((r) => r.data),
+    queryFn: ({ signal }) => api.get('/invoices', { params: filters, signal }).then((r) => r.data),
+    enabled: options.enabled,
   })
 }
 
 export function useInvoice(id?: string) {
-  return useQuery<Invoice>({
+  return useBusinessQuery<Invoice>('invoices.read', {
     queryKey: ['invoices', 'detail', id],
-    queryFn: () => api.get(`/invoices/${id}`).then((r) => r.data),
+    queryFn: ({ signal }) => api.get(`/invoices/${id}`, { signal }).then((r) => r.data),
     enabled: Boolean(id),
   })
 }
@@ -174,10 +176,11 @@ export function useUpdateInvoiceStatus() {
 
 // ─── Devis ──────────────────────────────────────────────────────────────
 
-export function useQuotes(filters: QuoteFilters = {}) {
-  return useQuery<Quote[]>({
+export function useQuotes(filters: QuoteFilters = {}, options: { enabled?: boolean } = {}) {
+  return useBusinessQuery<Quote[]>('invoices.read', {
     queryKey: ['quotes', filters],
-    queryFn: () => api.get('/invoices/quotes', { params: filters }).then((r) => r.data),
+    queryFn: ({ signal }) => api.get('/invoices/quotes', { params: filters, signal }).then((r) => r.data),
+    enabled: options.enabled,
   })
 }
 

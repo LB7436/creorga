@@ -9,8 +9,11 @@ import AdminQuickMenu from '@/components/AdminQuickMenu'
 import { useModulePreferences, demarrerSyncPreferencesModules } from '@/stores/modulePreferencesStore'
 import type { PreferenceModule } from '@/stores/modulePreferencesStore'
 import { useModuleUXStore } from '@/stores/moduleUXStore'
-import { ESPACES, MODULES_PROPRIETAIRE } from '@/config/espaces'
+import { ESPACES } from '@/config/espaces'
 import { toastWarning } from '@/lib/toast'
+import { mayOpenBusinessPage } from '@/lib/businessPageAccess'
+import type { BusinessAccess } from '@/types'
+import { authDataScope } from '@/lib/authScope'
 
 // v3.18.7 — Illustrations SVG 3D-style remplacent les emojis simples
 import { ModuleIllustration, MODULE_EMOJI } from '@/components/illustrations/ModuleIllustrations'
@@ -87,18 +90,22 @@ function FloatingOrbs() {
 /** État affiché sur une carte — les quatre états demandés par la mission. */
 type EtatCarte = 'actif' | 'desactive' | 'indisponible' | 'reserve' | 'bientot'
 
-function etatDuModule(mod: ModuleDef, cfg: PreferenceModule | undefined, role: string): EtatCarte {
+function modulePath(mod: ModuleDef, access: BusinessAccess | null): string {
+  return mod.id === 'pos' && !access?.capabilities.includes('finance.revenue.read') ? '/pos/floor' : mod.path
+}
+
+function etatDuModule(mod: ModuleDef, cfg: PreferenceModule | undefined, access: BusinessAccess | null): EtatCarte {
   if (!mod.available) return 'indisponible'
   if (cfg?.enabled === false) return 'desactive'
   if (cfg?.displayMode === 'coming_soon') return 'bientot'
-  if (role === 'employee' && MODULES_PROPRIETAIRE.has(mod.id)) return 'reserve'
+  if (!access || !mayOpenBusinessPage(modulePath(mod, access), access)) return 'reserve'
   return 'actif'
 }
 
 const BADGES: Record<Exclude<EtatCarte, 'actif'>, { texte: string; fond: string; bord: string; encre: string; icone: string }> = {
   desactive:    { texte: 'Désactivé',                fond: 'rgba(100,116,139,0.18)', bord: 'rgba(148,163,184,0.4)', encre: '#cbd5e1', icone: '⏸' },
   indisponible: { texte: 'Non disponible',           fond: 'rgba(100,116,139,0.18)', bord: 'rgba(148,163,184,0.4)', encre: '#94a3b8', icone: '∅' },
-  reserve:      { texte: 'Réservé au propriétaire',  fond: 'rgba(59,130,246,0.14)',  bord: 'rgba(96,165,250,0.4)',  encre: '#93c5fd', icone: '🔒' },
+  reserve:      { texte: 'Permission requise',       fond: 'rgba(59,130,246,0.14)',  bord: 'rgba(96,165,250,0.4)',  encre: '#93c5fd', icone: '🔒' },
   bientot:      { texte: 'Bientôt',                  fond: 'rgba(245,158,11,0.14)',  bord: 'rgba(245,158,11,0.45)', encre: '#fcd34d', icone: '🚧' },
 }
 
@@ -304,7 +311,8 @@ function ModuleCard({ mod, etat, onClick, pinned, onTogglePin }: ModuleCardProps
 export default function ModuleSelector() {
   const navigate = useNavigate()
   const { user, company } = useAuthStore()
-  const role = useAuthStore((s) => s.role)
+  const access = useAuthStore((s) => s.businessAccess)
+  const scope = useAuthStore(authDataScope)
   const logoutRequest = useLogout()
   const setActiveModule = useModuleStore((s) => s.setActiveModule)
   const usageStats = useModuleUXStore((s) => s.usageStats)
@@ -322,7 +330,7 @@ export default function ModuleSelector() {
   const moduleConfig = useModulePreferences((s) => s.config)
   const etatSync = useModulePreferences((s) => s.etat)
   const erreurSync = useModulePreferences((s) => s.erreur)
-  useEffect(() => demarrerSyncPreferencesModules(), [])
+  useEffect(() => access ? demarrerSyncPreferencesModules() : undefined, [scope, access])
 
   const serviceIds = useMemo(() => new Set<ModuleId>(['pos', 'hr', 'sales', 'haccp', 'qrmenu']), [])
   const adminIds = useMemo(() => new Set<ModuleId>(['owner', 'sites', 'rgpd', 'backup', 'api', 'maintenance']), [])
@@ -369,14 +377,16 @@ export default function ModuleSelector() {
   const nbMasquesReglages = MODULES.filter((m) => moduleConfig[m.id]?.displayMode === 'hidden').length
 
   const handleModule = (mod: ModuleDef) => {
-    const cfg = moduleConfig[mod.id]
-    const etat = etatDuModule(mod, cfg, role)
+    if (scope !== authDataScope(useAuthStore.getState())) return
+    const currentAccess = useAuthStore.getState().businessAccess
+    const cfg = useModulePreferences.getState().config[mod.id]
+    const etat = etatDuModule(mod, cfg, currentAccess)
     if (etat === 'bientot') {
       toastWarning(`${cfg?.customLabel || mod.name} est marqué « Bientôt disponible ».`)
       return
     }
     if (etat === 'reserve') {
-      toastWarning('Module réservé au propriétaire — demandez un accès à votre responsable.')
+      toastWarning('Permission requise pour ce module — demandez un accès à votre responsable.')
       return
     }
     if (etat === 'desactive') {
@@ -389,7 +399,7 @@ export default function ModuleSelector() {
     }
     setActiveModule(mod.id)
     recordModuleOpen(mod.id)
-    navigate(mod.path)
+    navigate(modulePath(mod, currentAccess))
   }
 
   const handleLogout = () => {
@@ -406,9 +416,9 @@ export default function ModuleSelector() {
       }}
     >
       <FloatingOrbs />
-      {role === 'employee' && (
+      {!access?.capabilities.includes('settings.manage') && (
         <div style={{ position: 'relative', zIndex: 12, margin: '16px auto 0', maxWidth: 1080, padding: '10px 14px', borderRadius: 14, border: '1px solid rgba(96,165,250,0.24)', background: 'rgba(59,130,246,0.12)', color: '#bfdbfe', fontSize: 13, fontWeight: 800 }}>
-          👁 Vue collaborateur : les modules réservés au propriétaire sont verrouillés (badge 🔒), l'accès opérationnel est conservé.
+          👁 Les modules disponibles dépendent de vos permissions actuelles. Le badge 🔒 indique une permission manquante ; l’accès au service reste distinct des rapports financiers.
         </div>
       )}
 
@@ -461,7 +471,7 @@ export default function ModuleSelector() {
 
         {/* right: admin panel quick access + user + logout */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <AdminQuickMenu />
+          {access?.capabilities.includes('settings.manage') && <AdminQuickMenu />}
 
           <div
             style={{
@@ -810,7 +820,7 @@ export default function ModuleSelector() {
                 <div className="grille-modules">
                   {modules.map((mod) => {
                     const cfg = moduleConfig[mod.id]
-                    const etat = etatDuModule(mod, cfg, role)
+                    const etat = etatDuModule(mod, cfg, access)
                     const displayMod = cfg?.customLabel ? { ...mod, name: cfg.customLabel } : mod
                     return (
                       <div key={mod.id} data-tour="module-card" data-module-id={mod.id} style={{ position: 'relative' }}>

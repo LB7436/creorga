@@ -99,6 +99,7 @@ import { creatorConfigure } from './lib/creatorSecurity'
 import { shutdownEventSink } from './lib/eventSink'
 import { ErrorLogTransport } from './lib/errorLogTransport'
 import { createBackendShutdown, TrackedTasks } from './lib/backend-lifecycle'
+import { createHttpDrain } from './lib/http-drain'
 
 // Refuse de démarrer en production avec des secrets de dev ou absents.
 assertProductionSecrets()
@@ -135,6 +136,8 @@ const corsOptions = {
 }
 
 const io = new SocketServer(httpServer, { cors: corsOptions })
+const socketIoPath = io.path().replace(/\/$/, '') + '/'
+const httpDrain = createHttpDrain(httpServer, req => req.url?.startsWith(socketIoPath) === true)
 httpServer.once('error', rejectBackendReady)
 
 const lifecycle = createBackendShutdown({
@@ -154,9 +157,9 @@ const lifecycle = createBackendShutdown({
   closeHttp: async () => {
     // Couvre aussi une demande d'arrêt reçue avant le callback listen.
     await backendReady
-    await new Promise<void>((resolve, reject) => {
+    await httpDrain.close(() => new Promise<void>((resolve, reject) => {
       void io.close(error => error ? reject(error) : resolve()).catch(reject)
-    })
+    }), () => { io.engine.close() })
   },
   drain: async () => {
     const results = await Promise.allSettled([drainInvoiceDeliveries(), recoveryTasks.drain(), backupShutdown!])
@@ -370,7 +373,7 @@ app.use('/api/affichage', authenticate, requireCompany, affichageRoutes)
 // sort fait office de jeton, et il s'agit de visuels destinés à être projetés
 // en salle, pas de données personnelles.
 app.use('/api/media-affichage', mediasPublicRouter)
-app.use('/api/ai', authenticate, aiLimiter, aiActionsRoutes)
+app.use('/api/ai', authenticate, requireCompany, aiLimiter, aiActionsRoutes)
 app.use('/api/agent', authenticate, requireCompany, floorCompanyContext, aiLimiter, agentRoutes)
 app.use('/api/help/feedback', helpFeedbackRoutes)
 // Rôle OWNER exigé : journal d'audit global (avec mots de passe) et purge RGPD

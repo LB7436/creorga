@@ -54,7 +54,9 @@ describe('authentification — une panne ne crée aucune identité ni adhésion'
     const response = await request(app).get('/me').set('Authorization', bearer())
     expect(response.status).toBe(200)
     expect(response.body.user).toEqual(member)
-    expect(response.body.companies).toEqual([{ role: 'STAFF', companyId: 'fixture-company' }])
+    expect(response.body.companies).toMatchObject([{ role: 'STAFF', companyId: 'fixture-company' }])
+    // Un rôle inconnu est conservé pour diagnostic, jamais promu en OWNER.
+    expect(response.body.companies[0].businessAccess.capabilities).toEqual([])
   })
 
   it('/me refuse le jeton de démonstration en production avant tout accès à la base', async () => {

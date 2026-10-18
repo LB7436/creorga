@@ -120,8 +120,8 @@ export default function AssistantPanel() {
       alert('Formats pris en charge : JPEG, PNG, WebP et PDF. Les vidéos et autres fichiers ne sont pas analysés.')
       return
     }
-    if (file.size > 20 * 1024 * 1024) {
-      alert('Fichier trop volumineux (max 20 MB)')
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Fichier trop volumineux (maximum 10 Mo)')
       return
     }
     try {
@@ -256,7 +256,7 @@ export default function AssistantPanel() {
     const hasAttachments = attached.length > 0
     if (!hasText && !hasAttachments) return
     const controller = new AbortController()
-    const operation = { context, controller, timer: setTimeout(() => controller.abort(new DOMException('Le délai de l’assistant est dépassé. Vérifiez les données avant de réessayer.', 'TimeoutError')), hasAttachments ? 180_000 : 25_000) }
+    const operation = { context, controller, timer: setTimeout(() => controller.abort(new DOMException('Le délai de l’assistant est dépassé. Vérifiez les données avant de réessayer.', 'TimeoutError')), 25_000) }
     requestRef.current = operation
     const current = () => requestRef.current === operation && a.isCurrentContext(context) && !controller.signal.aborted
     const interrupted = () => controller.signal.reason || new DOMException('La demande n’est plus active.', 'AbortError')

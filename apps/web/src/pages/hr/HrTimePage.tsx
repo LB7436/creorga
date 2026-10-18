@@ -11,12 +11,15 @@ type Leave = { id: string; userId: string; type: string; startDate: string; endD
 
 export default function HrTimePage({ view }: { view: 'punches' | 'leaves' }) {
   const scope = useAuthStore(authDataScope)
+  const access = useAuthStore(state => state.businessAccess)
+  if (!access?.capabilities.some(value => value === 'hr.self' || value === 'hr.manage')) return <main role="alert" style={page}>Accès RH non autorisé ou en cours de vérification.</main>
   return <ScopedHrTimePage key={`${scope}:${view}`} scope={scope} view={view} />
 }
 
 function ScopedHrTimePage({ view, scope }: { view: 'punches' | 'leaves'; scope: string }) {
-  const role = useAuthStore(state => state.role)
-  const canDecideLeaves = role === 'owner' || role === 'manager'
+  const access = useAuthStore(state => state.businessAccess)
+  const self = useAuthStore(state => state.user)
+  const canDecideLeaves = access?.capabilities.includes('hr.manage') === true
   const [members, setMembers] = useState<Member[]>([])
   const [punches, setPunches] = useState<Punch[]>([])
   const [leaves, setLeaves] = useState<Leave[]>([])
@@ -37,22 +40,27 @@ function ScopedHrTimePage({ view, scope }: { view: 'punches' | 'leaves'; scope: 
     setLoading(true)
     try {
       const [teamResponse, punchResponse, leaveResponse] = await Promise.all([
-        api.get<Member[]>('/hr/team'), api.get<Punch[]>('/hr/punches'), api.get<Leave[]>('/hr/leave-requests'),
+        canDecideLeaves ? api.get<Member[]>('/hr/team') : Promise.resolve({ data: self ? [{ userId: self.id, user: self }] : [] }),
+        view === 'punches' ? api.get<Punch[]>('/hr/punches') : Promise.resolve({ data: [] as Punch[] }),
+        view === 'leaves' ? api.get<Leave[]>('/hr/leave-requests') : Promise.resolve({ data: [] as Leave[] }),
       ])
       if (!currentRead()) return false
-      setMembers(teamResponse.data); setPunches(punchResponse.data); setLeaves(leaveResponse.data)
+      setMembers(teamResponse.data)
+      setPunches(punchResponse.data.filter(entry => canDecideLeaves || entry.userId === self?.id))
+      setLeaves(leaveResponse.data.filter(entry => canDecideLeaves || entry.userId === self?.id))
       if (!selectedUserId && teamResponse.data[0]) setSelectedUserId(teamResponse.data[0].userId)
       if (!leaveForm.userId && teamResponse.data[0]) setLeaveForm((value) => ({ ...value, userId: teamResponse.data[0].userId }))
       return true
     } catch (error: any) { if (currentRead()) toastError(error?.response?.data?.message || 'Impossible de charger les données RH'); return false }
     finally { if (currentRead()) setLoading(false) }
-  }, [leaveForm.userId, selectedUserId, isCurrent])
+  }, [leaveForm.userId, selectedUserId, isCurrent, canDecideLeaves, self, view])
 
   useEffect(() => { void load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function punch(direction: 'in' | 'out') {
     if (!isCurrent()) return
     if (!selectedUserId) return toastError('Choisissez un collaborateur')
+    if (!canDecideLeaves && selectedUserId !== self?.id) return toastError('Pointage réservé à votre propre compte')
     try { await api.post(`/hr/punch/${direction}`, { userId: selectedUserId }); if (!isCurrent()) return; await load(); if (isCurrent()) toastSuccess(direction === 'in' ? 'Entrée pointée' : 'Sortie pointée') }
     catch (error: any) { if (isCurrent()) toastError(error?.response?.data?.message || 'Pointage impossible') }
   }
@@ -61,6 +69,7 @@ function ScopedHrTimePage({ view, scope }: { view: 'punches' | 'leaves'; scope: 
     event.preventDefault()
     // Le ref est posé avant le premier await et avant le prochain rendu React.
     if (leaveLock.current || !isCurrent()) return
+    if (!canDecideLeaves && leaveForm.userId !== self?.id) return toastError('Demande réservée à votre propre compte')
     leaveLock.current = true
     setLeaveSaving(true); setLeaveFeedback(null)
     let uncertain = false
@@ -92,8 +101,7 @@ function ScopedHrTimePage({ view, scope }: { view: 'punches' | 'leaves'; scope: 
     if (!isCurrent()) return
     // Le contrôle serveur reste obligatoire ; un ancien handler UI conservé
     // ne doit pas proposer une décision après le retrait du rôle local.
-    const currentRole = useAuthStore.getState().role
-    if (currentRole !== 'owner' && currentRole !== 'manager') return toastError('Action réservée aux responsables')
+    if (!useAuthStore.getState().businessAccess?.capabilities.includes('hr.manage')) return toastError('Permission de gestion RH requise')
     try { await api.put(`/hr/leave-requests/${leave.id}/status`, { status }); if (!isCurrent()) return; await load(); if (isCurrent()) toastSuccess(status === 'APPROVED' ? 'Congé approuvé' : 'Congé refusé') }
     catch (error: any) { if (isCurrent()) toastError(error?.response?.data?.message || 'Modification impossible') }
   }

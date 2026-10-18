@@ -2,6 +2,7 @@ import axios, { type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import { authDataScope, authSessionKey } from './authScope'
 import { assertApiDestination } from './apiDestination'
+import { toastError } from './toast'
 
 type ScopedRequest = InternalAxiosRequestConfig & { _creorgaScope?: string; _retry?: boolean }
 
@@ -9,6 +10,14 @@ const scopeChanged = () => new axios.CanceledError('La session ou la société a
 
 export function assertAuthScope(scope: string): void {
   if (scope !== authDataScope(useAuthStore.getState())) throw scopeChanged()
+}
+
+export function invalidateBusinessAccess(notifyRefusal = false): void {
+  const state = useAuthStore.getState()
+  // The private panel may unmount as soon as the scope is invalidated. Keep a
+  // generic refusal in the global live region, never copy the server body here.
+  if (notifyRefusal) toastError('Accès refusé. Vos permissions sont en cours de vérification. Aucune action n’a été relancée.', { id: 'business-access-refused', duration: 6500 })
+  if (state.companyId && state.user?.id) state.setBusinessAccess(null, state.companyId, state.user.id)
 }
 
 const api = axios.create({
@@ -136,6 +145,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config as ScopedRequest | undefined
     if (originalRequest?._creorgaScope !== undefined) assertAuthScope(originalRequest._creorgaScope)
+
+    if (originalRequest && error.response?.status === 403) {
+      // Le refus courant invalide les vues sensibles immédiatement. La sonde
+      // indépendante relira les droits ; aucune mutation n'est rejouée ici.
+      invalidateBusinessAccess(true)
+    }
 
     if (originalRequest && error.response?.status === 401 && !originalRequest._retry && !excludesRefresh(originalRequest.url)) {
       originalRequest._retry = true

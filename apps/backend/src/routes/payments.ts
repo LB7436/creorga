@@ -1,7 +1,8 @@
 import { Router, type Request, type Response } from 'express'
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
-import { requireCompany, requireRole } from '../middleware/requireCompany'
+import { requireCompany } from '../middleware/requireCompany'
+import { requireCapabilities, BusinessPermissionError } from '../lib/business-permission-transaction'
 import { SUPPORTED_PROVIDERS } from '../lib/payments/gateway'
 import { createPayment, findAttempt, merchantFor, publicAttempt, reconcilePayment, PaymentError } from '../lib/payments/ledger'
 import prisma from '../lib/prisma'
@@ -18,10 +19,10 @@ router.use((req: any, res, next) => {
   next()
 })
 router.use(requireCompany)
-router.use(requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', 'CASHIER'))
 const wrap = (fn: (req: any, res: any) => Promise<any>) => async (req: any, res: any) => {
   try { await fn(req, res) } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: 'Demande de paiement invalide.' })
+    if (error instanceof BusinessPermissionError) return res.status(403).json({ error: error.message })
     if (error instanceof PaymentError) return res.status(error.status).json({ error: error.message })
     return res.status(503).json({ error: 'Résultat non confirmé. Conservez la référence et vérifiez avant de recommencer.' })
   }
@@ -52,11 +53,11 @@ router.get('/attempts/:id', wrap(async (req, res) => {
 }))
 router.post('/attempts/:id/reconcile', wrap(async (req, res) => res.json(await reconcilePayment(req.companyId, req.params.id))))
 router.post('/attempts/:id/capture', wrap(async (req, res) => res.json(await reconcilePayment(req.companyId, req.params.id, true))))
-router.post('/refunds', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+router.post('/refunds', requireCapabilities('refunds.declare'), wrap(async (req, res) => {
   const result = await requestRefund(req.companyId, req.user.userId, req.body)
   res.status(result.httpStatus).json(result.body)
 }))
-router.post('/manual-refunds', requireRole('OWNER', 'MANAGER'), async (req: any, res) => {
+router.post('/manual-refunds', requireCapabilities('refunds.declare'), async (req: any, res) => {
   res.set('Cache-Control', 'private, no-store')
   try {
     const result = await declareManualRefund(req.companyId, req.user.userId, req.body)
@@ -64,21 +65,22 @@ router.post('/manual-refunds', requireRole('OWNER', 'MANAGER'), async (req: any,
   } catch (error) {
     // Contrat local à cette déclaration : ne jamais élargir les refus PayPal.
     if (error instanceof ManualRefundNotRecordedError) return res.status(409).json({ error: error.message, ...error.proof })
+    if (error instanceof BusinessPermissionError) return res.status(403).json({ error: error.message })
     if (error instanceof z.ZodError) return res.status(400).json({ error: 'Demande de paiement invalide.' })
     if (error instanceof PaymentError) return res.status(error.status).json({ error: error.message })
     return res.status(503).json({ error: 'Résultat non confirmé. Conservez la référence et vérifiez avant de recommencer.' })
   }
 })
-router.get('/manual-refunds', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+router.get('/manual-refunds', requireCapabilities('refunds.declare'), wrap(async (req, res) => {
   const where = { companyId: req.companyId, ...(typeof req.query.creditNoteId === 'string' ? { creditNoteId: req.query.creditNoteId } : {}) }
   res.set('Cache-Control', 'private, no-store').json((await prisma.manualRefund.findMany({ where, orderBy: { createdAt: 'desc' }, take: 200 })).map(manualRefundDto))
 }))
-router.get('/manual-refunds/:id/receipt', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+router.get('/manual-refunds/:id/receipt', requireCapabilities('refunds.declare'), wrap(async (req, res) => {
   const refund = await prisma.manualRefund.findFirst({ where: { companyId: req.companyId, id: req.params.id } })
   if (!refund) throw new PaymentError(404, 'Déclaration introuvable.')
   res.set('Cache-Control', 'private, no-store').type('html').send(manualRefundReceipt(refund))
 }))
-router.get('/manual-tenders', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+router.get('/manual-tenders', requireCapabilities('refunds.declare'), wrap(async (req, res) => {
   const invoiceId = z.string().min(1).max(200).parse(req.query.invoiceId)
   const invoice = await prisma.invoice.findFirst({ where: { companyId: req.companyId, id: invoiceId }, include: { sourcePosSale: true } })
   if (!invoice) throw new PaymentError(404, 'Facture introuvable.')
@@ -87,20 +89,20 @@ router.get('/manual-tenders', requireRole('OWNER', 'MANAGER'), wrap(async (req, 
   res.set('Cache-Control', 'private, no-store').json(tenders.map(t => ({ id: t.id, orderId: t.orderId, method: t.method, amountCents: t.amountCents,
     availableCents: t.amountCents - t.manualRefunds.reduce((n, r) => n + r.amountCents, 0) })))
 }))
-router.post('/refunds/:id/reconcile', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => res.json(await reconcileRefund(req.companyId, req.params.id, req.user.userId))))
-router.post('/refunds/:id/review', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => res.json(await reviewRefund(req.companyId, req.user.userId, req.params.id, req.body))))
-router.get('/refunds/:id/history', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+router.post('/refunds/:id/reconcile', requireCapabilities('refunds.declare'), wrap(async (req, res) => res.json(await reconcileRefund(req.companyId, req.params.id, req.user.userId))))
+router.post('/refunds/:id/review', requireCapabilities('refunds.declare'), wrap(async (req, res) => res.json(await reviewRefund(req.companyId, req.user.userId, req.params.id, req.body))))
+router.get('/refunds/:id/history', requireCapabilities('refunds.declare'), wrap(async (req, res) => {
   if (!await prisma.refundAttempt.findFirst({ where: { companyId: req.companyId, id: req.params.id }, select: { id: true } })) throw new PaymentError(404, 'Remboursement introuvable.')
   const rows = await prisma.refundReviewEvent.findMany({ where: { companyId: req.companyId, refundId: req.params.id }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: 1001,
     select: { id: true, actorId: true, action: true, snapshot: true, createdAt: true } })
   if (rows.length > 1000) throw new PaymentError(409, 'Historique trop large : pagination nécessaire. Aucune preuve tronquée.')
   res.set('Cache-Control', 'private, no-store').json(rows)
 }))
-router.get('/refunds', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+router.get('/refunds', requireCapabilities('refunds.declare'), wrap(async (req, res) => {
   const where = { companyId: req.companyId, ...(typeof req.query.creditNoteId === 'string' ? { creditNoteId: req.query.creditNoteId } : {}) }
   res.set('Cache-Control', 'private, no-store').json((await prisma.refundAttempt.findMany({ where, orderBy: { createdAt: 'desc' }, take: 200 })).map(refundDto))
 }))
-router.get('/settlements', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+router.get('/settlements', requireCapabilities('finance.revenue.read'), wrap(async (req, res) => {
   const { invoiceId } = z.object({ invoiceId: z.string().min(1).max(200) }).parse(req.query)
   const invoice = await prisma.invoice.findFirst({ where: { companyId: req.companyId, id: invoiceId }, include: { sourcePosSale: true } })
   if (!invoice) throw new PaymentError(404, 'Facture introuvable.')

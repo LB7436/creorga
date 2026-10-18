@@ -148,6 +148,34 @@ describe('requireCompany — adhésion vérifiée (correctif IDOR x-company-id)'
     expect(req.companyId).toBe('societe-a')
     expect(req.role).toBe('MANAGER')
   })
+
+  it('publie des capacités effectives limitées sans CA pour un employé', async () => {
+    const { req, res, next } = makeCtx()
+    req.headers['x-company-id'] = 'societe-a'
+    findFirst.mockResolvedValue({ userId: 'user-lambda', companyId: 'societe-a', role: 'EMPLOYEE',
+      isActive: true, capabilities: {}, company: { id: 'societe-a' } })
+    await requireCompany(req, res, next)
+    expect(next).toHaveBeenCalledOnce()
+    expect(req.businessAccess?.capabilities).toContain('hr.schedule.read')
+    expect(req.businessAccess?.capabilities).not.toContain('finance.revenue.read')
+    expect(req.businessAccess?.capabilities).not.toContain('payments.receive')
+  })
+
+  it('refuse le CA par URL directe avant le routeur et relit une révocation de droit', async () => {
+    const member = { userId: 'user-lambda', companyId: 'societe-a', role: 'EMPLOYEE', isActive: true,
+      capabilities: { 'finance.revenue.read': true }, company: { id: 'societe-a' } }
+    findFirst.mockResolvedValue(member)
+    const allowed = makeCtx()
+    Object.assign(allowed.req, { method: 'GET', originalUrl: '/api/stats/today', headers: { 'x-company-id': 'societe-a' } })
+    await requireCompany(allowed.req, allowed.res, allowed.next)
+    expect(allowed.next).toHaveBeenCalledOnce()
+    findFirst.mockResolvedValue({ ...member, capabilities: { 'finance.revenue.read': false } })
+    const denied = makeCtx()
+    Object.assign(denied.req, { method: 'GET', originalUrl: '/api/stats/today', headers: { 'x-company-id': 'societe-a' } })
+    await requireCompany(denied.req, denied.res, denied.next)
+    expect(denied.res.statusCode).toBe(403)
+    expect(denied.next).not.toHaveBeenCalled()
+  })
 })
 
 describe('requireCompany — requêtes sans utilisateur (deviceOrUserAuth)', () => {

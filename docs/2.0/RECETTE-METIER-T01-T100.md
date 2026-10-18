@@ -1,5 +1,23 @@
 # Recette métier T01–T100 — fiabilité du profil métier
 
+## Droits fins et Robi — état du 18 octobre
+
+La matrice globale reste **55 PASS / 0 FAIL / 44 BLOCKED / 1 NOT RUN**, T100 partiel.
+[Complément D01–D22](T100-DROITS-2026-10-18.md) : contrôles UI/HTTP/PG distincts,
+cinq profils internes réellement connectés par société mais pas de recette complète
+des six profils. Les ACL fines sont maintenant implémentées et des lectures Robi
+locales sont rejouées ; les anciens blocs « droits absents / Robi503 » restent
+historiques, pas la situation de tous les chemins actuels. Fournisseur réel,
+téléchargements en octets et panne/abandon HTTP restent non qualifiés. Deux cycles
+d'arrêt/reprise contrôlés avec Chrome ouvert passent ; stock et refus relus,
+mais pas double clic natif Windows ni panne électrique. Validation finale du code :
+1183unitaires/348PG/47fixtures locales, deux compilations5applications ; ces
+tests ne promeuvent aucun scénario métier global non exécuté.
+[Rapport et limites](DROITS-FINS-ROBI-RECETTE-2026-10-18.md),
+[preuves exécutées](preuves/droits-robi-validation-2026-10-18.json).
+**Campagne NON LIVRÉE ; pilote NON QUALIFIÉ**, aucune promotion de scénario global
+fondée uniquement sur la suite technique, aucune durée de cinq heures inventée.
+
 ## Campagne intensive après 475f67a — en cours, 17 octobre
 
 ### Complément après rejoués du 17 octobre, fin de copie 19:31:36 UTC

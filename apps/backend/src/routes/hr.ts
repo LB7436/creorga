@@ -2,17 +2,19 @@ import { Router, type Response } from 'express'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
 import { emailConfigured, emailTemplates, planningShiftLabels, sendEmail } from '../lib/email'
-import { requireRole } from '../middleware/requireCompany'
+import { accessFor, hasCapability } from '../lib/business-permissions'
+import { assertTransactionCapabilities, BusinessPermissionError, requireCapabilities } from '../lib/business-permission-transaction'
 import { withShiftSlot, ShiftConflict, validateShiftTimes } from '../lib/shift-slot'
 
 const router = Router()
 
 function canManageTeam(req: any) {
-  return req.role === 'OWNER' || req.role === 'MANAGER'
+  return hasCapability(req, 'hr.manage')
 }
+function canManageSchedule(req: any) { return hasCapability(req, 'hr.schedule.manage') }
 
-function requestedUserAllowed(req: any, userId: unknown) {
-  return canManageTeam(req) || String(userId || '') === req.user?.userId
+function requestedUserAllowed(req: any, userId: unknown, schedule = false) {
+  return (schedule ? canManageSchedule(req) : canManageTeam(req)) || String(userId || '') === req.user?.userId
 }
 
 /** Lire uniquement le marqueur métier existant, jamais publier les notes libres. */
@@ -27,9 +29,9 @@ router.get('/shifts', async (req: any, res: Response) => {
   try {
     const { userId, startDate, endDate } = req.query
     const where: any = { companyId: req.companyId }
-    if (!canManageTeam(req)) where.userId = req.user.userId
+    if (!canManageSchedule(req)) where.userId = req.user.userId
     if (userId) where.userId = userId
-    if (!requestedUserAllowed(req, where.userId)) return res.status(403).json({ message: 'Accès limité à votre propre planning' })
+    if (!requestedUserAllowed(req, where.userId, true)) return res.status(403).json({ message: 'Accès limité à votre propre planning' })
     if (startDate || endDate) {
       where.startTime = {}
       if (startDate) where.startTime.gte = new Date(startDate as string)
@@ -49,7 +51,7 @@ router.get('/shifts', async (req: any, res: Response) => {
 
 router.post('/shifts', async (req: any, res: Response) => {
   try {
-    if (!canManageTeam(req)) return res.status(403).json({ message: 'Accès réservé aux responsables' })
+    if (!canManageSchedule(req)) return res.status(403).json({ message: 'Accès réservé aux responsables du planning' })
     const { userId, role, startTime, endTime, breakMinutes, notes } = req.body
 
     // Champs obligatoires côté schéma : sans ces contrôles, une requête
@@ -82,7 +84,9 @@ router.post('/shifts', async (req: any, res: Response) => {
     }
 
     if (!validateShiftTimes(début, fin, breakMinutes ?? 0)) return res.status(400).json({ message: 'Horaires ou durée de pause invalides.' })
-    const shift = await withShiftSlot(req.companyId, userId, début, fin, undefined, (tx) => tx.shift.create({
+    const shift = await withShiftSlot(req.companyId, userId, début, fin, undefined, async (tx) => {
+      await assertTransactionCapabilities(tx, req, 'hr.schedule.manage')
+      return tx.shift.create({
       data: {
         companyId: req.companyId,
         userId,
@@ -93,9 +97,10 @@ router.post('/shifts', async (req: any, res: Response) => {
         notes: notes || null,
       },
       include: { user: { select: { id: true, firstName: true, lastName: true } } },
-    }))
+    }) })
     res.status(201).json(shift)
   } catch (error) {
+    if (error instanceof BusinessPermissionError) return res.status(403).json({ message: error.message })
     if (error instanceof ShiftConflict) return res.status(409).json({ message: error.message, code: 'SHIFT_OVERLAP' })
     logger.error('Erreur POST /shifts:', error)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -104,7 +109,7 @@ router.post('/shifts', async (req: any, res: Response) => {
 
 router.put('/shifts/:id', async (req: any, res: Response) => {
   try {
-    if (!canManageTeam(req)) return res.status(403).json({ message: 'Accès réservé aux responsables' })
+    if (!canManageSchedule(req)) return res.status(403).json({ message: 'Accès réservé aux responsables du planning' })
     const existing = await prisma.shift.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Shift non trouvé' }); return }
     const { role, startTime, endTime, breakMinutes, notes, status } = req.body
@@ -112,7 +117,9 @@ router.put('/shifts/:id', async (req: any, res: Response) => {
     const fin = endTime === undefined ? existing.endTime : new Date(endTime)
     if (!validateShiftTimes(début, fin, breakMinutes ?? existing.breakMinutes)) return res.status(400).json({ message: 'Horaires ou durée de pause invalides.' })
     if (status !== undefined && !['SCHEDULED', 'CONFIRMED', 'COMPLETED'].includes(status)) return res.status(400).json({ message: 'Statut de planning invalide.' })
-    const shift = await withShiftSlot(req.companyId, existing.userId, début, fin, existing.id, (tx) => tx.shift.update({
+    const shift = await withShiftSlot(req.companyId, existing.userId, début, fin, existing.id, async (tx) => {
+      await assertTransactionCapabilities(tx, req, 'hr.schedule.manage')
+      return tx.shift.update({
       where: { id: req.params.id },
       data: {
         role: role ?? existing.role,
@@ -122,9 +129,10 @@ router.put('/shifts/:id', async (req: any, res: Response) => {
         notes: notes ?? existing.notes,
         status: status ?? existing.status,
       },
-    }))
+    }) })
     res.json(shift)
   } catch (error) {
+    if (error instanceof BusinessPermissionError) return res.status(403).json({ message: error.message })
     if (error instanceof ShiftConflict) return res.status(409).json({ message: error.message, code: 'SHIFT_OVERLAP' })
     logger.error('Erreur PUT /shifts/:id:', error)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -133,7 +141,7 @@ router.put('/shifts/:id', async (req: any, res: Response) => {
 
 router.delete('/shifts/:id', async (req: any, res: Response) => {
   try {
-    if (!canManageTeam(req)) return res.status(403).json({ message: 'Accès réservé aux responsables' })
+    if (!canManageSchedule(req)) return res.status(403).json({ message: 'Accès réservé aux responsables du planning' })
     const existing = await prisma.shift.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Shift non trouvé' }); return }
     await prisma.shift.delete({ where: { id: req.params.id } })
@@ -146,7 +154,7 @@ router.delete('/shifts/:id', async (req: any, res: Response) => {
 
 // ─── PUBLICATION DU PLANNING ─────────────────────────
 
-router.post('/planning/publish', requireRole('OWNER', 'MANAGER'), async (req: any, res: Response) => {
+router.post('/planning/publish', requireCapabilities('hr.schedule.manage'), async (req: any, res: Response) => {
   try {
     const début = new Date(req.body?.startDate)
     const fin = new Date(req.body?.endDate)
@@ -258,8 +266,8 @@ async function mutateTimePunch(req: any, userId: string, direction: 'in' | 'out'
   return prisma.$transaction(async tx => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'creorga:time-punch:' + companyId}), hashtext(${userId}))`
     // L'attente du verrou peut dépasser une révocation : ne pas croire l'ancien req.role.
-    const actor = actorId ? await tx.userCompany.findFirst({ where: { companyId, userId: actorId, isActive: true }, select: { userId: true, role: true } }) : null
-    if (!actor || !requestedUserAllowed({ role: actor.role, user: { userId: actorId } }, userId)) {
+    const actor = actorId ? await tx.userCompany.findFirst({ where: { companyId, userId: actorId, isActive: true }, select: { userId: true, role: true, capabilities: true, accessVersion: true } }) : null
+    if (!actor || !requestedUserAllowed({ role: actor.role, businessAccess: accessFor({ ...actor, companyId }), user: { userId: actorId } }, userId)) {
       return { status: 403, body: { message: 'Accès au pointage refusé : vérifiez votre adhésion et vos droits actuels.' } }
     }
     const member = actorId === userId ? actor : await tx.userCompany.findFirst({ where: { companyId, userId, isActive: true }, select: { userId: true } })

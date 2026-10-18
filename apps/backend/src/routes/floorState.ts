@@ -8,7 +8,10 @@ import { floorSchema, protectedFloorFieldsChanged, MAX_FLOOR_TABLES } from '../l
 import prisma from '../lib/prisma'
 import { canonicalizeFloorPricing, PosPricingError, type LineQuote, type PricingProduct } from '../lib/pos-pricing'
 import type { Prisma } from '@prisma/client'
-import { loadFloorWorkspace, saveFloorWorkspace, postgresFloorEnabled, floorHash, WorkspaceError } from '../lib/floor-workspace'
+import { loadFloorWorkspace, saveFloorWorkspace, postgresFloorEnabled, floorHash, WorkspaceError, type FloorWorkspaceRequest } from '../lib/floor-workspace'
+import { hasCapability } from '../lib/business-permissions'
+import { BusinessPermissionError } from '../lib/business-permission-transaction'
+import { loadFloorBusinessProjection } from '../lib/floor-business-projection'
 
 /**
  * Shared floor state — used by both 5174 (/pos/floor) and 5175 (POS standalone).
@@ -108,7 +111,8 @@ const DEFAULT_STATE: FloorState = {
 }
 
 const FICHIER_HISTORIQUE = 'floor-state.json'
-interface FloorContext { companyId: string; original?: FloorState; draft?: FloorState; pricingProducts?: PricingProduct[]; serverQuotes?: Record<string, LineQuote>; paymentLock?: symbol; postgres?: boolean; pgWritten?: boolean }
+const FLOOR_AUTHORITY_REQUIRED = { error: 'Cette salle sur fichier est en lecture seule. Activez son autorité PostgreSQL pour enregistrer des modifications ; le plan existant reste conservé.', code: 'FLOOR_AUTHORITY_REQUIRED' }
+interface FloorContext { companyId: string; request: FloorWorkspaceRequest; original?: FloorState; draft?: FloorState; pricingProducts?: PricingProduct[]; serverQuotes?: Record<string, LineQuote>; paymentLock?: symbol; postgres?: boolean; pgWritten?: boolean }
 const floorContext = new AsyncLocalStorage<FloorContext>()
 const paymentLocks = new Map<string, symbol>()
 
@@ -251,7 +255,7 @@ export async function commitCurrentFloor(tx: Prisma.TransactionClient, actorId: 
   const draft = context.draft
   canonicalizeFloorPricing(context.original, draft, context.pricingProducts, Date.now(), context.serverQuotes)
   draft.updatedAt = Math.max(Date.now(), context.original.updatedAt + 1)
-  await saveFloorWorkspace(tx, context.companyId, context.original, draft, actorId, action)
+  await saveFloorWorkspace(tx, context.companyId, context.original, draft, actorId, action, context.request)
   context.pgWritten = true
 }
 
@@ -278,11 +282,36 @@ function floorContextFromMemory(req: Request, res: Response, next: NextFunction)
     res.status(503).json({ error: 'Le plan enregistré ne peut pas être chargé. Une vérification et une récupération des données sont nécessaires avant de continuer.', code: 'FLOOR_STORAGE_UNAVAILABLE', recoveryAvailable: error.recoveryAvailable })
     return
   }
-  const context: FloorContext = { companyId, postgres: postgresFloorEnabled() }
+  const postgres = postgresFloorEnabled()
+  // POS/assistant peuvent écrire leur registre SQL avant res.json : en mode
+  // fichier, les refuser avant le gestionnaire évite un commit métier partiel.
+  if (!postgres && MUTATING.has(req.method) && /^\/api\//i.test(req.originalUrl) && !/^\/api\/floor-state(?:\/|\?|$)/i.test(req.originalUrl)) {
+    res.status(503).json(FLOOR_AUTHORITY_REQUIRED)
+    return
+  }
+  const context: FloorContext = { companyId, request: req as unknown as FloorWorkspaceRequest, postgres }
+  const originalJson = res.json.bind(res)
+  const sendBody = (body: any): Response => {
+    if (res.statusCode >= 400 || hasCapability(req as any, 'finance.revenue.read')) return originalJson(body)
+    const direct = body && Array.isArray(body.tables) && Array.isArray(body.chairs)
+    const nested = body?.state && Array.isArray(body.state.tables) && Array.isArray(body.state.chairs)
+    if (!direct && !nested) return originalJson(body)
+    // Appelé après sauvegarde/commit : updatedAt et les nouveaux devis sont
+    // ceux réellement confirmés, pas ceux d'une projection calculée en avance.
+    void loadFloorBusinessProjection(prisma, companyId, direct ? body : body.state).then(projected => {
+      const pricingReply = direct && /\/pos\/(?:draft|pricing\/[^/]+\/review)(?:\?|$)/.test(req.originalUrl)
+      originalJson(pricingReply ? { updatedAt: projected.updatedAt, posPricing: projected.posPricing, lineOrigins: projected.lineOrigins }
+        : direct ? projected : { ...body, state: projected })
+    }).catch(() => {
+      res.status(503)
+      originalJson({ error: 'Projection métier indisponible. Conservez votre référence et rechargez les données serveur.', code: 'FLOOR_PROJECTION_UNAVAILABLE' })
+    })
+    return res
+  }
+  res.json = sendBody
   if (MUTATING.has(req.method)) {
     context.original = original
     context.draft = structuredClone(original)
-    const originalJson = res.json.bind(res)
     const publishPostgres = () => {
       const draft = context.draft!
       states.set(companyId, draft)
@@ -293,7 +322,7 @@ function floorContextFromMemory(req: Request, res: Response, next: NextFunction)
     }
     res.json = (body: any) => {
       const draft = context.draft!
-      if (context.pgWritten && res.statusCode < 400) { publishPostgres(); return originalJson(body) }
+      if (context.pgWritten && res.statusCode < 400) { publishPostgres(); return sendBody(body) }
       const changed = JSON.stringify(draft) !== JSON.stringify(original)
       if (res.statusCode < 400 && changed) {
         if (req.baseUrl === '/api/floor-state') {
@@ -330,25 +359,17 @@ function floorContextFromMemory(req: Request, res: Response, next: NextFunction)
         }
         draft.updatedAt = Math.max(Date.now(), original.updatedAt + 1)
         if (context.postgres) {
-          void prisma.$transaction(tx => saveFloorWorkspace(tx, companyId, original, draft, (req as any).user?.userId || 'device', `${req.method} ${req.baseUrl}${req.path}`), { maxWait: 15000, timeout: 10000 })
-            .then(() => { publishPostgres(); originalJson(body) })
-            .catch(error => { res.status(error instanceof WorkspaceError ? error.status : 503); originalJson({ error: error instanceof WorkspaceError ? error.message : 'Enregistrement PostgreSQL non confirmé. Conservez le brouillon et rechargez.', code: 'FLOOR_DATABASE_SAVE_FAILED' }) })
+          void prisma.$transaction(tx => saveFloorWorkspace(tx, companyId, original, draft, (req as any).user?.userId || 'device', `${req.method} ${req.baseUrl}${req.path}`, context.request), { maxWait: 15000, timeout: 10000 })
+            .then(() => { publishPostgres(); sendBody(body) })
+            .catch(error => { const known = error instanceof WorkspaceError || error instanceof BusinessPermissionError; res.status(known ? error.status : 503); originalJson({ error: known ? error.message : 'Enregistrement PostgreSQL non confirmé. Conservez le brouillon et rechargez.', code: error instanceof BusinessPermissionError ? 'CAPABILITY_REQUIRED' : 'FLOOR_DATABASE_SAVE_FAILED' }) })
           return res
         }
-        try {
-          safeWriteJson(dataPath(companyFloorFilename(companyId)), draft)
-        } catch (err) {
-          logger.error('[floor-state] Enregistrement refusé, état précédent conservé', err)
-          res.status(503)
-          return originalJson({ error: 'Le plan n’a pas été enregistré. Vos dernières données sauvegardées sont conservées.', code: 'FLOOR_SAVE_FAILED' })
-        }
-        states.set(companyId, draft)
-        try {
-          const broadcast = (globalThis as any).liveBroadcast
-          if (typeof broadcast === 'function') broadcast(`floor-${companyId}`, 'floor-updated', { companyId, updatedAt: draft.updatedAt })
-        } catch { /* L'écriture est déjà confirmée ; notification facultative. */ }
+        // Un fichier ne peut partager le commit/verrou de l'adhésion en base.
+        // Conserver sa lecture sans confirmer une écriture aux droits périmés.
+        res.status(503)
+        return originalJson(FLOOR_AUTHORITY_REQUIRED)
       }
-      return originalJson(body)
+      return sendBody(body)
     }
   }
   floorContext.run(context, next)
@@ -378,12 +399,25 @@ router.use((req, res, next) => {
   const layoutAction = ['PUT', 'PATCH'].includes(req.method) && req.path === '/'
     || /^\/(zones|photos|background|ai-generate|reset)(\/|$)/.test(req.path)
     || /^\/tables$/.test(req.path) || /^\/tables\/[^/]+(\/position)?$/.test(req.path)
-  if (MUTATING.has(req.method) && layoutAction && !['OWNER', 'MANAGER'].includes((req as any).role)) return res.status(403).json({ error: 'La configuration des salles est réservée aux responsables.' })
+  if (MUTATING.has(req.method) && layoutAction && !hasCapability(req as any, 'settings.manage')) return res.status(403).json({ error: 'La configuration des salles nécessite settings.manage.' })
+  if (req.method === 'DELETE' && /^\/chairs\/[^/]+\/items\/[^/]+$/.test(req.path) && !hasCapability(req as any, 'orders.cancel')) return res.status(403).json({ error: 'Annuler une ligne nécessite orders.cancel.' })
   if (['PUT', 'PATCH'].includes(req.method) && req.path === '/') {
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Plan invalide.' })
-    if (protectedFloorFieldsChanged(getFloorState(), req.body)) return res.status(400).json({ error: 'Les règlements et la préparation cuisine ne peuvent pas être modifiés par un import de plan.' })
     if (!req.get('If-Match')) return res.status(428).json({ error: 'Rechargez le plan avant de le remplacer.' })
-    if (Array.isArray(req.body.tables)) req.body.tables = req.body.tables.map((t: any) => ({ ...t, posCovers: (getFloorState().tables.find(old => old.id === t.id) as any)?.posCovers }))
+    const original = getFloorState()
+    void (async () => {
+      const visible = hasCapability(req as any, 'finance.revenue.read') ? original : await loadFloorBusinessProjection(prisma, (req as any).companyId, original)
+      if (protectedFloorFieldsChanged(visible, req.body)) return void res.status(400).json({ error: 'Les règlements et la préparation cuisine ne peuvent pas être modifiés par un import de plan.' })
+      // Un aller-retour du DTO filtré n'efface jamais les registres privés.
+      for (const key of ['posEditor', 'kitchenTickets', 'kitchenBaselines', 'lineOrigins', 'posPricing']) delete req.body[key]
+      if (Array.isArray(req.body.tables)) req.body.tables = req.body.tables.map((table: any) => {
+        const old: any = original.tables.find(entry => entry.id === table.id)
+        return { ...table, items: old?.items || [], posCovers: old?.posCovers }
+      })
+      if (Array.isArray(req.body.chairs)) req.body.chairs = req.body.chairs.map((chair: any) => ({ ...chair, items: original.chairs.find(entry => entry.id === chair.id)?.items || [] }))
+      next()
+    })().catch(() => res.status(503).json({ error: 'Projection métier indisponible. Aucun remplacement de plan confirmé.' }))
+    return
   }
   next()
 })

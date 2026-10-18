@@ -4,7 +4,7 @@ import logger from '../lib/logger'
 import { createAvecNumero, NumerotationIndisponibleError } from '../lib/numerotation'
 import { invoicePdf } from '../lib/invoice-pdf'
 import { invoiceTransitionAllowed } from '../lib/invoice-status'
-import { requireRole } from '../middleware/requireCompany'
+import { requireCapabilities } from '../lib/business-permission-transaction'
 import { createHash } from 'node:crypto'
 import { totalsFromHt } from '../lib/money'
 import { invoiceDocument, DocumentValidationError } from '../lib/document-model'
@@ -16,8 +16,7 @@ import { createInvoiceDocumentLink, listInvoiceDocumentLinks, revokeInvoiceDocum
 
 const router = Router()
 router.use((req, res, next) => {
-  if (['GET', 'HEAD'].includes(req.method)) return next()
-  return requireRole('OWNER', 'MANAGER')(req, res, next)
+  return requireCapabilities(['GET', 'HEAD'].includes(req.method) ? 'invoices.read' : 'invoices.write')(req, res, next)
 })
 class QuoteConflict extends Error {}
 
@@ -76,7 +75,7 @@ const documentLinkFailure = (error: unknown, res: Response) => {
   if (error instanceof DocumentLinkError) return res.status(error.status).json({ message: error.message })
   return res.status(503).json({ message: 'Opération documentaire non confirmée. Reprenez avec la même référence.' })
 }
-router.get('/:id/document-links', requireRole('OWNER', 'MANAGER'), async (req: any, res) => {
+router.get('/:id/document-links', requireCapabilities('invoices.read', 'exports.read'), async (req: any, res) => {
   try { return res.set('Cache-Control', 'private, no-store').json(await listInvoiceDocumentLinks(req.companyId, req.user.userId, req.params.id)) }
   catch (error) { return documentLinkFailure(error, res) }
 })
@@ -285,13 +284,13 @@ router.post('/:id/credit-notes', async (req: any, res) => {
     res.status(503).json({ message: 'Émission non confirmée. Réessayez la même référence avant toute nouvelle demande.' })
   }
 })
-router.get('/:id/credit-notes', requireRole('OWNER', 'MANAGER'), async (req: any, res) => {
+router.get('/:id/credit-notes', requireCapabilities('invoices.read'), async (req: any, res) => {
   try {
     if (!await prisma.invoice.findFirst({ where: { id: req.params.id, companyId: req.companyId } })) return res.status(404).json({ message: 'Facture introuvable.' })
     res.set('Cache-Control', 'private, no-store').json((await prisma.creditNote.findMany({ where: { invoiceId: req.params.id, companyId: req.companyId }, orderBy: { createdAt: 'asc' } })).map(creditDto))
   } catch { res.status(503).json({ message: 'Avoirs indisponibles.' }) }
 })
-router.get('/credit-notes/:id/pdf', requireRole('OWNER', 'MANAGER'), async (req: any, res) => {
+router.get('/credit-notes/:id/pdf', requireCapabilities('invoices.read'), async (req: any, res) => {
   try {
     const credit = await prisma.creditNote.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!credit) return res.status(404).json({ message: 'Avoir introuvable.' })
@@ -302,7 +301,7 @@ router.get('/credit-notes/:id/pdf', requireRole('OWNER', 'MANAGER'), async (req:
   } catch { res.status(503).json({ message: 'PDF de l’avoir indisponible.' }) }
 })
 
-router.get('/pos-receipts', requireRole('OWNER', 'MANAGER'), async (req: any, res) => {
+router.get('/pos-receipts', requireCapabilities('invoices.read'), async (req: any, res) => {
   try {
     const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 100) : ''
     if (search && !/^\d+$/.test(search)) return res.status(400).json({ message: 'Recherchez par numéro de ticket.' })

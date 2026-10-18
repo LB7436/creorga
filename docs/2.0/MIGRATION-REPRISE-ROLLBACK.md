@@ -1,5 +1,51 @@
 # Reprise et retour arrière
 
+## Droits fins — 18 octobre 2026
+
+Base source `976b21a500f58d09fdca33616a9c243a66ae5161`, branche2.0 exclusivement.
+Migration additive `20261017220500_business_capabilities` : variantes JSON et version
+sur UserCompany, journal BusinessPermissionEvent avec FK/index/contrôles. Appliquée
+uniquement aux bases fictives creorga_local/creorga_tests127.0.0.1:5450. Aucun seed,
+reset, changement de vente/document/règlement historique ou suppression de profil.
+
+Copie cohérente finale après les deux cycles d'arrêt/reprise du18octobre : archivev2
+avec dump natif,AES-GCM,clé séparée,restauration dans une nouvelle base ; **82tables/
+18997lignes/14fichiers/26PDF/8événements de droits**, empreintes égales
+à09:47:14.564UTC,23,954s cache chaud(nonRTO). Archive SHA
+`f88bf3e0048876104b7575375d5d62f17b625d9dfd5a164538be6fcb2c91efee`.
+[Preuves](preuves/droits-robi-validation-2026-10-18.json). Les copies précédentes,
+27dumps récupérés et archives originales restent intactes. Pas27restaurations.
+
+Reprise sûre : conserver la source et l'archive originales, vérifier leurs SHA,
+restaurer base et fichiers d'un même instant dans **de nouvelles destinations**,
+comparer tables/lignes/PDF puis les droits et journaux, utiliser le lanceur officiel
+en profil métier, paiements et SMTP externes neutralisés. Le raccourci existant est
+préservé. Les deux derniers arrêts sont confirmés avec les trois onglets ouverts,
+PID absents et cinq ports libres. Ne jamais lancer aveuglément une deuxième instance
+après un arrêt ambigu : vérifier propriété, PID et ports via les diagnostics officiels.
+Le drain HTTP mémorise tout abandon prématuré horsEngineIO, même un GET antérieur
+à l'arrêt : cette instance ne confirme alors pas sa fermeture et ne déconnecte pas
+sa base. La levée de cette incertitude n'est pas qualifiée ; conserver les références
+et journaux, réconcilier les effets métier et demander une décision de reprise.
+Aucun arrêt forcé, délai augmenté, purge ou contournement Windows autorisé.
+
+Le correctif de drain et les projections d'inventaire n'ajoutent pas de migration
+ni ne transforment les ventes/ingrédients. Une connexion HTTP simultanément mixte
+EngineIO/métier ou un upgrade concurrent peut être refusé503 avant admission ;
+reprendre sur une connexion neuve en gardant la même référence idempotente pour
+une opération financière, pas une nouvelle vente de remplacement.
+
+Retour arrière logiciel : aucune migration DOWN/destruction implémentée ou exécutée.
+Les colonnes/tables de droits doivent être conservées ; revenir à un binaire qui
+ignore les capacités peut rouvrir le défaut CA EMPLOYEE. Préférer un correctif
+en avant ou une copie isolée avec accès fermés plutôt que réinstaller silencieusement
+l'ancienne version. Valider explicitement toute future transformation des droits.
+
+En autorité fichiers historique, mutations HTTP refusées503FLOOR_AUTHORITY_REQUIRED
+**avant** effet métier ; fichiers lisibles et préservés. Pas d'adoption automatique
+ni de migration historique implicite pour contourner le refus. Toute reprise de ces
+données demande inventaire, copie et qualification PG séparée.
+
 ## Fiabilité du profil métier — après f198c98
 
 Code/test du lot `23316e37547c46bb03176a63e3c7b16a1f082d2e`. Finalisation le

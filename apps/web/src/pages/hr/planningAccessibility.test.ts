@@ -36,6 +36,7 @@ beforeEach(() => {
   vi.stubGlobal('document', { body: {}, addEventListener() {}, removeEventListener() {} })
   useAuthStore.getState().setAuth({ accessToken: 'fixture-token', user: { id: 'planning-manager-fictif', email: 'planning-manager@fixture.invalid', firstName: 'Responsable', lastName: 'Fictif', avatar: null }, companies: [
     { id: 'planning-membership', userId: 'planning-manager-fictif', companyId: 'planning-company-fictive', role: 'MANAGER', isActive: true,
+      businessAccess: { role: 'MANAGER', capabilities: ['hr.self', 'hr.manage', 'hr.schedule.read', 'hr.schedule.manage', 'service.read'], revision: 'planning-manager-grants', version: 1 },
       company: { id: 'planning-company-fictive', name: 'Planning FICTIF', legalName: null, vatNumber: null, currency: 'EUR' } },
   ] })
   shifts = [shift()]; requests = []

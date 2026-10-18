@@ -4,3 +4,8 @@ export function isPublicLiveChannel(value: unknown, options = { gamesEnabled: tr
     && (options.gamesEnabled || !value.startsWith('games-'))
     && /^(?:games-[a-zA-Z0-9_-]{1,100}|floor-[a-zA-Z0-9_-]{1,100})$/.test(value)
 }
+
+/** Le navigateur devra relire l'API authentifiée : aucun contenu métier public. */
+export function publicFloorInvalidation() {
+  return { invalidated: true } as const
+}

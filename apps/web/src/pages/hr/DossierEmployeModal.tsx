@@ -6,6 +6,8 @@ import {
 } from 'lucide-react'
 import { fetchAuth } from '@/lib/fetchAuth'
 import { toastSuccess, toastError } from '@/lib/toast'
+import { useAuthStore } from '@/stores/authStore'
+import { authDataScope } from '@/lib/authScope'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -113,6 +115,19 @@ function poids(octets: number): string {
 }
 
 export default function DossierEmployeModal({ userCompanyId, onClose, onEnregistre }: Props) {
+  const scope = useAuthStore(authDataScope)
+  const access = useAuthStore(state => state.businessAccess)
+  const selfMembershipId = useAuthStore(state => state.companies.find(member => member.companyId === state.companyId && member.userId === state.user?.id)?.id)
+  const allowed = access?.capabilities.includes('hr.manage') || (access?.capabilities.includes('hr.self') && selfMembershipId === userCompanyId)
+  if (!allowed) return <section role="alert">Accès au dossier RH non autorisé ou en cours de vérification.<button type="button" onClick={onClose}>Fermer</button></section>
+  return <ScopedDossierEmployeModal key={`${scope}:${userCompanyId}`} scope={scope} userCompanyId={userCompanyId} onClose={onClose} onEnregistre={onEnregistre} />
+}
+
+function ScopedDossierEmployeModal({ userCompanyId, onClose, onEnregistre, scope }: Props & { scope: string }) {
+  const access = useAuthStore(state => state.businessAccess)
+  const mounted = useRef(true)
+  const isCurrent = () => mounted.current && scope === authDataScope(useAuthStore.getState())
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [onglet, setOnglet] = useState<Onglet>('fiche')
   const [canManage, setCanManage] = useState(false)
   const [employe, setEmploye] = useState<Employe | null>(null)
@@ -127,6 +142,7 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
   const [typeAjout, setTypeAjout] = useState('CONTRAT')
   const [periodeAjout, setPeriodeAjout] = useState('')
   const fichierRef = useRef<HTMLInputElement>(null)
+  const canWrite = () => canManage && isCurrent() && useAuthStore.getState().businessAccess?.capabilities.includes('hr.manage') === true
 
   // ─── Chargement du dossier ────────────────────────────────────────────
 
@@ -136,19 +152,21 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
       try {
         const r = await fetchAuth(`${BACKEND}/api/hr-dossier/employes/${userCompanyId}`)
         const corps = await r.json().catch(() => ({}))
+        if (!isCurrent()) return
         if (!r.ok) throw new Error(corps.message || `HTTP ${r.status}`)
+        const manage = access?.capabilities.includes('hr.manage') === true && corps.permissions?.canManage === true
         setEmploye(corps.employe)
-        setCanManage(corps.permissions?.canManage === true)
-        if (corps.permissions?.canManage !== true) setOnglet('documents')
-        setProfil(corps.profil ? { ...vide, ...corps.profil } : vide)
-        setNotes(corps.notes || [])
+        setCanManage(manage)
+        if (!manage) setOnglet('documents')
+        setProfil(manage && corps.profil ? { ...vide, ...corps.profil } : vide)
+        setNotes(manage ? corps.notes || [] : [])
         setDocuments(corps.documents || [])
-        setConges(corps.conges || [])
-        setShifts(corps.shifts || 0)
+        setConges(manage ? corps.conges || [] : [])
+        setShifts(manage ? corps.shifts || 0 : 0)
       } catch (e: any) {
-        toastError(`Dossier illisible : ${e.message}`)
+        if (isCurrent()) toastError(`Dossier illisible : ${e.message}`)
       } finally {
-        setChargement(false)
+        if (isCurrent()) setChargement(false)
       }
     }
     charger()
@@ -168,6 +186,7 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
   }
 
   const enregistrerFiche = async () => {
+    if (!canWrite()) return
     setEnregistrement(true)
     try {
       const r = await fetchAuth(`${BACKEND}/api/hr-dossier/employes/${userCompanyId}`, {
@@ -176,20 +195,22 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
         body: JSON.stringify(profil),
       })
       const corps = await r.json().catch(() => ({}))
+      if (!isCurrent()) return
       if (!r.ok) throw new Error(corps.message || `HTTP ${r.status}`)
       setProfil({ ...vide, ...corps })
       toastSuccess('Fiche enregistrée')
       onEnregistre?.()
     } catch (e: any) {
-      toastError(`Enregistrement impossible : ${e.message}`)
+      if (isCurrent()) toastError(`Enregistrement impossible : ${e.message}`)
     } finally {
-      setEnregistrement(false)
+      if (isCurrent()) setEnregistrement(false)
     }
   }
 
   // ─── Notes ────────────────────────────────────────────────────────────
 
   const ajouterNote = async () => {
+    if (!canWrite()) return
     const texte = nouvelleNote.trim()
     if (!texte) return
     try {
@@ -199,31 +220,35 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
         body: JSON.stringify({ texte }),
       })
       const corps = await r.json().catch(() => ({}))
+      if (!isCurrent()) return
       if (!r.ok) throw new Error(corps.message || `HTTP ${r.status}`)
       setNotes((n) => [corps, ...n])
       setNouvelleNote('')
       toastSuccess('Note ajoutée')
     } catch (e: any) {
-      toastError(`Note non enregistrée : ${e.message}`)
+      if (isCurrent()) toastError(`Note non enregistrée : ${e.message}`)
     }
   }
 
   const supprimerNote = async (id: string) => {
+    if (!canWrite()) return
     try {
       const r = await fetchAuth(`${BACKEND}/api/hr-dossier/notes/${id}`, { method: 'DELETE' })
+      if (!isCurrent()) return
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       setNotes((n) => n.filter((x) => x.id !== id))
       toastSuccess('Note supprimée')
     } catch (e: any) {
-      toastError(`Suppression impossible : ${e.message}`)
+      if (isCurrent()) toastError(`Suppression impossible : ${e.message}`)
     }
   }
 
   // ─── Documents ────────────────────────────────────────────────────────
 
   const televerser = async (fichiers: FileList | null) => {
-    if (!fichiers || !fichiers.length) return
+    if (!canWrite() || !fichiers || !fichiers.length) return
     for (const fichier of Array.from(fichiers)) {
+      if (!canWrite()) return
       try {
         const entetes: Record<string, string> = {
           'Content-Type': fichier.type || 'application/octet-stream',
@@ -237,21 +262,24 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
           method: 'POST', headers: entetes, body: fichier,
         })
         const corps = await r.json().catch(() => ({}))
+        if (!isCurrent()) return
         if (!r.ok) throw new Error(corps.message || `HTTP ${r.status}`)
         setDocuments((d) => [corps, ...d])
         toastSuccess(`${fichier.name} ajouté`)
       } catch (e: any) {
-        toastError(`${fichier.name} : ${e.message}`)
+        if (isCurrent()) toastError(`${fichier.name} : ${e.message}`)
       }
     }
     if (fichierRef.current) fichierRef.current.value = ''
   }
 
   const supprimerDocument = async (doc: Document) => {
+    if (!canWrite()) return
     if (!window.confirm(`Supprimer « ${doc.nom} » ? Cette pièce sera définitivement retirée du dossier.`)) return
     try {
       const r = await fetchAuth(`${BACKEND}/api/hr-dossier/documents/${doc.id}`, { method: 'DELETE' })
       const result = await r.json().catch(() => ({}))
+      if (!isCurrent()) return
       if (!r.ok) {
         if (result.status === 'deletion_pending') setDocuments(d => d.map(item => item.id === doc.id ? { ...item, deletedAt: new Date().toISOString() } : item))
         throw new Error(result.message || `HTTP ${r.status}`)
@@ -259,7 +287,7 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
       setDocuments((d) => d.filter((x) => x.id !== doc.id))
       toastSuccess('Document supprimé')
     } catch (e: any) {
-      toastError(`Suppression impossible : ${e.message}`)
+      if (isCurrent()) toastError(`Suppression impossible : ${e.message}`)
     }
   }
 
@@ -269,15 +297,17 @@ export default function DossierEmployeModal({ userCompanyId, onClose, onEnregist
    * puis créer une URL temporaire.
    */
   const ouvrirDocument = async (doc: Document) => {
+    if (!isCurrent() || !documents.some(value => value.id === doc.id && !value.deletedAt)) return
     try {
       const r = await fetchAuth(`${BACKEND}/api/hr-dossier/documents/${doc.id}/fichier`)
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       const blob = await r.blob()
+      if (!isCurrent()) return
       const url = URL.createObjectURL(blob)
       window.open(url, '_blank', 'noopener')
       setTimeout(() => URL.revokeObjectURL(url), 60_000)
     } catch (e: any) {
-      toastError(`Ouverture impossible : ${e.message}`)
+      if (isCurrent()) toastError(`Ouverture impossible : ${e.message}`)
     }
   }
 

@@ -35,9 +35,14 @@ function identify(userId = 'employe-fictif-a', activeCompany = 'societe-fictive-
   useAuthStore.getState().setAuth({ accessToken: 'fixture-' + userId,
     user: { id: userId, email: `${userId}@fixture.invalid`, firstName: 'Employé', lastName: userId.endsWith('a') ? 'FICTIF A' : 'FICTIF B', avatar: null },
     companies: ['societe-fictive-a', 'societe-fictive-b'].map(companyId => ({ id: `${userId}-${companyId}`, userId, companyId, role: 'EMPLOYEE', isActive: true,
+      businessAccess: { role: 'EMPLOYEE', capabilities: ['hr.self'], revision: `leave-${userId}-${companyId}`, version: 1 },
       company: { id: companyId, name: companyId, legalName: null, vatNumber: null, currency: 'EUR' } })),
   })
-  if (activeCompany !== 'societe-fictive-a') useAuthStore.getState().setActiveCompany(activeCompany)
+  if (activeCompany !== 'societe-fictive-a') { useAuthStore.getState().setActiveCompany(activeCompany); freshAccess(activeCompany) }
+}
+function freshAccess(companyId: string) {
+  const state = useAuthStore.getState()
+  state.setBusinessAccess({ role: 'EMPLOYEE', capabilities: ['hr.self'], revision: `leave-${state.user!.id}-${companyId}`, version: 1 }, companyId, state.user!.id)
 }
 beforeEach(() => {
   posts = []; requests = []; records = { 'societe-fictive-a': [], 'societe-fictive-b': [] }; outcome = 'ok'; failRefresh = false
@@ -158,7 +163,7 @@ describe('Congés : soumission unique et issue visible sans reprise silencieuse'
     await mount(); await fill('FICTIVE — ancienne identité')
     const staleSubmit = form().props.onSubmit, pending = await start()
     await act(async () => {
-      if (change === 'company') useAuthStore.getState().setActiveCompany('societe-fictive-b')
+      if (change === 'company') { useAuthStore.getState().setActiveCompany('societe-fictive-b'); freshAccess('societe-fictive-b') }
       else identify(change === 'user' ? 'employe-fictif-b' : 'employe-fictif-a')
     })
     expect(form().findAllByType('input').map(input => input.props.value)).toEqual(['', '', ''])

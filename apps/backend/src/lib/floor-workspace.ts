@@ -4,6 +4,11 @@ import prisma from './prisma'
 import { floorSchema } from './floor-validation'
 import { lockFinancialCompany } from './financial-lock'
 import { floorLines } from './pos-pricing'
+import { accessFor, CAPABILITIES, type BusinessAccess, type Capability } from './business-permissions'
+import { assertTransactionCapabilities, BusinessPermissionError } from './business-permission-transaction'
+import { routeCapabilities } from './business-route-policy'
+import { loadFloorBusinessProjection } from './floor-business-projection'
+import { identifierAppareil } from '../middleware/deviceAuth'
 
 export class WorkspaceError extends Error {
   constructor(public status: number, message: string) { super(message) }
@@ -96,8 +101,64 @@ function lineLocations(floor: any) {
   for (const chair of floor.chairs || []) for (const item of chair.items || []) result.set(item.id, { tableId: chair.tableId, chairId: chair.id, quantity: item.qty, productId: item.menuItemId || item.productId })
   return result
 }
-export async function saveFloorWorkspace(tx: Prisma.TransactionClient, companyId: string, before: any, draft: any, actorId: string, action: string) {
+export interface FloorWorkspaceRequest {
+  companyId: string
+  user?: { userId?: string }
+  device?: { type: string; companyId?: string }
+  businessAccess?: BusinessAccess
+  method: string
+  originalUrl: string
+  get(header: string): string | undefined
+}
+async function authorizeFloorSave(tx: Prisma.TransactionClient, companyId: string, before: any, draft: any, req: FloorWorkspaceRequest) {
+  if (!req || req.companyId !== companyId) throw new BusinessPermissionError()
+  // Une route inconnue ne bénéficie que de l'accès complet explicitement relu,
+  // jamais d'un ancien req.role. Les terminaux gardent leur politique distincte.
+  const policy = routeCapabilities(req.method, req.originalUrl) ?? [...CAPABILITIES]
+  let access: BusinessAccess
+  if (req.user?.userId) access = await assertTransactionCapabilities(tx, req, ...(Array.isArray(policy) ? policy : []))
+  else {
+    const device = req.device?.type === 'pos-terminal' && identifierAppareil(req.get('x-device-token'))
+    if (!device || device.companyId && device.companyId !== companyId || req.device?.companyId && req.device.companyId !== companyId) throw new BusinessPermissionError()
+    access = accessFor({ role: 'SERVER', companyId })
+    req.businessAccess = access
+  }
+  const permits = (capability: Capability) => access.capabilities.includes(capability)
+  if (!(Array.isArray(policy) ? policy.every(permits) : policy.any.some(permits))) throw new BusinessPermissionError()
+  const path = req.originalUrl.split('?')[0].replace(/\/+$/, '').toLowerCase()
+  const posDraft = path === '/api/pos/draft'
+  const floorRoute = path === '/api/floor-state' || path.startsWith('/api/floor-state/')
+  if (!posDraft && !floorRoute) return
+
+  const required = new Set<Capability>()
+  if (posDraft) {
+    const layout = (floor: any) => floor.tables.map((table: any) => [table.id, table.name, table.shape, table.seats, table.x, table.y, table.section])
+    if (floorHash(layout(before)) !== floorHash(layout(draft)) || floorHash(before.posEditor ?? null) !== floorHash(draft.posEditor ?? null)) required.add('settings.manage')
+    if (floorHash(before.posEditor?.scenes || []) !== floorHash(draft.posEditor?.scenes || [])) required.add('finance.revenue.read')
+  }
+  // Un import de géométrie peut aussi porter ces champs passthrough. Appliquer
+  // les mêmes droits aux gestes ajoutés, retirés ou remplacés que dans le POS.
+  for (const id of new Set([...before.tables, ...draft.tables].map((table: any) => table.id))) {
+    const previous = before.tables.find((table: any) => table.id === id), next = draft.tables.find((table: any) => table.id === id)
+    if (floorHash(previous?.orderDiscount || null) !== floorHash(next?.orderDiscount || null)) {
+      for (const discount of [previous?.orderDiscount, next?.orderDiscount].filter(Boolean)) required.add(discount.type === 'free' ? 'complimentary.grant' : 'discounts.grant')
+    }
+    if (floorHash(previous?.offeredItemIds || []) !== floorHash(next?.offeredItemIds || [])) required.add('complimentary.grant')
+  }
+  if (!permits('orders.cancel')) {
+    // Les miroirs payés/supersédés disparaissent normalement d'un aller-retour.
+    // Seules les quantités encore ouvertes exigent une autorisation d'annuler.
+    const active = await loadFloorBusinessProjection(tx, companyId, before)
+    const nextQuantities = new Map(floorLines(draft).map(item => [item.id, item.qty]))
+    if (floorLines(active).some(item => (nextQuantities.get(item.id) ?? 0) < item.qty)) required.add('orders.cancel')
+  }
+  if (![...required].every(permits)) throw new BusinessPermissionError()
+}
+export async function saveFloorWorkspace(tx: Prisma.TransactionClient, companyId: string, before: any, draft: any, actorId: string, action: string, req: FloorWorkspaceRequest) {
   await lockFinancialCompany(tx, companyId)
+  // Même ordre que les autres écritures métier : verrous métier, puis adhésion
+  // FOR SHARE. La révocation UPDATE attend ce verrou jusqu'au commit/rollback.
+  await authorizeFloorSave(tx, companyId, before, draft, req)
   checked(draft)
   if (new Set(floorLines(draft).map(i => i.id)).size !== floorLines(draft).length) throw new WorkspaceError(409, 'Une ligne ne peut appartenir à deux additions.')
   const previous = lineLocations(before), next = lineLocations(draft)

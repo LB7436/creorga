@@ -29,7 +29,7 @@ const call = (invoiceId: string, body: any, companyId = companyA, userId = owner
   .set('Authorization', 'Bearer ' + token(userId)).set('x-company-id', companyId).send(body)
 const input = (amountCents?: number) => ({ requestId: randomUUID(), reason: 'Correction commerciale FICTIVE', ...(amountCents === undefined ? {} : { amountCents }) })
 const rows = (invoiceId: string) => prisma.creditNote.findMany({ where: { invoiceId } })
-const noProof = (response: any) => { expect(response.body.code).toBeUndefined(); expect(response.body.outcome).toBeUndefined(); expect(response.body.requestId).toBeUndefined() }
+const noProof = (response: any) => { expect([undefined, 'CAPABILITY_REQUIRED']).toContain(response.body.code); expect(response.body.outcome).toBeUndefined(); expect(response.body.requestId).toBeUndefined() }
 async function issued(companyId = companyA) {
   const created = await request(app).post('/api/invoices').set('Authorization', 'Bearer ' + token()).set('x-company-id', companyId)
     .send({ items: [{ description: 'Café FICTIF', quantity: 1, unitPrice: 8.76, taxRate: 17 }] }).expect(201)

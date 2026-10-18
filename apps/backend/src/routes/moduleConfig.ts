@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { Router, type Request } from 'express'
 import { safeReadJson, safeWriteJson } from '../lib/safe-json'
 import { dataPath } from '../middleware/audit-log'
+import { hasCapability } from '../lib/business-permissions'
 
 /**
  * Préférences de modules du back-office.
@@ -93,8 +94,7 @@ function validPatch(value: unknown, partial = false): Partial<ModuleConfig> | nu
 const router = Router()
 
 function requireManager(req: Request, res: any): boolean {
-  const role = (req as any).role
-  if (role === 'OWNER' || role === 'MANAGER') return true
+  if (hasCapability(req as any, 'settings.manage')) return true
   res.status(403).json({ error: 'Accès réservé aux responsables' })
   return false
 }

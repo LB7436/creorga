@@ -5,6 +5,7 @@ import { lockFinancialCompany } from '../financial-lock'
 import { activeCashDrawerId } from '../cash-ledger'
 import { PaymentError } from './ledger'
 import { escapeHtml } from '../pos-ledger'
+import { assertTransactionCapabilities, BusinessPermissionError } from '../business-permission-transaction'
 
 type ManualRefundNotRecordedProof = {
   code: 'MANUAL_REFUND_AMOUNT_EXCEEDS_AVAILABLE'; outcome: 'NOT_RECORDED'; reservationPolicy: 'UNCHANGED'
@@ -25,6 +26,8 @@ export async function declareManualRefund(companyId: string, actorId: string, ra
   const hash = floorHash({ companyId, actorId, ...input })
   return prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, companyId)
+    try { await assertTransactionCapabilities(tx, { companyId, user: { userId: actorId } }, 'refunds.declare') }
+    catch (error) { if (error instanceof BusinessPermissionError) throw new PaymentError(403, error.message); throw error }
     const prior = await tx.manualRefund.findUnique({ where: { id: input.requestId } })
     if (prior) { if (prior.companyId !== companyId || prior.requestHash !== hash) throw new PaymentError(409, 'Référence de remboursement incompatible.'); return { created: false, refund: manualRefundDto(prior) } }
     const credit = await tx.creditNote.findFirst({ where: { companyId, id: input.creditNoteId }, include: { invoice: { include: { sourcePosSale: true } } } })

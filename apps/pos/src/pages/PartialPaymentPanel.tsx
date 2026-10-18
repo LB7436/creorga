@@ -3,6 +3,8 @@ import { type Cover, coverTotal } from '../store/posStore'
 import { payPartServer, type PartialResult } from '../lib/floorBridge'
 import { sessionCompany, sessionGeneration } from '../lib/server'
 import { moneyMinor } from '../../../backend/src/lib/money'
+import { BusinessGuard } from '../components/BusinessGuard'
+import { hasCapability } from '../lib/business-access'
 
 type Props = { tableId: string; covers: Cover[]; onDone: () => void }
 type Selection = { key: string; group: string; emptied: boolean }
@@ -15,7 +17,7 @@ export default function PartialPaymentPanel(props: Props) {
   const scope = scopeFor(props.tableId)
   // Une nouvelle table, société ou connexion ne reprend jamais le récapitulatif
   // ni les champs de saisie d'un ancien règlement.
-  return <PaymentForm key={scope} {...props} scope={scope} />
+  return <BusinessGuard capability="payments.receive"><PaymentForm key={scope} {...props} scope={scope} /></BusinessGuard>
 }
 
 function PaymentForm({ tableId, covers, onDone, scope }: Props & { scope: string }) {
@@ -48,6 +50,7 @@ function PaymentForm({ tableId, covers, onDone, scope }: Props & { scope: string
   const euros = (cents: number) => (cents / 100).toFixed(2) + ' €'
   const parse = (v: string) => { if (!/^\d+(?:[,.]\d{1,2})?$/.test(v)) throw new Error('Saisissez un montant avec au plus deux décimales.'); return moneyMinor(Number(v.replace(',', '.'))) }
   async function submit() {
+    if (!hasCapability('payments.receive')) { setError('La permission d’encaisser a été retirée. Les références en attente restent conservées.'); return }
     if (busy) return
     setBusy(true); setError('')
     const requested = selection

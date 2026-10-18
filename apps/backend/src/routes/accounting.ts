@@ -1,11 +1,13 @@
 import { Router, type Response } from 'express'
+import type { Prisma } from '@prisma/client'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
 import { z } from 'zod'
 import { validate } from '../middleware/validate'
-import { requireRole } from '../middleware/requireCompany'
+import { hasCapability } from '../lib/business-permissions'
+import { requireCapabilities } from '../lib/business-permission-transaction'
 import { moneyMinor, totalsFromTtc } from '../lib/money'
-import cashLedger from './cashLedger'
+import cashLedger, { visibleCashDrawer } from './cashLedger'
 import documentJournal, { journalPeriod } from './documentJournal'
 import financialReconciliation from './financialReconciliation'
 import bankPayouts from './bankPayouts'
@@ -17,20 +19,24 @@ router.use(documentJournal)
 router.use(financialReconciliation)
 router.use(bankPayouts)
 router.use('/expenses', (req, res, next) => {
-  if (['GET', 'HEAD'].includes(req.method)) return next()
-  return requireRole('OWNER', 'MANAGER')(req, res, next)
+  return requireCapabilities(...(['GET', 'HEAD'].includes(req.method) ? ['finance.costs.read' as const] : ['finance.manage' as const]))(req, res, next)
 })
 
 // ─── CASH DRAWERS ─────────────────────────────────────
 
 router.get('/cash-drawers', async (req: any, res: Response) => {
   try {
-    const drawers = await prisma.cashDrawer.findMany({
-      where: { companyId: req.companyId },
-      include: { user: { select: { id: true, firstName: true, lastName: true } } },
+    if (!hasCapability(req, 'cash.open') && !hasCapability(req, 'cash.close') && !hasCapability(req, 'finance.revenue.read')) return res.status(403).json({ message: 'Accès aux sessions de caisse refusé.' })
+    const query: Prisma.CashDrawerFindManyArgs = {
+      where: { companyId: req.companyId, ...(!hasCapability(req, 'finance.revenue.read') ? { closedAt: null } : {}) },
+      ...(hasCapability(req, 'finance.revenue.read')
+        ? { include: { user: { select: { id: true, firstName: true, lastName: true } } } }
+        : { select: { id: true, companyId: true, userId: true, user: { select: { id: true, firstName: true, lastName: true } },
+          openedAt: true, openAmount: true, closedAt: true, closedBy: true, closeAmount: true, discrepancy: true, closeReason: true, notes: true, ledgerVersion: true } }),
       orderBy: { openedAt: 'desc' },
-    })
-    res.json(drawers)
+    }
+    const drawers = await prisma.cashDrawer.findMany(query)
+    res.json(drawers.map(drawer => visibleCashDrawer(drawer, req)))
   } catch (error) {
     logger.error('Erreur GET /cash-drawers:', error)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -83,6 +89,7 @@ const expenseSchema = z.object({
   receiptUrl: z.string().url().nullable().optional(),
   date: z.string().datetime().optional(),
 })
+const visibleExpense = (expense: any, req: any) => hasCapability(req, 'finance.costs.read') ? expense : { id: expense.id, companyId: expense.companyId, updatedAt: expense.updatedAt }
 
 router.post('/expenses', validate(expenseSchema), async (req: any, res: Response) => {
   try {
@@ -120,7 +127,7 @@ router.post('/expenses', validate(expenseSchema), async (req: any, res: Response
         date: date ? new Date(date) : new Date(),
       },
     })
-    res.status(201).json(expense)
+    res.status(201).json(visibleExpense(expense, req))
   } catch (error) {
     logger.error('Erreur POST /expenses:', error)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -136,7 +143,7 @@ router.put('/expenses/:id', validate(expenseSchema.partial().refine((value) => O
       ...(req.body.date ? { date: new Date(req.body.date) } : {}),
     }
     const expense = await prisma.expense.update({ where: { id: req.params.id }, data })
-    res.json(expense)
+    res.json(visibleExpense(expense, req))
   } catch (error) {
     logger.error('Erreur PUT /expenses/:id:', error)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -191,7 +198,7 @@ export function taxReportFromOrders(orders: TaxOrder[]) {
     byTaxRate: Object.fromEntries([...groups].sort(([a], [b]) => a - b).map(([rate, amounts]) => [`${rate}%`, { base: amounts.base / 100, tax: amounts.tax / 100, total: amounts.total / 100 }])) }
 }
 
-router.get('/tax-report', async (req: any, res: Response) => {
+router.get('/tax-report', requireCapabilities('finance.revenue.read'), async (req: any, res: Response) => {
   try {
     const { startDate, endDate } = req.query
     const { dates } = journalPeriod(req.query)

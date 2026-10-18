@@ -3,17 +3,29 @@ import crypto from 'crypto'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
 import { z } from 'zod'
-import { requireRole } from '../middleware/requireCompany'
+import { hasCapability } from '../lib/business-permissions'
+import { assertTransactionCapabilities, BusinessPermissionError, requireCapabilities } from '../lib/business-permission-transaction'
 import { moneyMinor } from '../lib/money'
 
 const router = Router()
 const businessProfile = z.object({ businessName: z.string().trim().max(200).nullable().optional(), address: z.string().trim().max(1000).nullable().optional(), vatNumber: z.string().trim().max(40).nullable().optional() })
 // Une carte contient du crédit utilisable. L'émission et l'inventaire des codes
 // relèvent du responsable ; la caisse vérifie un code via son API dédiée.
-router.use('/gift-cards', requireRole('OWNER', 'MANAGER'))
+router.use('/gift-cards', requireCapabilities('finance.manage'))
 const financialReason = z.string().trim().min(1).max(500).optional()
 class WalletError extends Error {
   constructor(message: string, public status: number) { super(message) }
+}
+const customerSelect = (req: any) => ({ id: true, companyId: true, firstName: true, lastName: true, businessName: true,
+  address: true, vatNumber: true, email: true, phone: true, points: true, isGuest: true, notes: true, createdAt: true, updatedAt: true,
+  walletBalance: hasCapability(req, 'finance.revenue.read') })
+function visibleCustomer(customer: any, req: any) {
+  if (hasCapability(req, 'finance.revenue.read')) return customer
+  // Le repli JSON historique peut porter d'autres agrégats que walletBalance.
+  // Une allowlist empêche leur réapparition sans lecture financière.
+  const visible = Object.fromEntries(Object.entries(customerSelect(req)).filter(([key, enabled]) => enabled && Object.prototype.hasOwnProperty.call(customer, key)).map(([key]) => [key, customer[key]]))
+  const { orders } = customer
+  return { ...visible, ...(orders ? { orders: orders.filter((order: any) => !order.paidAt && !['PAID', 'CANCELLED'].includes(order.status)) } : {}) }
 }
 
 // ─── GET /api/crm/customers ────────────────────────────
@@ -40,11 +52,11 @@ router.get('/customers', async (req: any, res: Response) => {
     }
 
     const [customers, total] = await Promise.all([
-      prisma.customer.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
+      prisma.customer.findMany({ where, skip, take, select: customerSelect(req), orderBy: { createdAt: 'desc' } }),
       prisma.customer.count({ where }),
     ])
 
-    res.json({ customers, total, page: parseInt(page as string), limit: take })
+    res.json({ customers: customers.map(customer => visibleCustomer(customer, req)), total, page: parseInt(page as string), limit: take })
   } catch (error) {
     // DB indisponible (mode sans Docker) → fallback sur data/customers.json
     try {
@@ -64,7 +76,7 @@ router.get('/customers', async (req: any, res: Response) => {
       const take = parseInt(limit as string)
       const skip = (parseInt(page as string) - 1) * take
       logger.warn('GET /customers: DB indisponible, fallback customers.json')
-      res.json({ customers: filtered.slice(skip, skip + take), total: filtered.length, page: parseInt(page as string), limit: take, source: 'fallback' })
+      res.json({ customers: filtered.slice(skip, skip + take).map(customer => visibleCustomer(customer, req)), total: filtered.length, page: parseInt(page as string), limit: take, source: 'fallback' })
       return
     } catch { /* fallback impossible → 500 ci-dessous */ }
     logger.error('Erreur GET /customers:', error)
@@ -78,16 +90,17 @@ router.get('/customers/:id', async (req: any, res: Response) => {
   try {
     const customer = await prisma.customer.findFirst({
       where: { id: req.params.id, companyId: req.companyId },
-      include: {
-        loyaltyTransactions: { orderBy: { createdAt: 'desc' }, take: 20 },
-        orders: { orderBy: { createdAt: 'desc' }, take: 10, include: { items: { include: { product: true } } } },
+      select: {
+        ...customerSelect(req),
+        loyaltyTransactions: hasCapability(req, 'finance.revenue.read') ? { orderBy: { createdAt: 'desc' }, take: 20 } : false,
+        orders: { where: hasCapability(req, 'finance.revenue.read') ? {} : { paidAt: null, status: { notIn: ['PAID', 'CANCELLED'] } }, orderBy: { createdAt: 'desc' }, take: 10, include: { items: { include: { product: true } } } },
       },
     })
     if (!customer) {
       res.status(404).json({ message: 'Client non trouvé' })
       return
     }
-    res.json(customer)
+    res.json(visibleCustomer(customer, req))
   } catch (error) {
     logger.error('Erreur GET /customers/:id:', error)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -118,7 +131,7 @@ router.post('/customers', async (req: any, res: Response) => {
         isGuest: isGuest ?? true,
       },
     })
-    res.status(201).json(customer)
+    res.status(201).json(visibleCustomer(customer, req))
   } catch (error) {
     logger.error('Erreur POST /customers:', error)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -150,7 +163,7 @@ router.put('/customers/:id', async (req: any, res: Response) => {
         notes: typeof notes === 'string' ? notes.trim().slice(0, 2000) || null : null,
       },
     })
-    res.json(customer)
+    res.json(visibleCustomer(customer, req))
   } catch (error) {
     logger.error('Erreur PUT /customers/:id:', error)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -173,7 +186,7 @@ router.delete('/customers/:id', async (req: any, res: Response) => {
 
 // ─── POST /api/crm/customers/:id/loyalty ──────────────
 
-router.post('/customers/:id/loyalty', async (req: any, res: Response) => {
+router.post('/customers/:id/loyalty', requireCapabilities('finance.manage'), async (req: any, res: Response) => {
   try {
     const existing = await prisma.customer.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
     if (!existing) { res.status(404).json({ message: 'Client non trouvé' }); return }
@@ -211,7 +224,7 @@ router.post('/customers/:id/loyalty', async (req: any, res: Response) => {
         data: { points: { increment: delta } },
       }),
     ])
-    res.status(201).json({ transaction, customer })
+    res.status(201).json({ transaction, customer: visibleCustomer(customer, req) })
   } catch (error) {
     logger.error('Erreur POST /customers/:id/loyalty:', error)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -220,7 +233,7 @@ router.post('/customers/:id/loyalty', async (req: any, res: Response) => {
 
 // ─── POST /api/crm/customers/:id/wallet ───────────────
 
-router.post('/customers/:id/wallet', requireRole('OWNER', 'MANAGER'), async (req: any, res: Response) => {
+router.post('/customers/:id/wallet', requireCapabilities('finance.manage'), async (req: any, res: Response) => {
   try {
     const montant = Number(req.body?.amount)
     // parseFloat sur une valeur non numérique donnait NaN, écrit tel quel en base.
@@ -231,15 +244,16 @@ router.post('/customers/:id/wallet', requireRole('OWNER', 'MANAGER'), async (req
     req.body.reason = financialReason.parse(req.body.reason)
     const customer = await prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${req.companyId}), hashtext(${`wallet:${req.params.id}`}))::text`
+      await assertTransactionCapabilities(tx, req, 'finance.manage')
       const existing = await tx.customer.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
       if (!existing) throw new WalletError('Client non trouvé', 404)
       const next = moneyMinor(existing.walletBalance) + moneyMinor(montant)
       if (next < 0) throw new WalletError('Solde insuffisant. Rechargez le portefeuille avant de confirmer une nouvelle opération.', 409)
       return tx.customer.update({ where: { id: req.params.id }, data: { walletBalance: next / 100 } })
     })
-    res.json(customer)
+    res.json(visibleCustomer(customer, req))
   } catch (error) {
-    if (error instanceof WalletError) { res.status(error.status).json({ message: error.message }); return }
+    if (error instanceof WalletError || error instanceof BusinessPermissionError) { res.status(error.status).json({ message: error.message }); return }
     if (error instanceof z.ZodError) { res.status(400).json({ message: 'Motif invalide' }); return }
     logger.error('Erreur POST /customers/:id/wallet:', error)
     res.status(500).json({ message: 'Erreur serveur' })

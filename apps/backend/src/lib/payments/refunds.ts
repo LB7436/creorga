@@ -7,6 +7,12 @@ import { merchantFor, PaymentError } from './ledger'
 import type { Prisma } from '@prisma/client'
 import { allocateMinor } from '../money'
 import { floorHash } from '../floor-workspace'
+import { assertTransactionCapabilities, BusinessPermissionError } from '../business-permission-transaction'
+
+async function refundActor(tx: Prisma.TransactionClient, companyId: string, actorId: string) {
+  try { await assertTransactionCapabilities(tx, { companyId, user: { userId: actorId } }, 'refunds.declare') }
+  catch (error) { if (error instanceof BusinessPermissionError) throw new PaymentError(403, error.message); throw error }
+}
 
 /** Les réservations incertaines ne sont jamais libérées par un simple timeout.
  * Un ancien remboursement sans affectations bloque la capture, sans inventer
@@ -29,6 +35,7 @@ export async function requestRefund(companyId: string, actorId: string, raw: unk
   const requestHash = createHash('sha256').update(JSON.stringify({ companyId, actorId, ...input })).digest('hex')
   const result = await prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, companyId)
+    await refundActor(tx, companyId, actorId)
     const previous = await tx.refundAttempt.findUnique({ where: { id: input.requestId } })
     if (previous) { if (previous.requestHash !== requestHash) throw new PaymentError(409, 'Référence de remboursement réutilisée.'); return { attempt: previous, created: false, externalOrderId: '' } }
     const credit = await tx.creditNote.findFirst({ where: { companyId, id: input.creditNoteId }, include: { invoice: { include: { sourcePosSale: true } } } })
@@ -75,6 +82,9 @@ export async function requestRefund(companyId: string, actorId: string, raw: unk
       snapshot: { returnedExternalId: externalId, retainedExternalId: row.externalId, beforeStatus: current.status, afterStatus: row.status, providerRequestId: current.providerRequestId } } })
     return row
   })
+  // La preuve prestataire reste enregistrée même si l'acteur est révoqué
+  // pendant l'appel réseau ; seule sa divulgation est alors refusée.
+  await prisma.$transaction(tx => refundActor(tx, companyId, actorId))
   return { httpStatus: 202, body: refundDto(saved) }
 }
 const proofSchema = z.object({ provider: z.string(), status: z.enum(['succeeded', 'pending', 'failed']), providerStatus: z.string().max(60).optional(), providerRequestId: z.string().max(200).optional(), refundId: z.string(), captureId: z.string(), amountCents: z.number().int().positive(), currency: z.string(), merchantId: z.string() })
@@ -92,8 +102,13 @@ function matches(attempt: any, proof: z.infer<typeof proofSchema>, externalId: s
   return proof.provider === attempt.provider && proof.refundId === externalId && proof.captureId === attempt.captureId
     && proof.merchantId === attempt.merchantId && proof.currency === attempt.currency && proof.amountCents === attempt.amountCents
 }
-export async function reconcileRefund(companyId: string, id: string, actorId = 'server') {
-  const attempt = await prisma.refundAttempt.findFirst({ where: { companyId, id }, include: { settlement: { include: { attempt: true } } } })
+export async function reconcileRefund(companyId: string, id: string, actorId?: string) {
+  const actor = actorId ?? 'server'
+  const attempt = await prisma.$transaction(async tx => {
+    await lockFinancialCompany(tx, companyId)
+    if (actorId !== undefined) await refundActor(tx, companyId, actorId)
+    return tx.refundAttempt.findFirst({ where: { companyId, id }, include: { settlement: { include: { attempt: true } } } })
+  })
   if (!attempt) throw new PaymentError(404, 'Remboursement introuvable.')
   if (attempt.status === 'SUCCEEDED') return refundDto(attempt)
   if (!attempt.externalId) throw new PaymentError(409, 'Résultat de création inconnu : rapprochement manuel auprès du prestataire nécessaire. Ne pas créer une nouvelle demande.')
@@ -102,7 +117,7 @@ export async function reconcileRefund(companyId: string, id: string, actorId = '
     await prisma.$transaction(async tx => {
       await lockFinancialCompany(tx, companyId)
       await tx.refundAttempt.updateMany({ where: { id, companyId, status: { not: 'SUCCEEDED' } }, data: { status: 'REVIEW', reservationReleasedAt: null } })
-      await tx.refundReviewEvent.create({ data: { companyId, refundId: id, actorId, action: 'PROVIDER_MISMATCH', snapshot: { externalId: attempt.externalId, ...(proof.success ? { proof: proof.data } : { malformed: true }) } } })
+      await tx.refundReviewEvent.create({ data: { companyId, refundId: id, actorId: actor, action: 'PROVIDER_MISMATCH', snapshot: { externalId: attempt.externalId, ...(proof.success ? { proof: proof.data } : { malformed: true }) } } })
     })
     throw new PaymentError(409, 'Preuve de remboursement incohérente : aucune confirmation enregistrée.')
   }
@@ -112,10 +127,11 @@ export async function reconcileRefund(companyId: string, id: string, actorId = '
     if (current.status === 'SUCCEEDED') return current
     const status = proof.data.status === 'succeeded' ? 'SUCCEEDED' : current.reservationReleasedAt && proof.data.status === 'failed' ? 'NOT_REFUNDED' : proof.data.status === 'failed' ? 'REFUSED_RECONCILIATION' : 'PENDING'
     // Même un refus conserve sa réservation : aucune libération sur un simple libellé distant.
-    await tx.refundReviewEvent.create({ data: { companyId, refundId: id, actorId, action: 'PROVIDER_VERIFIED', snapshot: { beforeStatus: current.status, afterStatus: status, proof: proof.data } } })
+    await tx.refundReviewEvent.create({ data: { companyId, refundId: id, actorId: actor, action: 'PROVIDER_VERIFIED', snapshot: { beforeStatus: current.status, afterStatus: status, proof: proof.data } } })
     return tx.refundAttempt.update({ where: { id }, data: { status, reservationReleasedAt: status === 'NOT_REFUNDED' ? current.reservationReleasedAt : null,
       ...(status === 'SUCCEEDED' ? { confirmedAt: new Date() } : {}), verifiedAt: new Date(), lastProof: { ...proof.data } } })
   })
+  if (actorId !== undefined) await prisma.$transaction(tx => refundActor(tx, companyId, actorId))
   return refundDto(confirmed)
 }
 
@@ -124,6 +140,7 @@ export async function reviewRefund(companyId: string, actorId: string, id: strin
   const input = z.object({ requestId: z.string().uuid(), action: z.enum(['ASSOCIATE_REFERENCE', 'RELEASE_NOT_REFUNDED', 'KEEP_RESERVED']),
     externalId: z.string().trim().min(1).max(200).optional(), reason: z.string().trim().min(5).max(500) }).strict().parse(raw)
   const hash = floorHash({ companyId, actorId, id, ...input })
+  await prisma.$transaction(async tx => { await lockFinancialCompany(tx, companyId); await refundActor(tx, companyId, actorId) })
   const previous = await prisma.refundReviewEvent.findUnique({ where: { id: input.requestId } })
   if (previous) {
     if (previous.companyId !== companyId || previous.refundId !== id || previous.requestHash !== hash) throw new PaymentError(409, 'Référence de décision réutilisée.')
@@ -145,6 +162,7 @@ export async function reviewRefund(companyId: string, actorId: string, id: strin
   }
   return prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, companyId)
+    await refundActor(tx, companyId, actorId)
     const replay = await tx.refundReviewEvent.findUnique({ where: { id: input.requestId } })
     if (replay) { if (replay.requestHash !== hash) throw new PaymentError(409, 'Référence de décision réutilisée.'); return (replay.snapshot as any).result }
     const current = await tx.refundAttempt.findFirstOrThrow({ where: { id, companyId } })

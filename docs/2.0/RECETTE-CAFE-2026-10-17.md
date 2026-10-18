@@ -1,5 +1,32 @@
 # Recette établissement A — CAFÉ DU CENTRE
 
+## Suite ciblée du 18 octobre — PARTIELLE, NON LIVRÉE
+
+Les cinq identités existantes sont conservées. OWNER : décisions de droits et
+sauvegarde inchangée de table verte, PATCH200 puis recharge. SERVER : connexion
+POS sans Journal ni CA. ADMIN métier : planning équipe5 sans coût, facture par URL
+refusée. MANAGER : planning/coûts autorisés, Journal21,10/1,07 avec dates historiques
+du17octobre explicites. EMPLOYEE : planning personnel équipe1 sans coûts.
+Le rôle CLIENT QR et les parcours complets ne sont pas rejoués dans ce lot.
+
+Après build final : ADMIN lit5kg sans coût ni fournisseur, ajuste potentiellement
+les quantités selon droit, mais focus/Tab inchangé ne fait aucun PUT. EMPLOYEE voit
+les mêmes5kg en lecture seule et la route achats refuse sans GETprivé. OWNER voit
+18/unité,90estimés et le bon63,00 déjà reçu ; aucune nouvelle réception. Deux cycles
+d'arrêt/reprise avec ces trois onglets ouverts passent ; recharge :5kg/refus/bon
+identiques. D18–D20 sont des lectures bornées, pas stock avancé ou réception refaite.
+
+Relecture read-only finale : **4 ventes / 21,10TTC =20,03HT +1,07TVA** ; six
+empreintes documents/devis/lignes/commandes/stock/règlements identiques à l'avant.
+Avoir et remboursement déclaré10,25 conservés, clôture106,85/106,80 inchangée.
+Deux pointages ouverts historiques restent conservés, aucune purge corrective.
+Deux décisions de droits tracées/restaurées, aucune nouvelle identité ni vente.
+[Preuve](preuves/droits-robi-validation-2026-10-18.json),
+[critères précis](T100-DROITS-2026-10-18.md). Fournisseur, banque, CSV téléchargé,
+matériel, abandon HTTP incertain, clic natif Windows et couverture exhaustive
+restent non qualifiés. Restauration finale82tables/18997lignes/14fichiers/26PDF
+égaux ; aucun PNG attesté : sauvegarde de capture refusée par l'outil officiel.
+
 ## Consolidation technique postérieure au relevé de 21:30
 
 Les [preuves finales v3](preuves/intensive-validation-finale-2026-10-17-2135-v3.json) confirment **861 unitaires / 295 PG / 47 fixtures**, deux builds finaux et la restauration de **21:31:36.908 Luxembourg : 81 tables, 10 083 lignes, 14 fichiers, 26 PDF, zéro écart**. Cette nouvelle preuve permet X02 PASS ciblé ; elle ne rejoue pas les rôles du café. La correction de clé de diagnostic dans v3 ne change pas les données : les **deux pointages ouverts historiques** restent conservés. Aucun contrôle non exécuté n'est promu ; CSV/matériel/banque/droits fins restent distincts. **Campagne PARTIELLE — NON LIVRÉE**, cinq heures actives non attestées.

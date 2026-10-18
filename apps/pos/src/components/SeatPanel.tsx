@@ -4,6 +4,8 @@ import { motion } from 'framer-motion'
 import { useSeats, seatTotal, type Seat } from '../store/seatStore'
 import { usePOS } from '../store/posStore'
 import { checkoutServer } from '../lib/floorBridge'
+import { BusinessGuard } from './BusinessGuard'
+import { hasCapability } from '../lib/business-access'
 
 /**
  * Slide-out panel for a single chair (seat).
@@ -20,7 +22,11 @@ function useCarteCaisse() {
   return { produits: menu.filter(p => p.active), pret: true }
 }
 
-export default function SeatPanel({ seatId, onClose }: Props) {
+export default function SeatPanel(props: Props) {
+  return <BusinessGuard capability="service.manage" onBack={props.onClose}><SeatContent {...props} /></BusinessGuard>
+}
+function SeatContent({ seatId, onClose }: Props) {
+  const access = usePOS(state => state.businessAccess)
   // 460 px fixes debordaient d'un telephone de 375 px : plein ecran en etroit.
   const etroit = useEcranEtroit()
   const seat = useSeats((s) => s.seats.find((x) => x.id === seatId))
@@ -41,6 +47,7 @@ export default function SeatPanel({ seatId, onClose }: Props) {
   const parentTable = seat.tableId ? tables.find((t) => t.id === seat.tableId) : null
   const total = seatTotal(seat)
   async function pay() {
+    if (!hasCapability('payments.receive')) { setPayMessage('La permission d’encaisser est nécessaire.'); return }
     if (!seat || payBusy || total <= 0) return
     if (!window.confirm(payMethod === 'cash' ? `Confirmez avoir reçu ${total.toFixed(2)} € en espèces.` : `Le terminal bancaire a-t-il accepté ${total.toFixed(2)} € ?`)) return
     setPayBusy(true); setPayMessage('')
@@ -132,7 +139,7 @@ export default function SeatPanel({ seatId, onClose }: Props) {
         <label>Moyen de règlement<select aria-label="Moyen de règlement de la chaise" value={payMethod} onChange={e => setPayMethod(e.target.value as 'cash' | 'card')}><option value="cash">Espèces reçues</option><option value="card">Carte acceptée sur le terminal</option></select></label>
         <ActionBtn emoji="💳" label={payBusy ? 'Confirmation…' : `Payer ${total > 0 ? total.toFixed(2) + '€' : ''}`}
                    onClick={() => void pay()}
-                   color="#10b981" disabled={total === 0 || payBusy} />
+                   color="#10b981" disabled={total === 0 || payBusy || !hasCapability('payments.receive', access)} />
         <ActionBtn emoji="🗑" label="Supprimer"
                    onClick={() => { if (seat.items.length) { setPayMessage('Retirez ou réglez les articles avant de supprimer la chaise.'); return } if (confirm('Supprimer cette chaise ?')) { removeSeat(seat.id); onClose() } }}
                    color="#ef4444" />
@@ -157,16 +164,16 @@ export default function SeatPanel({ seatId, onClose }: Props) {
                 padding: 10, marginBottom: 4,
                 background: 'rgba(255,255,255,0.03)', borderRadius: 8,
               }}>
-                <button onClick={() => setItemQty(seat.id, i.id, i.qty - 1)} style={qtyBtn}>−</button>
+                <button disabled={!hasCapability('orders.cancel', access)} onClick={() => { if (hasCapability('orders.cancel')) setItemQty(seat.id, i.id, i.qty - 1) }} style={qtyBtn}>−</button>
                 <span style={{ minWidth: 22, textAlign: 'center', fontWeight: 700 }}>{i.qty}</span>
                 <button onClick={() => setItemQty(seat.id, i.id, i.qty + 1)} style={qtyBtn}>+</button>
                 <span style={{ flex: 1, fontSize: 13 }}>{i.name}</span>
                 <span style={{ fontSize: 13, color: '#fcd34d', fontWeight: 700 }}>{(i.price * i.qty).toFixed(2)} €</span>
-                <button onClick={() => removeItem(seat.id, i.id)}
+                <button disabled={!hasCapability('orders.cancel', access)} onClick={() => { if (hasCapability('orders.cancel')) removeItem(seat.id, i.id) }}
                   style={{ ...qtyBtn, background: 'rgba(239,68,68,0.2)', color: '#fca5a5' }}>×</button>
               </div>
             ))}
-            <button onClick={() => { if (window.confirm('Annuler tous les articles de cette chaise sans encaissement ?')) clearItems(seat.id) }} style={{
+            <button disabled={!hasCapability('orders.cancel', access)} onClick={() => { if (hasCapability('orders.cancel') && window.confirm('Annuler tous les articles de cette chaise sans encaissement ?')) clearItems(seat.id) }} style={{
               marginTop: 8, padding: '6px 12px', background: 'rgba(239,68,68,0.1)',
               border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6,
               color: '#fca5a5', cursor: 'pointer', fontSize: 11, fontWeight: 600,

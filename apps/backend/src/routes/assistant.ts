@@ -1,9 +1,9 @@
-import { Router } from 'express'
+import { Router, type Request } from 'express'
 import fs from 'fs'
 import path from 'path'
-import { internalHeaders } from '../lib/security'
 import { currentFloorCompanyId } from './floorState'
-import { AssistantBudget, withAssistantBudget } from '../lib/assistant-budget'
+import { AssistantBudget, AssistantRequestError, withAssistantBudget } from '../lib/assistant-budget'
+import { assistantGuard, assertAssistantCapability, assistantScope, revalidateAssistantScope } from '../lib/assistant-scope'
 
 /**
  * Personal Assistant intent engine — parses natural language requests
@@ -16,6 +16,7 @@ import { AssistantBudget, withAssistantBudget } from '../lib/assistant-budget'
  */
 
 const router = Router()
+router.use(assistantGuard)
 const DATA_DIR = path.resolve(process.cwd(), 'data')
 
 function companyAssistantDir() {
@@ -485,7 +486,7 @@ function parseIntent(text: string): IntentMatch | null {
 // INTENT EXECUTION
 // ═══════════════════════════════════════════════════════════════════════
 
-async function executeIntent(intent: IntentMatch, budget: AssistantBudget): Promise<{ success: boolean; summary: string; details?: any; uiAction?: any }> {
+async function executeIntent(intent: IntentMatch, budget: AssistantBudget, req: Request): Promise<{ success: boolean; summary: string; details?: any; uiAction?: any }> {
   const safeIntents = new Set([
     'ui.dark-mode', 'ui.navigate', 'web.search', 'help.tutorial', 'help.show-commands',
     'assistant.set-mode', 'pos.table-summary', 'pos.free-tables', 'pos.occupancy',
@@ -497,6 +498,11 @@ async function executeIntent(intent: IntentMatch, budget: AssistantBudget): Prom
       details: { code: 'ASSISTANT_ACTION_MIGRATION_REQUIRED', intent: intent.intent },
     }
   }
+  if (intent.intent.startsWith('pos.')) {
+    assertAssistantCapability(req, 'assistant.business.read')
+    assertAssistantCapability(req, 'service.read')
+  }
+  if (intent.intent === 'pos.table-summary') assertAssistantCapability(req, 'finance.revenue.read')
 
   switch (intent.intent) {
 
@@ -640,7 +646,7 @@ async function executeIntent(intent: IntentMatch, budget: AssistantBudget): Prom
     }
 
     case 'web.search': {
-      const data = await budget.internalJson(`http://localhost:${process.env.PORT || 3002}/api/agent/web-search?q=${encodeURIComponent(intent.params.query)}`, { headers: internalHeaders() }) as { results?: any[] }
+      const data = await searchAssistantWeb(String(intent.params.query), budget)
       const results = data.results || []
       if (results.length === 0) return { success: true, summary: `🔍 Aucun résultat pour "${intent.params.query}".` }
       return {
@@ -1866,40 +1872,49 @@ Tape ou parle naturellement, je comprends !`,
 // ROUTES
 // ═══════════════════════════════════════════════════════════════════════
 
-router.post('/intent', (req, res) => withAssistantBudget(req, res, async budget => {
-  const { text, currentPath, userId } = req.body || {}
-  if (!text) return res.status(400).json({ kind: 'error', text: 'text required' })
+export async function handleAssistantIntent(req: Request, budget: AssistantBudget): Promise<any> {
+  assistantScope(req)
+  const { text } = req.body || {}
+  if (typeof text !== 'string' || !text.trim() || text.length > 8000) throw new AssistantRequestError('ASSISTANT_INPUT_INVALID', 400, 'Question requise, 8 000 caractères maximum.')
 
   const intent = parseIntent(text)
   if (intent) {
-    budget.check()
-    const result = await budget.wait(() => executeIntent(intent, budget))
-    budget.check()
-    return res.json({
+    const businessReads: Record<string, string> = {
+      'hr.my-shifts': '/hr/planning', 'hr.who-works': '/hr/planning', 'hr.hours-of': '/hr/planning', 'hr.next-week-planning': '/hr/planning',
+      'inv.low-stock-list': '/inventory/stock', 'inv.unpaid-list': '/invoices',
+      'acc.revenue-today': '/accounting', 'acc.revenue-week': '/accounting', 'acc.revenue-month': '/accounting',
+    }
+    if (businessReads[intent.intent]) {
+      const { answerSmartQuery } = await import('./agent')
+      return answerSmartQuery(req, budget, businessReads[intent.intent])
+    }
+    await revalidateAssistantScope(req, budget)
+    const result = await budget.wait(() => executeIntent(intent, budget, req))
+    await revalidateAssistantScope(req, budget)
+    return {
       kind: 'action',
       intent: intent.intent,
       confidence: intent.confidence,
       ...result,
-    })
+    }
   }
 
   // Fall back to smart-query
-  const data = await budget.internalJson(`http://localhost:${process.env.PORT || 3002}/api/agent/smart-query`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', ...internalHeaders(), ...budget.internalDeadlineHeaders() },
-    body: JSON.stringify({ question: text, currentPath, userId: userId || 'default' }),
-  })
-  res.json({ kind: 'answer', ...data })
-}))
+  const { answerSmartQuery } = await import('./agent')
+  return answerSmartQuery(req, budget)
+}
+
+router.post('/intent', (req, res) => withAssistantBudget(req, res, async budget => res.json(await handleAssistantIntent(req, budget))))
 
 // Web search via DuckDuckGo HTML scrape (no API key, free) — uses matchAll
-router.get('/web-search', (req, res) => withAssistantBudget(req, res, async budget => {
-  const q = String(req.query.q || '').trim()
-  if (!q) return res.status(400).json({ error: 'q required' })
+export async function searchAssistantWeb(q: string, budget: AssistantBudget) {
+  q = q.trim()
+  if (!q || q.length > 2000) throw new AssistantRequestError('ASSISTANT_INPUT_INVALID', 400, 'Recherche requise, 2 000 caractères maximum.')
   try {
     const r = await budget.fetch(`https://duckduckgo.com/html/?q=${encodeURIComponent(q)}`, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CreorgaBot/1.0)' },
     })
-    if (!r.ok) return res.json({ results: [], error: `DuckDuckGo ${r.status}` })
+    if (!r.ok) throw new AssistantRequestError('ASSISTANT_PROVIDER_UNAVAILABLE', 503, 'La recherche externe est indisponible.')
     const html = await budget.wait(() => r.text())
     const linkRe = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([^<]+)<\/a>/g
     const snipRe = /<a[^>]+class="result__snippet"[^>]*>([^<]+)<\/a>/g
@@ -1911,11 +1926,18 @@ router.get('/web-search', (req, res) => withAssistantBudget(req, res, async budg
     })
     const snippets = [...html.matchAll(snipRe)].slice(0, 10).map((mm) => mm[1].trim())
     const results = titles.map((t, i) => ({ ...t, snippet: snippets[i] || '' }))
-    res.json({ q, results })
+    return { q, results }
   } catch (e: any) {
     budget.rethrowIfFatal(e)
-    res.json({ q, results: [], error: e?.message })
+    throw new AssistantRequestError('ASSISTANT_PROVIDER_UNAVAILABLE', 503, 'La recherche externe n’a pas pu être vérifiée.')
   }
+}
+
+router.get('/web-search', (req, res) => withAssistantBudget(req, res, async budget => {
+  await revalidateAssistantScope(req, budget)
+  const result = await searchAssistantWeb(String(req.query.q || ''), budget)
+  await revalidateAssistantScope(req, budget)
+  res.json(result)
 }))
 
 // Phase B v3.10 — Confirm a previewed action

@@ -1,7 +1,8 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma'
-import { requireRole } from '../middleware/requireCompany'
+import { hasCapability } from '../lib/business-permissions'
+import { assertTransactionCapabilities, BusinessPermissionError, requireCapabilities } from '../lib/business-permission-transaction'
 import { getFloorState, lockFloorForPayment, prepareFloorPricing, setReviewedFloorQuote, commitCurrentFloor } from './floorState'
 import { PosError, cents, calculateSale, buildClosure, receiptHtml, checkoutSchema, posTableSchema, seatSchema, type PosTable } from '../lib/pos-ledger'
 import { sendEmail } from '../lib/email'
@@ -20,6 +21,7 @@ import { tableMovementSchema, previousMovement, moveTable } from '../lib/table-m
 import { separationSchema, previousSeparation, separateService } from '../lib/service-separations'
 import { MAX_FLOOR_TABLES } from '../lib/floor-validation'
 import { assertSeatProjection } from '../lib/pos-seat-projection'
+import { loadFloorBusinessProjection, projectFloorEditor, projectPosTable } from '../lib/floor-business-projection'
 import { lockCheckoutGuestVisits, closeCheckoutGuestVisits } from '../lib/checkout-guest-visits'
 import { SHARE_PREFIX, allocationSchema, allocationConfirmation, previousFinancialAllocation, previewFinancialAllocation, confirmFinancialAllocation, serviceSharesFor, shareBalance } from '../lib/financial-allocations'
 
@@ -44,7 +46,7 @@ const lock = (tx: any, companyId: string) => tx.$queryRaw`SELECT pg_advisory_xac
 const wrap = (fn: (req: any, res: any) => Promise<any>) => async (req: any, res: any) => {
   try { await fn(req, res) } catch (e: any) {
     if (e instanceof z.ZodError) return res.status(400).json({ error: 'Saisie invalide', details: e.issues })
-    if (e instanceof PosError || e instanceof WorkspaceError) return res.status(e.status).json({ error: e.message })
+    if (e instanceof PosError || e instanceof WorkspaceError || e instanceof BusinessPermissionError) return res.status(e.status).json({ error: e.message })
     if (e instanceof PosPricingError) return res.status(409).json({ error: e.message, code: 'POS_PRICING_REVIEW_REQUIRED' })
     if (e?.code === 'P2002') return res.status(409).json({ error: 'Ce règlement existe déjà. Rechargez le journal.' })
     logger.error('[pos] opération refusée', e)
@@ -53,14 +55,15 @@ const wrap = (fn: (req: any, res: any) => Promise<any>) => async (req: any, res:
 }
 
 async function tablesFor(companyId: string, db: Prisma.TransactionClient = prisma): Promise<PosTable[]> {
-  const [products, paid, guests, dbTables, consumed] = await Promise.all([
+  const [products, paid, guests, dbTables, consumed, closed] = await Promise.all([
     db.product.findMany({ where: { companyId }, select: { id: true, name: true, price: true } }),
     db.posCoverPayment.findMany({ where: { companyId }, select: { coverId: true } }),
     db.order.findMany({ where: { companyId, source: 'GUEST', paidAt: null, status: { notIn: ['CANCELLED', 'PAID'] } }, include: { items: { include: { product: true } } } }),
     db.table.findMany({ where: { companyId, isActive: true } }),
     db.saleOrigin.findMany({ where: { companyId, kind: 'LINE' }, select: { sourceId: true } }),
+    db.serviceCover.findMany({ where: { companyId, state: { not: 'OPEN' } }, select: { coverId: true } }),
   ])
-  const paidIds = new Set(paid.map(p => p.coverId))
+  const paidIds = new Set([...paid, ...closed].map(p => p.coverId))
   const shares = await serviceSharesFor(db, companyId)
   const allocatedOrders = new Set(shares.map(s => s.orderId))
   const consumedIds = new Set(consumed.map(p => p.sourceId))
@@ -114,27 +117,33 @@ router.get('/bootstrap', wrap(async (req, res) => {
   const [tables, products, members, sales, closures, settings] = await Promise.all([
     tablesFor(companyId), prisma.product.findMany({ where: { companyId, isActive: true }, include: { category: true } }),
     prisma.userCompany.findMany({ where: { companyId, isActive: true }, include: { user: { select: { id: true, firstName: true, lastName: true } } } }),
-    prisma.posSale.findMany({ where: { companyId, closedId: null }, orderBy: { number: 'desc' } }),
-    prisma.posClosure.findMany({ where: { companyId }, orderBy: { createdAt: 'desc' } }),
+    hasCapability(req, 'finance.revenue.read') ? prisma.posSale.findMany({ where: { companyId, closedId: null }, orderBy: { number: 'desc' } }) : Promise.resolve([]),
+    hasCapability(req, 'finance.revenue.read') ? prisma.posClosure.findMany({ where: { companyId }, orderBy: { createdAt: 'desc' } }) : Promise.resolve([]),
     prisma.companySettings.findUnique({ where: { companyId } }),
   ])
   const reservations = await prisma.reservation.findMany({ where: { companyId, status: { in: ['PENDING', 'CONFIRMED'] }, date: { gte: new Date() } }, select: { id: true, tableId: true, guestName: true, date: true }, take: 100 })
-  const staff = members.map(m => ({ id: m.userId, name: `${m.user.firstName} ${m.user.lastName}`, role: m.role === 'EMPLOYEE' ? 'WAITER' : m.role, pin: '', color: '#6366f1' }))
-  const editor = editorFor(companyId)
+  const staff = members.map(m => ({ id: m.userId, name: `${m.user.firstName} ${m.user.lastName}`, role: m.role, pin: '', color: '#6366f1' }))
+  const editor = hasCapability(req, 'finance.revenue.read') ? editorFor(companyId) : projectFloorEditor(editorFor(companyId))
+  const visibleFloor = hasCapability(req, 'finance.revenue.read') ? getFloorState(companyId) : await loadFloorBusinessProjection(prisma, companyId, getFloorState(companyId))
   res.json({ companyId, revision: getFloorState(companyId).updatedAt, tables: tables.filter(t => !t.id.startsWith('standalone-seat:')).map(t => {
     const matches = editor.rooms.filter((room: any) => room.label === t.section)
-    return { ...t, section: editor.rooms.some((room: any) => room.id === t.section) ? t.section : matches.length === 1 ? matches[0].id : t.section }
+    // Les miroirs bruts peuvent encore contenir un ancien couvert réglé ; seule
+    // la projection « covers » recalculée est destinée au navigateur POS.
+    const visible = projectPosTable(t)
+    return { ...visible, section: editor.rooms.some((room: any) => room.id === t.section) ? t.section : matches.length === 1 ? matches[0].id : t.section }
   }),
-    seats: getFloorState(companyId).chairs.map((c: any) => ({ ...c, position: c.position, createdAt: c.createdAt || c.openedAt || 0, status: c.status === 'RESERVEE' ? 'reserved' : c.items.length ? 'occupied' : 'free',
+    seats: visibleFloor.chairs.map((c: any) => ({ ...c, position: c.position, createdAt: c.createdAt || c.openedAt || 0, status: c.status === 'RESERVEE' ? 'reserved' : c.items.length ? 'occupied' : 'free',
       items: c.items.map((i: any) => ({ ...pricedItem(getFloorState(companyId), i), menuItemId: i.productId || i.menuItemId || 'produit-a-verifier', note: i.note || '', coverId: `seat:${c.id}:${c.createdAt || c.openedAt || 0}` })) })),
     reservations,
     editor,
-    menu: products.map(p => ({ id: p.id, name: p.name, price: p.price, category: p.category.name, emoji: p.category.icon || '🍽️', active: true, stock: p.stock ?? undefined, taxRate: p.taxRate })),
-    staff, currentStaff: staff.find(s => s.id === req.user.userId), ventes: sales.map(s => s.snapshot), clotures: closures.map(c => c.snapshot),
+    menu: products.map(p => ({ id: p.id, name: p.name, price: p.price, category: p.category.name, emoji: p.category.icon || '🍽️', active: true,
+      ...(hasCapability(req, 'inventory.quantities.read') ? { stock: p.stock ?? undefined } : {}), taxRate: p.taxRate })),
+    staff, currentStaff: staff.find(s => s.id === req.user.userId), businessAccess: req.businessAccess,
+    ventes: sales.map(s => s.snapshot), clotures: closures.map(c => c.snapshot),
     settings: { restaurantName: req.company.name, receiptFooter: settings?.receiptFooter || '', currency: 'EUR', taxRate: settings?.defaultTaxRate || 0, defaultTip: 0, tipPresets: [0, 5, 10, 15], floorAuthority: postgresFloorEnabled() ? 'postgres' : 'legacy-file' } })
 }))
 
-router.post('/table-movements', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', 'CASHIER'), wrap(async (req, res) => {
+router.post('/table-movements', requireCapabilities('service.manage'), wrap(async (req, res) => {
   if (!postgresFloorEnabled()) throw new PosError('Autorité PostgreSQL nécessaire pour déplacer des additions.', 409)
   const input = tableMovementSchema.parse(req.body), companyId = req.companyId, actorId = req.user.userId
   const previous = await previousMovement(prisma, companyId, actorId, input)
@@ -144,6 +153,7 @@ router.post('/table-movements', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAI
   try {
     const result = await prisma.$transaction(async tx => {
       await lock(tx, companyId)
+      await assertTransactionCapabilities(tx, req, 'service.manage')
       return await previousMovement(tx, companyId, actorId, input) || moveTable(tx, companyId, actorId, input, await tablesFor(companyId, tx))
     }, { maxWait: 15000, timeout: 20000 })
     res.json(result)
@@ -155,7 +165,7 @@ router.get('/table-movements/:id', wrap(async (req, res) => {
   res.set('Cache-Control', 'private, no-store').json(row.snapshot)
 }))
 
-router.post('/service-separations', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', 'CASHIER'), wrap(async (req, res) => {
+router.post('/service-separations', requireCapabilities('service.manage'), wrap(async (req, res) => {
   if (!postgresFloorEnabled()) throw new PosError('Autorité PostgreSQL nécessaire pour séparer des groupes.', 409)
   const input = separationSchema.parse(req.body), companyId = req.companyId, actorId = req.user.userId
   const previous = await previousSeparation(prisma, companyId, actorId, input)
@@ -166,23 +176,25 @@ router.post('/service-separations', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 
     await prepareFloorPricing()
     const result = await prisma.$transaction(async tx => {
       await lock(tx, companyId)
+      await assertTransactionCapabilities(tx, req, 'service.manage')
       return await previousSeparation(tx, companyId, actorId, input) || separateService(tx, companyId, actorId, input, await tablesFor(companyId, tx))
     }, { maxWait: 15000, timeout: 20000 })
     res.json(result)
   } finally { release() }
 }))
 
-router.post('/financial-allocations/preview', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+router.post('/financial-allocations/preview', requireCapabilities('finance.manage'), wrap(async (req, res) => {
   if (!postgresFloorEnabled()) throw new PosError('Autorité PostgreSQL obligatoire pour répartir une créance.', 409)
   const input = allocationSchema.parse(req.body)
   const result = await prisma.$transaction(async tx => {
     await lock(tx, req.companyId)
+    await assertTransactionCapabilities(tx, req, 'finance.manage')
     const result = await previewFinancialAllocation(tx, req.companyId, req.user.userId, input)
     return { plan: result.plan, confirmHash: result.confirmHash }
   }, { maxWait: 15000, timeout: 20000 })
   res.set('Cache-Control', 'private, no-store').json(result)
 }))
-router.post('/financial-allocations', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+router.post('/financial-allocations', requireCapabilities('finance.manage'), wrap(async (req, res) => {
   if (!postgresFloorEnabled()) throw new PosError('Autorité PostgreSQL obligatoire pour répartir une créance.', 409)
   const { confirmHash, managerAcknowledged, ...input } = allocationConfirmation.parse(req.body)
   const previous = await previousFinancialAllocation(prisma, req.companyId, req.user.userId, input, confirmHash)
@@ -192,13 +204,14 @@ router.post('/financial-allocations', requireRole('OWNER', 'MANAGER'), wrap(asyn
   try {
     const result = await prisma.$transaction(async tx => {
       await lock(tx, req.companyId)
+      await assertTransactionCapabilities(tx, req, 'finance.manage')
       return await previousFinancialAllocation(tx, req.companyId, req.user.userId, input, confirmHash) || confirmFinancialAllocation(tx, req.companyId, req.user.userId, input, confirmHash)
     }, { maxWait: 15000, timeout: 20000 })
     res.json(result)
   } finally { release() }
 }))
 
-router.put('/draft', wrap(async (req, res) => {
+router.put('/draft', requireCapabilities('service.manage'), wrap(async (req, res) => {
   const tables = z.array(posTableSchema).max(MAX_FLOOR_TABLES).parse(req.body.tables)
   if (tables.some(t => t.covers.some(c => c.paidAt !== undefined || c.paidMethod !== undefined))) throw new PosError('Un brouillon ne peut pas déclarer un règlement. Utilisez l’encaissement serveur.')
   const alreadyPaid = await prisma.posCoverPayment.count({ where: { companyId: req.companyId, coverId: { in: tables.flatMap(t => t.covers.map(c => c.id)) } } })
@@ -209,6 +222,18 @@ router.put('/draft', wrap(async (req, res) => {
   // après modification reste neuve ; aucun cache partagé entre requêtes ou sociétés.
   let originalProjection: Promise<PosTable[]> | undefined
   const beforeMutation = () => originalProjection ??= tablesFor(req.companyId)
+  if (!hasCapability(req, 'orders.cancel')) {
+    // La projection serveur exclut les couverts/lignes payés et supersédés.
+    // Les chaises sont des miroirs : une identité compte une seule fois.
+    const nextQuantities = new Map([
+      ...tables.flatMap(t => t.covers.filter(c => !c.id.startsWith('guest:') && !c.id.startsWith(SHARE_PREFIX)).flatMap(c => c.items)),
+      ...(seats || []).flatMap(s => s.items),
+    ].map(item => [item.id, item.qty]))
+    const removesLine = (await beforeMutation()).some(t => t.covers
+      .filter(c => !c.id.startsWith('guest:') && !c.id.startsWith(SHARE_PREFIX))
+      .some(c => c.items.some(item => (nextQuantities.get(item.id) ?? 0) < item.qty)))
+    if (removesLine) throw new PosError('La suppression ou diminution d’une ligne nécessite le droit d’annuler.', 403)
+  }
   const guestCovers = tables.flatMap(t => t.covers.filter(c => c.id.startsWith('guest:')).map(c => ({ tableId: t.id, cover: c })))
   if (tables.some(t => t.covers.some(c => c.id.startsWith(SHARE_PREFIX)) && (t.orderDiscount || t.offeredItemIds?.length))) throw new PosError('Les gestes globaux ne peuvent modifier une créance répartie. Utilisez une correction documentaire explicite.', 409)
   if (guestCovers.length) {
@@ -236,14 +261,17 @@ router.put('/draft', wrap(async (req, res) => {
       scenes: z.array(z.object({ id: z.string(), label: z.string().max(100), tables: z.array(posTableSchema).max(300), fixtures: z.array(z.record(z.unknown())).max(1000), rooms: z.array(z.record(z.unknown())).max(100), createdAt: z.number() })).max(30),
       background: z.string().max(3_000_000).regex(/^data:image\/(png|jpeg|webp);base64,[a-zA-Z0-9+/=]+$/).nullable(),
     })
-    const editor = editorSchema.parse(req.body.editor), current = editorSchema.parse(editorFor())
+    const editor = editorSchema.parse(req.body.editor), storedEditor = editorFor()
+    const restricted = !hasCapability(req, 'finance.revenue.read')
+    const current = editorSchema.parse(restricted ? projectFloorEditor(storedEditor) : storedEditor)
+    if (restricted && floorHash(editor.scenes) !== floorHash(current.scenes)) throw new PosError('La modification de scènes contenant un historique nécessite un accès financier. Les scènes conservées restent intactes.', 403)
     // Zod et JSONB réordonnent les clés. Une projection identique n'est pas
     // une édition et ne doit ni bloquer le service, ni matérialiser des défauts.
     editorChanged = floorHash(editor) !== floorHash(current)
     if (editorChanged) {
-      if (!['OWNER', 'MANAGER'].includes(req.role)) throw new PosError('La configuration des salles est réservée aux responsables.', 403)
+      if (!hasCapability(req, 'settings.manage')) throw new PosError('La configuration des salles nécessite un droit de configuration.', 403)
       if (new Set(editor.rooms.map(r => r.id)).size !== editor.rooms.length || new Set(editor.rooms.map(r => r.label.trim().toLocaleLowerCase())).size !== editor.rooms.length) throw new PosError('Les identifiants et noms des salles doivent être uniques.')
-      floor.posEditor = editor
+      floor.posEditor = restricted ? { ...editor, scenes: storedEditor.scenes } : editor
     }
   }
   const rooms = editorFor().rooms
@@ -267,10 +295,15 @@ router.put('/draft', wrap(async (req, res) => {
   if (waiterIds.length !== await prisma.userCompany.count({ where: { companyId: req.companyId, userId: { in: waiterIds }, isActive: true } })) throw new PosError('Le salarié affecté à la table est absent ou désactivé.')
   for (const t of tables) {
     const old: any = floor.tables.find(old => old.id === t.id)
-    if (!['OWNER', 'MANAGER'].includes(req.role) && JSON.stringify([t.orderDiscount || null, t.offeredItemIds || []]) !== JSON.stringify([old?.orderDiscount || null, old?.offeredItemIds || []])) throw new PosError('Les gestes commerciaux nécessitent une connexion responsable.', 403)
+    if (JSON.stringify(t.orderDiscount || null) !== JSON.stringify(old?.orderDiscount || null)) {
+      for (const discount of [old?.orderDiscount, t.orderDiscount].filter(Boolean)) {
+        if (!hasCapability(req, discount.type === 'free' ? 'complimentary.grant' : 'discounts.grant')) throw new PosError('Les remises et offerts nécessitent un droit explicite.', 403)
+      }
+    }
+    if (!hasCapability(req, 'complimentary.grant') && JSON.stringify(t.offeredItemIds || []) !== JSON.stringify(old?.offeredItemIds || [])) throw new PosError('Les offerts nécessitent un droit explicite.', 403)
   }
   const layoutChanged = JSON.stringify(tables.map(config)) !== JSON.stringify(floor.tables.map(config))
-  if (!['OWNER', 'MANAGER'].includes(req.role) && layoutChanged) throw new PosError('La configuration des salles est réservée au propriétaire et au responsable.', 403)
+  if (!hasCapability(req, 'settings.manage') && layoutChanged) throw new PosError('La configuration des salles nécessite un droit de configuration.', 403)
   assertSeatProjection(tables, seats)
   for (const old of floor.tables) if (!tables.some(t => t.id === old.id) && (old.items.length || floor.chairs.some(c => c.tableId === old.id && c.items.length))) throw new PosError('Une table non vide ne peut pas être supprimée.', 409)
   const previousLines = new Map(floorLines(floor).map(item => [item.id, item]))
@@ -300,7 +333,7 @@ router.put('/draft', wrap(async (req, res) => {
   res.json(floor)
 }))
 
-router.post('/pricing/:lineId/review', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+router.post('/pricing/:lineId/review', requireCapabilities('catalog.prices.write'), wrap(async (req, res) => {
   const input = z.object({ productId: z.string().min(1), price: z.number().finite().min(0).max(1e6), taxRate: z.number().finite().min(0).max(100), reason: z.string().trim().min(5).max(500) }).parse(req.body)
   const floor = getFloorState()
   if (String(req.get('If-Match')) !== String(floor.updatedAt)) throw new PosError('Le plan a changé. Actualisez avant de vérifier la ligne.', 409)
@@ -330,8 +363,9 @@ router.get('/kitchen', wrap(async (req, res) => {
         coverId: SHARE_PREFIX + s.id, coverLabel: s.label, lineId: l.itemId, name: l.name, qty: l.qty, kitchenNote: (s.snapshot as any).kitchenNote, barNote: (s.snapshot as any).barNote }))) }))]
   res.json({ revision: floor.updatedAt, tickets })
 }))
-router.patch('/kitchen/:id', wrap(async (req, res) => {
+router.patch('/kitchen/:id', requireCapabilities('service.manage'), wrap(async (req, res) => {
   const { status, updatedAt } = z.object({ status: z.enum(['waiting', 'preparing', 'ready', 'served', 'cancelled']), updatedAt: z.number().finite() }).parse(req.body)
+  if (status === 'cancelled' && !hasCapability(req, 'orders.cancel')) throw new BusinessPermissionError()
   if (req.params.id.startsWith('guest:')) {
     if (status === 'cancelled') throw new PosError('Annulez une commande QR depuis la gestion des commandes, en conservant son traitement comptable.')
     const changed = await prisma.order.updateMany({ where: { id: req.params.id.slice(6), companyId: req.companyId, source: 'GUEST', status: { not: 'CANCELLED' }, updatedAt: new Date(updatedAt) }, data: { guestStatus: status === 'waiting' ? 'received' : status === 'ready' ? 'on_the_way' : status } })
@@ -350,23 +384,22 @@ router.get('/payments/:requestId', wrap(async (req, res) => {
   if (!attempt) throw new PosError('Règlement non retrouvé pour cet utilisateur.', 404)
   res.set('Cache-Control', 'private, no-store').json(attempt.response)
 }))
-router.post('/payments', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', 'CASHIER'), wrap(async (req, res) => {
+router.post('/payments', requireCapabilities('payments.receive'), wrap(async (req, res) => {
   const input = partialPaymentSchema.parse(req.body)
   if (!postgresFloorEnabled()) throw new PosError('Activez l’autorité PostgreSQL sur la copie de laboratoire avant les acomptes natifs.', 409)
-  const replay = await prisma.paymentAttempt.findUnique({ where: { companyId_requestId: { companyId: req.companyId, requestId: input.requestId } } })
-  if (replay) {
-    if (replay.scope !== 'POS_PARTIAL' || replay.userId !== req.user.userId || replay.requestHash !== floorHash(input)) throw new PosError('Référence de règlement incompatible.', 409)
-    return res.json(replay.response)
-  }
-  const release = lockFloorForPayment()
-  if (!release) throw new PosError('Un encaissement est en cours. Conservez la même référence.', 409)
+  // Les rejeux sont sérialisés par le verrou financier et relisent les droits,
+  // mais ne prennent pas le verrou de salle : ils ne la modifient jamais.
+  let release: (() => void) | undefined
   try {
     const result = await prisma.$transaction(async tx => {
       await lock(tx, req.companyId)
+      await assertTransactionCapabilities(tx, req, 'payments.receive')
       // Nouvelle vérification SOUS verrou : une seconde caisse peut avoir gagné
       // après le précontrôle. Le rejeu ne termine jamais une visite plus récente.
       const existing = await tx.paymentAttempt.findUnique({ where: { companyId_requestId: { companyId: req.companyId, requestId: input.requestId } } })
       if (existing) return payPosPart(tx, req.companyId, req.user.userId, input, undefined)
+      release = lockFloorForPayment() || undefined
+      if (!release) throw new PosError('Un encaissement est en cours. Conservez la même référence.', 409)
       const visitScope = await lockCheckoutGuestVisits(tx, req.companyId, input.tableId,
         input.coverIds.filter(id => id.startsWith('guest:') && !id.startsWith(SHARE_PREFIX)).map(id => id.slice(6)))
       const result = await payPosPart(tx, req.companyId, req.user.userId, input, (await tablesFor(req.companyId, tx)).find(t => t.id === input.tableId))
@@ -378,10 +411,10 @@ router.post('/payments', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
       return result
     }, { maxWait: 15000, timeout: 20000 })
     res.json(result)
-  } finally { release() }
+  } finally { release?.() }
 }))
 
-router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', 'CASHIER'), wrap(async (req, res) => {
+router.post('/checkout', requireCapabilities('payments.receive'), wrap(async (req, res) => {
   const input = checkoutSchema.parse(req.body)
   const requestHash = createHash('sha256').update(JSON.stringify(input)).digest('hex')
   const release = lockFloorForPayment()
@@ -390,6 +423,7 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
   const companyId = req.companyId
   const sale = await prisma.$transaction(async tx => {
     await lock(tx, companyId)
+    await assertTransactionCapabilities(tx, req, 'payments.receive')
     const existing = await tx.posSale.findUnique({ where: { id: input.requestId } })
     if (existing) {
       if (existing.companyId !== companyId || existing.userId !== req.user.userId) throw new PosError('Référence de règlement indisponible.', 409)
@@ -430,6 +464,8 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
     const remises: Array<{ type: string; libelle: string; montant: number }> = []
     let remaining = brut
     const used = new Set<string>()
+    if (table.offeredItemIds?.length && !hasCapability(req, 'complimentary.grant')) throw new PosError('Le règlement avec des offerts nécessite un droit explicite.', 403)
+    if (table.orderDiscount && !hasCapability(req, table.orderDiscount.type === 'free' ? 'complimentary.grant' : 'discounts.grant')) throw new PosError('Le règlement avec un geste commercial nécessite un droit explicite.', 403)
     for (const r of input.options?.remises || []) {
       if (used.has(r.type)) throw new PosError('Une même remise ne peut pas être appliquée deux fois.')
       used.add(r.type)
@@ -442,7 +478,8 @@ router.post('/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', '
         await tx.discountCode.update({ where: { id: promo.id }, data: { usedCount: { increment: 1 } } })
       } else if (r.type === 'carte_cadeau') {
         throw new PosError('Une carte cadeau prépayée est un règlement. Actualisez la caisse pour utiliser le paiement par carte cadeau.')
-      } else if (r.type !== 'geste' || !['OWNER', 'MANAGER'].includes(req.role)) {
+      } else if (r.type !== 'geste' || !hasCapability(req,
+        moneyMinor(amount) === moneyMinor(remaining) || table.offeredItemIds?.length && !table.orderDiscount ? 'complimentary.grant' : 'discounts.grant')) {
         throw new PosError('Cette remise nécessite un droit responsable ou un programme client vérifié.', 403)
       }
       if (r.type === 'geste' && (r.libelle.trim().length < 10 || r.libelle.trim() === 'Geste commercial responsable')) throw new PosError('Un offert ou une remise nécessite un motif explicite du responsable (10 caractères minimum).')
@@ -551,10 +588,11 @@ async function clearPaidFloor(sale: any, companyId: string, db: Prisma.Transacti
   }
 }
 
-router.post('/close', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+router.post('/close', requireCapabilities('cash.close', 'finance.revenue.read'), wrap(async (req, res) => {
   const id = z.string().uuid().parse(req.body.requestId)
   const snapshot = await prisma.$transaction(async tx => {
     await lock(tx, req.companyId)
+    await assertTransactionCapabilities(tx, req, 'cash.close', 'finance.revenue.read')
     const existing = await tx.posClosure.findUnique({ where: { id } })
     if (existing) { if (existing.companyId !== req.companyId) throw new PosError('Référence indisponible.', 409); return existing.snapshot }
     const sales = await tx.posSale.findMany({ where: { companyId: req.companyId, closedId: null }, orderBy: { number: 'desc' } })
@@ -567,23 +605,24 @@ router.post('/close', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => 
   res.json(snapshot)
 }))
 
+const saleReadScope = (req: any) => ({ id: req.params.id, companyId: req.companyId,
+  ...(!hasCapability(req, 'finance.revenue.read') ? { userId: req.user.userId } : {}) })
 router.get('/sales/:id/receipt', wrap(async (req, res) => {
-  const sale = await prisma.posSale.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
+  const sale = await prisma.posSale.findFirst({ where: saleReadScope(req) })
   if (!sale) throw new PosError('Ticket introuvable.', 404)
   res.set('Cache-Control', 'private, no-store').type('html').send(receiptHtml(sale.snapshot, req.company))
 }))
 
 // Réconciliation après réponse perdue : lecture uniquement, aucune nouvelle vente.
 router.get('/sales/:id', wrap(async (req, res) => {
-  const sale = await prisma.posSale.findFirst({ where: { id: req.params.id, companyId: req.companyId,
-    ...(!['OWNER', 'MANAGER'].includes(req.role) ? { userId: req.user.userId } : {}) } })
+  const sale = await prisma.posSale.findFirst({ where: saleReadScope(req) })
   if (!sale) throw new PosError('Règlement non retrouvé.', 404)
   res.set('Cache-Control', 'private, no-store').json(sale.snapshot)
 }))
 
 router.post('/sales/:id/email', wrap(async (req, res) => {
   const input = z.object({ requestId: z.string().uuid(), to: z.string().trim().email().max(254) }).parse(req.body)
-  const sale = await prisma.posSale.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
+  const sale = await prisma.posSale.findFirst({ where: saleReadScope(req) })
   if (!sale) throw new PosError('Ticket introuvable.', 404)
   const existing = await prisma.posReceiptDelivery.findUnique({ where: { id: input.requestId } })
   if (existing) {
@@ -619,20 +658,24 @@ router.get('/customers', wrap(async (req, res) => {
   const customers = await prisma.customer.findMany({ where: { companyId: req.companyId }, select: { id: true, firstName: true, lastName: true, phone: true, points: true }, orderBy: { lastName: 'asc' }, take: 1000 })
   res.json(customers.map(c => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, phone: c.phone || '', tier: 'Guest', points: c.points, discount: 0 })))
 }))
-router.get('/catalog', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
-  res.json(await prisma.product.findMany({ where: { companyId: req.companyId }, include: { category: true }, orderBy: { name: 'asc' } }))
+router.get('/catalog', requireCapabilities('catalog.read'), wrap(async (req, res) => {
+  const products = await prisma.product.findMany({ where: { companyId: req.companyId }, include: { category: true }, orderBy: { name: 'asc' } })
+  res.json(products.map(product => { const { stock, ...visible } = product; return hasCapability(req, 'inventory.quantities.read') ? product : visible }))
 }))
-router.post('/catalog-import', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+router.post('/catalog-import', requireCapabilities('catalog.prices.write'), wrap(async (req, res) => {
   const products = z.array(z.object({ id: z.string().max(100).optional(), name: z.string().trim().min(1).max(160),
     category: z.string().trim().min(1).max(100), price: z.number().positive().max(1e6), taxRate: z.number().min(0).max(100),
     stock: z.number().int().min(0).nullable().optional(), isActive: z.boolean().optional() })).min(1).max(500).parse(req.body.products)
+  const updatesStock = products.some(product => product.stock !== undefined)
+  if (updatesStock && !hasCapability(req, 'inventory.adjust')) throw new BusinessPermissionError()
   await prisma.$transaction(async tx => {
     await lock(tx, req.companyId)
+    await assertTransactionCapabilities(tx, req, 'catalog.prices.write', ...(updatesStock ? ['inventory.adjust' as const] : []))
     const seen = new Set<string>()
     for (const p of products) {
       let category = await tx.category.findFirst({ where: { companyId: req.companyId, name: p.category } })
       if (!category) category = await tx.category.create({ data: { companyId: req.companyId, name: p.category } })
-      const data = { name: p.name, categoryId: category.id, price: p.price, taxRate: p.taxRate, stock: p.stock ?? null, isActive: p.isActive ?? true }
+      const data = { name: p.name, categoryId: category.id, price: p.price, taxRate: p.taxRate, ...(p.stock !== undefined ? { stock: p.stock } : {}), isActive: p.isActive ?? true }
       const existing = p.id ? await tx.product.findFirst({ where: { id: p.id, companyId: req.companyId } }) : null
       const id = existing?.id || importedProductId(req.companyId, p)
       if (seen.has(id)) throw new PosError('Produit répété dans le fichier. Utilisez des identifiants distincts pour les homonymes.')
@@ -642,10 +685,10 @@ router.post('/catalog-import', requireRole('OWNER', 'MANAGER'), wrap(async (req,
   }, { timeout: 15000 })
   res.json({ saved: products.length })
 }))
-router.get('/settings', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+router.get('/settings', requireCapabilities('settings.manage'), wrap(async (req, res) => {
   res.json(await prisma.companySettings.findUnique({ where: { companyId: req.companyId } }))
 }))
-router.put('/settings', requireRole('OWNER', 'MANAGER'), wrap(async (req, res) => {
+router.put('/settings', requireCapabilities('settings.manage'), wrap(async (req, res) => {
   const data = settingsSchema.parse(req.body)
   res.json(await prisma.companySettings.upsert({ where: { companyId: req.companyId }, create: { companyId: req.companyId, ...data }, update: data }))
 }))

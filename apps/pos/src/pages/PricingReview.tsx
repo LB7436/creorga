@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { usePOS, type OrderItem } from '../store/posStore'
 import { reviewLinePricing } from '../lib/floorBridge'
+import { hasCapability } from '../lib/business-access'
 
 function ReviewLine({ line }: { line: OrderItem }) {
   const products = usePOS(s => s.menu)
@@ -30,12 +31,12 @@ function ReviewLine({ line }: { line: OrderItem }) {
 }
 
 export default function PricingReview({ lines }: { lines: OrderItem[] }) {
-  const role = usePOS(s => s.currentStaff?.role)
+  const access = usePOS(s => s.businessAccess)
   if (!lines.length) return null
   return <section aria-label="Vérification des anciennes lignes" style={{ padding: 16, color: '#fde68a', background: '#422006', borderRadius: 12, marginBottom: 16 }}>
     <h3>Anciennes lignes à vérifier avant encaissement</h3>
     <p>Ces données ne contiennent pas de TVA historique vérifiée. Leur prix enregistré est conservé. La confirmation du responsable est tracée ; elle ne constitue pas une reconstitution automatique.</p>
-    {role === 'OWNER' || role === 'MANAGER' ? lines.map(line => <ReviewLine key={line.id} line={line} />)
-      : <p>Connectez un propriétaire ou un responsable pour vérifier ces lignes.</p>}
+    {hasCapability('catalog.prices.write', access) ? lines.map(line => <ReviewLine key={line.id} line={line} />)
+      : <p>Une permission de modification des prix est nécessaire pour vérifier ces lignes.</p>}
   </section>
 }

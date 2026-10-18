@@ -3,7 +3,6 @@ import type { Request, Response } from 'express'
 // One absolute deadline across orchestration and nested calls, not one allowance
 // per model/fallback. A public header can never extend or choose this budget.
 export const ASSISTANT_BUDGET_MS = 20_000
-const DEADLINE_HEADER = 'x-creorga-assistant-deadline'
 
 export class AssistantRequestError extends Error {
   constructor(readonly code: string, readonly status: number, message: string) { super(message) }
@@ -20,14 +19,14 @@ export class AssistantBudget {
 
   constructor(req: Request, private response: Response) {
     const now = Date.now()
-    const inherited = (req as any).user?.userId === 'internal-service' ? Number(req.get(DEADLINE_HEADER)) : NaN
-    this.deadline = Number.isFinite(inherited) ? Math.min(now + ASSISTANT_BUDGET_MS, inherited) : now + ASSISTANT_BUDGET_MS
+    // Les services directs partagent cette instance. Aucun en-tête public ou
+    // jeton de service ne choisit la durée d'une demande humaine.
+    this.deadline = now + ASSISTANT_BUDGET_MS
     this.timer = setTimeout(() => this.expire(), Math.max(0, this.deadline - now))
     response.once('close', this.abandoned)
   }
 
   get signal(): AbortSignal { return this.controller.signal }
-  internalDeadlineHeaders() { return { [DEADLINE_HEADER]: String(this.deadline) } }
   private expire() {
     if (!this.signal.aborted) this.controller.abort(new AssistantRequestError('ASSISTANT_TIMEOUT', 504,
       'Le délai de l’assistant est dépassé. Aucun résultat supplémentaire n’est confirmé ; vérifiez les données avant toute nouvelle tentative.'))
@@ -77,7 +76,6 @@ export class AssistantBudget {
   async internalJson(input: string, init: RequestInit): Promise<any> {
     try {
       const headers = new Headers(init.headers)
-      headers.set(DEADLINE_HEADER, String(this.deadline))
       return await this.json(await this.fetch(input, { ...init, headers }), true)
     } catch (error) {
       this.rethrowIfFatal(error)

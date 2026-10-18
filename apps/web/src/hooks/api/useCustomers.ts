@@ -1,4 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useBusinessQuery } from './useBusinessQuery'
 import api from '@/lib/api'
 import { toastError, toastSuccess } from '@/lib/toast'
 
@@ -23,20 +24,21 @@ export interface Customer {
   createdAt?: string
 }
 
-export function useCustomers(search?: string) {
-  return useQuery<Customer[]>({
+export function useCustomers(search?: string, options: { enabled?: boolean } = {}) {
+  return useBusinessQuery<Customer[]>('crm.customers.read', {
     queryKey: ['customers', search ?? 'all'],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       api
-        .get('/crm/customers', { params: { limit: 1000, ...(search ? { search } : {}) } })
+        .get('/crm/customers', { params: { limit: 1000, ...(search ? { search } : {}) }, signal })
         .then((r) => Array.isArray(r.data) ? r.data : r.data.customers),
+    enabled: options.enabled,
   })
 }
 
 export function useCustomer(id?: string) {
-  return useQuery<Customer>({
+  return useBusinessQuery<Customer>('crm.customers.read', {
     queryKey: ['customers', 'detail', id],
-    queryFn: () => api.get(`/crm/customers/${id}`).then((r) => r.data),
+    queryFn: ({ signal }) => api.get(`/crm/customers/${id}`, { signal }).then((r) => r.data),
     enabled: Boolean(id),
   })
 }

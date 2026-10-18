@@ -4,15 +4,15 @@ let companyId = ''
 let generation = 0
 let refresh: { generation: number; promise: Promise<void> } | null = null
 let endingSession: Promise<void> | null = null
-export function setSession(accessToken: string, company: string) { generation++; token = accessToken; companyId = company }
-export function clearSession() { generation++; token = ''; companyId = '' }
+export function setSession(accessToken: string, company: string) { generation++; token = accessToken; companyId = company; invalidateBusinessAccess() }
+export function clearSession() { generation++; token = ''; companyId = ''; invalidateBusinessAccess() }
 export const sessionGeneration = () => generation
 export function assertSession(expected: number) { if (generation !== expected) throw new Error('La session de caisse a changé. Reprenez dans votre espace actuel.') }
 export const sessionCompany = () => companyId
 export const sessionHeaders = (): Record<string, string> => ({ ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(companyId ? { 'X-Company-Id': companyId } : {}) })
 export async function api<T = any>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
   if (path === '/auth/login' && endingSession) await endingSession
-  const expected = generation, previousToken = token, previousCompany = companyId
+  const expected = generation, previousToken = token, previousCompany = companyId, rights = accessEpoch()
   const res = await fetch(`${BACKEND}/api${path}`, { ...options, credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...sessionHeaders(), ...options.headers } })
   assertSession(expected)
@@ -51,13 +51,17 @@ export async function api<T = any>(path: string, options: RequestInit = {}, retr
     refresh = { generation: expected, promise }
     void promise.finally(() => { if (refresh?.promise === promise) refresh = null }).catch(() => {})
     }
-    await refresh.promise
+    try { await refresh.promise } catch (error) { if (generation === expected) invalidateBusinessAccess(); throw error }
     assertSession(expected)
     return api<T>(path, options, false)
   }
   const body = res.headers.get('content-type')?.includes('application/json') ? await res.json() : await res.text()
   assertSession(expected)
+  if (res.status === 401 || res.status === 403) invalidateBusinessAccess()
   if (!res.ok) throw Object.assign(new Error(body.error || body.message || `Erreur serveur (${res.status})`), { status: res.status })
+  // Une mutation peut déjà être confirmée : ne jamais la transformer en échec.
+  // En revanche, une ancienne lecture ne doit pas repeupler un cache révoqué.
+  if ((options.method || 'GET').toUpperCase() === 'GET') assertAccessEpoch(rights)
   return body as T
 }
 
@@ -67,3 +71,4 @@ export function endSession() {
   void request.finally(() => { if (endingSession === request) endingSession = null })
   clearSession()
 }
+import { accessEpoch, assertAccessEpoch, invalidateBusinessAccess } from './business-access'

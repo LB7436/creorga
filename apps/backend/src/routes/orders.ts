@@ -2,7 +2,9 @@ import { Router, type Request, type Response } from 'express'
 import { z } from 'zod'
 import { randomUUID, createHash } from 'node:crypto'
 import prisma from '../lib/prisma'
-import { requireCompany, requireRole } from '../middleware/requireCompany'
+import { requireCompany } from '../middleware/requireCompany'
+import { hasCapability } from '../lib/business-permissions'
+import { assertTransactionCapabilities, BusinessPermissionError, requireCapabilities } from '../lib/business-permission-transaction'
 import { moneyMinor, totalsFromTtc } from '../lib/money'
 import { orderPaymentBalance } from '../lib/order-tenders'
 import { lockFinancialCompany } from '../lib/financial-lock'
@@ -15,7 +17,7 @@ const router = Router(); router.use(requireCompany)
 const wrap = (fn: (req: any, res: Response) => Promise<any>) => async (req: any, res: Response) => {
   try { await fn(req, res) } catch (error) {
     if (error instanceof z.ZodError || error instanceof RangeError) return res.status(400).json({ message: 'Saisie de commande invalide.' })
-    if (error instanceof PaymentError) return res.status(error.status).json({ message: error.message })
+    if (error instanceof PaymentError || error instanceof BusinessPermissionError) return res.status(error.status).json({ message: error.message })
     logger.error('[orders] opération refusée', error)
     return res.status(503).json({ message: 'Opération non confirmée. Actualisez avant de réessayer.' })
   }
@@ -45,15 +47,17 @@ async function requirePreparationCorrection(tx: any, order: any) {
 }
 router.get('/', wrap(async (req, res) => {
   const filters = z.object({ status: z.string().max(40).optional(), tableId: id.optional() }).parse(req.query)
-  res.json(await prisma.order.findMany({ where: { companyId: req.companyId, ...filters },
+  res.json(await prisma.order.findMany({ where: { companyId: req.companyId,
+    AND: [filters, ...(!hasCapability(req, 'finance.revenue.read') ? [{ paidAt: null, status: { notIn: ['PAID', 'CANCELLED'] } }] : [])] },
     include: { items: { include: { product: true } }, table: true, user: { select: { firstName: true, lastName: true } } }, orderBy: { createdAt: 'desc' }, take: 1000 }))
 }))
 router.get('/:id', wrap(async (req, res) => {
-  const order = await prisma.order.findFirst({ where: { id: req.params.id, companyId: req.companyId }, include: { items: { include: { product: true } }, table: true, user: { select: { firstName: true, lastName: true } } } })
+  const order = await prisma.order.findFirst({ where: { id: req.params.id, companyId: req.companyId,
+    ...(!hasCapability(req, 'finance.revenue.read') ? { paidAt: null, status: { notIn: ['PAID', 'CANCELLED'] } } : {}) }, include: { items: { include: { product: true } }, table: true, user: { select: { firstName: true, lastName: true } } } })
   if (!order) throw new PaymentError(404, 'Commande non trouvée.')
   res.json(order)
 }))
-router.post('/', wrap(async (req, res) => {
+router.post('/', requireCapabilities('service.manage'), wrap(async (req, res) => {
   const input = createSchema.parse(req.body), companyId = req.companyId
   if (input.tableId && !await prisma.table.findFirst({ where: { id: input.tableId, companyId, isActive: true } })) throw new PaymentError(400, 'Table absente de cet établissement.')
   const products = await prisma.product.findMany({ where: { companyId, isActive: true, id: { in: input.items.map(i => i.productId) } } })
@@ -67,6 +71,7 @@ router.post('/', wrap(async (req, res) => {
     try {
       const order = await prisma.$transaction(async tx => {
         await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext('order-number'))::text`
+        await assertTransactionCapabilities(tx, req, 'service.manage')
         const last = await tx.order.findFirst({ where: { companyId }, orderBy: { orderNumber: 'desc' }, select: { orderNumber: true } })
         return tx.order.create({ data: { companyId, userId: req.user?.userId || null, tableId: input.tableId || null, notes: input.notes,
           orderNumber: (last?.orderNumber || 0) + 1, subtotal: totals.baseCents / 100, taxAmount: totals.taxCents / 100, total: totals.totalCents / 100,
@@ -80,19 +85,21 @@ router.post('/', wrap(async (req, res) => {
   }
   throw new PaymentError(503, 'Numérotation momentanément indisponible.')
 }))
-router.put('/:id/status', wrap(async (req, res) => {
+router.put('/:id/status', requireCapabilities('service.manage'), wrap(async (req, res) => {
   const { status } = z.object({ status: z.enum(['OPEN', 'IN_PROGRESS', 'READY', 'PAID', 'CANCELLED']) }).strict().parse(req.body)
   if (status === 'PAID') throw new PaymentError(409, 'Le paiement doit être enregistré par l’encaissement.')
-  if (status === 'CANCELLED' && !['OWNER', 'MANAGER'].includes(req.role)) throw new PaymentError(403, 'Annulation réservée au responsable.')
+  if (status === 'CANCELLED' && !hasCapability(req, 'orders.cancel')) throw new PaymentError(403, 'Annulation non autorisée.')
   const order = await prisma.$transaction(async tx => {
     const original = await openOrder(tx, req.companyId, req.params.id)
+    await assertTransactionCapabilities(tx, req, 'service.manage', ...(status === 'CANCELLED' ? ['orders.cancel' as const] : []))
     if (status === 'CANCELLED') await requirePreparationCorrection(tx, original)
     return tx.order.update({ where: { id: req.params.id }, data: { status }, include: { items: { include: { product: true } }, table: true } })
   })
   res.json(order)
 }))
 router.get('/:id/payment-balance', wrap(async (req, res) => {
-  const order = await prisma.order.findFirst({ where: { id: req.params.id, companyId: req.companyId } })
+  const order = await prisma.order.findFirst({ where: { id: req.params.id, companyId: req.companyId,
+    ...(!hasCapability(req, 'finance.revenue.read') ? { OR: [{ paidAt: null, status: { notIn: ['PAID', 'CANCELLED'] } }, { userId: req.user.userId }] } : {}) } })
   if (!order) throw new PaymentError(404, 'Commande introuvable.')
   res.set('Cache-Control', 'private, no-store').json(await orderPaymentBalance(prisma, req.companyId, order))
 }))
@@ -101,13 +108,14 @@ const checkoutSchema = z.object({ requestId: z.string().uuid().optional(), payme
   cashReceived: z.number().finite().min(0).max(10_000_000).nullable().optional(),
   allocations: z.array(z.object({ method: z.enum(['CASH', 'CARD']), amount: z.number().finite().positive().max(10_000_000) }).strict()).min(2).max(10).optional(),
 }).strict()
-router.post('/:id/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER', 'CASHIER'), wrap(async (req, res) => {
+router.post('/:id/checkout', requireCapabilities('payments.receive'), wrap(async (req, res) => {
   const input = checkoutSchema.parse(req.body), requestId = input.requestId || randomUUID()
   if (input.partialAmountCents && !input.requestId) throw new PaymentError(400, 'Référence stable obligatoire pour un règlement partiel.')
   const hash = createHash('sha256').update(JSON.stringify({ ...input, requestId })).digest('hex')
   const order = await prisma.$transaction(async tx => {
     await lockFinancialCompany(tx, req.companyId)
     await lockOrderPayment(tx, req.companyId, req.params.id)
+    await assertTransactionCapabilities(tx, req, 'payments.receive')
     const replay = await tx.paymentAttempt.findUnique({ where: { companyId_requestId: { companyId: req.companyId, requestId } } })
     if (replay) {
       if (replay.orderId !== req.params.id || replay.provider !== 'manual' || replay.requestHash !== hash || replay.userId !== (req.user?.userId || null)) throw new PaymentError(409, 'Référence de règlement incompatible.')
@@ -145,10 +153,11 @@ router.post('/:id/checkout', requireRole('OWNER', 'MANAGER', 'EMPLOYEE', 'WAITER
   const balance = await orderPaymentBalance(prisma, req.companyId, order)
   res.json({ ...order, outstandingCents: balance.outstandingCents, paidCents: balance.paidCents, paymentConfirmation: 'manual_declaration' })
 }))
-router.post('/:id/items', wrap(async (req, res) => {
+router.post('/:id/items', requireCapabilities('service.manage'), wrap(async (req, res) => {
   const input = itemSchema.parse(req.body)
   const item = await prisma.$transaction(async tx => {
     const original = await openOrder(tx, req.companyId, req.params.id)
+    await assertTransactionCapabilities(tx, req, 'service.manage')
     await requirePreparationCorrection(tx, original)
     const product = await tx.product.findFirst({ where: { id: input.productId, companyId: req.companyId, isActive: true } })
     if (!product) throw new PaymentError(404, 'Produit indisponible.')
@@ -158,23 +167,26 @@ router.post('/:id/items', wrap(async (req, res) => {
   })
   res.status(201).json(item)
 }))
-router.put('/:id/items/:itemId', wrap(async (req, res) => {
+router.put('/:id/items/:itemId', requireCapabilities('service.manage'), wrap(async (req, res) => {
   const input = z.object({ quantity: z.number().int().positive().max(100000).optional(), notes: note,
     status: z.enum(['PENDING', 'PREPARING', 'READY', 'SERVED']).optional() }).strict().parse(req.body)
   const item = await prisma.$transaction(async tx => {
     const original = await openOrder(tx, req.companyId, req.params.id)
+    await assertTransactionCapabilities(tx, req, 'service.manage')
     if (input.quantity !== undefined || input.notes !== undefined) await requirePreparationCorrection(tx, original)
     const previous = await tx.orderItem.findFirst({ where: { id: req.params.itemId, orderId: req.params.id } })
     if (!previous) throw new PaymentError(404, 'Article non trouvé.')
+    if (input.quantity !== undefined && input.quantity < previous.quantity && !hasCapability(req, 'orders.cancel')) throw new BusinessPermissionError()
     const item = await tx.orderItem.update({ where: { id: previous.id }, data: input, include: { product: true } })
     await recalculate(tx, req.params.id)
     return item
   })
   res.json(item)
 }))
-router.delete('/:id/items/:itemId', wrap(async (req, res) => {
+router.delete('/:id/items/:itemId', requireCapabilities('service.manage', 'orders.cancel'), wrap(async (req, res) => {
   await prisma.$transaction(async tx => {
     const original = await openOrder(tx, req.companyId, req.params.id)
+    await assertTransactionCapabilities(tx, req, 'service.manage', 'orders.cancel')
     await requirePreparationCorrection(tx, original)
     const item = await tx.orderItem.findFirst({ where: { id: req.params.itemId, orderId: req.params.id } })
     if (!item) throw new PaymentError(404, 'Article non trouvé.')

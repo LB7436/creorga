@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { filtrerParSociete, macroFileForCompany, validateMacro } from './owner'
+import router, { filtrerParSociete, macroFileForCompany, validateMacro } from './owner'
+import { EventEmitter } from 'node:events'
 
 // Preuve du correctif : /api/owner/audit renvoyait le journal de TOUTES les
 // sociétés à n'importe quel OWNER.
@@ -11,9 +12,9 @@ describe('filtrerParSociete', () => {
     { id: 'l2', companyId: null, module: 'auth' }, // idem, null explicite
   ]
 
-  it("ne montre à une société que ses entrées (et l'historique non estampillé)", () => {
+  it("ne montre à une société que ses entrées explicitement estampillées", () => {
     const vues = filtrerParSociete(entrees, 'societe-a')
-    expect(vues.map((e) => e.id)).toEqual(['a1', 'l1', 'l2'])
+    expect(vues.map((e) => e.id)).toEqual(['a1'])
   })
 
   it("ne laisse jamais passer l'entrée d'une autre société", () => {
@@ -23,6 +24,9 @@ describe('filtrerParSociete', () => {
 
   it('tableau vide → tableau vide', () => {
     expect(filtrerParSociete([], 'societe-a')).toEqual([])
+  })
+  it('aucune société n’obtient l’historique global par contexte absent', () => {
+    expect(filtrerParSociete(entrees, undefined)).toEqual([])
   })
 })
 
@@ -40,5 +44,18 @@ describe('macros propriétaire', () => {
   it('normalise une macro valide', () => {
     expect(validateMacro({ name: '  Fermeture  ', icon: '', intents: ['  fermer la caisse  ', ''] }))
       .toEqual({ name: 'Fermeture', icon: '⚡', intents: ['fermer la caisse'] })
+  })
+})
+
+describe('absence de réécriture globale depuis un compte société', () => {
+  it.each(['/audit', '/purge-inactive-customers'])('refuse POST %s sans opération de stockage', async url => {
+    const result = await new Promise<any>((resolve, reject) => {
+      const req = Object.assign(new EventEmitter(), { method: 'POST', url, headers: {}, body: { companyId: 'autre-societe', id: 'forgé' } })
+      const res = { statusCode: 200, status(code: number) { this.statusCode = code; return this }, json(body: unknown) { resolve({ status: this.statusCode, body }); return this } }
+      router(req as any, res as any, error => error ? reject(error) : resolve({ status: 404 }))
+    })
+    expect(result.status).toBe(503)
+    expect(result.body.ok).not.toBe(true)
+    expect(result.body.purged).toBeUndefined()
   })
 })

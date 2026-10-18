@@ -1,5 +1,5 @@
 import { useAuthStore } from '@/stores/authStore'
-import { assertAuthScope, refreshSession } from './api'
+import { assertAuthScope, refreshSession, invalidateBusinessAccess } from './api'
 import { authDataScope } from './authScope'
 import { assertApiDestination, CONFIGURED_BACKEND_URL } from './apiDestination'
 
@@ -50,6 +50,7 @@ export async function fetchAuth(
   const reponse = await fetch(entree, avecJeton(init, jeton, companyId))
   init.signal?.throwIfAborted()
   assertAuthScope(scope)
+  if (reponse.status === 403) { invalidateBusinessAccess(true); return reponse }
   if (reponse.status !== 401) return reponse
 
   const nouveauJeton = await rafraichirJeton()
@@ -68,5 +69,6 @@ export async function fetchAuth(
   }
   const nouvelleReponse = await fetch(entree, avecJeton(init, nouveauJeton, companyId))
   assertAuthScope(scope)
+  if (nouvelleReponse.status === 403) invalidateBusinessAccess(true)
   return nouvelleReponse
 }
