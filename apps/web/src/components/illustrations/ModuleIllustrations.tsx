@@ -88,7 +88,7 @@ const Invoices = ({ size }: { size: number }) => (
     <rect x="28" y="34" width="24" height="2" rx="1" fill="#10b981" opacity="0.3" />
     <rect x="28" y="40" width="18" height="2" rx="1" fill="#10b981" opacity="0.3" />
     <rect x="28" y="50" width="22" height="6" rx="2" fill="#10b981" />
-    <text x="32" y="54.5" fontSize="6" fontWeight="800" fill="#fff">€ 850</text>
+    <path d="M 35 53 L 38 55 L 45 51" stroke="#fff" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 )
 

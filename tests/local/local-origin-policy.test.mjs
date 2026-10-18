@@ -13,11 +13,12 @@ const builder = path.join(root, 'scripts/build-local-profile.mjs')
 
 /** Exécute le vrai constructeur avec ses frontières remplacées : aucun build,
  * Git, fichier de livrable, processus enfant ou appel réseau n'est exécuté. */
-async function captureBuildPlan(profile) {
+async function captureBuildPlan(profile, context = 'default') {
   const commands = [], files = []
   const injected = Object.fromEntries(['VITE_BACKEND_URL', 'VITE_REMOTE_BACKEND', 'VITE_API_URL',
     'VITE_WEB_CLIENT_URL', 'VITE_BACKOFFICE_URL', 'VITE_POS_URL', 'VITE_CAISSE_URL', 'VITE_ANALYTICS_URL']
     .map(key => [key, 'https://external.fixture.invalid/not-authorized']))
+  injected.CREORGA_LOCAL_CONTEXT = context
   const savedEnvironment = Object.fromEntries(Object.keys(injected).map(key => [key, process.env[key]]))
   const savedArgs = process.argv, savedExec = childProcess.execFileSync, savedWrite = fs.writeFileSync, savedLog = console.log
   try {
@@ -33,7 +34,7 @@ async function captureBuildPlan(profile) {
     fs.writeFileSync = (file, content) => { files.push({ path: path.relative(root, file).replaceAll('\\', '/'), content: JSON.parse(String(content)) }) }
     console.log = () => {} // Ne jamais annoncer une compilation fictive comme réelle.
     syncBuiltinESMExports()
-    await import(`${pathToFileURL(builder).href}?local-origin-plan=${profile}`)
+    await import(`${pathToFileURL(builder).href}?local-origin-plan=${profile}-${context}`)
     return { commands, files }
   } finally {
     process.argv = savedArgs
@@ -84,6 +85,61 @@ for (const profile of ['business', 'full']) test(`plan ${profile} : API et quatr
     assert.equal(installation.externalProviders, 'disabled-by-local-runtime')
   }
   assert.equal(files.find(file => file.path.endsWith('/build-manifest.json'))?.content.apiOrigin, 'http://localhost:3002')
+})
+
+test('F18 compile les cinq applications dans de nouveaux dossiers et remplace les destinations héritées', async () => {
+  const { commands, files } = await captureBuildPlan('business', 'f18-isolated')
+  assert.equal(commands.length, 9)
+  for (const command of commands) {
+    assert.equal(command.env.VITE_BACKEND_URL, 'http://127.0.0.1:13002')
+    assert.equal(command.env.VITE_REMOTE_BACKEND, 'http://127.0.0.1:13002')
+    assert.equal(command.env.VITE_API_URL, 'http://127.0.0.1:13002/api')
+    assert.equal(command.env.VITE_WEB_CLIENT_URL, 'http://127.0.0.1:15174')
+    assert.equal(command.env.VITE_BACKOFFICE_URL, 'http://127.0.0.1:15174')
+    assert.equal(command.env.VITE_POS_URL, 'http://127.0.0.1:15175')
+    assert.equal(command.env.VITE_CAISSE_URL, 'http://127.0.0.1:15175')
+    assert.equal(command.env.CREORGA_BUSINESS_ONLY, 'true')
+  }
+  for (const index of [1, 3, 5, 7]) assert.deepEqual(commands[index].args.slice(1), ['build', '--outDir', 'dist-business-f18-isolated'])
+  assert.deepEqual(commands[8].args.slice(1), ['-p', 'tsconfig.json', '--outDir', 'dist-business-f18-isolated'])
+  for (const app of ['web', 'pos', 'superadmin', 'guest', 'backend']) {
+    const manifest = files.find(file => file.path === `apps/${app}/dist-business-f18-isolated/local-installation.json`)?.content
+    assert.ok(manifest, `manifeste isolé requis pour ${app}`)
+    assert.equal(manifest.context, 'f18-isolated')
+    assert.equal(manifest.apiOrigin, 'http://127.0.0.1:13002')
+    assert.equal(manifest.webOrigin, 'http://127.0.0.1:15174')
+  }
+  assert.equal(files.some(file => /\/dist(?:\/|-business\/|-full\/)/.test(file.path)), false)
+})
+
+test('le contexte isolé refuse full et tout contexte inconnu avant une compilation', async () => {
+  await assert.rejects(captureBuildPlan('full', 'f18-isolated'), /business.*f18-isolated|f18-isolated.*business/)
+  for (const context of ['inconnu', 'https://remote.fixture.invalid', '../default']) {
+    await assert.rejects(captureBuildPlan('business', context), /Contexte local inconnu/)
+    assert.throws(() => localBuildEnvironment('business', { CREORGA_LOCAL_CONTEXT: context }), /Contexte local inconnu/)
+  }
+})
+
+test('F18 recovery compile sans écrire les artefacts ni les origines des deux installations préservées', async () => {
+  const { commands, files } = await captureBuildPlan('business', 'f18-recovery')
+  assert.equal(commands.length, 9)
+  for (const command of commands) {
+    assert.equal(command.env.VITE_API_URL, 'http://127.0.0.1:23002/api')
+    assert.equal(command.env.VITE_WEB_CLIENT_URL, 'http://127.0.0.1:25174')
+    assert.equal(command.env.VITE_POS_URL, 'http://127.0.0.1:25175')
+    assert.equal(command.env.CREORGA_BUSINESS_ONLY, 'true')
+  }
+  for (const index of [1, 3, 5, 7]) assert.deepEqual(commands[index].args.slice(1), ['build', '--outDir', 'dist-business-f18-recovery'])
+  assert.deepEqual(commands[8].args.slice(1), ['-p', 'tsconfig.json', '--outDir', 'dist-business-f18-recovery'])
+  for (const app of ['web', 'pos', 'superadmin', 'guest', 'backend']) {
+    const manifest = files.find(file => file.path === `apps/${app}/dist-business-f18-recovery/local-installation.json`)?.content
+    assert.ok(manifest)
+    assert.equal(manifest.context, 'f18-recovery')
+    assert.equal(manifest.apiOrigin, 'http://127.0.0.1:23002')
+    assert.equal(manifest.webOrigin, 'http://127.0.0.1:25174')
+  }
+  assert.ok(files.every(file => file.path.includes('/dist-business-f18-recovery/')))
+  await assert.rejects(captureBuildPlan('full', 'f18-recovery'), /business.*f18-recovery|f18-recovery.*business/)
 })
 
 test('les quatre interfaces publiques locales sont bornées, distinctes du binding réseau strict', () => {

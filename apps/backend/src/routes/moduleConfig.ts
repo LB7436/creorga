@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
-import { Router, type Request } from 'express'
+import { type Request } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 import { safeReadJson, safeWriteJson } from '../lib/safe-json'
 import { dataPath } from '../middleware/audit-log'
 import { hasCapability } from '../lib/business-permissions'

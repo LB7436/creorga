@@ -7,6 +7,7 @@ import { TrackedTasks } from './backend-lifecycle'
 import { assertTransactionCapabilities, BusinessPermissionError } from './business-permission-transaction'
 
 const deliveryTasks = new TrackedTasks()
+export function invoiceDeliveryActivitySnapshot() { return deliveryTasks.snapshot() }
 
 export class DeliveryError extends Error {
   constructor(public status: number, message: string) { super(message) }

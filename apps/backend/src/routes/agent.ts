@@ -1,4 +1,6 @@
-import { Router, type Request } from 'express'
+import { type Request } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
+import logger from '../lib/logger'
 import fs from 'fs'
 import path from 'path'
 import { createHash } from 'node:crypto'
@@ -926,7 +928,7 @@ router.post('/process-pdf', (req, res) => withAssistantBudget(req, res, async bu
     try {
       textResult = await budget.wait(() => parser.getText())
       info = await budget.wait(() => parser.getInfo())
-    } finally { void Promise.resolve(parser.destroy?.()).catch(() => {}) }
+    } finally { await Promise.resolve(parser.destroy?.()).catch(() => logger.warn('[agent] fermeture du lecteur PDF non confirmée')) }
     await revalidateAssistantScope(req, budget)
 
     const rawText = (textResult?.text || textResult || '').toString().trim()

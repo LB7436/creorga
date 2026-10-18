@@ -1,6 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { createHash } from 'node:crypto'
-import { Router, type NextFunction, type Request, type Response } from 'express'
+import { type NextFunction, type Request, type Response } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
+import { trackHttpTask } from '../lib/http-work'
 import { JsonStoreUnavailableError, readJsonStrict, safeWriteJson } from '../lib/safe-json'
 import { dataPath } from '../middleware/audit-log'
 import logger from '../lib/logger'
@@ -235,10 +237,10 @@ export function sauvegarderPlanDeSalle(companyId?: string): void {
  * l'assistant, qui appellent getFloorState() profondément, de rester dans la
  * bonne société. Toute mutation réussie est persistée automatiquement.
  */
-export function floorCompanyContext(req: Request, res: Response, next: NextFunction): void {
+export function floorCompanyContext(req: Request, res: Response, next: NextFunction): void | Promise<void> {
   const companyId = (req as any).companyId
   if (!postgresFloorEnabled() || floorContext.getStore()?.companyId === companyId || !companyId) return floorContextFromMemory(req, res, next)
-  void loadFloorWorkspace(companyId, () => getFloorState(companyId)).then(snapshot => {
+  return loadFloorWorkspace(companyId, () => getFloorState(companyId)).then(snapshot => {
     const cached = states.get(companyId)
     if (!cached || floorHash(cached) !== floorHash(snapshot)) states.set(companyId, snapshot)
     floorContextFromMemory(req, res, next)
@@ -298,14 +300,14 @@ function floorContextFromMemory(req: Request, res: Response, next: NextFunction)
     if (!direct && !nested) return originalJson(body)
     // Appelé après sauvegarde/commit : updatedAt et les nouveaux devis sont
     // ceux réellement confirmés, pas ceux d'une projection calculée en avance.
-    void loadFloorBusinessProjection(prisma, companyId, direct ? body : body.state).then(projected => {
+    void trackHttpTask(req, () => loadFloorBusinessProjection(prisma, companyId, direct ? body : body.state).then(projected => {
       const pricingReply = direct && /\/pos\/(?:draft|pricing\/[^/]+\/review)(?:\?|$)/.test(req.originalUrl)
       originalJson(pricingReply ? { updatedAt: projected.updatedAt, posPricing: projected.posPricing, lineOrigins: projected.lineOrigins }
         : direct ? projected : { ...body, state: projected })
     }).catch(() => {
       res.status(503)
       originalJson({ error: 'Projection métier indisponible. Conservez votre référence et rechargez les données serveur.', code: 'FLOOR_PROJECTION_UNAVAILABLE' })
-    })
+    })).catch(next)
     return res
   }
   res.json = sendBody
@@ -359,9 +361,9 @@ function floorContextFromMemory(req: Request, res: Response, next: NextFunction)
         }
         draft.updatedAt = Math.max(Date.now(), original.updatedAt + 1)
         if (context.postgres) {
-          void prisma.$transaction(tx => saveFloorWorkspace(tx, companyId, original, draft, (req as any).user?.userId || 'device', `${req.method} ${req.baseUrl}${req.path}`, context.request), { maxWait: 15000, timeout: 10000 })
+          void trackHttpTask(req, () => prisma.$transaction(tx => saveFloorWorkspace(tx, companyId, original, draft, (req as any).user?.userId || 'device', `${req.method} ${req.baseUrl}${req.path}`, context.request), { maxWait: 15000, timeout: 10000 })
             .then(() => { publishPostgres(); sendBody(body) })
-            .catch(error => { const known = error instanceof WorkspaceError || error instanceof BusinessPermissionError; res.status(known ? error.status : 503); originalJson({ error: known ? error.message : 'Enregistrement PostgreSQL non confirmé. Conservez le brouillon et rechargez.', code: error instanceof BusinessPermissionError ? 'CAPABILITY_REQUIRED' : 'FLOOR_DATABASE_SAVE_FAILED' }) })
+            .catch(error => { const known = error instanceof WorkspaceError || error instanceof BusinessPermissionError; res.status(known ? error.status : 503); originalJson({ error: known ? error.message : 'Enregistrement PostgreSQL non confirmé. Conservez le brouillon et rechargez.', code: error instanceof BusinessPermissionError ? 'CAPABILITY_REQUIRED' : 'FLOOR_DATABASE_SAVE_FAILED' }) })).catch(next)
           return res
         }
         // Un fichier ne peut partager le commit/verrou de l'adhésion en base.
@@ -405,7 +407,7 @@ router.use((req, res, next) => {
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Plan invalide.' })
     if (!req.get('If-Match')) return res.status(428).json({ error: 'Rechargez le plan avant de le remplacer.' })
     const original = getFloorState()
-    void (async () => {
+    return (async () => {
       const visible = hasCapability(req as any, 'finance.revenue.read') ? original : await loadFloorBusinessProjection(prisma, (req as any).companyId, original)
       if (protectedFloorFieldsChanged(visible, req.body)) return void res.status(400).json({ error: 'Les règlements et la préparation cuisine ne peuvent pas être modifiés par un import de plan.' })
       // Un aller-retour du DTO filtré n'efface jamais les registres privés.
@@ -417,7 +419,6 @@ router.use((req, res, next) => {
       if (Array.isArray(req.body.chairs)) req.body.chairs = req.body.chairs.map((chair: any) => ({ ...chair, items: original.chairs.find(entry => entry.id === chair.id)?.items || [] }))
       next()
     })().catch(() => res.status(503).json({ error: 'Projection métier indisponible. Aucun remplacement de plan confirmé.' }))
-    return
   }
   next()
 })

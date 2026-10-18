@@ -1,0 +1,194 @@
+{
+  "version": 1,
+  "campaign": "F18-20261018",
+  "status": "SOFTWARE_TESTS_PASSED_CAMPAIGN_BLOCKED",
+  "campaignDelivery": "NON LIVRE",
+  "pilot": "NON QUALIFIE",
+  "branch": "codex/creorga-2-0-2026-10-08",
+  "baseLocalAndRemoteHead": "ab0d735f60f01bbfd0c7f914a43c2b997f280e2e",
+  "newCommit": null,
+  "published": false,
+  "worktreeDirty": true,
+  "sourceFingerprint": {
+    "algorithm": "sha256",
+    "files": 805,
+    "digest": "5f9cd1d28f9bfdd4c65ce85f97e78d5aa5566865b756b726249fcbb280a90fd9",
+    "sameBeforeAfterAllFourGlobalSuites": true
+  },
+  "globalSuites": [
+    {
+      "suite": "backend-unit",
+      "startedAt": "2026-10-18T12:19:03.288Z",
+      "finishedAt": "2026-10-18T12:19:34.054Z",
+      "total": 616,
+      "passed": 616,
+      "failed": 0,
+      "skipped": 0,
+      "exitCode": 0,
+      "sourceStable": true,
+      "privateResultSha256": "b8c3e3201a4d996a232169f9b2058e8930ee6158ed995836c76d468d97508d14",
+      "vitestJsonSha256": "d2f905f5f8d7d3bff2b609ba2b5aa3c5b0f6e1fa8d03d65b0b19d4bcdd5c3482"
+    },
+    {
+      "suite": "web-unit",
+      "startedAt": "2026-10-18T12:19:01.653Z",
+      "finishedAt": "2026-10-18T12:19:38.435Z",
+      "total": 513,
+      "passed": 513,
+      "failed": 0,
+      "skipped": 0,
+      "exitCode": 0,
+      "sourceStable": true,
+      "privateResultSha256": "99262869f5715835880d08547605a116f5eca13b770d50b1eeba7ad6c7f2bf5b",
+      "vitestJsonSha256": "721c11b2591289137f6d5d65e74aa64347f1f644883fe77114dc8847c64daf70"
+    },
+    {
+      "suite": "pos-unit",
+      "startedAt": "2026-10-18T12:20:25.494Z",
+      "finishedAt": "2026-10-18T12:20:32.609Z",
+      "total": 161,
+      "passed": 161,
+      "failed": 0,
+      "skipped": 0,
+      "exitCode": 0,
+      "sourceStable": true,
+      "privateResultSha256": "9302a7a74cb18abfa4d56fb0c67ffdb92ec9257fc718b2d6f4d6c1a1042ed5a7",
+      "vitestJsonSha256": "787cd1747a11aba8944d3c2c7ddef2c692b717949c8e37a07e2564936655ace4"
+    },
+    {
+      "suite": "postgresql-integration",
+      "startedAt": "2026-10-18T12:19:01.758Z",
+      "finishedAt": "2026-10-18T12:21:01.350Z",
+      "total": 353,
+      "passed": 353,
+      "failed": 0,
+      "skipped": 0,
+      "exitCode": 0,
+      "sourceStable": true,
+      "privateResultSha256": "9cbab849c66ae16960e065c36de4dcc268f759dc1d09191c209b5d0ca0ddf085",
+      "vitestJsonSha256": "7fcbdabcf3c3d03279f8f86006795b12637f93e2aa5081586359414bc9a003be",
+      "boundary": "creorga_tests loopback only; scoped fictitious fixtures; no production or real provider"
+    }
+  ],
+  "globalUnitTotal": 1290,
+  "separateLocalFixtures": {
+    "startedAt": "2026-10-18T12:21:13.284Z",
+    "finishedAt": "2026-10-18T12:21:15.531Z",
+    "total": 50,
+    "passed": 50,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "sourceFingerprint": "8a446b96c61a0b8efc32d31539fcfea15c921308790a0af2d508e99488d6f6f6",
+    "privateResultSha256": "9f1bf7c448a48a4a40177645e85095f7cde24db0b2c4d57a3730f6ab0c1b1d27",
+    "notNativeShortcutClicks": true
+  },
+  "build": {
+    "profile": "business",
+    "applications": 5,
+    "startedAt": "2026-10-18T12:19:00.934Z",
+    "finishedAt": "2026-10-18T12:20:53.657Z",
+    "elapsedMs": 112722,
+    "exitCode": 0,
+    "gameModuleCount": 0,
+    "stdoutSha256": "c6961f93d0fa303f082c96fb23b534d36746c966bcc19d4ae4fcf44dec192cf0",
+    "stderrSha256": "ccdbfde1fb030bfca4374382afe1295006f34fce227dcc7328c9cd27a6378c05",
+    "notRuntimeStartupOrUiProof": true
+  },
+  "uiF18Only": {
+    "campaignEvents": 286,
+    "allCampaignsJournalPrefixRows": 2447,
+    "journalPrefixHeadSha256": "e22bb2b5fe21335335f68902942a0764597f07c36af3968482d934facfd9e748",
+    "actionAttempts": 150,
+    "actionToolReturns": 148,
+    "actionToolErrors": 2,
+    "clickToolCalls": 87,
+    "clickToolReturns": 86,
+    "exactPhysicalClickCount": null,
+    "note": "A call may request double-click; physical clicks not reliably recorded. Tool returns are not functional PASS or unique controls.",
+    "attemptsByCombination": {
+      "A-OWNER": 32,
+      "A-ADMIN": 24,
+      "A-MANAGER": 21,
+      "A-SERVER": 38,
+      "A-EMPLOYEE": 26,
+      "A-QR": 9
+    },
+    "mandatoryCombinations": { "pass": 0, "fail": 0, "blockedPartlyExecuted": 6, "notRun": 12 },
+    "staticInventoryCount": 3697,
+    "uniqueStaticCoverage": null,
+    "activeFiveHoursAttested": false,
+    "newBrowserDownloadBytesQualified": false,
+    "savedScreenshotFilesAttested": false
+  },
+  "readonlyFinancialObservations": [
+    {
+      "company": "cafe",
+      "reportBytesSha256": "1e1df5c6f13b4240c851618cb9091e1866213297e5ddb8850ab15a7123da6fd6",
+      "historicalRowsComparedEqual": true,
+      "historicalFinalizedGrossCents": 2110,
+      "newOpenOrderGrossCents": 1180,
+      "newDeclaredCashReceiptsCents": 300,
+      "outstandingCents": 880,
+      "newDrawerExpectedCashCents": 5300,
+      "historicalDuplicateOpenPunchGroupCount": 1
+    },
+    {
+      "company": "restaurant",
+      "reportBytesSha256": "04a94510972c203de6b5b24eaf0b65454bfa44ae5ab87aa48cb0b39d4b5088e1",
+      "historicalRowsComparedEqual": true,
+      "historicalFinalizedGrossCents": 8450,
+      "newUiBusinessMutationCount": 0
+    },
+    {
+      "company": "bar",
+      "reportBytesSha256": "6d7ffacad3fc5a3b09c0a5cb5ba01ae8d3c1245b123b78dddd8948476402d3d0",
+      "historicalRowsComparedEqual": true,
+      "historicalFinalizedGrossCents": 3804,
+      "newUiBusinessMutationCount": 0
+    }
+  ],
+  "initialRestoration": {
+    "testedAt": "2026-10-18T10:38:47.507Z",
+    "status": "equal",
+    "tables": 82,
+    "rows": 18997,
+    "files": 14,
+    "pdfs": 26,
+    "archiveSha256": "d87386aaec2c8bbce0139881264b99cea5d64fce7810e7164e0830d1149b4450",
+    "encryptedCopyVerified": true,
+    "keyIncludedInArchive": false,
+    "beforeF18Mutations": true
+  },
+  "finalRestorationOfF18State": "BLOCKED_NOT_EXECUTED",
+  "recoveredArchives": {
+    "verifiedCopies": 27,
+    "totalDumpBytes": 30025952,
+    "newPrivateReportBytesSha256": "31f8771ab6ee8d96ec5136ca469ac9248389de1dcb2ee15161dd8af280c6c24b",
+    "indexAndSourceZipManifestVerified": true,
+    "restoredByThisInventory": 0,
+    "deleted": 0
+  },
+  "shutdownIncident": {
+    "status": "BLOCKED_SHUTDOWN_UNCONFIRMED",
+    "businessResult": "Timed-out transaction rolled back; original cash deposit retained; no new balance receipt or stock debit",
+    "latePortObservation": "2026-10-18T12:30:44.544Z",
+    "apiPort3002StillListening": true,
+    "httpProbeResult": "ECONNRESET",
+    "frontendPortsAbsent": [5174, 5175, 5177, 5178],
+    "earlyAllPortsClosedInferenceRetracted": true,
+    "exactOriginalCauseProven": false,
+    "newSafeDiagnosticsDoNotRepairOldProcess": true,
+    "forcedTermination": false,
+    "protectionBypass": false
+  },
+  "limits": [
+    "No production deployment, master change, real payment, real refund or external SMTP.",
+    "No original archive deletion or historical Chrome profile access.",
+    "Generative Robi provider not tested; local deterministic reads are separate.",
+    "No physical printer, cash drawer or terminal qualified.",
+    "Fresh global technical suites do not qualify the eighteen business combinations.",
+    "No fresh comparable performance series or energy gain claimed.",
+    "Browser counter-tests and final coherent restoration still indispensable."
+  ]
+}

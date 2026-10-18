@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 import { z } from 'zod'
 import prisma from '../lib/prisma'
 import { assertTransactionCapabilities, BusinessPermissionError, requireCapabilities } from '../lib/business-permission-transaction'

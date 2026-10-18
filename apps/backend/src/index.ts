@@ -41,7 +41,7 @@ import { createServer } from 'http'
 import { Server as SocketServer } from 'socket.io'
 import logger from './lib/logger'
 import prisma from './lib/prisma'
-import { listFullBackups, startBackupWorker, shutdownBackups } from './jobs/backup-worker'
+import { listFullBackups, startBackupWorker, shutdownBackups, backupActivitySnapshot } from './jobs/backup-worker'
 import { startStaleSessionJanitor, stopStaleSessionJanitor } from './jobs/closeStaleFloorSessions'
 import { errorHandler } from './middleware/errorHandler'
 import { authenticate } from './middleware/auth'
@@ -70,7 +70,7 @@ import eventsRoutes from './routes/events'
 import stripeRoutes, { stripeWebhook } from './routes/stripe'
 import emailRoutes from './routes/email'
 import paymentsRoutes, { paypalWebhook, stripePaymentWebhook, processPendingPaymentWebhooks } from './routes/payments'
-import { processInvoiceDeliveries, pauseInvoiceDeliveries, drainInvoiceDeliveries } from './lib/invoice-delivery'
+import { processInvoiceDeliveries, pauseInvoiceDeliveries, drainInvoiceDeliveries, invoiceDeliveryActivitySnapshot } from './lib/invoice-delivery'
 import portalConfigRoutes from './routes/portalConfig'
 import floorStateRoutes, { floorCompanyContext } from './routes/floorState'
 import moduleConfigRoutes from './routes/moduleConfig'
@@ -98,8 +98,9 @@ import creatorOpportunitesRoutes from './routes/creator/opportunites'
 import { creatorConfigure } from './lib/creatorSecurity'
 import { shutdownEventSink } from './lib/eventSink'
 import { ErrorLogTransport } from './lib/errorLogTransport'
-import { createBackendShutdown, TrackedTasks } from './lib/backend-lifecycle'
+import { createBackendShutdown, createShutdownDiagnostics, TrackedTasks } from './lib/backend-lifecycle'
 import { createHttpDrain } from './lib/http-drain'
+import { httpWork, observeHttpArguments, observeHttpHandler, observeHttpMiddleware } from './lib/http-work'
 
 // Refuse de démarrer en production avec des secrets de dev ou absents.
 assertProductionSecrets()
@@ -107,6 +108,12 @@ assertProductionSecrets()
 initMonitoring()
 
 const app = express()
+// Enregistrement explicite par les seules API publiques. Les routeurs de
+// l'application suivent chacun leurs propres callbacks, pas le seul dispatch.
+const useTracked = ((...args: unknown[]) => {
+  app.use(...observeHttpArguments(args, true))
+  return app
+}) as typeof app.use
 const profile = runtimeProfile()
 const localEssential = profile.businessOnly || process.env.CREORGA_BACKGROUND_MODE === 'essential'
 let mailQueueTimer: NodeJS.Timeout | null = null
@@ -137,47 +144,61 @@ const corsOptions = {
 
 const io = new SocketServer(httpServer, { cors: corsOptions })
 const socketIoPath = io.path().replace(/\/$/, '') + '/'
-const httpDrain = createHttpDrain(httpServer, req => req.url?.startsWith(socketIoPath) === true)
+const httpDrain = createHttpDrain(httpServer, req => req.url?.startsWith(socketIoPath) === true, httpWork)
 httpServer.once('error', rejectBackendReady)
+const shutdownDiagnostics = createShutdownDiagnostics(diagnostic => logger.warn('[shutdown] Arrêt non confirmé', diagnostic))
 
 const lifecycle = createBackendShutdown({
+  diagnostics: shutdownDiagnostics,
   assertAllowed: () => {
     if (!localEssential) throw new Error('Arrêt propre non qualifié pour ce profil : CREORGA_BACKGROUND_MODE=essential requis pour le profil complet local. Aucun service fermé.')
   },
   stopScheduling: () => {
+    httpWork.freeze()
     if (mailQueueTimer) { clearInterval(mailQueueTimer); mailQueueTimer = null }
     if (paymentRecoveryTimer) { clearInterval(paymentRecoveryTimer); paymentRecoveryTimer = null }
     pauseInvoiceDeliveries()
     recoveryTasks.freeze()
     stopStaleSessionJanitor()
     // Le gel est synchrone ; la promesse attendra les archives déjà commencées.
-    backupShutdown = shutdownBackups()
+    backupShutdown = shutdownDiagnostics.run('backup', () => shutdownBackups())
     void backupShutdown.catch(() => {})
   },
   closeHttp: async () => {
     // Couvre aussi une demande d'arrêt reçue avant le callback listen.
     await backendReady
-    await httpDrain.close(() => new Promise<void>((resolve, reject) => {
+    await httpDrain.close(() => shutdownDiagnostics.run('http-io', () => new Promise<void>((resolve, reject) => {
       void io.close(error => error ? reject(error) : resolve()).catch(reject)
-    }), () => { io.engine.close() })
+    })), () => {
+      try { io.engine.close() } catch (error) { shutdownDiagnostics.record('http-transports', error); throw error }
+    })
   },
   drain: async () => {
-    const results = await Promise.allSettled([drainInvoiceDeliveries(), recoveryTasks.drain(), backupShutdown!])
+    const results = await Promise.allSettled([shutdownDiagnostics.run('mail', () => drainInvoiceDeliveries()), shutdownDiagnostics.run('recovery', () => recoveryTasks.drain()), backupShutdown!])
     if (results.some(result => result.status === 'rejected')) throw new Error('Arrêt non confirmé : travaux en cours non drainés ; données et diagnostics conservés.')
   },
   flushAudit: async () => {
-    await flushAuditLog()
-    await shutdownEventSink()
+    await shutdownDiagnostics.run('audit-log', () => flushAuditLog())
+    await shutdownDiagnostics.run('event-sink', () => shutdownEventSink())
   },
   disconnect: async () => { await prisma.$disconnect() },
 })
 
 /** Utilisé par le contrôleur local privé ; aucun endpoint de contrôle public. */
 export function shutdownBackend(): Promise<void> { return lifecycle.shutdown() }
+/** Diagnostic borné destiné uniquement au canal local privé. */
+export function getBackendShutdownDiagnostic() { return lifecycle.diagnostic }
+/** Compteurs internes : pas d'endpoint HTTP, de contenu métier ou d'arrêt induit. */
+export function getBackendActivityDiagnostics() {
+  return { http: httpDrain.snapshot(), work: httpWork.snapshot(),
+    websocket: { engineClients: io.engine.clientsCount, liveClients: liveNs.sockets.size },
+    tasks: { recovery: recoveryTasks.snapshot(), delivery: invoiceDeliveryActivitySnapshot(), backup: backupActivitySnapshot() },
+    timers: { mailScheduled: mailQueueTimer !== null, paymentRecoveryScheduled: paymentRecoveryTimer !== null } }
+}
 
 // Une requête déjà admise finit normalement. Une nouvelle requête sur un ancien
 // keep-alive n'entre plus dans les routes métier pendant le drainage.
-app.use((_req, res, next) => {
+useTracked((_req, res, next) => {
   if (lifecycle.stopping) {
     res.setHeader('Connection', 'close')
     res.status(503).json({ code: 'BACKEND_STOPPING', message: 'Arrêt en cours. Reprenez après le redémarrage avec la même référence.' })
@@ -206,12 +227,12 @@ liveNs.on('connection', (socket) => {
 }
 
 // Middleware
-app.use(helmet())
-app.use(cors(corsOptions))
+useTracked(helmet())
+useTracked(cors(corsOptions))
 // Compression gzip/deflate des réponses. Le catalogue produits, la liste des
 // commandes et le plan de salle partaient bruts : c'est du JSON très répétitif,
 // donc très compressible, et la caisse tourne sur une tablette en Wi-Fi.
-app.use(compression({
+useTracked(compression({
   filter: (req, res) => {
     // L'assistant (routes/agent.ts) répond en flux SSE, morceau par morceau.
     // Compressé, chaque morceau resterait dans le tampon jusqu'à la fin de la
@@ -230,14 +251,14 @@ const LARGE_BODY_PATHS = ['/api/agent', '/api/floor-state', '/api/inventory-ocr'
 // v5.0 — Webhook Stripe : corps BRUT (la signature se vérifie sur les octets
 // exacts) et hors `authenticate` (Stripe n'a pas de JWT). Doit précéder
 // express.json(), qui marquerait le corps comme déjà lu.
-app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '1mb' }), stripeWebhook)
-app.post('/api/payments/webhooks/paypal', express.json({ limit: '256kb' }), paypalWebhook)
-app.post('/api/payments/webhooks/stripe', express.raw({ type: 'application/json', limit: '256kb' }), stripePaymentWebhook)
-app.use(LARGE_BODY_PATHS, express.json({ limit: '20mb' }))
-app.use('/api/pos/draft', express.json({ limit: '5mb' }))
-app.use(express.json({ limit: '1mb' }))
-app.use(cookieParser())
-app.use(auditLog)
+app.post('/api/stripe/webhook', observeHttpMiddleware(express.raw({ type: 'application/json', limit: '1mb' }), { beforeAdmission: true }), observeHttpHandler(stripeWebhook))
+app.post('/api/payments/webhooks/paypal', observeHttpMiddleware(express.json({ limit: '256kb' }), { beforeAdmission: true }), observeHttpHandler(paypalWebhook))
+app.post('/api/payments/webhooks/stripe', observeHttpMiddleware(express.raw({ type: 'application/json', limit: '256kb' }), { beforeAdmission: true }), observeHttpHandler(stripePaymentWebhook))
+useTracked(LARGE_BODY_PATHS, observeHttpMiddleware(express.json({ limit: '20mb' }), { beforeAdmission: true }))
+useTracked('/api/pos/draft', observeHttpMiddleware(express.json({ limit: '5mb' }), { beforeAdmission: true }))
+useTracked(observeHttpMiddleware(express.json({ limit: '1mb' }), { beforeAdmission: true }))
+useTracked(cookieParser())
+useTracked(auditLog)
 
 // Health check
 /**
@@ -249,7 +270,7 @@ app.use(auditLog)
  * sauvegarde, puis on renvoie 503 si la base est injoignable — c'est ce qui
  * rend une surveillance externe (UptimeRobot) réellement utile.
  */
-app.get('/api/health', async (_req, res) => {
+app.get('/api/health', observeHttpHandler(async (_req: express.Request, res: express.Response) => {
   const base: Record<string, unknown> = {
     service: 'creorga-api',
     profile: profile.name,
@@ -275,44 +296,44 @@ app.get('/api/health', async (_req, res) => {
 
   const ok = baseDeDonnees === 'ok'
   res.status(ok ? 200 : 503).json({ ...base, status: ok ? 'ok' : 'degraded', baseDeDonnees })
-})
+}))
 
 // Routes
-app.use('/api/auth', authLimiter, authRoutes)
-app.use('/api/tables', authenticate, tablesRoutes)
-app.use('/api/categories', authenticate, categoriesRoutes)
-app.use('/api/products', authenticate, productsRoutes)
+useTracked('/api/auth', authLimiter, authRoutes)
+useTracked('/api/tables', authenticate, tablesRoutes)
+useTracked('/api/categories', authenticate, categoriesRoutes)
+useTracked('/api/products', authenticate, productsRoutes)
 // Routes partagées POS/web : token device (X-Device-Token) ou JWT utilisateur.
 // Strict en production uniquement — cf. middleware/deviceAuth.
-app.use('/api/orders', deviceOrUserAuth, ordersRoutes)
-app.use('/api/pos', authenticate, requireCompany, floorCompanyContext, posRoutes)
-app.use('/api/stats', authenticate, statsRoutes)
-app.use('/api/companies', authenticate, companiesRoutes)
-app.use('/api/modules', authenticate, requireCompany, modulesRoutes)
-app.use('/api/crm', authenticate, requireCompany, crmRoutes)
-app.use('/api/invoices', authenticate, requireCompany, invoicesRoutes)
-app.use('/api/document-download', publicLimiter, invoiceDocumentDownload)
-app.use('/api/reservations', authenticate, requireCompany, reservationsRoutes)
-app.use('/api/inventory', authenticate, requireCompany, inventoryRoutes)
-app.use('/api/hr', authenticate, requireCompany, hrRoutes)
+useTracked('/api/orders', deviceOrUserAuth, ordersRoutes)
+useTracked('/api/pos', authenticate, requireCompany, floorCompanyContext, posRoutes)
+useTracked('/api/stats', authenticate, statsRoutes)
+useTracked('/api/companies', authenticate, companiesRoutes)
+useTracked('/api/modules', authenticate, requireCompany, modulesRoutes)
+useTracked('/api/crm', authenticate, requireCompany, crmRoutes)
+useTracked('/api/invoices', authenticate, requireCompany, invoicesRoutes)
+useTracked('/api/document-download', publicLimiter, invoiceDocumentDownload)
+useTracked('/api/reservations', authenticate, requireCompany, reservationsRoutes)
+useTracked('/api/inventory', authenticate, requireCompany, inventoryRoutes)
+useTracked('/api/hr', authenticate, requireCompany, hrRoutes)
 // Dossier employé : fiche RH, notes, contrats et fiches de paie.
 // Données personnelles — jamais de route publique ici, contrairement aux
 // médias de l'affichage TV.
-app.use('/api/hr-dossier', authenticate, requireCompany, rhDossierRoutes)
-app.use('/api/haccp', authenticate, requireCompany, haccpRoutes)
-app.use('/api/marketing', authenticate, requireCompany, marketingRoutes)
-app.use('/api/accounting', authenticate, requireCompany, accountingRoutes)
+useTracked('/api/hr-dossier', authenticate, requireCompany, rhDossierRoutes)
+useTracked('/api/haccp', authenticate, requireCompany, haccpRoutes)
+useTracked('/api/marketing', authenticate, requireCompany, marketingRoutes)
+useTracked('/api/accounting', authenticate, requireCompany, accountingRoutes)
 // Extraits de caisse : chiffre d'affaires de l'établissement. Réservé au
 // propriétaire — un serveur n'a pas à voir les recettes ni les totaux TVA.
-app.use('/api/rapports-caisse', authenticate, requireCompany, requireRole('OWNER'), rapportsCaisseRoutes)
-app.use('/api/reputation', authenticate, requireCompany, reputationRoutes)
-app.use('/api/events', authenticate, requireCompany, eventsRoutes)
+useTracked('/api/rapports-caisse', authenticate, requireCompany, requireRole('OWNER'), rapportsCaisseRoutes)
+useTracked('/api/reputation', authenticate, requireCompany, reputationRoutes)
+useTracked('/api/events', authenticate, requireCompany, eventsRoutes)
 // Auth exigée : les routes Stripe (ouverture de portail, annulation
 // d'abonnement, lecture client) étaient montées en accès public — IDOR de
 // facturation. Le webhook n'est pas utilisé en prod (clé mock, handlers no-op).
-app.use('/api/stripe', authenticate, stripeRoutes)
-app.use('/api/email', authenticate, requireCompany, requireRole('OWNER', 'MANAGER'), emailRoutes)
-app.use('/api/payments', deviceOrUserAuth, paymentsRoutes)
+useTracked('/api/stripe', authenticate, stripeRoutes)
+useTracked('/api/email', authenticate, requireCompany, requireRole('OWNER', 'MANAGER'), emailRoutes)
+useTracked('/api/payments', deviceOrUserAuth, paymentsRoutes)
 // Le portail client reste public pour les lectures QR et l'inscription client,
 // mais sa configuration et son journal d'événements sont des données de gestion.
 // Les laisser derrière le seul rate-limit permettait à un visiteur anonyme de
@@ -330,24 +351,26 @@ function portalConfigManagementGuard(req: express.Request, res: express.Response
     return
   }
 
+  let membership: Promise<void> | undefined
   authenticate(req, res, () => {
-    requireCompany(req, res, () => {
+    membership = requireCompany(req, res, () => {
       requireRole('OWNER')(req, res, next)
     })
   })
+  return membership
 }
 
-app.use('/api/portal-config', publicLimiter, portalConfigManagementGuard, portalConfigRoutes) // portail client public (QR)
+useTracked('/api/portal-config', publicLimiter, portalConfigManagementGuard, portalConfigRoutes) // portail client public (QR)
 if (profile.gamesEnabled) {
   // Le code ludique n'est même pas chargé par le processus professionnel.
   const { default: gameScoresRoutes } = await import('./routes/gameScores')
-  app.use('/api/game-scores', publicLimiter, gameScoresRoutes)
+  useTracked('/api/game-scores', publicLimiter, gameScoresRoutes)
 } else {
-  app.use('/api/game-scores', (_req, res) => res.status(404).json({ code: 'BUSINESS_ONLY', message: 'Jeux absents du profil professionnel.' }))
+  useTracked('/api/game-scores', (_req, res) => res.status(404).json({ code: 'BUSINESS_ONLY', message: 'Jeux absents du profil professionnel.' }))
 }
-app.use('/api/guest', publicLimiter, guestRoutes) // suivi commande, appel serveur, paiement (public)
-app.use('/api/guest-visits', publicLimiter, guestVisitRoutes)
-app.use('/api/floor-state', deviceOrUserAuth, requireCompany, floorCompanyContext, floorStateRoutes)
+useTracked('/api/guest', publicLimiter, guestRoutes) // suivi commande, appel serveur, paiement (public)
+useTracked('/api/guest-visits', publicLimiter, guestVisitRoutes)
+useTracked('/api/floor-state', deviceOrUserAuth, requireCompany, floorCompanyContext, floorStateRoutes)
 // L'ancien pont caisse → stock et l'ancien OCR s'appuyaient sur un fichier
 // partagé par toutes les entreprises. Ils restent fermés jusqu'à leur migration
 // vers les tables Prisma multi-locataires.
@@ -357,51 +380,51 @@ const inventoryUnavailable = (_req: express.Request, res: express.Response) => {
     message: "L'inventaire est temporairement indisponible pendant sa migration sécurisée par entreprise.",
   })
 }
-app.use('/api/stock-ventes', deviceOrUserAuth, requireCompany, inventoryUnavailable)
-app.use('/api/module-config', deviceOrUserAuth, requireCompany, moduleConfigRoutes)
-app.use('/api/inventory-ocr', authenticate, requireCompany, inventoryUnavailable)
-app.use('/api/ads', liveAdsPublicRouter)
-app.use('/api/ads', authenticate, requireCompany, adsRoutes)
+useTracked('/api/stock-ventes', deviceOrUserAuth, requireCompany, inventoryUnavailable)
+useTracked('/api/module-config', deviceOrUserAuth, requireCompany, moduleConfigRoutes)
+useTracked('/api/inventory-ocr', authenticate, requireCompany, inventoryUnavailable)
+useTracked('/api/ads', liveAdsPublicRouter)
+useTracked('/api/ads', authenticate, requireCompany, adsRoutes)
 // Programmation de l'affichage TV : médiathèque, séquences, grille horaire.
 // AVANT la version authentifiée : Express résout dans l'ordre d'enregistrement.
 // `/ads/tv` est la page ouverte sur la télévision de la salle, sans session —
 // derrière `authenticate` elle recevait un 401 et l'écran restait vide.
-app.use('/api/affichage', maintenantPublicRouter)
-app.use('/api/affichage', authenticate, requireCompany, affichageRoutes)
+useTracked('/api/affichage', maintenantPublicRouter)
+useTracked('/api/affichage', authenticate, requireCompany, affichageRoutes)
 // Service des fichiers médias — volontairement PUBLIC : <img> et <video>
 // n'envoient pas d'en-tête Authorization. L'identifiant de 128 bits tiré au
 // sort fait office de jeton, et il s'agit de visuels destinés à être projetés
 // en salle, pas de données personnelles.
-app.use('/api/media-affichage', mediasPublicRouter)
-app.use('/api/ai', authenticate, requireCompany, aiLimiter, aiActionsRoutes)
-app.use('/api/agent', authenticate, requireCompany, floorCompanyContext, aiLimiter, agentRoutes)
-app.use('/api/help/feedback', helpFeedbackRoutes)
+useTracked('/api/media-affichage', mediasPublicRouter)
+useTracked('/api/ai', authenticate, requireCompany, aiLimiter, aiActionsRoutes)
+useTracked('/api/agent', authenticate, requireCompany, floorCompanyContext, aiLimiter, agentRoutes)
+useTracked('/api/help/feedback', helpFeedbackRoutes)
 // Rôle OWNER exigé : journal d'audit global (avec mots de passe) et purge RGPD
 // destructive étaient ouverts à tout membre. Sauvegardes intégrales idem.
-app.use('/api/owner', authenticate, requireCompany, requireRole('OWNER'), ownerRoutes)
-app.use('/api/backup', authenticate, requireCompany, requireRole('OWNER'), (_req, res) => {
+useTracked('/api/owner', authenticate, requireCompany, requireRole('OWNER'), ownerRoutes)
+useTracked('/api/backup', authenticate, requireCompany, requireRole('OWNER'), (_req, res) => {
   res.status(503).json({
     code: 'COMPANY_BACKUP_MIGRATION_REQUIRED',
     message: "Les exports et restaurations sont temporairement indisponibles jusqu'à leur isolation par entreprise.",
   })
 })
 // v3.9 — assistantRoutes MUST be before agentRoutes to take precedence on /intent
-app.use('/api/agent', authenticate, requireCompany, floorCompanyContext, aiLimiter, assistantRoutes)
-app.use('/api/agent', authenticate, requireCompany, floorCompanyContext, aiLimiter, assistantAdvancedRoutes)
+useTracked('/api/agent', authenticate, requireCompany, floorCompanyContext, aiLimiter, assistantRoutes)
+useTracked('/api/agent', authenticate, requireCompany, floorCompanyContext, aiLimiter, assistantAdvancedRoutes)
 
 // Console créateur — auth totalement disjointe des comptes sociétés : jamais
 // authenticate ni requireCompany ici. En production, la console n'est montée
 // que si ses secrets dédiés sont posés (l'app clients démarre quand même).
 if (creatorConfigure()) {
-  app.use('/api/creator/auth', creatorAuthLimiter, creatorAuthRoutes)
-  app.use('/api/creator', creatorDonneesRoutes)
-  app.use('/api/creator', creatorOpportunitesRoutes)
+  useTracked('/api/creator/auth', creatorAuthLimiter, creatorAuthRoutes)
+  useTracked('/api/creator', creatorDonneesRoutes)
+  useTracked('/api/creator', creatorOpportunitesRoutes)
 } else {
   logger.warn('[creator] CREATOR_JWT_SECRET / CREATOR_TOTP_KEY absents — console créateur non montée')
 }
 
 // Error handler
-app.use(errorHandler)
+useTracked(errorHandler)
 
 // Socket.io
 io.on('connection', (socket) => {

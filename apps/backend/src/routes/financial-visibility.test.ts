@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Router } from 'express'
+import { EventEmitter } from 'node:events'
 
 const fixtures = vi.hoisted(() => {
   const delegate = () => ({ findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), count: vi.fn(), update: vi.fn(), updateMany: vi.fn(), create: vi.fn() })
@@ -48,15 +49,15 @@ function request(app: ReturnType<typeof application>) {
       async expect(status: number) {
         const result = await new Promise<{ status: number; body: any }>((resolve, reject) => {
           const parsed = new URL(url, 'http://fixture.test')
-          const req: any = { method, url, originalUrl: url, headers: {}, body, query: Object.fromEntries(parsed.searchParams),
+          const req: any = Object.assign(new EventEmitter(), { method, url, originalUrl: url, headers: {}, body, query: Object.fromEntries(parsed.searchParams),
             companyId: 'company-a', company: { id: 'company-a', name: 'Établissement fictif' }, user: { userId: 'actor-a' }, role: app.role,
             businessAccess: { role: app.role, capabilities: Object.keys(app.capabilities).filter(key => app.capabilities[key]), revision: 'test', version: 0 },
-            get: (key: string) => req.headers[key.toLowerCase()] }
-          const res: any = { statusCode: 200, status(value: number) { res.statusCode = value; return res },
+            get: (key: string) => req.headers[key.toLowerCase()] })
+          const res: any = Object.assign(new EventEmitter(), { writableEnded: false, statusCode: 200, status(value: number) { res.statusCode = value; return res },
             set() { return res }, type() { return res }, setHeader() {},
-            json(value: unknown) { resolve({ status: res.statusCode, body: JSON.parse(JSON.stringify(value)) }); return res },
-            send(value: unknown) { resolve({ status: res.statusCode, body: value }); return res } }
-          ;(app.router as any).handle(req, res, (error: unknown) => error ? reject(error) : resolve({ status: 404, body: null }))
+            json(value: unknown) { res.writableEnded = true; resolve({ status: res.statusCode, body: JSON.parse(JSON.stringify(value)) }); return res },
+            send(value: unknown) { res.writableEnded = true; resolve({ status: res.statusCode, body: value }); return res } })
+          app.router(req, res, (error: unknown) => error ? reject(error) : resolve({ status: 404, body: null }))
         })
         expect(result.status).toBe(status)
         return result

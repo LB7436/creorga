@@ -21,7 +21,8 @@ import {
 import { useGuestLang } from './i18n'
 import OrderTracking from './OrderTracking'
 import GuestCallButtons from './GuestCallButtons'
-import { getGuestAccess, guestHeaders, guestScopeKey } from '@/lib/guestAccess'
+import { guestScopeKey } from '@/lib/guestAccess'
+import { useGuestRequestScope, type GuestRequest } from '@/hooks/useGuestRequestScope'
 import GuestLoyaltyCard from './GuestLoyaltyCard'
 
 // ─── Types ─────────────────────────────────────────────
@@ -127,7 +128,8 @@ type Tab = 'jeux' | 'menu' | 'avis'
 export default function GuestHome() {
   const [params] = useSearchParams()
   const scope = guestScopeKey(params.get('companyId'), params.get('table'))
-  return <GuestHomeContent key={scope} />
+  const requests = useGuestRequestScope(params.get('companyId'), params.get('table'))
+  return <GuestHomeContent key={`${scope}:${requests.version}`} />
 }
 
 function GuestHomeContent() {
@@ -154,6 +156,14 @@ function GuestHomeContent() {
       return saved ? JSON.parse(saved) : []
     } catch { return [] }
   })
+  const cartRef = useRef(cart)
+  const cartVersion = useRef(0)
+  const changeCart = (next: CartItem[]) => {
+    cartVersion.current += 1
+    cartRef.current = next
+    setCart(next)
+  }
+  const getCartSnapshot = () => ({ items: cartRef.current, version: cartVersion.current })
 
   useEffect(() => {
     sessionStorage.setItem(cartKey, JSON.stringify(cart))
@@ -184,18 +194,21 @@ function GuestHomeContent() {
   const cartTotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
 
   const addToCart = (product: { id: string; name: string; price: number; emoji: string }) => {
-    setCart(prev => {
-      const existing = prev.find(i => i.id === product.id)
-      if (existing) return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
-      return [...prev, { ...product, qty: 1 }]
-    })
+    const current = cartRef.current
+    changeCart(current.some(i => i.id === product.id)
+      ? current.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
+      : [...current, { ...product, qty: 1 }])
   }
 
   const updateQty = (id: string, delta: number) => {
-    setCart(prev => prev.map(i => i.id === id ? { ...i, qty: Math.max(0, i.qty + delta) } : i).filter(i => i.qty > 0))
+    changeCart(cartRef.current.map(i => i.id === id ? { ...i, qty: Math.max(0, i.qty + delta) } : i).filter(i => i.qty > 0))
   }
 
-  const clearCart = () => setCart([])
+  const clearCart = (expectedVersion: number) => {
+    if (cartVersion.current !== expectedVersion) return false
+    changeCart([])
+    return true
+  }
 
   const toggles = config?.toggles ?? {}
   const accent = config?.accentColor || ACCENT
@@ -275,6 +288,7 @@ function GuestHomeContent() {
               addToCart={addToCart}
               updateQty={updateQty}
               clearCart={clearCart}
+              getCartSnapshot={getCartSnapshot}
               cartCount={cartCount}
               cartTotal={cartTotal}
               guestClient={guestClient}
@@ -397,12 +411,13 @@ interface MenuCategory {
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
 function GuestMenu({
-  cart, addToCart, updateQty, clearCart, cartCount, cartTotal, guestClient, requireGuestClient, tableNumber, companyId, t,
+  cart, addToCart, updateQty, clearCart, getCartSnapshot, cartCount, cartTotal, guestClient, requireGuestClient, tableNumber, companyId, t,
 }: {
   cart: CartItem[]
   addToCart: (p: { id: string; name: string; price: number; emoji: string }) => void
   updateQty: (id: string, delta: number) => void
-  clearCart: () => void
+  clearCart: (expectedVersion: number) => boolean
+  getCartSnapshot: () => { items: CartItem[]; version: number }
   cartCount: number
   cartTotal: number
   guestClient: GuestClientProfile | null
@@ -420,6 +435,9 @@ function GuestMenu({
   // Refus du serveur (produit inconnu, table manquante, base indisponible) :
   // affiché tel quel au lieu d'un faux écran « commande envoyée ».
   const [orderError, setOrderError] = useState<string | null>(null)
+  const [orderNotice, setOrderNotice] = useState('')
+  const requests = useGuestRequestScope(companyId, tableNumber)
+  const sending = useRef<GuestRequest | null>(null)
   // Addition telle que calculée par le serveur (prix de la base, pas du panier).
   const [lastOrderTotal, setLastOrderTotal] = useState<number | null>(null)
   const [addedId, setAddedId] = useState<string | null>(null)
@@ -470,49 +488,57 @@ function GuestMenu({
 
   const [lastOrderId, setLastOrderId] = useState<string | null>(null)
 
-  const handleSendOrder = () => {
-    if (orderState === 'sending') return
-    if (!getGuestAccess(companyId, tableNumber)) { setOrderError('Demandez au personnel le QR de votre visite pour commander. La carte reste consultable.'); return }
+  const handleSendOrder = async () => {
+    if (sending.current) return
+    if (!requests.hasAccess) { setOrderError('Demandez au personnel le QR de votre visite pour commander. La carte reste consultable.'); return }
+    const operation = requests.begin()
+    if (!operation) return
+    const draft = getCartSnapshot()
+    if (!draft.items.length) { operation.finish(); return }
+    sending.current = operation
     setOrderState('sending')
     setOrderError(null)
+    setOrderNotice('')
     // Le serveur recalcule les prix depuis sa base ; on n'envoie que les
     // identifiants et quantités (le nom sert au journal client local).
-    const orderItems = cart.map((item) => ({ productId: item.id, name: item.name, qty: item.qty, price: item.price }))
-    const requestKey = `creorga-guest-order:${guestScopeKey(companyId, tableNumber)}:${orderItems.map(i => `${i.productId}:${i.qty}`).sort().join('|')}`
-    let requestId: string
-    try { requestId = localStorage.getItem(requestKey) || crypto.randomUUID(); localStorage.setItem(requestKey, requestId) }
-    catch { setOrderState('idle'); setOrderError('Stockage local indisponible : appelez le serveur pour éviter une commande en double.'); return }
-
-    fetch(`${(import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'}/api/guest/orders`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...guestHeaders(companyId, tableNumber) },
-      body: JSON.stringify({ requestId, companyId, tableId: tableNumber || 'sans-table', items: orderItems.map(({ productId, qty }) => ({ productId, qty })) }),
-      credentials: 'include',
-    })
-      .then(async (r) => {
-        const data = await r.json().catch(() => ({}))
-        if (!r.ok) throw new Error(data?.error || `Commande refusée (HTTP ${r.status})`)
-        return data
+    const orderItems = draft.items.map((item) => ({ productId: item.id, name: item.name, qty: item.qty, price: item.price }))
+    const requestKey = `creorga-guest-order:${companyId}:${tableNumber || 'none'}:${operation.visitId}:${orderItems.map(i => `${i.productId}:${i.qty}`).sort().join('|')}`
+    try {
+      let requestId: string
+      try { requestId = localStorage.getItem(requestKey) || crypto.randomUUID(); localStorage.setItem(requestKey, requestId) }
+      catch { throw new Error('Stockage local indisponible : appelez le serveur pour éviter une commande en double.') }
+      const response = await fetch(`${BACKEND}/api/guest/orders`, {
+        method: 'POST', signal: operation.signal,
+        headers: { 'Content-Type': 'application/json', ...operation.headers },
+        body: JSON.stringify({ requestId, companyId, tableId: tableNumber || 'sans-table', items: orderItems.map(({ productId, qty }) => ({ productId, qty })) }),
+        credentials: 'include',
       })
-      .then((data) => {
-        if (data?.id) setLastOrderId(data.id)
-        setLastOrderTotal(typeof data?.total === 'number' ? data.total : null)
-        recordGuestEvent('order', guestClient ?? loadGuestClient(companyId), {
-          items: orderItems,
-          total: typeof data?.total === 'number' ? data.total : total,
-          tableNumber,
-          orderId: data?.id,
-        }, companyId)
-        setOrderState('success')
-        localStorage.removeItem(requestKey)
-        clearCart()
-      })
-      .catch((e: any) => {
-        // Un refus ou une panne n'est pas une commande envoyée : on le dit,
-        // le panier reste intact pour réessayer ou appeler le serveur.
+      if (!operation.isCurrent()) return
+      const data = await response.json().catch(() => ({}))
+      if (!operation.isCurrent()) return
+      if (!response.ok) throw new Error(data?.error || `Commande refusée (HTTP ${response.status})`)
+      if (data?.id) setLastOrderId(data.id)
+      setLastOrderTotal(typeof data?.total === 'number' ? data.total : null)
+      recordGuestEvent('order', guestClient ?? loadGuestClient(companyId), {
+        items: orderItems,
+        total: typeof data?.total === 'number' ? data.total : orderItems.reduce((sum, item) => sum + item.price * item.qty, 0),
+        tableNumber, orderId: data?.id,
+      }, companyId)
+      setCartOpen(false)
+      setOrderState('success')
+      localStorage.removeItem(requestKey)
+      if (!clearCart(draft.version)) setOrderNotice('Votre panier a changé pendant l’envoi : il est conservé. Vérifiez l’addition avant une nouvelle commande.')
+    } catch (e: any) {
+      if (operation.isCurrent()) {
+        // Une annulation du transport ne prouve jamais une annulation serveur.
+        // Panier et référence restent disponibles en cas de réponse inconnue.
         setOrderState('idle')
         setOrderError(e?.message || 'Commande impossible pour le moment. Appelez le serveur.')
-      })
+      }
+    } finally {
+      if (sending.current === operation) sending.current = null
+      operation.finish()
+    }
   }
 
   // Les prix de la carte publique sont les prix finaux affichés au client.
@@ -575,6 +601,7 @@ function GuestMenu({
         <p style={{ fontSize: 14, color: MUTED, lineHeight: 1.5 }}>
           {t('order_success_subtitle')}
         </p>
+        {orderNotice && <p role="status" style={{ fontSize: 14, color: '#fbbf24', maxWidth: 340 }}>{orderNotice}</p>}
       </motion.div>
       {/* Floating dots animation */}
       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
@@ -595,7 +622,7 @@ function GuestMenu({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.8 }}
-        onClick={() => setOrderState('idle')}
+        onClick={() => { setCartOpen(false); setOrderState('idle') }}
         style={{
           marginTop: 12, padding: '10px 24px', borderRadius: 12,
           background: SURFACE, color: TEXT, fontSize: 14, fontWeight: 600,

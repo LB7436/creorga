@@ -1,4 +1,6 @@
-import { Router, type Request, type Response } from 'express'
+import { type Request, type Response } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
+import { sendHttpStream } from '../lib/http-stream'
 import express from 'express'
 import fs from 'fs'
 import path from 'path'
@@ -140,7 +142,7 @@ const identifiant = () => crypto.randomBytes(16).toString('hex')
 
 export const mediasPublicRouter = Router()
 
-mediasPublicRouter.get('/:companyId/:id', (req: Request, res: Response) => {
+mediasPublicRouter.get('/:companyId/:id', async (req: Request, res: Response) => {
   const companyId = safeCompanyId(req.params.companyId)
   if (!companyId) {
     res.status(400).json({ message: 'Identifiant entreprise invalide' })
@@ -189,7 +191,7 @@ mediasPublicRouter.get('/:companyId/:id', (req: Request, res: Response) => {
       'Accept-Ranges': 'bytes',
       'Cache-Control': 'public, max-age=31536000, immutable',
     })
-    fs.createReadStream(chemin, { start: debut, end: fin }).pipe(res)
+    await sendHttpStream(fs.createReadStream(chemin, { start: debut, end: fin }), res)
     return
   }
 
@@ -199,7 +201,7 @@ mediasPublicRouter.get('/:companyId/:id', (req: Request, res: Response) => {
     'Accept-Ranges': 'bytes',
     'Cache-Control': 'public, max-age=31536000, immutable',
   })
-  fs.createReadStream(chemin).pipe(res)
+  await sendHttpStream(fs.createReadStream(chemin), res)
 })
 
 // ─── Routeur d'administration (authentifié) ─────────────────────────────

@@ -1,5 +1,14 @@
 export interface GuestAccess { visitId: string; token: string }
 const storageKey = (companyId: string, tableId: string) => `creorga-guest-visit:${companyId}:${tableId}`
+// Lecture sans consommation du fragment : un ancien callback ne doit jamais
+// ranger la nouvelle capacité du navigateur sous son ancien établissement.
+export function readStoredGuestAccess(companyId: string | null, tableId: string | null): GuestAccess | null {
+  if (!companyId || !tableId) return null
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(storageKey(companyId, tableId)) || 'null')
+    return stored && /^[a-f0-9]{64}$/.test(stored.token) && /^[a-zA-Z0-9_-]{1,100}$/.test(stored.visitId) ? stored : null
+  } catch { return null }
+}
 export function getGuestAccess(companyId: string | null, tableId: string | null): GuestAccess | null {
   if (!companyId || !tableId) return null
   try {
@@ -11,8 +20,7 @@ export function getGuestAccess(companyId: string | null, tableId: string | null)
       history.replaceState(null, '', location.pathname + location.search)
       return access
     }
-    const stored = JSON.parse(sessionStorage.getItem(storageKey(companyId, tableId)) || 'null')
-    return stored && /^[a-f0-9]{64}$/.test(stored.token) && /^[a-zA-Z0-9_-]{1,100}$/.test(stored.visitId) ? stored : null
+    return readStoredGuestAccess(companyId, tableId)
   } catch { return null }
 }
 export function guestHeaders(companyId: string, tableId: string | null): Record<string, string> {

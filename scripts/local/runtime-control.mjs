@@ -7,9 +7,19 @@ const endpoint = (file, pid, instance) => process.platform === 'win32'
   ? `\\\\.\\pipe\\creorga-${pid}-${instance}` : path.join(path.dirname(file), `creorga-${pid}-${instance}.sock`)
 const equal = (a, b) => typeof a === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b)
   && timingSafeEqual(Buffer.from(a), Buffer.from(b))
+const stages = new Set(['profile', 'scheduling', 'http', 'http-io', 'http-transports', 'workers', 'mail', 'recovery', 'backup', 'audit', 'audit-log', 'event-sink', 'disconnect', 'frontends', 'runtime'])
+const reasons = new Set(['UNSPECIFIED_FAILURE', 'FILESYSTEM_FAILURE', 'HTTP_SERVER_NOT_RUNNING', 'DATABASE_UNAVAILABLE', 'TRANSACTION_NOT_CONFIRMED', 'HTTP_WORK_UNTRACKED', 'HTTP_RESPONSE_INTERRUPTED', 'BACKGROUND_TASK_FAILED', 'BACKUP_UNCONFIRMED', 'EVENT_SINK_UNCONFIRMED', 'FRONTEND_CLOSE_FAILED', 'BACKEND_NOT_AVAILABLE'])
+const safeDiagnostic = collect => {
+  try {
+    const value = collect?.()
+    const stage = value?.stage, reason = value?.reason
+    if (stages.has(stage) && reasons.has(reason)) return { stage, reason }
+  } catch { /* Un collecteur ne doit ni masquer le refus ni exporter son erreur. */ }
+  return { stage: 'runtime', reason: 'UNSPECIFIED_FAILURE' }
+}
 
 /** Canal local privé, pas une API HTTP ni une permission exposée au navigateur. */
-export async function startRuntimeControl({ descriptorPath, onShutdown }) {
+export async function startRuntimeControl({ descriptorPath, onShutdown, getShutdownDiagnostic }) {
   if (!path.isAbsolute(descriptorPath) || typeof onShutdown !== 'function') throw Error('Contrôle local privé mal configuré')
   const fd = fs.openSync(descriptorPath, 'wx', 0o600)
   const descriptor = { version: 1, pid: process.pid, instance: randomUUID(), token: randomBytes(32).toString('base64url') }
@@ -36,7 +46,7 @@ export async function startRuntimeControl({ descriptorPath, onShutdown }) {
       void shutdown.then(() => {
         socket.end(JSON.stringify({ status: 'STOPPED' }) + '\n')
         if (server.listening) server.close()
-      }, () => socket.end(JSON.stringify({ status: 'FAILED', code: 'SHUTDOWN_UNCONFIRMED' }) + '\n'))
+      }, () => socket.end(JSON.stringify({ status: 'FAILED', code: 'SHUTDOWN_UNCONFIRMED', diagnostic: safeDiagnostic(getShutdownDiagnostic) }) + '\n'))
     })
   })
   try {

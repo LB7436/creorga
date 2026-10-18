@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Check } from 'lucide-react'
-import { guestHeaders } from '@/lib/guestAccess'
+import { useGuestRequestScope, type GuestRequestScope } from '@/hooks/useGuestRequestScope'
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3002'
 
@@ -17,6 +17,13 @@ export default function GuestPaidPage() {
   // Référence de tentative uniquement : ni ce lien ni le retour ne prouvent le paiement.
   const sessionId = searchParams.get('session_id')
   const attemptId = searchParams.get('attempt')
+  const scope = useGuestRequestScope(companyId, tableId, JSON.stringify([sessionId, attemptId]))
+  return <GuestPaidContent key={scope.version} tableId={tableId} companyId={companyId} sessionId={sessionId} attemptId={attemptId} scope={scope} />
+}
+
+function GuestPaidContent({ tableId, companyId, sessionId, attemptId, scope }: {
+  tableId: string | null; companyId: string | null; sessionId: string | null; attemptId: string | null; scope: GuestRequestScope
+}) {
   const [etat, setEtat] = useState<'verification' | 'confirme' | 'refuse'>('verification')
   const [motif, setMotif] = useState('')
 
@@ -30,14 +37,19 @@ export default function GuestPaidPage() {
       setMotif("Aucune preuve de paiement dans le lien. Si vous venez de payer, revenez par le lien affiché à la fin du paiement.")
       return
     }
+    const operation = scope.begin()
+    if (!operation) return
     fetch(`${BACKEND}/api/guest/paid-confirm`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...guestHeaders(companyId, tableId) },
+      signal: operation.signal,
+      headers: { 'Content-Type': 'application/json', ...operation.headers },
       credentials: 'include',
       body: JSON.stringify({ companyId, tableId, sessionId, attemptId }),
     })
       .then(async (r) => {
+        if (!operation.isCurrent()) return
         const data = await r.json().catch(() => ({}))
+        if (!operation.isCurrent()) return
         if (r.ok && data.status === 'succeeded' && data.confirmation === 'provider_verified') {
           setEtat('confirme'); return
         }
@@ -45,10 +57,12 @@ export default function GuestPaidPage() {
         setMotif(data?.error || 'Paiement non confirmé.')
       })
       .catch(() => {
+        if (!operation.isCurrent()) return
         setEtat('refuse')
         setMotif('Serveur injoignable — impossible de confirmer le paiement.')
-      })
-  }, [tableId, companyId, sessionId, attemptId])
+      }).finally(operation.finish)
+    return operation.abort
+  }, [tableId, companyId, sessionId, attemptId, scope.begin])
 
   if (etat !== 'confirme') {
     return (

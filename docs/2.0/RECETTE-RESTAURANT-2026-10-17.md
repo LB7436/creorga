@@ -1,5 +1,64 @@
 # Recette établissement B — RESTAURANT DES JARDINS
 
+## F18-L3 — six profils amorcés,18octobre, NON LIVRÉ
+
+OWNER, ADMIN, MANAGER, SERVER, EMPLOYEE et client QR réellement utilisés dans
+des contextes distincts. Notes F2/F3 Chrome GREEN ; service distinct9,70€avec
+acompte2€puis7,70€mixte déclaré, réponse abandonnée pendant vraie attente SQL,
+STOPPED puis reprise par même référence GET200 sans deuxième paiement. Deux
+nouveaux QR6,50+3,20, KDS, transfert Table1→3, ancien lien révoqué, nouveau QR même
+addition ; solde9,70unique puis GET/POST403 sur l'ancien accès. Largeurs375/390/
+768/1440 observées,375capture visuelle. Ni variante ni photo inexistante inventée.
+
+ADMIN : nouveau créneau23–03h, enregistré21–01UTC, reload ; CA/gestion des droits
+refusés. EMPLOYEE : ce seul planning personnel, entrée double201/409 puis sortie,
+un pointage persistant ; CA/Robi finance/administration/autre société refusés.
+MANAGER :58,20€du jour, lecture Robi locale55,89HT+2,31TVA, RH existantes consultées,
+aucun nouveau congé créé pour gonfler la couverture. Les cinq identités internes
+et les droits de départ sont conservés.
+
+Clôture du tiroir déjà ouvert :100fond+33,20cash=133,20comptés,0écart ;25€de cartes
+déclarées séparés du cash. L3 ajoute19,40€de ventes/0,56TVA ; cumul142,70€dans
+chaque source financière rapprochée, pas un revenu additionné aux documents.
+Soupe25→23/Eau59→57, autres stocks et anciennes ventes/documents inchangés.
+
+Restent à qualifier : réservations/variantes, plusieurs serveurs concurrents en
+UI, offerts/remises, séparation avancée et totalité des droits/exports. Robi
+génératif indisponible, fichiers téléchargés non inspectés en octets par les
+outils autorisés. Les six parcours restent partiels/BLOCKED, pas six PASS.
+[Rapport L3 et restauration finale](F18-REPRISE-INDEPENDANTE-2026-10-18.md).
+
+## F18-L2 —18octobre14:18UTC, OWNER/SERVER partiels, NON LIVRÉ
+
+Deux profils existants réellement rejoués dans la copie séparée, pas six profils
+qualifiés. OWNER : nouvelle caisse fictive100€ au double clic, une seule ligne
+SQL ; note textarea non persistée par fill_form, pas de succès inventé. SERVER :
+Table3, deux groupes/cinq lignes38,80€, rechargement et reconnexion ; note clavier
+sauvegardée, champ vide à réouverture reproduit puis corrigé en tests (Chrome à faire).
+
+Acompte10€cash unique au double clic, puis solde28,80€(8,80cash+20carte déclarée)
+avec réponse abandonnée pendant vraie attente SQL. Commit38,80€ une fois,
+GET200 même référence après reconnexion, sans nouveau POST, Table3 À nettoyer.
+Deux commandes/tickets, cinq produits débités une fois ;38,80TTC=37,05HT+1,75TVA.
+Anciennes84,50€, facture/avoir/remboursement/clôture inchangés. Nouvelle caisse
+118,80€ théoriques **encore ouverte**, pas de comptage ou clôture revendiqué.
+
+L'arrêt du nouveau runtime reste refusé après incident. Un défaut sync+gzip du
+suivi est RED→GREEN/354PG, contre-essai Chrome encore BLOCKED. Restauration L2
+82tables/20012lignes/14fichiers/26PDF égaux, sans preuve d'arrêt/flush mémoire.
+ADMIN/MANAGER/EMPLOYEE/QR Restaurant F18 restent NOT RUN ; les paragraphes suivants
+sont des points antérieurs. [Valeurs et preuves L2](F18-LABORATOIRE-SEPARE-2026-10-18.md).
+
+## F18 —18octobre, reprise préparée, six profils NOT RUN
+
+Aucune nouvelle vente, facture, personne ni visite Restaurant créée dans F18.
+Les six parcours restent NOT RUN dans la [nouvelle matrice](RECETTE-FINALE-18-PARCOURS-2026-10-18.md),
+après le blocage d'arrêt rencontré au Café. La relecture PostgreSQL finale reste
+distincte des clics historiques ci-dessous : quatre ventes84,50 € TTC, documents,
+règlements, remboursements et provenances comparés sans différence. Elle n'est
+pas un nouveau PASS utilisateur. Réservations/variantes/groupes/QR/permissions
+et clôture métier complète restent à qualifier sans recréer les objets prouvés.
+
 ## Suite ciblée du 18 octobre — PARTIELLE, NON LIVRÉE
 
 Cinq identités existantes connectées, pas cinq recettes intégrales. OWNER : facture

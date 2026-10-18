@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { AlertTriangle, Banknote, CheckCircle2, Lock, Printer } from 'lucide-react'
 import { useCashDrawers, useCloseCashDrawer, type CashDrawer } from '@/hooks/api/useAccounting'
 import { useQuery } from '@tanstack/react-query'
@@ -6,11 +6,21 @@ import api from '@/lib/api'
 import { downloadCsv } from '@/lib/csv'
 import { toastError } from '@/lib/toast'
 import { useSearchParams } from 'react-router-dom'
+import { authDataScope } from '@/lib/authScope'
+import { useAuthStore } from '@/stores/authStore'
+import type { BusinessAccess } from '@/types'
 
 const DENOMINATIONS = [500, 200, 100, 50, 20, 10, 5, 2, 1, .5, .2, .1, .05, .02, .01]
 const euro = (value: number) => value.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
 
 export default function CloturePage() {
+  const scope = useAuthStore(authDataScope)
+  const access = useAuthStore(state => state.businessAccess)
+  if (!access?.capabilities.includes('finance.revenue.read')) return <PageState error text="La lecture financière de cette clôture n’est pas autorisée ou reste à vérifier." />
+  return <ScopedCloturePage key={scope} scope={scope} />
+}
+
+function ScopedCloturePage({ scope }: { scope: string }) {
   const [params] = useSearchParams()
   const drawers = useCashDrawers()
   const closeDrawer = useCloseCashDrawer()
@@ -44,9 +54,9 @@ export default function CloturePage() {
   if (drawers.isError) return <PageState error text="Impossible de charger la caisse." />
   if (params.has('session')) {
     const historic = drawers.data?.find(d => d.id === params.get('session') && d.closedAt && d.closeSnapshot)
-    return historic ? <ClosedReport drawer={historic} /> : <PageState error text="Clôture introuvable ou historique sans rapport figé ; aucun montant reconstitué." />
+    return historic ? <ClosedReport drawer={historic} scope={scope} /> : <PageState error text="Clôture introuvable ou historique sans rapport figé ; aucun montant reconstitué." />
   }
-  if (closed) return <ClosedReport drawer={closed} />
+  if (closed) return <ClosedReport drawer={closed} scope={scope} />
   if (!current) return <PageState text="Aucune caisse ouverte. Ouvrez d'abord une session depuis l'onglet Caisse." />
 
   return (
@@ -97,19 +107,68 @@ export default function CloturePage() {
   )
 }
 
-function ClosedReport({ drawer }: { drawer: CashDrawer }) {
-  function exportJournal() {
+function validBusinessAccess(value: unknown): value is BusinessAccess {
+  if (!value || typeof value !== 'object') return false
+  const access = value as Partial<BusinessAccess>
+  return typeof access.role === 'string' && !!access.role && typeof access.revision === 'string' && !!access.revision
+    && Number.isSafeInteger(access.version) && access.version! >= 0
+    && Array.isArray(access.capabilities) && access.capabilities.every(capability => typeof capability === 'string')
+}
+
+function ClosedReport({ drawer, scope }: { drawer: CashDrawer; scope: string }) {
+  const access = useAuthStore(state => state.businessAccess)
+  const canExport = access?.capabilities.includes('finance.revenue.read') === true && access.capabilities.includes('exports.read')
+  const mounted = useRef(true), exporting = useRef(false), request = useRef<AbortController | null>(null)
+  const [busy, setBusy] = useState(false), [exportError, setExportError] = useState<string | null>(null)
+  const isCurrent = () => mounted.current && scope === authDataScope(useAuthStore.getState())
+  const mayExportNow = () => isCurrent() && ['finance.revenue.read', 'exports.read'].every(capability => useAuthStore.getState().businessAccess?.capabilities.includes(capability))
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false; request.current?.abort() }
+  }, [scope])
+
+  async function exportJournal() {
     const s = drawer.closeSnapshot
-    if (!s) return
-    const rows: unknown[][] = [
-      ['FOND_INITIAL', drawer.id, '', '', s.openingCents / 100, 0, 0, 'comptage_initial', ''],
-      ...s.payments.map((p: any) => ['REGLEMENT', p.id, p.orderId, p.method, p.amountCents / 100, p.tipCents / 100, p.charityCents / 100, p.confirmation, p.attemptId || p.saleId]),
-      ...s.movements.map((m: any) => ['MOUVEMENT_' + m.direction, m.id, '', 'CASH', (m.direction === 'OUT' ? -1 : 1) * m.amountCents / 100, 0, 0, m.reason, m.actorId]),
-      ['THEORIQUE', drawer.id, '', 'CASH', s.expectedCents / 100, 0, 0, 'total_de_controle_pas_une_ecriture', ''],
-      ['COMPTE', drawer.id, '', 'CASH', s.countedCents / 100, 0, 0, 'comptage_final', ''],
-      ['ECART', drawer.id, '', 'CASH', s.discrepancyCents / 100, 0, 0, s.reason || '', s.closedBy],
-    ]
-    downloadCsv(`journal-caisse-${drawer.id}.csv`, ['Type', 'Référence', 'Commande', 'Moyen', 'Montant EUR', 'Pourboire EUR', 'Don EUR', 'Confirmation ou motif', 'Source ou auteur'], rows)
+    if (!s || exporting.current || !mayExportNow()) return
+    const admitted = useAuthStore.getState().businessAccess!
+    const fingerprint = { revision: admitted.revision, version: admitted.version, role: admitted.role,
+      capabilities: [...admitted.capabilities].sort().join('\0') }
+    exporting.current = true
+    const controller = new AbortController()
+    request.current = controller
+    setBusy(true); setExportError(null)
+    try {
+      // Ce CSV est local : il ne traverse aucune route d'export protégée.
+      // Relire l'adhésion avant l'effet, puis refuser toute révision différente.
+      const { data: fresh } = await api.get<unknown>('/companies/access', { signal: controller.signal, timeout: 8000 })
+      if (!isCurrent()) return
+      if (!validBusinessAccess(fresh)) throw new Error('Autorisations non vérifiables')
+      const current = useAuthStore.getState()
+      if (!mayExportNow() || current.businessAccess?.version !== fingerprint.version) return
+      if (fresh.revision !== fingerprint.revision || fresh.version !== fingerprint.version || fresh.role !== fingerprint.role
+        || [...fresh.capabilities].sort().join('\0') !== fingerprint.capabilities) {
+        // Le message global survit au remontage provoqué par la nouvelle portée.
+        toastError('Vos autorisations ont changé. Aucun export déclenché ; rechargez la clôture avant une nouvelle tentative.')
+        current.setBusinessAccess(fresh, current.companyId!, current.user!.id)
+        return
+      }
+      if (!fresh.capabilities.includes('finance.revenue.read') || !fresh.capabilities.includes('exports.read') || !mayExportNow()) return
+      const rows: unknown[][] = [
+        ['FOND_INITIAL', drawer.id, '', '', s.openingCents / 100, 0, 0, 'comptage_initial', ''],
+        ...s.payments.map((p: any) => ['REGLEMENT', p.id, p.orderId, p.method, p.amountCents / 100, p.tipCents / 100, p.charityCents / 100, p.confirmation, p.attemptId || p.saleId]),
+        ...s.movements.map((m: any) => ['MOUVEMENT_' + m.direction, m.id, '', 'CASH', (m.direction === 'OUT' ? -1 : 1) * m.amountCents / 100, 0, 0, m.reason, m.actorId]),
+        ['THEORIQUE', drawer.id, '', 'CASH', s.expectedCents / 100, 0, 0, 'total_de_controle_pas_une_ecriture', ''],
+        ['COMPTE', drawer.id, '', 'CASH', s.countedCents / 100, 0, 0, 'comptage_final', ''],
+        ['ECART', drawer.id, '', 'CASH', s.discrepancyCents / 100, 0, 0, s.reason || '', s.closedBy],
+      ]
+      if (mayExportNow()) downloadCsv(`journal-caisse-${drawer.id}.csv`, ['Type', 'Référence', 'Commande', 'Moyen', 'Montant EUR', 'Pourboire EUR', 'Don EUR', 'Confirmation ou motif', 'Source ou auteur'], rows)
+    } catch {
+      if (isCurrent()) setExportError('Impossible de confirmer cet export. Les autorisations courantes doivent pouvoir être vérifiées ; aucun succès de téléchargement n’est annoncé.')
+    } finally {
+      exporting.current = false
+      if (request.current === controller) request.current = null
+      if (isCurrent()) setBusy(false)
+    }
   }
   return (
     <div style={{ padding: 28, color: 'var(--crg-text, #172033)', maxWidth: 760, margin: '0 auto' }}>
@@ -124,7 +183,9 @@ function ClosedReport({ drawer }: { drawer: CashDrawer }) {
           <Metric label="Écart" value={euro(drawer.discrepancy ?? 0)} color={drawer.discrepancy ? '#b91c1c' : '#047857'} />
         </div>
         <button type="button" onClick={() => window.print()} style={secondaryButton}><Printer size={16} /> Imprimer le rapport</button>
-        {drawer.closeSnapshot && <button type="button" onClick={exportJournal} style={{ ...secondaryButton, marginLeft: 8 }}>Exporter le journal CSV</button>}
+        {drawer.closeSnapshot && canExport && <button type="button" disabled={busy} onClick={exportJournal} style={{ ...secondaryButton, marginLeft: 8 }}>Exporter le journal CSV</button>}
+        {busy && <p role="status">Vérification des autorisations d’export…</p>}
+        {exportError && <p role="alert" style={{ color: '#b91c1c' }}>{exportError}</p>}
         <p>Écart = espèces comptées moins espèces théoriques. Export opérationnel à rapprocher avec le comptable ; les lignes de contrôle ne sont pas de nouvelles écritures.</p>
       </section>
     </div>
@@ -132,7 +193,7 @@ function ClosedReport({ drawer }: { drawer: CashDrawer }) {
 }
 
 function Metric({ label, value, color = 'var(--crg-text, #172033)' }: { label: string; value: string; color?: string }) { return <div style={{ background: '#f8fafc', borderRadius: 12, padding: 14 }}><span style={{ color: '#64748b', fontSize: 11, textTransform: 'uppercase' }}>{label}</span><strong style={{ display: 'block', fontSize: 20, color, marginTop: 4 }}>{value}</strong></div> }
-function PageState({ text, error = false }: { text: string; error?: boolean }) { return <div style={{ padding: 40, maxWidth: 620, margin: '40px auto', textAlign: 'center', border: `1px solid ${error ? '#fecaca' : '#e2e8f0'}`, borderRadius: 16, background: error ? '#fef2f2' : '#fff', color: error ? '#b91c1c' : '#64748b' }}>{text}</div> }
+function PageState({ text, error = false }: { text: string; error?: boolean }) { return <div role={error ? 'alert' : undefined} style={{ padding: 40, maxWidth: 620, margin: '40px auto', textAlign: 'center', border: `1px solid ${error ? '#fecaca' : '#e2e8f0'}`, borderRadius: 16, background: error ? '#fef2f2' : '#fff', color: error ? '#b91c1c' : '#64748b' }}>{text}</div> }
 
 const cardStyle: CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, padding: 20, marginBottom: 18, boxShadow: '0 8px 28px rgba(15,23,42,.05)' }
 const warningStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: 13, borderRadius: 11, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e', marginBottom: 16 }

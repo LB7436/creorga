@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises'
+import { mkdtemp, writeFile, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createServer, get } from 'node:http'
@@ -30,7 +30,7 @@ test('interfaces compilées : SPA, MIME, refus de traversée et proxy API borné
     assert.equal((await fetch(base + '/assets/app.js', { method: 'HEAD' })).status, 200)
   } finally {
     await Promise.all([new Promise(resolve => server.close(resolve)), new Promise(resolve => upstream.close(resolve))])
-    await rm(directory, { recursive: true, force: true })
+    // Conserver les fichiers fictifs : aucune suppression implicite pendant F18.
   }
 })
 

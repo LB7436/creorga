@@ -1,5 +1,9 @@
 # Performance du profil métier — mesures du lot fiabilité
 
+Actualisation18octobre L3 en fin de document : trois mesures CPU/RAM du seul
+runtime, pas un nouveau benchmark avant/après ni une optimisation du p95salle.
+Les séries du17octobre ci-dessous restent historiques.
+
 Mesures du 17 octobre 2026, avant à 10:02 et après à 10:21, heure Europe/Luxembourg.
 Ce sont des séries courtes de laboratoire, **pas** une qualification de service
 multiclient ni une promesse de consommation. Les sources primaires privées sont
@@ -108,3 +112,21 @@ multi-postes documentée et des conflits réalistes. Toute nouvelle optimisation
 garder ses tests de concurrence, isolation, montants et reprise, et comparer les
 résultats sur données identiques. Ni ce tableau ni un nombre de tests unitaires ne
 permettent d'annoncer CréOrga prêt pour la production.
+## Mesure complémentaire F18-L3 —18octobre, pas un avant/après
+
+Copie25450, profil métier, runtime seul PID25524, fin de recette avec onglets de
+test encore ouverts :16:45:32–16:45:47UTC, trois fenêtres5,019/5,041/5,015secondes.
+Working set192,05/192,05/192,06MiB, mémoire privée196,33MiB. CPU équivalent cœur
+2,179/1,240/0,623%, normalisé machine0,182/0,103/0,052%. PostgreSQL, Chrome et les
+anciennes instances préservées ne sont pas inclus dans cette attribution.
+
+Ce prélèvement court n'est pas une baseline de charge ni une preuve d'économie.
+Aucun gain avant/après, p95salle/POS/QR, GPU/VRAM, watt ou euro n'en est déduit.
+Les anciens p95 restent historiques, pas remesurés par cette fenêtre. Aucune
+nouvelle optimisation des transactions, projections ou contrôles CAS n'est livrée
+sur cette seule base. Le démarrage/redémarrage et les trois arrêts de la même
+copie sont horodatés séparément dans le journal, sans durée active artificielle.
+
+Compatibilité d'un Node corrigé et portage Rust/Go : non étudiés dans ce lot,
+aucun changement global Windows. Garder ces travaux derrière un profil comparable
+et la qualification des18parcours. [Rapport L3](F18-REPRISE-INDEPENDANTE-2026-10-18.md).

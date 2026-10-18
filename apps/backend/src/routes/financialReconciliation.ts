@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 import prisma from '../lib/prisma'
 import { reconciliation, reconciliationCsv } from '../lib/financial-reconciliation'
 import { journalPeriod } from './documentJournal'

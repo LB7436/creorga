@@ -657,16 +657,20 @@ function OrderContent({ tableId, onBack, onPay }: Props) {
         )}
         {showNote && (
           <TextModal
+            key={`${tableId}:orderNote`}
             title="Note sur le ticket"
             placeholder="Ex : Client pressé, allergie aux fruits à coque..."
+            initialValue={table.orderNote ?? ''}
             onClose={() => setShowNote(false)}
             onConfirm={value => { usePOS.getState().updateTable(tableId, { orderNote: value }); setShowNote(false) }}
           />
         )}
         {showCuisine && (
           <TextModal
+            key={`${tableId}:kitchenNote`}
             title="Message cuisine"
             placeholder="Ex : Servir en même temps, sans coriandre..."
+            initialValue={table.kitchenNote ?? ''}
             onClose={() => setShowCuisine(false)}
             onConfirm={value => { usePOS.getState().updateTable(tableId, { kitchenNote: value }); setShowCuisine(false); void flushFloor().catch(e => setOperationError(e.message)) }}
             color="#f97316"
@@ -946,17 +950,20 @@ function RemiseModal({ onClose, onConfirm, rawTotal }: { onClose: () => void; on
   )
 }
 
-function TextModal({ title, placeholder, onClose, onConfirm, color }: { title: string; placeholder: string; onClose: () => void; onConfirm: (text: string) => void; color?: string }) {
-  const [text, setText] = useState('')
+function TextModal({ title, placeholder, initialValue, onClose, onConfirm, color }: { title: string; placeholder: string; initialValue: string; onClose: () => void; onConfirm: (text: string) => void; color?: string }) {
+  const [text, setText] = useState(initialValue)
+  // AnimatePresence peut garder la modale pendant sa sortie. Annuler doit
+  // abandonner la saisie même si elle est rouverte avant la fin de l'animation.
+  const cancel = () => { setText(initialValue); onClose() }
   return (
-    <ModalShell onClose={onClose} title={title} icon="📝" color={color ?? '#6366f1'}>
+    <ModalShell onClose={cancel} title={title} icon="📝" color={color ?? '#6366f1'}>
       <textarea
         autoFocus value={text} onChange={e => setText(e.target.value)}
         placeholder={placeholder} rows={4}
         style={{ width: '100%', padding: 10, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }}
       />
       <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-        <button onClick={onClose} style={{ flex: 1, padding: 10, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
+        <button onClick={cancel} style={{ flex: 1, padding: 10, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
         <button onClick={() => onConfirm(text)} style={{ flex: 1, padding: 10, borderRadius: 8, background: color ?? '#6366f1', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>Enregistrer</button>
       </div>
     </ModalShell>

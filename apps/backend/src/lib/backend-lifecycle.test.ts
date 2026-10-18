@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createServer, request } from 'node:http'
 import { Server as SocketServer } from 'socket.io'
-import { createBackendShutdown, TrackedTasks } from './backend-lifecycle'
+import { createBackendShutdown, createShutdownDiagnostics, TrackedTasks } from './backend-lifecycle'
 
 const tick = () => new Promise<void>(resolve => setImmediate(resolve))
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done }); return { promise, resolve } }
@@ -53,6 +53,51 @@ describe('arrêt backend contrôlé', () => {
     await expect(result).rejects.toThrow(/Audit non confirmé/)
     expect(lifecycle.shutdown()).toBe(result)
     expect(events).toEqual([])
+  })
+
+  it.each([
+    ['assertAllowed', 'profile'], ['stopScheduling', 'scheduling'], ['closeHttp', 'http'],
+    ['drain', 'workers'], ['flushAudit', 'audit'], ['disconnect', 'disconnect'],
+  ] as const)('conserve le rejet de %s et publie seulement son étape %s', async (dependency, stage) => {
+    const failure = Object.assign(Error('CONTENU_PRIVE_QUERY_ET_TOKEN_NON_EXPORTABLE'), { query: 'SELECT SECRET_FICTIF', token: 'SECRET_FICTIF' })
+    const dependencies = {
+      assertAllowed: () => {}, stopScheduling: () => {}, closeHttp: async () => {}, drain: async () => {}, flushAudit: async () => {}, disconnect: async () => {},
+    }
+    dependencies[dependency] = (() => { throw failure }) as never
+    const lifecycle = createBackendShutdown(dependencies), result = lifecycle.shutdown()
+    await expect(result).rejects.toBe(failure)
+    expect(lifecycle.diagnostic).toEqual({ stage, reason: 'UNSPECIFIED_FAILURE' })
+    if (dependency !== 'assertAllowed') expect(lifecycle.shutdown()).toBe(result)
+    expect(JSON.stringify(lifecycle.diagnostic)).not.toContain('SECRET')
+  })
+
+  it('réduit un code technique connu en raison bornée sans sérialiser son erreur', async () => {
+    const failure = Object.assign(Error('URL_ET_REQUETE_PRIVEES'), { code: 'ENOSPC', stack: 'CONTENU_PRIVE' })
+    const lifecycle = createBackendShutdown({ assertAllowed: () => {}, stopScheduling: () => {}, closeHttp: async () => {}, drain: async () => {},
+      flushAudit: async () => { throw failure }, disconnect: async () => {} })
+    await expect(lifecycle.shutdown()).rejects.toBe(failure)
+    expect(lifecycle.diagnostic).toEqual({ stage: 'audit', reason: 'FILESYSTEM_FAILURE' })
+  })
+
+  it('conserve la sous-étape initiale et le même rejet après la remontée du refus', async () => {
+    const diagnostics = createShutdownDiagnostics()
+    const failure = Error('Arrêt non confirmé : journal d’événements non enregistré.')
+    const lifecycle = createBackendShutdown({ diagnostics, assertAllowed: () => {}, stopScheduling: () => {}, closeHttp: async () => {}, drain: async () => {},
+      flushAudit: () => diagnostics.run('event-sink', async () => { throw failure }), disconnect: async () => {} })
+    await expect(lifecycle.shutdown()).rejects.toBe(failure)
+    expect(lifecycle.diagnostic).toEqual({ stage: 'event-sink', reason: 'EVENT_SINK_UNCONFIRMED' })
+    diagnostics.record('disconnect', Error('SECOND_SECRET'))
+    expect(lifecycle.diagnostic).toEqual({ stage: 'event-sink', reason: 'EVENT_SINK_UNCONFIRMED' })
+    expect(Object.isFrozen(lifecycle.diagnostic)).toBe(true)
+  })
+
+  it('notifie une seule fois le journal borné sans masquer le rejet si le journal échoue', async () => {
+    const reports: unknown[] = []
+    const diagnostics = createShutdownDiagnostics(diagnostic => { reports.push(diagnostic); throw Error('JOURNAL_FICTIF_INDISPONIBLE') })
+    const failure = Object.assign(Error('SECRET_FICTIF'), { code: 'EPERM' })
+    await expect(diagnostics.run('audit-log', async () => { throw failure })).rejects.toBe(failure)
+    diagnostics.record('audit', failure)
+    expect(reports).toEqual([{ stage: 'audit-log', reason: 'FILESYSTEM_FAILURE' }])
   })
 })
 

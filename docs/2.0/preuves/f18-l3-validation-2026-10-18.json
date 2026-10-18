@@ -1,0 +1,387 @@
+{
+  "format": "creorga-f18-l3-redacted-evidence-v1",
+  "asOfUtc": "2026-10-18T16:52:57.961Z",
+  "branch": "codex/creorga-2-0-2026-10-08",
+  "baseHead": "ab0d735f60f01bbfd0c7f914a43c2b997f280e2e",
+  "publication": "VALIDATED_CORRECTIONS_AWAITING_BRANCH_COMMIT",
+  "campaign": "NON_LIVREE",
+  "pilot": "NON_QUALIFIE",
+  "profile": "CREORGA_BUSINESS_ONLY",
+  "sourceFingerprint": {
+    "files": 807,
+    "sha256": "08875039e424934bf55fb75dbef17273f7d7cf99f99b45370e18b8b60b453b8f"
+  },
+  "suites": [
+    {
+      "name": "backend-unit",
+      "startedAt": "2026-10-18T15:22:25.937Z",
+      "finishedAt": "2026-10-18T15:22:39.923Z",
+      "elapsedMs": 13986,
+      "passed": 618,
+      "failed": 0,
+      "skipped": 0,
+      "files": 69,
+      "privateDirectory": "validation-backend-unit-1792336945547-NKuF2A",
+      "reportBytesSha256": "54b1c14b6aa61c9d0adb696b873d156238981dba1de7d5d9ace853ffd0903a8b",
+      "vitestBytesSha256": "829734564282bfed8ba54895eb747d01aeea7f0f903bfb1c999dcf56235d2883"
+    },
+    {
+      "name": "web-unit",
+      "startedAt": "2026-10-18T15:42:35.438Z",
+      "finishedAt": "2026-10-18T15:42:54.504Z",
+      "elapsedMs": 19066,
+      "passed": 513,
+      "failed": 0,
+      "skipped": 0,
+      "files": 56,
+      "privateDirectory": "validation-web-unit-1792338154983-inFmOq",
+      "reportBytesSha256": "dddf4023a6a48610464b87815cf033d81fa5da3e414548232bde1f0f6cb5dd25",
+      "vitestBytesSha256": "4f0e14c1cca1c3009788f0d14c3c1d70bc2f316718e7fd239dd0bc038d991107"
+    },
+    {
+      "name": "pos-unit",
+      "startedAt": "2026-10-18T15:42:47.807Z",
+      "finishedAt": "2026-10-18T15:42:52.977Z",
+      "elapsedMs": 5170,
+      "passed": 175,
+      "failed": 0,
+      "skipped": 0,
+      "files": 15,
+      "privateDirectory": "validation-pos-unit-1792338167356-CzYSVx",
+      "reportBytesSha256": "ebf953dc78f7133600a4652f1988c1b1acec262a8c9295bbd557fb55d5b7aae1",
+      "vitestBytesSha256": "dfcbb6a1c6da123f89cbef30fcd35162ea756b97e2e555c67f263b9977d9b632"
+    },
+    {
+      "name": "postgres-integration",
+      "startedAt": "2026-10-18T15:43:07.665Z",
+      "finishedAt": "2026-10-18T15:44:17.906Z",
+      "elapsedMs": 70241,
+      "passed": 354,
+      "failed": 0,
+      "skipped": 0,
+      "files": 33,
+      "privateDirectory": "validation-integration-1792338187229-MV8sc6",
+      "reportBytesSha256": "48d59cbcd5973aaf652e5b64e0b6acdd04c96373d32949493a9d50f43e03c34b",
+      "vitestBytesSha256": "832bd74df7c5564a129ef81f2476d7645cdf639addc3cfa3bdce08c63039880c"
+    }
+  ],
+  "unitTests": 1306,
+  "postgresTests": 354,
+  "localProfileFixtures": {
+    "passed": 79,
+    "privateDirectory": "validation-local-profile-DCy1fY",
+    "reportBytesSha256": "b55a6dc7e3170fed85f197ff24d4d54f09508ecf2e7ef3c1ab2ac3879e2b2038",
+    "sourceBeforeAndAfter": "0178d7bf34996c12f96c758b56738b7fe64ba30ec302960ef5d4e9a68cf9db6e"
+  },
+  "build": {
+    "privateReport": "build-business-1792337080641-d17d1262-bebb-46bb-9665-c357194132c4.json",
+    "startedAt": "2026-10-18T15:24:40.642Z",
+    "finishedAt": "2026-10-18T15:25:37.211Z",
+    "exitCode": 0,
+    "applications": 5,
+    "gameModuleCount": 0,
+    "stdoutSha256": "75e61d38a4d2c48392d2498bec99726ce261c0af755677cd92bbfa95cca673ba",
+    "stderrSha256": "2acae05ba1e7c979ddafa5a794a1ca2fdba9ca4043409ac827bad94c9f3ffdf1"
+  },
+  "shutdowns": [
+    {
+      "startedAt": "2026-10-18T15:28:42.082Z",
+      "completedAt": "2026-10-18T15:28:42.162Z",
+      "pid": 35952,
+      "status": "STOPPED",
+      "forced": false,
+      "proofBytesSha256": "a5a8c40f9e51c2c4d0ff1cb6268bfa4585074a055e1bb54cf7b587c60aeb483a"
+    },
+    {
+      "startedAt": "2026-10-18T15:41:16.735Z",
+      "completedAt": "2026-10-18T15:41:16.901Z",
+      "pid": 40124,
+      "status": "STOPPED",
+      "forced": false,
+      "proofBytesSha256": "98e9f60929f8ba3426682699989e021dffc281fdbdccea5ff90642fd66b353b2"
+    },
+    {
+      "startedAt": "2026-10-18T16:48:36.664Z",
+      "completedAt": "2026-10-18T16:48:36.748Z",
+      "pid": 25524,
+      "status": "STOPPED",
+      "forced": false,
+      "proofBytesSha256": "a0649f94d8b950e2d048cce9a12c77448df3ccc98cff01b37a1547e5ad456f0a"
+    }
+  ],
+  "restoration": {
+    "privateDirectory": "final-restoration-z3u0xC",
+    "status": "RESTORED_EQUAL_AFTER_GRACEFUL_SHUTDOWN",
+    "tables": 82,
+    "rows": 21466,
+    "files": 14,
+    "pdfCount": 26,
+    "differences": 0,
+    "archiveSha256": "219ff8875eb9dfb2d81068dad6dff9a0ef038778a5af1397794a2f440bd456ad",
+    "encryptedSha256": "86e6b02f6521f16be6c373ba0d7f948abc78d9cc045a832d1ca3fcbea9e9d1e9",
+    "proofBytesSha256": "6e3f52e3142f5861204b9a0658f1f6fc6d22f5c22ad6d230c2e10d572b903ea6",
+    "comparisonBytesSha256": "9e1cae39e0c5a87416e4b5f039522739cd3c103ce54521e3f33a58a472d2a74d",
+    "gracefulStopConfirmed": true,
+    "archivesDeleted": 0
+  },
+  "reconciliation": {
+    "cafe": {
+      "beforeBytesSha256": "7150cf93af2bb23a2741eb938564ac1dae0d28f3ccb1c4010c3dba7843a3631a",
+      "finalBytesSha256": "8873b4dff42aefbf904759069c7f1bf0e7e9df460f6a29f5c00383b469cd2566",
+      "newFinalizedOrders": 5,
+      "newFinalizedSales": 5,
+      "newFinalizedSaleTotalCents": 1305,
+      "newFinalizedSaleVatCents": 85,
+      "totalPaidOrdersCents": 3415,
+      "totalSalesCents": 3415,
+      "totalTendersCents": 3415,
+      "historicalRowsUnchanged": {
+        "PosSale": 4,
+        "OrderTender": 13,
+        "Invoice": 1,
+        "CreditNote": 2,
+        "ManualRefund": 4,
+        "RefundAttempt": 0,
+        "RefundAllocation": 0,
+        "PaymentSettlement": 0,
+        "PaymentAllocation": 0,
+        "CashMovement": 3,
+        "Shift": 2,
+        "TimePunch": 3,
+        "LeaveRequest": 1,
+        "Order": 4,
+        "CashDrawer": 1,
+        "UserCompany": 5,
+        "PaymentAttempt": 6
+      },
+      "stock": [
+        {
+          "product": "Espresso centre",
+          "before": 97,
+          "after": 95,
+          "soldQuantity": 2
+        },
+        {
+          "product": "Bière centre 25 cl",
+          "before": 59,
+          "after": 58,
+          "soldQuantity": 1
+        },
+        {
+          "product": "Eau plate centre",
+          "before": 46,
+          "after": 43,
+          "soldQuantity": 3
+        },
+        {
+          "product": "Sandwich centre",
+          "before": 19,
+          "after": 19,
+          "soldQuantity": 0
+        },
+        {
+          "product": "Gobelet centre",
+          "before": 100,
+          "after": 100,
+          "soldQuantity": 0
+        }
+      ],
+      "drawer": {
+        "openingCents": 5000,
+        "cashReceiptsCents": 705,
+        "expectedCents": 5705,
+        "countedCents": 5705,
+        "discrepancyCents": 0,
+        "closedAt": "2026-10-18T16:39:32.050Z"
+      },
+      "newBusinessPermissionEvents": 0
+    },
+    "restaurant": {
+      "beforeBytesSha256": "622238140dacd6961014bc3db9184270168da3cb7121bceeb5ffea1927536d6e",
+      "finalBytesSha256": "3255cfba58e87c37f54d1949f8e1ab1c7f03d2fb656613df1eadf2dbe4b8da2b",
+      "newFinalizedOrders": 3,
+      "newFinalizedSales": 3,
+      "newFinalizedSaleTotalCents": 1940,
+      "newFinalizedSaleVatCents": 56,
+      "totalPaidOrdersCents": 14270,
+      "totalSalesCents": 14270,
+      "totalTendersCents": 14270,
+      "historicalRowsUnchanged": {
+        "PosSale": 6,
+        "OrderTender": 14,
+        "Invoice": 1,
+        "CreditNote": 1,
+        "ManualRefund": 1,
+        "RefundAttempt": 0,
+        "RefundAllocation": 0,
+        "PaymentSettlement": 0,
+        "PaymentAllocation": 0,
+        "CashMovement": 1,
+        "Shift": 1,
+        "TimePunch": 0,
+        "LeaveRequest": 2,
+        "Order": 7,
+        "CashDrawer": 1,
+        "UserCompany": 5,
+        "PaymentAttempt": 5
+      },
+      "stock": [
+        {
+          "product": "Soupe Jardins",
+          "before": 25,
+          "after": 23,
+          "soldQuantity": 2
+        },
+        {
+          "product": "Plat végétarien Jardins",
+          "before": 22,
+          "after": 22,
+          "soldQuantity": 0
+        },
+        {
+          "product": "Dessert Jardins",
+          "before": 17,
+          "after": 17,
+          "soldQuantity": 0
+        },
+        {
+          "product": "Vin Jardins",
+          "before": 38,
+          "after": 38,
+          "soldQuantity": 0
+        },
+        {
+          "product": "Eau Jardins",
+          "before": 59,
+          "after": 57,
+          "soldQuantity": 2
+        },
+        {
+          "product": "Supplément légumes Jardins",
+          "before": 24,
+          "after": 24,
+          "soldQuantity": 0
+        }
+      ],
+      "drawer": {
+        "openingCents": 10000,
+        "cashReceiptsCents": 3320,
+        "expectedCents": 13320,
+        "countedCents": 13320,
+        "discrepancyCents": 0,
+        "closedAt": "2026-10-18T16:02:30.165Z"
+      },
+      "newBusinessPermissionEvents": 0
+    },
+    "bar": {
+      "beforeBytesSha256": "7273a54fb9cbf1ca16e4feef33685270632ef599ada14c3e9cd61721866dd97b",
+      "finalBytesSha256": "1826cea7039b81a5902d96d216ecb9bd1bc06efd1a476ff8b520b63e0982292b",
+      "newFinalizedOrders": 3,
+      "newFinalizedSales": 2,
+      "newFinalizedSaleTotalCents": 2160,
+      "newFinalizedSaleVatCents": 229,
+      "totalPaidOrdersCents": 5964,
+      "totalSalesCents": 5964,
+      "totalTendersCents": 5964,
+      "historicalRowsUnchanged": {
+        "PosSale": 3,
+        "OrderTender": 8,
+        "Invoice": 0,
+        "CreditNote": 0,
+        "ManualRefund": 0,
+        "RefundAttempt": 0,
+        "RefundAllocation": 0,
+        "PaymentSettlement": 0,
+        "PaymentAllocation": 0,
+        "CashMovement": 0,
+        "Shift": 1,
+        "TimePunch": 0,
+        "LeaveRequest": 1,
+        "Order": 3,
+        "CashDrawer": 1,
+        "UserCompany": 5,
+        "PaymentAttempt": 2
+      },
+      "stock": [
+        {
+          "product": "Pils Amis 25 cl",
+          "before": 96,
+          "after": 93,
+          "soldQuantity": 3
+        },
+        {
+          "product": "Pils Amis 50 cl",
+          "before": 79,
+          "after": 79,
+          "soldQuantity": 0
+        },
+        {
+          "product": "Tonic Amis",
+          "before": 58,
+          "after": 56,
+          "soldQuantity": 2
+        },
+        {
+          "product": "Planche Amis",
+          "before": 19,
+          "after": 19,
+          "soldQuantity": 0
+        }
+      ],
+      "drawer": {
+        "openingCents": 2500,
+        "cashReceiptsCents": 1360,
+        "expectedCents": 3860,
+        "countedCents": 3850,
+        "discrepancyCents": -10,
+        "closedAt": "2026-10-18T16:26:28.164Z"
+      },
+      "newBusinessPermissionEvents": 2
+    }
+  },
+  "recoveredCopiesVerified": 27,
+  "recoveredCopyBytes": 30025952,
+  "gameBlobsVerified": 99,
+  "unchangedGameWorktreeBlobs": 98,
+  "gameRouterChanges": [
+    {
+      "path": "apps/backend/src/routes/gameScores.ts",
+      "reason": "Only the common HTTP tracking facade import changes; game logic and immutable source preserved."
+    }
+  ],
+  "uiJournalPrefix": {
+    "campaign": "F18-L3-20261018",
+    "wholeJournalRows": 3090,
+    "headSha256": "de17bcdf87a8383ac32839a597ed41924a63521b7775a7fcb57c3a89a7b1696c",
+    "campaignEvents": 486,
+    "uiAttempts": 341,
+    "clickCalls": 214,
+    "byOperation": {
+      "click": 214,
+      "close_page": 16,
+      "fill_form": 47,
+      "navigate_page": 36,
+      "new_page": 17,
+      "press_key": 2,
+      "type_text": 9
+    },
+    "outcomes": {
+      "TOOL_RETURNED": 338,
+      "TOOL_ERROR": 3
+    },
+    "warning": "Official tool calls include observations, failed attempts and normal test-tab closure; not a count of qualified functions or physical clicks. Do not sum durations as active human testing."
+  },
+  "journeys": {
+    "startedAcrossF18": 18,
+    "fullyQualified": 0,
+    "partialBlocked": 18,
+    "remainingSubstepsNotRun": true
+  },
+  "limits": [
+    "No bank, printer, cloud generative provider, production or historical browser profile used.",
+    "Downloads with uninspectable bytes remain BLOCKED.",
+    "No full T100 coverage or five-hour active-duration claim.",
+    "The old original and first separated runtimes remain blocked and preserved, not fixed in memory.",
+    "Temporary stock override restored to the exact initial member policy; accessVersion and audit history preserved."
+  ]
+}

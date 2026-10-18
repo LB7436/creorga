@@ -1,377 +1,229 @@
-import { useEffect, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import api from '@/lib/api'
+import { authDataScope } from '@/lib/authScope'
+import { useAuthStore } from '@/stores/authStore'
 
-type Status = 'attente' | 'preparation' | 'pret';
-type Cours = 'Apéritif' | 'Entrée' | 'Plat' | 'Dessert';
-type Station = 'Toutes' | 'Chaud' | 'Froid' | 'Boissons' | 'Desserts';
-type Filter = 'Tout' | 'Apéritif' | 'Plat' | 'Dessert';
-
-interface OrderItem {
-  id: number;
-  name: string;
-  qty: number;
-  cours: Cours;
-  station: Exclude<Station, 'Toutes'>;
-  note?: string;
-  allergies?: string[];  // v3.19 G1 — collectées depuis le client, affichées GIANT en cuisine
+type Status = 'waiting' | 'preparing' | 'ready'
+type ChangeStatus = Status | 'served' | 'cancelled'
+type Item = { id: string; name: string; qty: number; note: string }
+type Routing = { tableName: string; coverLabel: string; name: string; qty: number; kitchenNote: string; barNote: string }
+type Ticket = { id: string; tableName: string; coverLabel: string; status: Status; createdAt: number; updatedAt: number; items: Item[]; routing: Routing[] }
+const columns: Array<{ id: Status; label: string; next: ChangeStatus; action: string; color: string }> = [
+  { id: 'waiting', label: 'À préparer', next: 'preparing', action: 'Commencer', color: '#b45309' },
+  { id: 'preparing', label: 'En préparation', next: 'ready', action: 'Marquer prêt', color: '#1d4ed8' },
+  { id: 'ready', label: 'Prêt à servir', next: 'served', action: 'Marquer servi', color: '#047857' },
+]
+const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
+function optionalText(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value !== 'string') throw new Error('Texte de ticket invalide')
+  return value
+}
+function identifier(value: unknown): string {
+  if (typeof value !== 'string' || !value) throw new Error('Identifiant de ticket invalide')
+  return value
 }
 
-// v3.19 G1 — détection allergie depuis la note (fallback si .allergies pas peuplé)
-const ALLERGEN_KEYWORDS: Record<string, string> = {
-  gluten: '🌾 GLUTEN', noix: '🥜 NOIX', arachide: '🥜 ARACHIDE', noisette: '🥜 NOISETTE',
-  lactose: '🥛 LACTOSE', lait: '🥛 LAIT', soja: '🟤 SOJA',
-  poisson: '🐟 POISSON', crustac: '🦐 CRUSTACÉS', œuf: '🥚 ŒUF', oeuf: '🥚 ŒUF',
-  sésame: '🌱 SÉSAME', moutarde: '🟡 MOUTARDE', céleri: '🥬 CÉLERI',
+/** Projection du seul contrat cuisine : ni prix, ni personnel, ni allergies déduites. */
+function readTickets(value: unknown): Ticket[] {
+  if (!record(value) || !finite(value.revision) || !Array.isArray(value.tickets)) throw new Error('Lecture cuisine incomplète')
+  const ids = new Set<string>()
+  return value.tickets.map((raw): Ticket => {
+    if (!record(raw) || !columns.some(column => column.id === raw.status) || !finite(raw.createdAt) || !finite(raw.updatedAt)
+      || raw.createdAt < 0 || raw.updatedAt < 0 || !Array.isArray(raw.items) || raw.routing != null && !Array.isArray(raw.routing)) {
+      throw new Error('Ticket cuisine incomplet')
+    }
+    const id = identifier(raw.id)
+    if (ids.has(id)) throw new Error('Ticket cuisine dupliqué')
+    ids.add(id)
+    const items = raw.items.map((item): Item => {
+      if (!record(item) || !finite(item.qty)) throw new Error('Ligne cuisine incomplète')
+      // Les lots de correction peuvent porter une quantité négative.
+      return { id: identifier(item.id), name: optionalText(item.name) || 'Produit non renseigné', qty: item.qty, note: optionalText(item.note) }
+    })
+    const routing = ((raw.routing ?? []) as unknown[]).map((route): Routing => {
+      if (!record(route) || !finite(route.qty)) throw new Error('Routage cuisine incomplet')
+      return { tableName: optionalText(route.tableName) || 'Table non renseignée', coverLabel: optionalText(route.coverLabel),
+        name: optionalText(route.name) || 'Produit non renseigné', qty: route.qty, kitchenNote: optionalText(route.kitchenNote), barNote: optionalText(route.barNote) }
+    })
+    return { id, tableName: optionalText(raw.tableName) || 'Table non renseignée', coverLabel: optionalText(raw.coverLabel),
+      status: raw.status as Status, createdAt: raw.createdAt, updatedAt: raw.updatedAt, items, routing }
+  })
 }
-
-function extractAllergies(item: OrderItem): string[] {
-  const fromField = item.allergies || []
-  if (fromField.length > 0) return fromField
-  const text = (item.note || '').toLowerCase()
-  if (!/(allerg|sans|intol[ée]ran)/.test(text)) return []
-  const found: string[] = []
-  for (const [key, label] of Object.entries(ALLERGEN_KEYWORDS)) {
-    if (text.includes(key)) found.push(label)
-  }
-  return found
-}
-
-interface Order {
-  id: number;
-  table: string;
-  createdMinAgo: number;
-  status: Status;
-  items: OrderItem[];
-  server: string;
-}
-
-const initialOrders: Order[] = [
-  {
-    id: 1, table: 'T-04', createdMinAgo: 2, status: 'attente', server: 'Laura',
-    items: [
-      { id: 1, name: 'Spritz Apérol', qty: 2, cours: 'Apéritif', station: 'Boissons' },
-      { id: 2, name: 'Planche charcuterie', qty: 1, cours: 'Apéritif', station: 'Froid' },
-      { id: 3, name: 'Tartare bœuf', qty: 2, cours: 'Plat', station: 'Froid', note: 'Sans câpres pour 1' },
-    ],
-  },
-  {
-    id: 2, table: 'T-12', createdMinAgo: 4, status: 'attente', server: 'Karim',
-    items: [
-      { id: 4, name: 'Burrata maison', qty: 1, cours: 'Entrée', station: 'Froid' },
-      { id: 5, name: 'Risotto champignons', qty: 2, cours: 'Plat', station: 'Chaud', note: 'Allergie gluten', allergies: ['🌾 GLUTEN'] },
-      { id: 6, name: 'Tiramisu', qty: 2, cours: 'Dessert', station: 'Desserts', allergies: ['🥛 LACTOSE', '🥚 ŒUF'] },
-    ],
-  },
-  {
-    id: 3, table: 'T-07', createdMinAgo: 11, status: 'attente', server: 'Sophie',
-    items: [
-      { id: 7, name: 'Velouté butternut', qty: 3, cours: 'Entrée', station: 'Chaud' },
-      { id: 8, name: 'Magret canard', qty: 3, cours: 'Plat', station: 'Chaud', note: 'Cuisson rosé' },
-    ],
-  },
-  {
-    id: 4, table: 'T-02', createdMinAgo: 7, status: 'preparation', server: 'Laura',
-    items: [
-      { id: 9, name: 'Carpaccio saumon', qty: 2, cours: 'Entrée', station: 'Froid' },
-      { id: 10, name: 'Pasta truffe', qty: 2, cours: 'Plat', station: 'Chaud' },
-      { id: 11, name: 'Café gourmand', qty: 2, cours: 'Dessert', station: 'Desserts' },
-    ],
-  },
-  {
-    id: 5, table: 'T-15', createdMinAgo: 16, status: 'preparation', server: 'Karim',
-    items: [
-      { id: 12, name: 'Soupe du jour', qty: 1, cours: 'Entrée', station: 'Chaud' },
-      { id: 13, name: 'Entrecôte 300g', qty: 1, cours: 'Plat', station: 'Chaud', note: 'Saignant — priorité !' },
-    ],
-  },
-  {
-    id: 6, table: 'T-09', createdMinAgo: 1, status: 'pret', server: 'Sophie',
-    items: [
-      { id: 14, name: 'Fondant chocolat', qty: 2, cours: 'Dessert', station: 'Desserts' },
-      { id: 15, name: 'Espresso', qty: 2, cours: 'Dessert', station: 'Boissons' },
-    ],
-  },
-  {
-    id: 7, table: 'T-01', createdMinAgo: 3, status: 'pret', server: 'Laura',
-    items: [
-      { id: 16, name: 'Bruschetta truffe', qty: 2, cours: 'Apéritif', station: 'Froid' },
-    ],
-  },
-];
-
-const timerColor = (min: number): { bg: string; text: string; pulse: boolean } => {
-  if (min < 5) return { bg: '#ecfdf5', text: '#059669', pulse: false };
-  if (min < 10) return { bg: '#fefce8', text: '#ca8a04', pulse: false };
-  if (min < 15) return { bg: '#fff7ed', text: '#ea580c', pulse: false };
-  return { bg: '#fef2f2', text: '#dc2626', pulse: true };
-};
-
-const statusMeta: Record<Status, { label: string; color: string; bg: string; border: string }> = {
-  attente: { label: 'En attente', color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
-  preparation: { label: 'En préparation', color: '#ea580c', bg: '#fff7ed', border: '#fed7aa' },
-  pret: { label: 'Prêt', color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
-};
 
 export default function Kitchen() {
-  // v3.19 G1 — animation pulse pour badges allergies
-  useEffect(() => {
-    const id = 'allergy-pulse-style'
-    if (typeof document !== 'undefined' && !document.getElementById(id)) {
-      const s = document.createElement('style')
-      s.id = id
-      s.textContent = '@keyframes allergy-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}'
-      document.head.appendChild(s)
-    }
-  }, [])
-
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
-  const [filter, setFilter] = useState<Filter>('Tout');
-  const [station, setStation] = useState<Station>('Toutes');
-  const [soundOn, setSoundOn] = useState(true);
-  const [now, setNow] = useState(new Date());
-  const [toast, setToast] = useState<string | null>(null);
-
-  useEffect(() => {
-    const tick = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(tick);
-  }, []);
-
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2000);
-    return () => clearTimeout(t);
-  }, [toast]);
-
-  const advance = (id: number) =>
-    setOrders(os => os.map(o => {
-      if (o.id !== id) return o;
-      const next: Status = o.status === 'attente' ? 'preparation' : o.status === 'preparation' ? 'pret' : 'pret';
-      return { ...o, status: next, createdMinAgo: next === 'pret' ? 0 : o.createdMinAgo };
-    }));
-
-  const recall = (table: string) => setToast(`Rappel envoyé à la salle — ${table}`);
-
-  const filterOrder = (o: Order) => {
-    const matchesFilter = filter === 'Tout' || o.items.some(i => {
-      if (filter === 'Plat') return i.cours === 'Plat';
-      return i.cours === filter;
-    });
-    const matchesStation = station === 'Toutes' || o.items.some(i => i.station === station);
-    return matchesFilter && matchesStation;
-  };
-
-  const byStatus = useMemo(() => ({
-    attente: orders.filter(o => o.status === 'attente').filter(filterOrder),
-    preparation: orders.filter(o => o.status === 'preparation').filter(filterOrder),
-    pret: orders.filter(o => o.status === 'pret').filter(filterOrder),
-  }), [orders, filter, station]);
-
-  const activeCount = orders.filter(o => o.status !== 'pret').length;
-  const clock = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-  const renderCard = (o: Order) => {
-    const visibleItems = o.items.filter(i => {
-      const okFilter = filter === 'Tout' || (filter === 'Plat' ? i.cours === 'Plat' : i.cours === filter);
-      const okStation = station === 'Toutes' || i.station === station;
-      return okFilter && okStation;
-    });
-    const grouped = visibleItems.reduce<Record<Cours, OrderItem[]>>((acc, i) => {
-      (acc[i.cours] ||= []).push(i); return acc;
-    }, {} as Record<Cours, OrderItem[]>);
-    const tc = timerColor(o.createdMinAgo);
-    const meta = statusMeta[o.status];
-    return (
-      <motion.div
-        key={o.id}
-        layout
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        style={{ background: '#ffffff', border: `1px solid ${meta.border}`, borderRadius: 14, padding: 14, boxShadow: '0 1px 2px rgba(15,23,42,0.04)' }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#0f172a' }}>{o.table}</div>
-          <motion.div
-            animate={tc.pulse ? { scale: [1, 1.06, 1] } : { scale: 1 }}
-            transition={tc.pulse ? { repeat: Infinity, duration: 1.1 } : { duration: 0 }}
-            style={{ background: tc.bg, color: tc.text, padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, border: `1px solid ${tc.text}22` }}
-          >
-            {o.createdMinAgo} min
-          </motion.div>
-        </div>
-        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>Serveur : {o.server}</div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
-          {(Object.keys(grouped) as Cours[]).map(c => (
-            <div key={c}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{c}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {grouped[c].map(i => {
-                  // v3.19 G1 — extraction allergies + badge GIANT rouge
-                  const allergens = extractAllergies(i)
-                  return (
-                  <div key={i.id}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#0f172a' }}>
-                      <span style={{ fontWeight: 600 }}>{i.name}</span>
-                      <span style={{ color: '#475569', fontWeight: 700 }}>x{i.qty}</span>
-                    </div>
-                    {allergens.length > 0 && (
-                      <div style={{
-                        marginTop: 6,
-                        padding: '8px 10px',
-                        background: '#dc2626',
-                        color: '#fff',
-                        borderRadius: 8,
-                        fontSize: 16,
-                        fontWeight: 900,
-                        textTransform: 'uppercase',
-                        letterSpacing: 1,
-                        border: '3px solid #991b1b',
-                        boxShadow: '0 0 0 2px #fff, 0 2px 8px rgba(220,38,38,0.4)',
-                        animation: 'allergy-pulse 1.5s ease-in-out infinite',
-                        display: 'flex', flexWrap: 'wrap', gap: 6,
-                      }}>
-                        <span style={{ fontSize: 13, opacity: 0.9 }}>⚠️ ALLERGIE :</span>
-                        {allergens.map((a, k) => (
-                          <span key={k} style={{ display: 'inline-block', padding: '2px 8px', background: '#fff', color: '#dc2626', borderRadius: 4, fontSize: 14 }}>{a}</span>
-                        ))}
-                      </div>
-                    )}
-                    {i.note && <div style={{ fontSize: 12, color: '#dc2626', fontStyle: 'italic', marginTop: 2 }}>↳ {i.note}</div>}
-                  </div>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ display: 'flex', gap: 6 }}>
-          {o.status === 'attente' && (
-            <button onClick={() => advance(o.id)} style={{ flex: 1, background: '#ea580c', color: '#fff', border: 'none', padding: '8px 10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Commencer</button>
-          )}
-          {o.status === 'preparation' && (
-            <button onClick={() => advance(o.id)} style={{ flex: 1, background: '#059669', color: '#fff', border: 'none', padding: '8px 10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Prêt !</button>
-          )}
-          {o.status === 'pret' && (
-            <button onClick={() => recall(o.table)} style={{ flex: 1, background: '#0f172a', color: '#fff', border: 'none', padding: '8px 10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Rappel salle</button>
-          )}
-          {o.status !== 'pret' && (
-            <button onClick={() => recall(o.table)} style={{ background: '#fff', color: '#334155', border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Rappel</button>
-          )}
-        </div>
-      </motion.div>
-    );
-  };
-
-  const column = (status: Status) => {
-    const meta = statusMeta[status];
-    const list = byStatus[status];
-    return (
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 10, background: meta.bg, border: `1px solid ${meta.border}`, marginBottom: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color }} />
-            <span style={{ fontWeight: 700, fontSize: 14, color: meta.color }}>{meta.label}</span>
-          </div>
-          <span style={{ background: '#fff', color: meta.color, border: `1px solid ${meta.border}`, padding: '2px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>{list.length}</span>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <AnimatePresence>
-            {list.map(renderCard)}
-          </AnimatePresence>
-          {list.length === 0 && (
-            <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: 18, border: '1px dashed #e5e7eb', borderRadius: 10 }}>Aucune commande</div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div style={{ background: '#f8fafc', minHeight: '100%', padding: 24, color: '#0f172a', display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>Cuisine — Temps réel</h1>
-          <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13 }}>Affichage cuisinier intégré à l'application web.</p>
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div style={{ background: '#fff', border: '1px solid #e5e7eb', padding: '8px 14px', borderRadius: 10, fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{clock}</div>
-          <button
-            onClick={() => setSoundOn(s => !s)}
-            style={{ background: soundOn ? '#ecfdf5' : '#fff', color: soundOn ? '#059669' : '#64748b', border: `1px solid ${soundOn ? '#a7f3d0' : '#e5e7eb'}`, padding: '8px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-          >
-            {soundOn ? '🔔 Son activé' : '🔕 Son coupé'}
-          </button>
-          <div style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', padding: '8px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700 }}>
-            {activeCount} commandes actives
-          </div>
-        </div>
-      </div>
-
-      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 12, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600, marginRight: 4 }}>Cours :</span>
-          {(['Tout', 'Apéritif', 'Plat', 'Dessert'] as Filter[]).map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              style={{ background: filter === f ? '#0f172a' : '#fff', color: filter === f ? '#fff' : '#334155', border: '1px solid #cbd5e1', borderRadius: 999, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-        <div style={{ width: 1, height: 22, background: '#e5e7eb' }} />
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600, marginRight: 4 }}>Station :</span>
-          {(['Toutes', 'Chaud', 'Froid', 'Boissons', 'Desserts'] as Station[]).map(s => (
-            <button
-              key={s}
-              onClick={() => setStation(s)}
-              style={{ background: station === s ? '#4f46e5' : '#fff', color: station === s ? '#fff' : '#334155', border: `1px solid ${station === s ? '#4f46e5' : '#cbd5e1'}`, borderRadius: 999, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        {column('attente')}
-        {column('preparation')}
-        {column('pret')}
-      </div>
-
-      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 14, display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'space-around', alignItems: 'center', marginTop: 4 }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Temps moyen</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#0f172a' }}>8 min</div>
-        </div>
-        <div style={{ width: 1, height: 36, background: '#e5e7eb' }} />
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Commandes / h</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#2563eb' }}>12</div>
-        </div>
-        <div style={{ width: 1, height: 36, background: '#e5e7eb' }} />
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Retards</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#dc2626' }}>1</div>
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ y: 30, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 30, opacity: 0 }}
-            style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#0f172a', color: '#fff', padding: '10px 18px', borderRadius: 999, fontSize: 13, fontWeight: 600, boxShadow: '0 10px 30px rgba(15,23,42,0.25)' }}
-          >
-            {toast}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
+  const scope = useAuthStore(authDataScope)
+  const access = useAuthStore(state => state.businessAccess)
+  const authenticated = useAuthStore(state => state.isAuthenticated && !!state.user?.id && !!state.companyId)
+  if (!authenticated || !access?.capabilities.includes('service.read')) {
+    return <main style={page}><h1>Cuisine</h1><p role="alert">{access
+      ? 'La lecture de la cuisine n’est pas autorisée pour votre accès.'
+      : 'Accès à la cuisine en cours de vérification.'}</p><a href="/modules">Retour aux modules</a></main>
+  }
+  return <ScopedKitchen key={scope} scope={scope} />
 }
+
+function ScopedKitchen({ scope }: { scope: string }) {
+  const access = useAuthStore(state => state.businessAccess)
+  const companyName = useAuthStore(state => state.company?.name)
+  const [tickets, setTickets] = useState<Ticket[] | null>(null)
+  const [reading, setReading] = useState(true)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [readError, setReadError] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [lastRead, setLastRead] = useState<number | null>(null)
+  const [query, setQuery] = useState('')
+  const mounted = useRef(true), readVersion = useRef(0), busyNow = useRef(false), blocked = useRef(true)
+  const currentTickets = useRef<Ticket[] | null>(null)
+  const readTransport = useRef<AbortController | null>(null), changeTransport = useRef<AbortController | null>(null)
+  const canManage = access?.capabilities.includes('service.manage') === true
+  const canCancel = canManage && access?.capabilities.includes('orders.cancel') === true
+  const isCurrent = useCallback(() => {
+    const current = useAuthStore.getState()
+    return mounted.current && scope === authDataScope(current) && current.isAuthenticated
+      && current.businessAccess?.capabilities.includes('service.read') === true
+  }, [scope])
+
+  const refresh = useCallback(async (replace = false, afterMutation = false): Promise<boolean> => {
+    if (!isCurrent() || busyNow.current && !afterMutation || readTransport.current && !replace) return false
+    const version = ++readVersion.current, controller = new AbortController()
+    readTransport.current?.abort()
+    readTransport.current = controller
+    const currentRead = () => isCurrent() && version === readVersion.current
+    setReading(true); setReadError('')
+    if (replace && !afterMutation) setActionError('')
+    try {
+      const { data } = await api.get('/pos/kitchen', { signal: controller.signal, timeout: 8000 })
+      const confirmed = readTickets(data)
+      if (!currentRead()) return false
+      currentTickets.current = confirmed; blocked.current = false
+      setTickets(confirmed); setLastRead(Date.now())
+      return true
+    } catch {
+      if (currentRead()) {
+        currentTickets.current = null; blocked.current = true; setTickets(null); setNotice('')
+        setReadError('Lecture de la cuisine impossible. Actualisez pour vérifier les tickets ; aucun état vide n’est confirmé.')
+      }
+      return false
+    } finally {
+      if (version === readVersion.current) {
+        readTransport.current = null
+        if (isCurrent()) setReading(false)
+      }
+    }
+  }, [isCurrent])
+
+  useEffect(() => {
+    mounted.current = true
+    void refresh()
+    const timer = setInterval(() => { if (!busyNow.current) void refresh() }, 4000)
+    return () => {
+      mounted.current = false; readVersion.current++
+      clearInterval(timer); readTransport.current?.abort(); changeTransport.current?.abort()
+      readTransport.current = null; changeTransport.current = null; busyNow.current = false
+    }
+  }, [refresh])
+
+  async function change(ticket: Ticket, status: ChangeStatus) {
+    const permitted = () => {
+      const capabilities = useAuthStore.getState().businessAccess?.capabilities
+      return isCurrent() && capabilities?.includes('service.manage')
+        && (status !== 'cancelled' || !ticket.id.startsWith('guest:') && capabilities.includes('orders.cancel'))
+    }
+    const latestTicket = () => currentTickets.current?.find(entry => entry.id === ticket.id)
+    if (!permitted() || busyNow.current || blocked.current) return
+    const latest = latestTicket()
+    const next = columns.find(column => column.id === ticket.status)?.next
+    if (!latest || latest.updatedAt !== ticket.updatedAt || latest.status !== ticket.status) {
+      setActionError('Le ticket a changé. Actualisez avant de recommencer.'); return
+    }
+    if (status !== next && status !== 'cancelled' && !(status === 'waiting' && ticket.status !== 'waiting')) return
+    if (status === 'cancelled') {
+      if (!window.confirm('Annuler uniquement la préparation ? L’addition reste à traiter séparément.')) return
+      if (!permitted() || busyNow.current || blocked.current || latestTicket()?.updatedAt !== ticket.updatedAt) return
+    }
+    // Verrou synchrone : un double clic ne peut pas lancer deux PATCH.
+    busyNow.current = true; blocked.current = true
+    const controller = new AbortController()
+    changeTransport.current = controller
+    setBusy(ticket.id); setActionError(''); setNotice('')
+    // Une lecture antérieure au PATCH ne doit pas restaurer un état périmé.
+    readVersion.current++; readTransport.current?.abort(); readTransport.current = null; setReading(false)
+    try {
+      const { data } = await api.patch('/pos/kitchen/' + encodeURIComponent(ticket.id), { status, updatedAt: ticket.updatedAt },
+        { signal: controller.signal, timeout: 8000 })
+      if (!isCurrent()) return
+      if (data?.ok !== true) throw new Error('Confirmation cuisine incomplète')
+      currentTickets.current = null; setTickets(null)
+      const confirmed = await refresh(true, true)
+      if (!isCurrent()) return
+      if (confirmed) setNotice('Changement confirmé par le serveur.')
+      else setActionError('Changement accepté par le serveur, mais relecture impossible. Actualisez avant une nouvelle action.')
+    } catch (error: any) {
+      if (isCurrent()) {
+        currentTickets.current = null; blocked.current = true; setTickets(null)
+        setActionError(error?.response?.status === 409 ? 'Le ticket a changé. Actualisez avant de recommencer.'
+          : 'Changement non confirmé. Actualisez les tickets avant toute nouvelle tentative. Aucune action n’a été relancée.')
+      }
+    } finally {
+      if (changeTransport.current === controller) {
+        changeTransport.current = null; busyNow.current = false
+        if (isCurrent()) setBusy(null)
+      }
+    }
+  }
+
+  const search = query.trim().toLocaleLowerCase('fr')
+  const matches = (ticket: Ticket) => !search || [ticket.tableName, ticket.coverLabel, ...ticket.items.map(item => item.name)]
+    .some(value => value.toLocaleLowerCase('fr').includes(search))
+  return <main style={page}>
+    <header style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+      <div style={{ flex: 1 }}><h1 style={{ margin: 0 }}>Cuisine</h1><p style={muted}>{companyName || 'Établissement courant'} · Commandes caisse et QR</p></div>
+      <button type="button" style={button} disabled={!!busy} onClick={() => { void refresh(true) }} aria-busy={reading}>Actualiser</button>
+      <a href="/modules" style={{ color: '#1d4ed8' }}>Retour aux modules</a>
+    </header>
+    <p style={muted}>Actualisation périodique (4 s, hors requête en cours) · Dernière lecture confirmée : {lastRead === null ? 'aucune' : new Date(lastRead).toLocaleTimeString('fr-LU')}.</p>
+    <p>Un paiement ne clôture pas la préparation. Marquez le ticket servi après sa remise ; l’annulation de préparation ne traite pas l’addition.</p>
+    {!canManage && <p>Lecture seule — les changements nécessitent la permission de gérer le service.</p>}
+    {readError && <p role="alert" style={errorStyle}>{readError}</p>}
+    {actionError && <p role="alert" style={errorStyle}>{actionError}</p>}
+    {notice && <p role="status" style={{ color: '#047857' }}>{notice}</p>}
+    <label style={{ display: 'grid', gap: 6 }}>Filtrer les tables ou les produits
+      <input value={query} onChange={event => setQuery(event.target.value)} style={{ padding: 10, border: '1px solid #cbd5e1', borderRadius: 8, maxWidth: 440, font: 'inherit' }} />
+    </label>
+    {reading && tickets === null && <p role="status">Chargement des tickets…</p>}
+    {tickets !== null && <>
+      {tickets.length === 0 && <p>Aucun ticket à préparer.</p>}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,290px),1fr))', gap: 18, marginTop: 20 }}>
+        {columns.map(column => {
+          const list = tickets.filter(ticket => ticket.status === column.id && matches(ticket))
+          return <section key={column.id} aria-label={column.label}><h2 style={{ color: column.color }}>{column.label} ({list.length})</h2>
+            {list.map(ticket => <article key={ticket.id} style={{ ...card, borderTop: '4px solid ' + column.color }}>
+              <h3 style={{ marginTop: 0 }}>{ticket.tableName}{ticket.coverLabel ? ' · ' + ticket.coverLabel : ''}</h3>
+              <p style={muted}>{Math.max(0, Math.floor((Date.now() - ticket.createdAt) / 60000))} min · {new Date(ticket.createdAt).toLocaleTimeString('fr-LU')}</p>
+              {!!ticket.routing.length && <div role="note"><strong>Routage après séparation — ne pas préparer une seconde fois</strong><ul>{ticket.routing.map((route, index) =>
+                <li key={index}>{route.qty} × {route.name} → {route.tableName}{route.coverLabel ? ' · ' + route.coverLabel : ''}
+                  {route.kitchenNote && <p>Cuisine : {route.kitchenNote}</p>}{route.barNote && <p>Bar : {route.barNote}</p>}</li>)}</ul></div>}
+              <ul>{ticket.items.map(item => <li key={item.id} style={{ marginBottom: 12 }}><strong>{item.qty} × {item.name}</strong>
+                {item.note && <p style={{ color: '#92400e', whiteSpace: 'pre-wrap' }}>{item.note}</p>}</li>)}</ul>
+              {canManage && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" style={button} disabled={!!busy || blocked.current} onClick={() => { void change(ticket, column.next) }}>{busy === ticket.id ? 'Enregistrement…' : column.action}</button>
+                {column.id !== 'waiting' && <button type="button" style={button} disabled={!!busy || blocked.current} onClick={() => { void change(ticket, 'waiting') }}>À reprendre</button>}
+                {canCancel && !ticket.id.startsWith('guest:') && <button type="button" style={button} disabled={!!busy || blocked.current} onClick={() => { void change(ticket, 'cancelled') }}>Annuler la préparation</button>}
+              </div>}
+            </article>)}
+            {list.length === 0 && <p style={muted}>{search ? 'Aucun ticket ne correspond au filtre.' : 'Aucun ticket dans cette colonne.'}</p>}
+          </section>
+        })}
+      </div>
+    </>}
+  </main>
+}
+
+const page: CSSProperties = { background: '#f8fafc', minHeight: '100vh', padding: 24, color: '#0f172a', fontFamily: 'system-ui', boxSizing: 'border-box' }
+const card: CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: 16, marginBottom: 16 }
+const button: CSSProperties = { padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#0f172a', font: 'inherit', cursor: 'pointer' }
+const muted: CSSProperties = { color: '#64748b', fontSize: 13 }
+const errorStyle: CSSProperties = { color: '#991b1b', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: 12 }

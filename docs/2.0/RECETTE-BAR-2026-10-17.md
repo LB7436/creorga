@@ -1,5 +1,59 @@
 # Recette établissement C — BAR DES AMIS
 
+## F18-L3 — six profils réellement amorcés,18octobre
+
+OWNER/ADMIN/MANAGER/SERVER/EMPLOYEE et client QR utilisés dans des contextes
+distincts. SERVER conserve uniquement son override préexistant cash.open/close,
+sans CA/journal/config ; un tiroir25€ouvert. POS13,20€(2Pils25+1Tonic), acompte3cash
+puis10,20(2,20cash+8carte déclarée), doubles clics sans doublon. QR distinct4,80+
+3,60, addition propre8,40sans les13,20POS ; paiement8,40cash,10reçus/1,60rendus.
+KDS MANAGER : QR4/6 préparés/servis, dont un après règlement sans second stock.
+
+Fusion POS/QR à consignes globales différentes refusée409 avec explication.
+**Pas de fusion accomplie** : additions conservées, aucun mouvement/QR révoqué
+par le refus. Les deux groupes ont été réglés séparément. Après clôture, ancien
+QR GET857/403 et nouvel envoi réel POST891/403, aucune commande ajoutée. Capture
+375inspectée et largeurs390/768/1440sans débordement global dans la vue contrôlée.
+
+OWNER crée uniquement un ingrédient fictif distinct2L. ADMIN ajuste2,25L et
+retrouve la quantité après reload, sans coût. EMPLOYEE lit sans modifier ni voir
+les coûts ; CA/catalogue/Robi finance refusés. Retrait temporaire de lecture
+quantité en onglet ouvert puis rétablissement exact des droits initiaux : deux
+audits conservés, version2→3→4. OWNER Robi local21,60€=19,31HT+2,29TVA,3commandes,
+aucun fournisseur IA générative. Créneau nocturne existant23–03affiché sur deux
+jours, pas recréé. Déconnexions des cinq identités confirmées.
+
+Clôture38,50comptés pour25fond+13,60cash=38,60théoriques,−0,10motivé ; refus sans
+motif uniquement dans l'UI observé, pas HTTP422inventé. Reload/reconnexion retrouve
+l'écran d'ouverture sans l'exécuter. Deux ventes nouvelles21,60€,3commandes, stocks
+Pils25:96→93 et Tonic58→56 ; autres produits inchangés. Cumul59,64dans chaque source
+financière rapprochée séparément. Ancien tiroir et ventes réglées préservés.
+
+Les six profils sont **partiels/BLOCKED**, pas qualifiés : remise/offert/prix,
+RH/pointages nocturnes complets, fusion positive/séparation avancée, exports en
+octets et incidents complémentaires restent ouverts. L'aperçu dynamique de reçu
+derrière la confirmation doit être revu, sans conclure à un défaut comptable
+non reproduit. [Rapport/proof L3](F18-REPRISE-INDEPENDANTE-2026-10-18.md).
+
+## F18-L2 —18octobre14:18UTC, aucun nouveau parcours Bar
+
+Baseline SQL de la copie distincte lue,38,04€ historiques conservés, aucun objet
+Bar créé/modifié. Les six profils Bar restent NOT RUN dans F18, sans recompter
+les clics des lots précédents. La restauration globale L2 couvre bien ses tables,
+mais ne qualifie aucun parcours utilisateur ni service nocturne. Le nouveau
+runtime est arrêté partiellement après incident Restaurant ; reprise sûre requise.
+[Rapport L2](F18-LABORATOIRE-SEPARE-2026-10-18.md).
+
+## F18 —18octobre, reprise préparée, six profils NOT RUN
+
+Aucune nouvelle vente, facture, personne ni visite Bar créée dans F18. Les six
+parcours restent NOT RUN dans la [nouvelle matrice](RECETTE-FINALE-18-PARCOURS-2026-10-18.md),
+après le blocage d'arrêt rencontré au Café. Relecture SQL finale : trois ventes
+38,04 € TTC, documents, règlements et provenances comparés sans différence.
+Cette observation n'est pas un nouveau clic, un nouveau service de nuit ou un
+PASS des six profils. Planning minuit, révocations en onglet ouvert, service QR,
+remises et clôture restent à reprendre depuis les données et preuves conservées.
+
 ## Suite ciblée du 18 octobre — PARTIELLE, NON LIVRÉE
 
 Le défaut CA visible à EMPLOYEE ci-dessous a son contre-essai actuel : autorisation

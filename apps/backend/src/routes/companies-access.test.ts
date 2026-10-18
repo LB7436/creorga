@@ -15,7 +15,9 @@ import router from './companies'
 async function call(method = 'GET', url = '/access', body = {}) {
   const req = Object.assign(new EventEmitter(), { method, url, body, originalUrl: '/api/companies' + url, headers: { 'x-company-id': 'cafe' } })
   return new Promise<any>((resolve, reject) => {
-    const res = { statusCode: 200, set() { return this }, status(code: number) { this.statusCode = code; return this }, json(body: unknown) { resolve({ status: this.statusCode, body }); return this } }
+    const res = Object.assign(new EventEmitter(), { writableEnded: false, statusCode: 200,
+      set() { return this }, status(code: number) { this.statusCode = code; return this },
+      json(body: unknown) { this.writableEnded = true; resolve({ status: this.statusCode, body }); return this } })
     router(req as any, res as any, (error?: unknown) => error ? reject(error) : resolve({ status: 404 }))
   })
 }

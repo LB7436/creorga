@@ -1,6 +1,8 @@
 node_modules/
 dist/
 dist-business/
+dist-business-f18-isolated/
+dist-business-f18-recovery/
 dist-full/
 .env
 .env.local

@@ -1,4 +1,5 @@
-import { Router, type Request, type Response } from 'express'
+import { type Request, type Response } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { requireCompany } from '../middleware/requireCompany'

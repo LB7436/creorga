@@ -1,5 +1,67 @@
 # Recette actuelle
 
+## F18-L3 — état actuel, correctifs validés / campagne NON LIVRÉE
+
+Contre-essais Chrome des notes POS et du drainage HTTP réellement exécutés,
+pas seulement tests : lecture Brotli, abandon pendant transaction SQL, arrêt
+coordonné, reprise même clé sans second POST. Six profils Restaurant et six Bar
+amorcés, OWNER/SERVER Café repris sans recréer les opérations. Les18combinaisons
+ont des preuves partielles F18 ; aucune case entière qualifiée.
+
+**1306unitaires (618backend+513Web+175POS),354intégrations PG,79fixtures locales,
+5compilations métier**, réussis sur807sources stables. Journal L3 :341tentatives UI,
+338retours d'outil/3erreurs,214appels de clic ; ni autant de parcours PASS ni de
+contrôles T100. Les suites ne sont pas recomptées lors de leur relecture finale.
+
+Trois arrêts STOPPED, dont16:48:36UTC final, sans kill/PG/Chrome/reboot ; restauration
+indépendante après arrêt :82tables/21466lignes/14fichiers/26PDF égaux.27copies
+récupérées et99blobs des jeux conservés vérifiés ; zéro suppression. Caisse Café
+57,05€, Restaurant133,20€, Bar38,50€avec−0,10justifié, chacune rapprochée aux seules
+espèces. Factures/avoirs/remboursements ne doublent pas le CA.
+
+T100 partiel et référence historique55/0/44/1 inchangée ;18parcours partiels/BLOCKED.
+Téléchargements en octets, matériel, prestataires/IA réelle et sous-parcours métier
+non exécutés restent explicites. [Rapport détaillé](F18-REPRISE-INDEPENDANTE-2026-10-18.md),
+[matrice18](RECETTE-FINALE-18-PARCOURS-2026-10-18.md),
+[preuve machine](preuves/f18-l3-validation-2026-10-18.json).
+
+## F18-L2 — actualisation14:18UTC, NON LIVRÉE
+
+La copie séparée autorisée est réellement utilisée puis restaurée. Nouveaux clics
+cuisine/QR/EMPLOYEE Café et OWNER/SERVER Restaurant, sans recréer les objets déjà
+prouvés. Solde Restaurant récupéré par même référence après abandon HTTP, sans
+doublon, mais arrêt ensuite refusé. Dernier correctif sync+gzip et notes POS
+RED→GREEN/compilation, **contre-essais Chrome encore BLOCKED**.
+
+Validation finale fraîche :1305unitaires(617/513/175),354PG,68fixtures locales
+séparées, cinq compilations métier sans jeu. Restauration14:11UTC :82tables/
+20012lignes/14fichiers/26PDF égaux, SQL commis/fichiers stables ; arrêt/flush mémoire
+non prouvés.27dumps conservés/vérifiés. Matrice0PASS/8BLOCKEDpartiels/10NOT RUN,
+T100 partiel. [Rapport L2](F18-LABORATOIRE-SEPARE-2026-10-18.md),
+[preuve finale expurgée](preuves/f18-l2-validation-2026-10-18.json).
+Les paragraphes suivants gardent les états intermédiaires et tests antérieurs.
+
+## F18 — six profils × trois sociétés,18octobre, NON LIVRÉE
+
+[Matrice18parcours](RECETTE-FINALE-18-PARCOURS-2026-10-18.md),
+[T100 ciblé](T100-F18-2026-10-18.md) et
+[incident réel HTTP](F18-ABANDON-HTTP.md) conservent les preuves positives, les
+deux FAIL UI et les blocages. Aucun parcours complet n'est PASS. Le Café a six
+contextes neufs partiellement parcourus ; Restaurant/Bar restent NOT RUN dans
+cette campagne. Ne pas recompter leurs parcours du lot précédent.
+
+Dernier code figé : **1290unitaires =616backend+513web+161POS**,353intégrations
+PostgreSQL et50fixtures locales, tous sans échec ni test ignoré. Exécutions du
+18octobre12:19–12:21UTC, pas les suites intermédiaires604/482/161. Cinq applications
+métier compilées12:19:00–12:20:53UTC ; graphe métier sans module de jeu.
+Ces tests ne corrigent pas rétroactivement l'arrêt refusé du runtime ancien,
+ne constituent pas un nouveau clic et ne qualifient pas un pilote.
+
+Restauration initiale10:38:47UTC :82tables/18997lignes/14fichiers/26PDF égaux.
+Restauration finale du nouvel état F18 **BLOCKED** tant que la coordination du
+runtime n'est pas confirmée ; les27copies récupérées sont à nouveau vérifiées
+sans suppression. Correctifs encore locaux, aucun nouveau commit/push de F18.
+
 ## Droits et Robi — relevé du 18 octobre
 
 [Résultats frais du code figé](preuves/droits-robi-validation-2026-10-18.json) :

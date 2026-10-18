@@ -1,4 +1,5 @@
-import { Router, type Response } from 'express'
+import { type Response } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
 

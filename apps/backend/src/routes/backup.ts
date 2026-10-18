@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 
 /**
  * Les sauvegardes intégrales contiennent toutes les sociétés. Elles restent

@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 
 /**
  * Help Center feedback — articles, conversations, command results.

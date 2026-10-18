@@ -85,3 +85,39 @@ test('un drain refusé ne devient jamais une confirmation et ne force pas le pro
   assert.equal(existsSync(file), true)
   assert.doesNotThrow(() => process.kill(process.pid, 0))
 })
+
+test('un refus renvoie seulement le diagnostic privé borné sans sérialiser erreur ou secrets', async t => {
+  const file = fixture(); let attempts = 0
+  const control = await startRuntimeControl({ descriptorPath: file,
+    onShutdown: async () => { attempts++; throw Object.assign(Error('SECRET_FICTIF_DANS_MESSAGE'), { stack: 'SECRET_FICTIF_DANS_STACK', query: 'SECRET_FICTIF_DANS_SQL' }) },
+    getShutdownDiagnostic: () => ({ stage: 'event-sink', reason: 'EVENT_SINK_UNCONFIRMED', message: 'SECRET_FICTIF', stack: 'SECRET_FICTIF', query: 'SECRET_FICTIF' }),
+  })
+  t.after(() => control.close())
+  const first = await requestRuntimeShutdown(file, { expectedPid: process.pid })
+  assert.deepEqual(first, { status: 'FAILED', code: 'SHUTDOWN_UNCONFIRMED', diagnostic: { stage: 'event-sink', reason: 'EVENT_SINK_UNCONFIRMED' } })
+  assert.equal(JSON.stringify(first).includes('SECRET'), false)
+  assert.deepEqual(await requestRuntimeShutdown(file, { expectedPid: process.pid }), first)
+  assert.equal(attempts, 1)
+})
+
+test('une étape falsifiée ou un collecteur défaillant restent inconnus, jamais du contenu brut', async t => {
+  for (const getShutdownDiagnostic of [() => ({ stage: 'SECRET_FICTIF', reason: 'SECRET_FICTIF' }), () => { throw Error('SECRET_FICTIF') }]) {
+    const file = fixture()
+    const control = await startRuntimeControl({ descriptorPath: file, onShutdown: async () => { throw Error('SECRET_FICTIF') }, getShutdownDiagnostic })
+    t.after(() => control.close())
+    const result = await requestRuntimeShutdown(file, { expectedPid: process.pid })
+    assert.deepEqual(result, { status: 'FAILED', code: 'SHUTDOWN_UNCONFIRMED', diagnostic: { stage: 'runtime', reason: 'UNSPECIFIED_FAILURE' } })
+  }
+})
+
+test('les champs diagnostiques ne sont lus qu’une fois avant leur filtrage', async t => {
+  let reads = 0
+  const file = fixture()
+  const control = await startRuntimeControl({ descriptorPath: file, onShutdown: async () => { throw Error('SECRET_FICTIF') },
+    getShutdownDiagnostic: () => ({ get stage() { return ++reads === 1 ? 'audit' : 'SECRET_FICTIF' }, reason: 'FILESYSTEM_FAILURE' }),
+  })
+  t.after(() => control.close())
+  const result = await requestRuntimeShutdown(file, { expectedPid: process.pid })
+  assert.deepEqual(result.diagnostic, { stage: 'audit', reason: 'FILESYSTEM_FAILURE' })
+  assert.equal(reads, 1)
+})

@@ -1,4 +1,5 @@
-import { Router, type Request } from 'express'
+import { type Request } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 import prisma from '../lib/prisma'
 import logger from '../lib/logger'
 import { lockPortalConfiguration, nextPortalRevision } from '../lib/portal-config-lock'

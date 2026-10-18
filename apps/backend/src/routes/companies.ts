@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import prisma from '../lib/prisma'

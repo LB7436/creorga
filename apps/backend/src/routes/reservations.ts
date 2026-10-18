@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 import prisma from '../lib/prisma'

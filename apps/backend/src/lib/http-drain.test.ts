@@ -6,6 +6,7 @@ import { Server as SocketServer } from 'socket.io'
 import WebSocket from 'ws'
 import { createBackendShutdown } from './backend-lifecycle'
 import { createHttpDrain } from './http-drain'
+import { createHttpWorkRegistry, observeHttpHandler } from './http-work'
 
 const tick = () => new Promise<void>(resolve => setImmediate(resolve))
 function deferred<T = void>() {
@@ -25,18 +26,25 @@ async function bounded<T>(operation: Promise<T>, message: string): Promise<T> {
 const cleanups: Array<() => Promise<void>> = []
 afterEach(async () => { for (const cleanup of cleanups.splice(0)) await cleanup() })
 
-async function laboratory(handler: (req: IncomingMessage, res: ServerResponse) => void, shutdownFailureExpected = false) {
+async function laboratory(handler: (req: IncomingMessage, res: ServerResponse) => unknown, shutdownFailureExpected = false, observeCallback = true) {
   // Ports éphémères propres au test : aucun accès au runtime, à Chrome ou à PG.
   const clients: Socket[] = [], peers = new Set<Socket>(), agents: Agent[] = []
   const releases: Array<() => void> = [], operations: Promise<unknown>[] = []
   const events: string[] = []
+  const work = createHttpWorkRegistry()
+  const callback = observeCallback ? observeHttpHandler(handler) : handler
   const server = createServer((req, res) => {
     if (lifecycle.stopping) { res.writeHead(503, { Connection: 'close' }); res.end('BACKEND_STOPPING'); return }
-    handler(req, res)
+    const operation = callback(req, res)
+    // Nettoyage de fixture uniquement : le cycle de vie ne connaît pas encore
+    // cette promesse applicative, contrairement à sa réponse HTTP.
+    if (operation && typeof (operation as Promise<unknown>).then === 'function') {
+      const pending = Promise.resolve(operation); void pending.catch(() => {}); operations.push(pending)
+    }
   })
   server.on('connection', socket => { peers.add(socket); socket.once('close', () => peers.delete(socket)) })
   const io = new SocketServer(server)
-  const httpDrain = createHttpDrain(server, req => req.url?.startsWith('/socket.io/') === true)
+  const httpDrain = createHttpDrain(server, req => req.url?.startsWith('/socket.io/') === true, work)
   const lifecycle = createBackendShutdown({
     assertAllowed: () => {}, stopScheduling: () => {},
     closeHttp: () => httpDrain.close(() => new Promise<void>((resolve, reject) => {
@@ -306,12 +314,54 @@ describe('drain HTTP backend attribuable au serveur', () => {
     expect(wire).not.toContain('503')
   })
 
+  it('attend le callback et son finally après une réponse HTTP déjà terminée', async () => {
+    const responseSent = deferred(), release = deferred()
+    const fixture = await laboratory(async (req, res) => {
+      req.resume(); res.end('réponse-déjà-reçue'); responseSent.resolve()
+      try { await release.promise; fixture.events.push('travail-après-réponse') }
+      finally { fixture.events.push('finally-achevé') }
+    })
+    fixture.releases.push(() => release.resolve())
+    expect(await call(fixture, { headers: { Connection: 'close' } })).toEqual({ status: 200, body: 'réponse-déjà-reçue' })
+    await responseSent.promise
+    const stopping = fixture.lifecycle.shutdown()
+    await tick()
+    expect(fixture.events).toEqual([])
+    release.resolve(); await bounded(stopping, 'Le callback terminé ne libère pas le drainage')
+    expect(fixture.events).toEqual(['travail-après-réponse', 'finally-achevé', 'travaux-drainés', 'audit-confirmé', 'base-déconnectée'])
+  })
+
+  it.each(['avant', 'pendant'] as const)('récupère après abandon %s le drainage sans finir le callback prématurément', async when => {
+    const accepted = deferred<ServerResponse>(), release = deferred()
+    const fixture = await laboratory(async (req, res) => {
+      req.resume(); accepted.resolve(res)
+      try { await release.promise; fixture.events.push('commit-après-abandon-suivi') }
+      finally { fixture.events.push('finally-après-abandon') }
+      // Aucun end tardif requis pour prouver la fin du callback suivi.
+    }, true)
+    fixture.releases.push(() => release.resolve())
+    const { client } = await preconnect(fixture)
+    client.write('POST /metier-suivi-abandonne HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 0\r\n\r\n')
+    const res = await accepted.promise, closedOnServer = once(res, 'close')
+    const stopping = when === 'pendant' ? fixture.lifecycle.shutdown() : undefined
+    if (stopping) void stopping.catch(() => {})
+    client.destroy(); await bounded(closedOnServer, 'L’abandon fictif n’atteint pas le serveur')
+    const closing = stopping || fixture.lifecycle.shutdown()
+    let settled = false
+    void closing.then(() => { settled = true }, () => { settled = true })
+    await tick()
+    expect(settled).toBe(false)
+    expect(fixture.events).toEqual([])
+    release.resolve(); await bounded(closing, 'La fin du callback suivi doit permettre l’arrêt après abandon')
+    expect(fixture.events).toEqual(['commit-après-abandon-suivi', 'finally-après-abandon', 'travaux-drainés', 'audit-confirmé', 'base-déconnectée'])
+  })
+
   it('refuse de confirmer l’arrêt si une réponse métier est abandonnée avant sa fin', async () => {
     const accepted = deferred(), release = deferred(), finished = deferred()
     const fixture = await laboratory(async (req, res) => {
       req.resume(); accepted.resolve(); await release.promise
       fixture.events.push('commit-après-abandon'); res.end('réponse-abandonnée'); finished.resolve()
-    }, true)
+    }, true, false)
     fixture.releases.push(() => release.resolve()); fixture.operations.push(finished.promise)
     const { client } = await preconnect(fixture)
     client.write('POST /metier-abandonne HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 0\r\n\r\n')
@@ -329,7 +379,7 @@ describe('drain HTTP backend attribuable au serveur', () => {
     const fixture = await laboratory(async (req, res) => {
       req.resume(); accepted.resolve(res); await release.promise
       fixture.events.push('commit-après-abandon-antérieur'); res.end('réponse-abandonnée'); finished.resolve()
-    }, true)
+    }, true, false)
     fixture.releases.push(() => release.resolve()); fixture.operations.push(finished.promise)
     const { client } = await preconnect(fixture)
     client.write('POST /metier-abandonne-avant-arret HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 0\r\n\r\n')

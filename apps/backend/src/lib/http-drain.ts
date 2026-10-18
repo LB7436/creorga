@@ -1,8 +1,9 @@
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import type { Duplex } from 'node:stream'
+import type { HttpWorkRegistry } from './http-work'
 
 /** À installer après les handlers Socket.IO/HTTP, avant listen(). */
-export function createHttpDrain(server: Server, isTransportRequest: (req: IncomingMessage) => boolean) {
+export function createHttpDrain(server: Server, isTransportRequest: (req: IncomingMessage) => boolean, work?: HttpWorkRegistry) {
   const connections = new Map<Duplex, {
     inFlight: number, business: number, transport: number, used: boolean,
     upgraded: boolean, rejected: boolean, rejectUpgrade?: () => void,
@@ -15,6 +16,7 @@ export function createHttpDrain(server: Server, isTransportRequest: (req: Incomi
   let responsesDrained: (() => void) | undefined
   let responseInterrupted: ((error: Error) => void) | undefined
   let interruptedBusiness: Error | undefined
+  const interruptedRequests = new Set<IncomingMessage>()
 
   server.on('connection', socket => {
     connections.set(socket, { inFlight: 0, business: 0, transport: 0, used: false, upgraded: false, rejected: false })
@@ -34,6 +36,7 @@ export function createHttpDrain(server: Server, isTransportRequest: (req: Incomi
     connection.inFlight++
     pendingResponses++
     if (!refused) { if (transport) connection.transport++; else connection.business++ }
+    if (!refused && !transport) work?.bind(req)
     let released = false
     const release = () => {
       if (released) return
@@ -46,7 +49,8 @@ export function createHttpDrain(server: Server, isTransportRequest: (req: Incomi
         // Conserver aussi l'incertitude d'un abandon antérieur au drainage.
         // Le simple close/end HTTP ne prouve pas la fin du callback métier.
         interruptedBusiness ||= new Error('Arrêt non confirmé : réponse métier interrompue ; fin du callback non prouvée, travaux et base conservés.')
-        responseInterrupted?.(interruptedBusiness)
+        if (work) interruptedRequests.add(req)
+        else responseInterrupted?.(interruptedBusiness)
       }
       if (pendingResponses === 0) responsesDrained?.()
       if (!refused) { if (transport) connection.transport--; else connection.business-- }
@@ -92,11 +96,20 @@ export function createHttpDrain(server: Server, isTransportRequest: (req: Incomi
   })
 
   return {
+    snapshot() {
+      const values = [...connections.values()]
+      return Object.freeze({ draining, sockets: connections.size, pendingResponses,
+        businessRequests: values.reduce((n, connection) => n + connection.business, 0),
+        transportRequests: values.reduce((n, connection) => n + connection.transport, 0),
+        upgradedSockets: values.filter(connection => connection.upgraded).length,
+        interruptedBusinessRequests: interruptedRequests.size })
+    },
     close(closeServer: () => Promise<void>, closeTransports: () => void): Promise<void> {
       if (closing) return closing
       draining = true
+      work?.freeze()
       closing = (async () => {
-        if (interruptedBusiness) throw interruptedBusiness
+        if (interruptedBusiness && !work) throw interruptedBusiness
         const finished = new Promise<void>((resolve, reject) => { responsesDrained = resolve; responseInterrupted = reject })
         // Les transports ne partagent aucun TCP avec du métier actif. Les
         // fermer d'abord libère les longpolls, sans attendre leur timeout.
@@ -110,6 +123,11 @@ export function createHttpDrain(server: Server, isTransportRequest: (req: Incomi
         }
         if (pendingResponses === 0) responsesDrained!()
         await finished
+        if (work) {
+          await work.drain()
+          if ([...interruptedRequests].some(req => !work.isCovered(req))) throw interruptedBusiness
+          interruptedRequests.clear()
+        }
         // Node peut sinon fermer un TCP devenu inactif entre le finish du poll
         // et l'émission de la réponse503 déjà en file après celui-ci.
         await closeServer()

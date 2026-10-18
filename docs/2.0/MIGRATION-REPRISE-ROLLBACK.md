@@ -1,5 +1,120 @@
 # Reprise et retour arrière
 
+## F18-L3 — procédure actuelle, après arrêt confirmé
+
+Une seule nouvelle copie explicitement autorisée :
+`local-2.0-recovery-20261018-YEEppm`, contexte fermé `f18-recovery`, base25450/
+`creorga_f18_recovery`, origines23002/25174/25175/25177/25178. Tous les services
+utilisent des artefacts distincts ; mélange avec default/L2 refusé. Profil
+`CREORGA_BUSINESS_ONLY`, aucun changement global Node/Windows/DNS, aucune migration.
+
+Trois STOPPED officiels, dont celui pendant abandon et celui final16:48:36UTC.
+PID25524 disparu,0écoute applicative/0connexion PG ; PG38896/Chrome/anciennes
+instances14676/35556 conservés. Aucune modification de ces processus bloqués en
+mémoire, pas de seconde instance en écriture sur leurs bases, pas de forçage.
+
+La restauration finale16:49:04–16:49:30UTC crée uniquement
+`creorga_f18_recovery_verify_1792342145657` dans le cluster25450 et les fichiers
+`final-restoration-z3u0xC/restored-files`.82tables/21466lignes/14fichiers/26PDF
+identiques ; archivev2 SHA
+`219ff8875eb9dfb2d81068dad6dff9a0ef038778a5af1397794a2f440bd456ad`.
+AES-GCM déchiffré et comparé, clé séparée. Ne jamais restaurer par-dessus la source.
+Les27copies récupérées et toutes les nouvelles archives restent conservées.
+
+Reproduction privée, depuis la racine du dépôt, après revue des gardes :
+
+```powershell
+node ../local-2.0/observe-f18-database-activity.mjs recovery <libelle-neuf>
+node ../local-2.0/stop-f18-recovery.mjs
+node --import tsx ../local-2.0/restore-recovery-f18-final.mjs
+```
+
+Ces scripts privés contiennent des gardes fermés sur l'identité du laboratoire,
+jamais des secrets à publier. L'arrêt déjà confirmé n'a pas à être redemandé
+aveuglément. La restauration crée un nom neuf, sans clean/drop/purge. Si reprise
+nécessaire, vérifier les derniers état/STOPPED/PID/ports, puis uniquement le
+lanceur officiel privé `start-f18-recovery.mjs` de la **même** copie. Un marqueur de
+nouveau refus interdit toute reprise et impose l'arrêt de la campagne, pas un
+quatrième laboratoire. Ne pas contourner une protection d'origine navigateur.
+
+Retour arrière logiciel : conserver ce lot et son diff, travailler sur une copie
+vérifiée ; proposer un commit de revert ciblé si nécessaire, sans réécriture de
+l'histoire partagée, sans reset du travail utilisateur et sans migration DOWN.
+Le format métier n'a pas de nouvelle migration, mais un ancien binaire ne doit
+pas être remis implicitement en écriture sur une base active. Le raccourci Windows
+default est préservé ; il n'est pas redirigé clandestinement vers les ports L3.
+[Compte rendu et limites](F18-REPRISE-INDEPENDANTE-2026-10-18.md).
+
+## F18-L2 — laboratoire distinct réellement restauré,14:18UTC
+
+Le choix explicite d'une copie séparée a été exécuté, nouveau cluster15450/base
+`creorga_f18_local`, fichiers/secrets et origines13002/15174–15178 distincts.
+Contexte officiel `CREORGA_LOCAL_CONTEXT=f18-isolated`, profil business uniquement,
+artefacts séparés `dist-business-f18-isolated`. Les origines/bases/manifeste mélangés
+sont refusés avant écoute. Contexte default, raccourci et jeux conservés.
+Aucune nouvelle migration SQL ni modification d'une base/source d'exploitation.
+
+Copie de départ égale13:23UTC :82tables/19602lignes/14fichiers/26PDF. Premier arrêt
+officiel STOPPED, reprise prouvée ; **deuxième arrêt après abandon HTTP refusé**
+14:01:45UTC avec `http/HTTP_WORK_UNTRACKED`. Source PID14676 et L2 PID35556 conservés,
+pas de deuxième instance sur leurs bases. Le binaire nouvellement compilé ne les
+répare pas en mémoire. Ne pas falsifier un fichier STOPPED ni supprimer les gardes.
+
+Restauration finale des données L2 **effectivement exécutée**14:11UTC dans la nouvelle
+base `creorga_f18_verify_1792332663965` :82tables/20012lignes/14fichiers/26PDF égaux,
+archivev2 SHA `2db67b2322bcf83f889872c44ba53d6bdd942f771eff102dedc63998ef712052`.
+Chiffrement/déchiffrement vérifiés, clé séparée, zéro purge. Limite : MVCC commis
+et fichiers stables ; arrêt propre/vidange mémoire des journaux NON PROUVÉS.
+Cette copie ne remplace jamais la source. Les archives et27dumps restent conservés.
+
+Après reprise expressément choisie : vérifier PID/ports et manifestes, préserver
+les mêmes identifiants financiers, refaire seulement les contre-essais ouverts.
+Restaurant38,80€ réglés fictivement, caisse118,80€ théoriques non clôturée ; Café
+10,05€ dus sur L2, contre8,80€ encore dus sur l'ancienne source (ne pas confondre).
+Solde Restaurant retrouvé sous `329ddd46-858d-488a-a03e-eff50cfcfa35`, ne pas recréer.
+Pas de décision de nouvelle copie active implicitement déduite du silence.
+[Détails et contraintes de reprise](F18-LABORATOIRE-SEPARE-2026-10-18.md).
+
+Retour arrière : conserver sources/diff, données et archives ; aucune migration
+DOWN ou remise d'un ancien binaire en écriture sur ces bases. Les deux derniers
+correctifs (suivi sync+gzip et notes POS) restent à contre-tester dans Chrome.
+
+## F18 — état réel du 18 octobre, arrêt NON CONFIRMÉ
+
+Base logicielle `ab0d735f60f01bbfd0c7f914a43c2b997f280e2e`, correctifs F18 encore
+locaux. **Aucune nouvelle migration SQL**, aucun seed/reset ni transformation de
+l'historique. Le suivi explicite des promesses HTTP/continuations et flux conserve
+le refus pour travail opaque ; il ne remplace pas la preuve de fin par un timeout.
+
+Après abandon de la réponse du règlement fictif 8,80 € : transaction expirée et
+rollback prouvé ; l'acompte 3 € reste affecté et 8,80 € restent dus. Le contrôleur
+officiel a refusé l'arrêt. Les interfaces sont indisponibles, mais le contrôle
+Windows12:30–12:32UTC voit encore l'écoute3002, avec connexions rejetées. Processus
+conservé, **pas de seconde instance sur la même base**, pas de kill ni d'inspecteur
+pour libérer artificiellement ce garde. [Chronologie](F18-ABANDON-HTTP.md).
+
+Préserver la référence `5b93c091-f841-4672-beb3-90c991a7023f` ; le rejeu et la reprise
+de cette instance restent à qualifier. Ne pas créer un nouveau règlement, une
+vente de remplacement ou une clôture pour cacher l'incident. Anciennes valeurs
+financières comparées égales dans les trois sociétés ; cette comparaison ne
+prouve pas une restauration finale ou la vidange de tous les journaux mémoire.
+
+Une instrumentation privée bornée est maintenant compilée pour les prochains
+processus : étape/raison uniquement, mêmes rejets/guards. Elle ne récupère pas le
+motif déjà perdu de l'ancien runtime. Les tests isolés/PG passent, le refus réel
+n'est pas reproduit sur la pile Socket.IO isolée ; ne pas l'annoncer corrigé.
+
+Restauration initiale F18 vérifiée avant mutations : 82 tables/18997 lignes/
+14 fichiers/26 PDF. Une nouvelle restauration finale reste **BLOCKED**. Une demande
+de décision sûre a été présentée : copie de laboratoire entièrement séparée
+(qui nécessiterait également des ports distincts validés), ou redémarrage du PC
+par le propriétaire après préservation. Ne pas transformer
+une absence de réponse ou une option présélectionnée en autorisation.
+
+Retour arrière du code : conserver les sources/diff et les données. Aucune
+commande automatique de reset/checkout/down ni ancien binaire sur la base en
+écriture. La copie source 12:18:41 UTC et les archives antérieures sont conservées.
+
 ## Droits fins — 18 octobre 2026
 
 Base source `976b21a500f58d09fdca33616a9c243a66ae5161`, branche2.0 exclusivement.

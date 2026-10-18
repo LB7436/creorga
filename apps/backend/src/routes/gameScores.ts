@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 import rateLimit from 'express-rate-limit'
 import { z } from 'zod'
 import path from 'path'

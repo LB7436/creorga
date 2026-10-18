@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 import fs from 'fs'
 import path from 'path'
 import { getStock, saveStock, type StockEntry as SharedStockEntry } from '../lib/stockStore'

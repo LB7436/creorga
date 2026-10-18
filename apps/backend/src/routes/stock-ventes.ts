@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 import { decrementerPourVente, getMouvements } from '../lib/stockStore'
 import { pushNotif } from '../jobs/proactive-worker'
 import logger from '../lib/logger'

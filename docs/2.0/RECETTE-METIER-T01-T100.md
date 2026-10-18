@@ -1,5 +1,55 @@
 # Recette métier T01–T100 — fiabilité du profil métier
 
+## F18-L3 —18octobre, preuves actuelles bornées
+
+Matrice historique **55PASS/0FAIL/44BLOCKED/1NOT RUN** conservée : ce n'est pas
+une exécution nouvelle des100scénarios. T100 reste partiel. Les18combinaisons
+rôle/société sont amorcées dans F18,0qualifiée/18partielles-BLOCKED ; sous-critères
+NOT RUN conservés. Les10anciennes cases entièrement NOT RUN ont maintenant des
+actions Chrome, pas une validation par simple connexion.
+
+C30–C50 : notes POS GREEN Chrome ; arrêt normal après GET Brotli et solde abandonné
+en attente SQL, récupération même demande sans second POST ; QR Restaurant et Bar,
+transfert/révocation, KDS réel, paiements fictifs/mixtes, trois clôtures rapprochées,
+planning nocturne/personnel, retrait de droit dans ancien onglet, restauration
+après arrêt. Aucun statut Txx n'est promu par ces seuls sous-tests.
+
+341tentatives UI/338retours/3erreurs,214appels de clic dans le préfixe L3 du journal,
+distincts des3697contrôles statiques et des1306unitaires/354PG/79fixtures. Cinq
+builds métier,82tables/21466lignes/14fichiers/26PDF restaurés à l'identique.
+[Critères et références de preuve](T100-F18-2026-10-18.md),
+[couverture des18parcours et prochaine action](RECETTE-FINALE-18-PARCOURS-2026-10-18.md).
+
+## F18-L2 —18octobre14:18UTC, couverture toujours partielle
+
+La matrice historique reste **55PASS/0FAIL/44BLOCKED/1NOT RUN**, pas de promotion
+automatique de T100 ou des scénarios externes. La matrice des18combinaisons évolue
+séparément :0PASS/8BLOCKEDpartiels/10NOT RUN après vrais parcours OWNER/SERVER
+Restaurant et contre-essais ciblés Café.3697contrôles statiques restent l'inventaire,
+pas un compteur d'actions exécutées. Les critères F18-C01–C29 sont dans
+[T100 ciblé](T100-F18-2026-10-18.md) ; C29 est une restauration technique, pas un clic.
+
+Le [rapport L2](F18-LABORATOIRE-SEPARE-2026-10-18.md) distingue84interactionsUI,
+observations, critères bornés, tests unitaires/PG et combinaisons encore ouvertes.
+Cuisine/voletQR contre-testés dans Chrome ; notes POS/suivi sync+gzip corrigés en
+tests mais encore BLOCKED graphiquement après refus d'arrêt. Campagne NON LIVRÉE.
+
+## Campagne F18 du18octobre — dernière reprise, NON LIVRÉE
+
+[Matrice18combinaisons](RECETTE-FINALE-18-PARCOURS-2026-10-18.md) et
+[observations action/UI/HTTP/PG F18-C01–C21](T100-F18-2026-10-18.md) : six contextes
+Café parcourus partiellement, aucun rôle entier PASS ; Restaurant/Bar non rejoués
+dans F18. Nouvelle caisse50 €, acompte3 €, deux commandes QR distinctes, droits
+révoqués/rétablis et persistance contrôlés. Anciennes lignes financières égales.
+Abandon du solde8,80 € : rollback constaté, arrêt officiel NON CONFIRMÉ, reprise
+toujours BLOCKED. Deux défauts UI corrigés/testés mais rejeu Chrome encore bloqué.
+
+La référence **55 PASS / 0 FAIL / 44 BLOCKED / 1 NOT RUN** ci-dessous reste le bilan
+historique, **pas une nouvelle exécution intégrale du dernier code**. Aucun
+scénario entier n'est promu par les sous-contrôles F18 ni par les suites techniques.
+T100 reste partiel sur3697contrôles statiques. Aucune durée de cinq heures actives,
+réception bancaire, impression physique ou qualification pilote n'est attestée.
+
 ## Droits fins et Robi — état du 18 octobre
 
 La matrice globale reste **55 PASS / 0 FAIL / 44 BLOCKED / 1 NOT RUN**, T100 partiel.

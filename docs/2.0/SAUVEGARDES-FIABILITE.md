@@ -1,5 +1,75 @@
 # Fiabilité des sauvegardes — gel de suppression et inventaire de reprise
 
+## F18-L3 — restauration finale après arrêt coordonné
+
+18octobre16:49:04.341–16:49:30.186UTC, après STOPPED confirmé de la seule copie
+25450 : **82tables/21466lignes/14fichiers/26PDF identiques**, zéro différence,
+zéro empreinte/headerPDF erroné. Cible neuve
+`creorga_f18_recovery_verify_1792342145657`, fichiers distincts, aucune source écrasée.
+
+Archivev2 SHA `219ff8875eb9dfb2d81068dad6dff9a0ef038778a5af1397794a2f440bd456ad`,
+preuve `6e3f52e3142f5861204b9a0658f1f6fc6d22f5c22ad6d230c2e10d572b903ea6`,
+comparaison `9e1cae39e0c5a87416e4b5f039522739cd3c103ce54521e3f33a58a472d2a74d`.
+AES-256-GCM déchiffré et comparé, clé séparée. Les opérations financières, pièces
+et audits de permissions sont inclus dans la comparaison complète, pas seulement
+les comptes de lignes. Fichiers source stables avant/après sauvegarde/restauration.
+25,844s sur cache chaud n'est pas un RTO professionnel garanti.
+
+27copies récupérées,30025952octets, revérifiées contre le manifeste. Aucune purge,
+rotation destructive, suppression de ZIP/dump ou réinitialisation. Les deux copies
+supprimées avant le gel historique ne sont toujours pas identifiées avec certitude ;
+ce nouveau succès ne réécrit pas cet incident. Les archives originales, profils
+et anciennes instances restent intacts. Les sauvegardes opérateur restent distinctes
+du module client indisponible pour isolation multi-sociétés.
+[Preuve actuelle](preuves/f18-l3-validation-2026-10-18.json) et
+[reprise/rollback](MIGRATION-REPRISE-ROLLBACK.md).
+
+## F18-L2 — deux restaurations nouvelles et limites d'arrêt
+
+Copie séparée autorisée, archivev2 restaurée13:23:50UTC :82tables/19602lignes/
+14fichiers/26PDF égaux. Après les vraies actions Chrome L2, seconde restauration
+14:11:02–14:11:24UTC : **82tables/20012lignes/14fichiers/26PDF** identiques,
+15factures/11avoirs, zéro hash/headerPDF erroné, zéro différence de colonnes/lignes.
+Source : copie L2 seulement ; cible : base neuve du nouveau cluster15450, jamais
+un remplacement. AES-256-GCM déchiffré/comparé, clé hors archive, aucune purge.
+
+Archive SHA `2db67b2322bcf83f889872c44ba53d6bdd942f771eff102dedc63998ef712052`,
+preuve SHA `9f9231860e6012362d1026a78d9ab9b211a9e2e470755b6f0682d9e06e3fcfa8`.
+22,429s cache chaud n'est pas un RTO. Le refus d'arrêt a été conservé : égalité
+SQL MVCC des données commises et fichiers stables avant/après, **pas** preuve
+de vidange des buffers d'audit en mémoire ni de fermeture propre du runtime.
+[Preuves et procédure](F18-LABORATOIRE-SEPARE-2026-10-18.md).
+
+Nouveau contrôle14:17:26UTC des27copies récupérées : tailles/SHA tous identiques,
+30025952octets, zéro suppression. Ne pas l'appeler27restaurations, nouvelle
+récupération ou identification des deux anciens noms supprimés. Toutes les copies
+de staging, échecs de préparation, archives originales et partiels restent présents.
+
+## F18 — nouveau contrôle du 18 octobre, copies préservées
+
+Inventaire frais `f18-recovered-archives-20261018-v1.json` : **27/27 dumps**,
+30 025 952 octets, signatures PGDMP, tailles et SHA identiques, correspondance avec
+l'entrée ZIP et le manifeste source. SHA du nouveau rapport privé :
+`31f8771ab6ee8d96ec5136ca469ac9248389de1dcb2ee15161dd8af280c6c24b`.
+Période déclarée inchangée : 16 octobre14:34:46.128–18:31:51.974 UTC selon noms/
+manifestes ; pas d'horodatage indépendant des données. Aucune extraction,
+suppression ou restauration de ces 27 états par cet inventaire.
+
+Restauration initiale F18 effectivement exécutée 10:38:47.507 UTC : 82 tables,
+18997 lignes, 14 fichiers, 26 PDF égaux ; archive SHA
+`d87386aaec2c8bbce0139881264b99cea5d64fce7810e7164e0830d1149b4450`,
+copie chiffrée vérifiée avec clé séparée. Elle précède les nouvelles données F18
+du Café. **La restauration finale de ces nouvelles données est BLOCKED** après
+le refus d'arrêt coordonné ; ne pas exploiter les seuls refus de connexion pour prétendre
+que tous les écrivains sont arrêtés. Les observations SQL finales sont des
+relectures et comparaisons, pas un dump/restauration final.
+
+Préservation additive du code courant à 12:18:41 UTC : 681 fichiers identiques,
+manifeste SHA `3a911f683edaf85d4bf159f9667f86bec748b1e119e90d4d8bba63727995835f`.
+Cette copie de travail n'est pas une sauvegarde PostgreSQL. Archives originales,
+copies initiales, bases restaurées et les deux exclusions utilisateur restent
+intactes. Gel de purge toujours applicable aux deux profils.
+
 ## Contrôle supplémentaire du18octobre2026
 
 Les27copies récupérées ont été relues : tailles et SHA identiques à l'index original

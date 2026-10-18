@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 
 /**
  * Generic AI actions runner — single endpoint that takes an actionId + context

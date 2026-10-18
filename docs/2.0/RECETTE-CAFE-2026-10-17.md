@@ -1,5 +1,67 @@
 # Recette établissement A — CAFÉ DU CENTRE
 
+## F18-L3 — fin du service existant sur copie,18octobre
+
+OWNER/SERVER repris dans Chrome sans recréer de commande. Relecture SQL préalable :
+aucune tentative en attente, ancien880crollback non rejoué. Solde courant10,05€
+pour13,05€de commandes dont3€d'acompte déjà enregistrés. L'UI de paiement affiche
+ces deux valeurs ; double clic sur4,05espèces+6carte déclarée → un POST69/200unique,
+monnaie0,95€pour5reçus. Reload/reconnexion retrouve Table1 À nettoyer et0restant.
+Clôture propriétaire57,05€(50fond+7,05cash),0écart, PUT48/200unique ; pas de nouveau
+tiroir ouvert lors du contrôle. Base originale non modifiée.
+
+La copie ajoute5ventes finalisant les5commandes existantes :13,05€TTC=12,20HT+
+0,85TVA. Cumul34,15€dans chacune des sources ventes/commandes réglées/tenders,
+non additionnées entre elles. Stocks espresso97→95, bière59→58, eau46→43 ; autres
+produits, anciennes pièces et règlements inchangés. Deux anciens pointages ouverts
+restent ambigus et intacts, pas nettoyés pour qualifier le profil employé.
+
+Les quatre profils Café non rejoués graphiquement en L3 gardent leurs preuves
+F18/L2 et leurs limites. Pas de nouveau PASS global : transfert/fusion/séparation
+avancés, offerts/remises, exports en octets et ancien QR après clôture restent à
+qualifier. GET Brotli/arrêt normal a été réellement exécuté par OWNER dans L3.
+[Restauration finale et preuves](F18-REPRISE-INDEPENDANTE-2026-10-18.md).
+
+## F18-L2 —18octobre14:18UTC, contre-essais bornés
+
+Copie distincte autorisée, identités/visite/table F18 existantes réutilisées.
+OWNER cuisine web : vrais tickets, nouveau QRn°5 commencer(double clic/unPATCH)
+→prêt→servi, reload/reprise ; pas d'effet financier/stock. Client QR : une nouvelle
+commande distincte n°9 d'eau1,25€ (unPOST201 au double clic), addition propre3,40€,
+premier Ajouter après Nouvelle commande fonctionnel ; panier suivant non envoyé.
+Ces deux correctifs ont leur contre-essai Chrome, pas une campagne entière PASS.
+
+EMPLOYEE : POS/bootstrap sans ventes/clôtures/CA, accès direct gestion finances
+et administration refusés ; stock5,25kg sans coûts, planning personnel, logout
+et retour stock redirigé. Les deux pointages anciens restent inchangés.
+
+Sur L2,10,05€restent dus pour toute la table, dont3,40visiteQR ; acompte3€conservé,
+aucune nouvelle vente finalisée, caisse53€attendus encore ouverte. L'ancienne
+source reste séparément à8,80€dus, jamais rejouée sous une autre référence.
+Arrêt/reprise initial L2 prouvés, mais le deuxième arrêt échoue après l'incident
+Restaurant. Six profils Café restent partiels/BLOCKED. Dernière restauration L2
+égale, sans qualification d'arrêt propre. [Rapport L2](F18-LABORATOIRE-SEPARE-2026-10-18.md).
+
+## F18 —18octobre, nouveaux scénarios distincts, NON LIVRÉ
+
+Six contextes Chrome isolés réellement utilisés, mais **aucun des six parcours
+entiers qualifié**. [Actions détaillées](T100-F18-2026-10-18.md) : nouvelle caisse
+50 €, stock ingrédient5,25kg, tarif futur espresso2,70 €, créneau18–19h, révocations
+MANAGER/EMPLOYEE et rechargements. Nouveau service POS9,30 € et deux commandes
+QR1,25 €, acompte espèces3 € réparti111/154/35centimes. Nouvelle caisse attendue53 €.
+
+Relecture finale : ventes historiques21,10 € inchangées ; nouvelles commandes
+11,80 € ouvertes,3 €encaissés fictivement,8,80 €dus. Pas de nouvelle facture,
+avoir ou remboursement. Les lignes historiques comparées sont égales. Les deux
+pointages ouverts anciens restent intacts ; nouvelle Entrée409 explicite.
+
+Le règlement mixte du solde abandonné n'est pas commis ; **arrêt officiel non
+confirmé**, reprise bloquée, aucune tentative avec une nouvelle référence.
+Cuisine web démonstrative et voile QR reproduits, corrections testées/compilées,
+contre-essais Chrome encore bloqués. Transferts/fusions/offerts/fin de visite et
+clôture de cette nouvelle journée restent ouverts. Ne pas recréer ces données.
+Les résultats du lot précédent ci-dessous restent historiques.
+
 ## Suite ciblée du 18 octobre — PARTIELLE, NON LIVRÉE
 
 Les cinq identités existantes sont conservées. OWNER : décisions de droits et

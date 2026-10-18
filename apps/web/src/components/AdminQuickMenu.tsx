@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { useEnvMode } from '@/stores/envModeStore'
+import { useAuthStore } from '@/stores/authStore'
 
 /**
  * Top-right admin quick menu — configure any module, activate Test / Dev /
@@ -11,6 +12,7 @@ import { useEnvMode } from '@/stores/envModeStore'
 export default function AdminQuickMenu() {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
+  const companyName = useAuthStore((state) => state.company?.name)
   const popRef = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
   const { testMode, developerMode, comingSoonMode, setTestMode, setDeveloperMode, setComingSoonMode } = useEnvMode()
@@ -50,7 +52,7 @@ export default function AdminQuickMenu() {
           (backdrop-filter/transform) qui piégeaient le panneau SOUS les cartes. */}
       {open && createPortal(
         <div ref={popRef} style={popover}>
-          <div style={popHeader}>⚡ Admin panel</div>
+          <div style={popHeader}>⚡ Administration de l’établissement</div>
 
           <div style={popSection}>
             <div style={popLabel}>Configuration</div>
@@ -63,20 +65,20 @@ export default function AdminQuickMenu() {
 
           <div style={popSection}>
             <div style={popLabel}>Modes</div>
-            <ToggleRow label="Mode Test"           emoji="⚠️" value={testMode}        onChange={setTestMode}        color="#f59e0b" />
-            <ToggleRow label="Entwickler Modus"    emoji="🛠" value={developerMode}   onChange={setDeveloperMode}   color="#8b5cf6" />
-            <ToggleRow label="Coming Soon display" emoji="🚧" value={comingSoonMode}  onChange={setComingSoonMode}  color="#06b6d4" />
+            <ToggleRow label="Mode test"           emoji="⚠️" value={testMode}        onChange={setTestMode}        color="#f59e0b" />
+            <ToggleRow label="Mode développeur"    emoji="🛠" value={developerMode}   onChange={setDeveloperMode}   color="#8b5cf6" />
+            <ToggleRow label="Affichage « Bientôt »" emoji="🚧" value={comingSoonMode} onChange={setComingSoonMode} color="#06b6d4" />
           </div>
 
           <div style={popSection}>
             <div style={popLabel}>Modules</div>
             <MenuItem icon="🤖" label="Assistant IA local (Gemma)" sub="Ollama pour Raspberry Pi 5"    onClick={() => go('/ai/local')} />
             <MenuItem icon="💳" label="Facturation"                sub="Factures / devis / avoirs"      onClick={() => go('/invoices/devis')} />
-            <MenuItem icon="🏛" label="Super Admin"                sub="Panel founder"                  onClick={() => go('/admin')} />
+            <MenuItem icon="🏛" label="Administration & utilisateurs" sub="Société, accès et catalogue"       onClick={() => go('/admin')} />
           </div>
 
           <div style={popFooter}>
-            Creorga OS v2.0 · Café um Rond-Point
+            Creorga OS v2.0{companyName ? ` · ${companyName}` : ''}
           </div>
         </div>,
         document.body,

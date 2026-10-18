@@ -1,4 +1,5 @@
-import { Router, Request, Response } from 'express'
+import type { Request, Response } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 import Stripe from 'stripe'
 import logger from '../lib/logger'
 import { requireCompany, requireRole } from '../middleware/requireCompany'

@@ -1,5 +1,261 @@
 # Checkpoint CréOrga 2.0 — 18 octobre 2026
 
+## F18-L3 — état final vérifié du18octobre, après16:49UTC
+
+**Correctifs validés, publication sur la branche2.0 en préparation ; campagne
+NON LIVRÉE ; pilote NON QUALIFIÉ.** Le présent état prime sur les checkpoints
+intermédiaires conservés ci-dessous. Base `ab0d735f60f01bbfd0c7f914a43c2b997f280e2e`,
+branche `codex/creorga-2-0-2026-10-08`, master inchangé. Profil métier sans jeux.
+[Rapport L3](F18-REPRISE-INDEPENDANTE-2026-10-18.md),
+[preuve machine](preuves/f18-l3-validation-2026-10-18.json),
+[18parcours et prochaines actions](RECETTE-FINALE-18-PARCOURS-2026-10-18.md).
+
+Une seule nouvelle copie autorisée : `local-2.0-recovery-20261018-YEEppm`,
+PG25450/`creorga_f18_recovery`, API23002, interfaces25174/25175/25177/25178.
+Processus, fichiers, secrets et artefacts distincts ; aucune instance supplémentaire
+sur les bases originales. SMTP/cloud/bank réels non configurés. Aucune migration.
+
+Trois arrêts officiels **STOPPED**, sans forçage :15:28:42UTC après lecture Chrome
+Brotli ;15:41:16UTC pendant le traitement d'un solde abandonné ;16:48:36UTC après
+la recette. Pour le dernier : PID25524 disparu, cinq ports libres,0connexion
+applicative PG, compteurs HTTP/WS/travaux à0, minuteries suspendues. PostgreSQL,
+Chrome et anciens PID14676/35556 préservés. Leurs blocages en mémoire ne sont
+**pas** réparés par le nouveau binaire ; ne pas les tuer ou les réutiliser.
+
+Notes POS F2/F3 contre-testées réellement ; paiement Restaurant9,70€commis sans
+réponse, retrouvé par **la même référence** en GET200 sans second POST. QR Restaurant :
+deux commandes, KDS, transfert, renouvellement, ancien accès et nouvel envoi403.
+Bar : service13,20€ +QR8,40€, acomptes/mixtes déclarés, KDS avant/après paiement,
+refus explicite de fusion à consignes différentes, révocation/rétablissement du
+stock en onglet ouvert, quantité2,25L sans coût pour ADMIN/EMPLOYEE. Restaurant :
+planning23–03h, pointage personnel et refus d'accès entre sociétés. Café : solde
+courant10,05€ réglé sur copie seulement, ancienne demande880c jamais rejouée.
+
+Rapprochement des trois clôtures : Café57,05€ ; Restaurant133,20€ ; Bar38,50€
+comptés pour38,60€théoriques, écart−0,10€motivé. Ventes, TVA, espèces et cartes
+déclarées restent distinctes ; aucun acquéreur réel. Totaux cumulés de ventes
+34,15€/142,70€/59,64€, non additionnés aux factures/avoirs/remboursements.
+Les anciennes ventes réglées, pièces fiscales, règlements et pointages de la
+copie sont comparés aux références ; stocks débités des seules quantités vendues.
+
+Validation fraîche du code inchangé,807sources SHA
+`08875039e424934bf55fb75dbef17273f7d7cf99f99b45370e18b8b60b453b8f` :
+**1306unitaires =618backend+513Web+175POS ;354PG ;79fixtures locales ;5builds métier**.
+Les journaux d'exécution sont conservés ; leur relecture finale n'est pas une
+nouvelle exécution des suites. L3 :341tentatives d'interaction UI dont338retours
+d'outil/3erreurs,214appels de clic ; les observations et fermetures d'onglet ne
+sont pas des fonctions qualifiées. Aucun total artificiel de clics physiques,
+de contrôle T100 ou de cinq heures actives.
+
+Restauration **après arrêt confirmé** :82tables/**21466lignes**/14fichiers/26PDF
+égaux, nouvelle base `creorga_f18_recovery_verify_1792342145657`, fichiers dans
+`final-restoration-z3u0xC`, AES-GCM vérifié/clé séparée. Archive SHA
+`219ff8875eb9dfb2d81068dad6dff9a0ef038778a5af1397794a2f440bd456ad`.
+27copies récupérées et99blobs de jeux immuables revérifiés, zéro suppression.
+98fichiers de jeux courants inchangés ; seule l'importation de la façade HTTP
+de `gameScores.ts` est adaptée, sans modifier sa logique. Jeux absents du graphe métier.
+
+**18combinaisons amorcées dans F18,0qualifiée,18partielles/BLOCKED.** Les quatre
+profils Café non rejoués en L3 conservent leurs preuves précédentes, pas un faux
+nouveau PASS. T01–T100 historique55PASS/0FAIL/44BLOCKED/1NOT RUN, T100 partiel.
+Réservations/variantes depuis la caisse, fusion à consignes distinctes, parcours
+de remises/offerts/séparations avancées, téléchargements en octets et contre-essais
+par écran/rôle restent ouverts. Robi local n'est pas une IA générative qualifiée.
+
+Reprise : conserver les trois sources et archives ; ne pas rouvrir de laboratoire
+supplémentaire. La copie L3 est arrêtée normalement, sa base PG reste disponible.
+Vérifier son dernier STOPPED/PID/ports et les manifestes avant un éventuel lancement
+officiel sur **la même** copie. Reprendre les sous-critères indiqués dans la matrice,
+sans recréer les ventes, acomptes, documents et clôtures déjà prouvés.
+
+## F18-L3 — point intermédiaire historique15:55UTC
+
+**NON LIVRÉ — PILOTE NON QUALIFIÉ.** Une seule nouvelle copie a été restaurée
+sur25450/`creorga_f18_recovery`, interfaces25174–25178/API23002, contexte fermé
+`f18-recovery`, profil métier sans jeux. Anciens processus/données/archives
+préservés. [Rapport courant de reprise](F18-REPRISE-INDEPENDANTE-2026-10-18.md).
+
+Contre-essais Chrome désormais exécutés : notes F2/F3 conservées et distinctes ;
+GET réel Brotli puis STOPPED ; abandon pendant vraie attente SQL avec1travail
+actif → achèvement transactionnel → **STOPPED15:41:16UTC** → reprise même clé par
+GET200 sans second POST. Nouvelle vente Restaurant9,70€ unique, deux produits
+débités une fois. Aucun arrêt forcé ni arrêt PostgreSQL/Chrome/anciennes instances.
+QR Restaurant : deux commandes distinctes, cuisine, transfert, ancien lien403,
+nouveau lien même addition, solde unique et refus après clôture testés.
+
+1306unitaires,354PG,79fixtures et cinq builds métier frais réussis. Restauration
+initiale82tables/20012lignes/14fichiers/26PDF égaux ; restauration **finale à faire**.
+Les dix-huit parcours ne sont pas qualifiés ; nouvelles preuves de rôle en cours,
+aucun commit/push encore. Ne pas relire l'ancien « Chrome BLOCKED » L2 ci-dessous
+comme statut du contre-essai L3 désormais exécuté ; son échec historique est intact.
+
+## F18-L2 — copie séparée autorisée, reprise et nouveau blocage —14:18UTC
+
+**NON LIVRÉ — PILOTE NON QUALIFIÉ.** HEAD local/distant `ab0d735…` vérifié,
+master `350b351…` inchangé. Les correctifs F18 sont encore locaux, aucun nouveau
+commit/push. [Rapport de reprise complet](F18-LABORATOIRE-SEPARE-2026-10-18.md)
+et [preuve machine](preuves/f18-l2-validation-2026-10-18.json) priment sur les
+paragraphes intermédiaires historiques ci-dessous.
+
+Le choix explicite « Préparer une copie de laboratoire séparée » a été exécuté :
+nouveau cluster15450, base `creorga_f18_local`, fichiers/secrets distincts,
+ports13002/15174/15175/15177/15178, contexte `f18-isolated`, profil métier sans jeux.
+Installation d'origine, profils historiques et archives préservés. Clés bancaires
+et IA cloud absentes, SMTP non configuré, sorties JavaScript restreintes au labo.
+Copie de départ restaurée13:23:50UTC :82tables/19602lignes/14fichiers/26PDF égaux.
+
+Vrais clics supplémentaires : cuisine Café réellement liée aux tickets, trois
+états du ticket F18n°5 sans paiement/stock modifié ; nouvelle QRn°9 unique au double
+clic, premier Ajouter après Nouvelle commande fonctionnel ; EMPLOYEE sans CA/coûts,
+refus d'administration et déconnexion prouvés. Restaurant OWNER ouvre une caisse
+fictive100€ une seule fois au double clic ; SERVER saisit deux groupes/cinq lignes
+38,80€, retrouve les données après connexion, acompte10€ puis solde mixte28,80€.
+
+Nouvelle réponse abandonnée avant commit, attente SQL prouvée puis libération
+automatique du verrou : **38,80€ finalisés une fois**,18,80espèces +20carte déclarée
+fictive. Référence `329ddd46-858d-488a-a03e-eff50cfcfa35` retrouvée par GET200 après
+reconnexion, aucun POST supplémentaire. Deux ventes, cinq débits de produits
+uniques, anciennes opérations Restaurant inchangées. Caisse nouvelle118,80€
+théoriques **non clôturée** ; Café10,05€dus dont3,40visiteQR, acompte3€conservé.
+L'ancien solde Café880c de la source reste distinct, jamais rejoué.
+
+Arrêt officiel avant incident STOPPED puis reprise prouvés. **Après incident :
+SHUTDOWN_UNCONFIRMED/http/HTTP_WORK_UNTRACKED**,14:01:45UTC. PID14676/35556 et
+écoutes3002/13002 encore présents au contrôle autorisé14:17:53UTC. Aucun kill,
+hotpatch ou seconde instance sur leurs bases. Une nouvelle décision de reprise
+est demandée ; aucune réponse présélectionnée n'est traitée comme autorisation.
+
+Défaut du tracker reproduit RED : handler sync+JSON gzip, end natif différé,
+callback terminé classé opaque à tort. Correctif minimal testé GREEN sans retirer
+le refus des vrais callbacks opaques. C'est une cause reproduite correspondant
+au GET de salle réel, **pas l'identification certaine de la requête de ce PID**.
+Autre défaut RED : notes ticket/cuisine vides à réouverture malgré SQL ; valeurs
+préremplies, annulation et identité des deux modales corrigées/testées.
+**Contre-essais Chrome de ces deux derniers correctifs encore BLOCKED.**
+
+Validations finales fraîches,806sources stables SHA
+`5f921d057c03d93f0afad2b3fac043533f49e8ee153a47e4a0bce2911f37018e` :
+**1305unitaires =617backend+513web+175POS,354PG,68fixtures locales** séparées,
+zéro échec/ignoré ; cinq apps du contexte métier isolé compilées, zéro module jeu.
+Les anciens totaux et ciblés ne sont pas additionnés à cette exécution.
+
+Nouvelle restauration exécutée14:11:02–14:11:24UTC dans une base **neuve**, source
+L2 uniquement : **82tables/20012lignes/14fichiers/26PDF identiques**, AES-GCM,
+clé séparée, zéro écart ; archive SHA
+`2db67b2322bcf83f889872c44ba53d6bdd942f771eff102dedc63998ef712052`.
+Limite : données SQL commises + fichiers stables, **pas arrêt propre ni vidange
+mémoire des journaux prouvés**.27copies récupérées relues14:17UTC : tailles/SHA
+égaux,30025952octets, zéro suppression. Ce n'est pas27restaurations.
+
+Matrice : **0PASS/8BLOCKED partiels/10NOT RUN**. T01–T100 reste55/0/44/1,
+T100 partiel,3697contrôles statiques. Journal L2 :84interactions UI retournées,
+50appels de clic,70observations dont2erreurs d'outil ; pas de cinq heures actives
+ni de couverture unique revendiquées. Robi génératif, banque, matériel et octets
+de téléchargements officiellement inaccessibles toujours BLOCKED.
+
+Prochaine action : reprise sûre explicitement choisie, contre-essais du dernier
+binaire et arrêt après abandon ; terminer les caisses ouvertes, puis profils
+Restaurant restants et Bar. Ne pas recréer les objets déjà prouvés ni relancer
+les références incertaines sous une nouvelle clé. Raccourci préservé, nouveau
+double clic natif non testé, jeux962c01b toujours ancêtres/récupérables sur GitHub.
+
+Contrôle documentaire final14:27:16UTC : onze rapprochements en lecture seule
+confirment que les nombres/SHA publics correspondent aux sorties privées, aux
+806sources testées, au build, aux82tables/20012lignes, aux14fichiers et26PDF,
+au préfixe du journal et aux27dumps. Une faute de transcription d'un caractère
+du SHA du rapport PG a été détectée puis corrigée avant ce contrôle ; aucun
+rapport de test ou archive source n'a été modifié. Les deux exclusions utilisateur
+restent préservées. Nouvelle décision de reprise toujours sans réponse enregistrée
+à ce point ; elle bloque Chrome, pas les sauvegardes/proofs déjà réalisées.
+
+Préservation supplémentaire14:28:19UTC :
+`worktree-preserved-2026-10-18T14-28-19-017Z-b73efd3a`,704fichiers copiés égaux,
+manifeste SHA `5056422ee3bacbf252ea01554d6cc26de0baf0cfda218b277e6abcfe1f5de89b`.
+Sources/diff/état Git conservés, sans staging/commit/push. Cette ligne de repérage
+est ajoutée après la copie ; ce n'est pas une nouvelle sauvegarde SQL.
+
+## F18 — recette finale18parcours — reprise après12:34UTC — NON LIVRÉ
+
+Base locale/distante de départ vérifiée : `ab0d735f60f01bbfd0c7f914a43c2b997f280e2e`,
+même branche2.0, aucune modification de master ni publication du présent lot.
+Travail antérieur préservé ; `apps/guest/tsconfig.tsbuildinfo` et
+`.tmp-permissions-surface/` restent exclus. Profil métier sans jeux.
+
+**État courant :** six contextes Café réellement ouverts, contrôles partiels
+documentés ; aucune combinaison complète PASS. Restaurant et Bar NOT RUN dans
+ce nouveau lot, leurs preuves antérieures restent historiques. Voir la
+[matrice et l'état précis](RECETTE-FINALE-18-PARCOURS-2026-10-18.md).
+
+Nouvelles données fictives seulement : caisse Café50 €, ingrédient5→5,25kg,
+tarif futur espresso2,60→2,70 €, créneau EMPLOYEE18–19h, nouvelle session/table,
+deux tournées POS et deux commandes QR1,25 €. Un acompte espèces3 € conservé.
+Anciennes ventes/documents/règlements/provenances vérifiés égaux. Export retiré
+puis rétabli pour MANAGER ; membre EMPLOYEE désactivé/réactivé et refus dans
+l'onglet ouvert prouvé. Les deux pointages historiques ambigus ne sont pas modifiés.
+
+**Blocage réel prioritaire :** règlement fictif mixte880centimes (380espèces,
+500carte déclarée) abandonné par rechargement pendant une attente SQL prouvée.
+Transaction expirée/rollback :880 restent dus, aucun second règlement. Arrêt
+officiel **NON CONFIRMÉ**, processus conservé. Rectification12:30–12:32UTC :
+les quatre ports d'interface sont absents mais3002 reste LISTEN et rejette les
+connexions parECONNRESET ; les anciens refus réseau ne prouvaient pas cinq ports libres.
+Ne pas tuer, relancer sur cette même base ou rejouer avec une nouvelle référence.
+Demande conservée `5b93c091-f841-4672-beb3-90c991a7023f`.
+[Chronologie et limites](F18-ABANDON-HTTP.md). Diagnostic isolé exécuté, cause réelle
+toujours non prouvée ; aucune
+reprise de ce runtime ni campagne complète ne peut être déclarée réussie.
+
+Deux défauts UI reproduits : cuisine web encore démonstrative, et volet panier
+QR vide interceptant le premier clic après Nouvelle commande. Corrections
+RED→GREEN et nouvelle compilation métier réussies ; **rejeu Chrome encore à faire**. Lectures
+Robi locales stock/CA prouvées ; IA générative toujours BLOCKED, aucun cloud.
+
+Exécutions globales finales fraîches12:19–12:21UTC, même empreinte805sources :
+**1290unitaires =616backend+513web+161POS**,353PG et50fixtures locales, sans
+échec ni ignoré. Cinq applications métier compilées12:19:00–12:20:53UTC,
+graphe sans jeu. Empreinte testée
+`5f9cd1d28f9bfdd4c65ce85f97e78d5aa5566865b756b726249fcbb280a90fd9`.
+Les604/482/161 intermédiaires et ciblés ne sont pas additionnés à ces totaux.
+[Preuve publique vérifiée](preuves/f18-validation-2026-10-18.json).
+Diagnostic privé d'arrêt amélioré (étape/raison bornées, mêmes gardes/rejets),
+sans cause prouvée ni réparation en mémoire de l'ancien processus. Sauvegarde
+initiale restaurée10:38:47UTC :82tables/18997lignes/14fichiers/26PDF égaux,
+archive SHA `d87386aaec2c8bbce0139881264b99cea5d64fce7810e7164e0830d1149b4450`.
+Nouvelle restauration finale non exécutée. Archives originales et27copies
+préservées. Les27copies sont à nouveau vérifiées avec ZIP/manifeste, sans purge.
+Trois comparaisons finales : anciennes ventes/documents/règlements/provenances
+égaux ; Café11,80 € ouverts/3 €acompte/8,80 €dus, nouvelle caisse attendue53 €.
+Tous les quinze membres fictifs sont actifs, versions et décisions rétablies.
+T100 toujours partiel ; pas de cinq heures actives revendiquées.
+
+Matrice : **0 PASS / 6 BLOCKED / 12 NOT RUN** ; six contextes Café partiels,
+Restaurant/Bar non rejoués dans F18. [T100 ciblé](T100-F18-2026-10-18.md),
+[politique des32capacités et overrides réels](PERMISSIONS-F18-2026-10-18.md).
+Journal F18 avant la rectification réseau :150tentativesUI/148retours/2erreurs,
+87appels de clic/86retours ; appels pouvant contenir un double clic, pas un
+décompte des clics physiques. Ni148PASS ni couverture unique3697calculée.
+
+Dernière vérification GitHub : même HEAD`ab0d735…` et master`350b351…` inchangés.
+**Le contenu corrigé du PC n'est pas publié** : aucun nouveau commit/push F18.
+Le raccourci existe et reste identique, mais l'ouverture est bloquée par l'arrêt
+non confirmé ; aucun double clic Windows natif revendiqué. Les99blobs jeux du
+commit immuable962c01b restent présents/récupérables ; pas de jeu supprimé.
+
+Préservation finale du travail à12:43:34UTC, après consolidation des preuves :
+`worktree-preserved-2026-10-18T12-43-34-493Z-52074c90`, **692fichiers copiés égaux**,
+manifeste SHA `93cc3c7c4ddd02e0582a97a6b7adb0ef569c42467f31a3caa2a194776e7256c0`.
+Copie de sources/diff, pas une sauvegarde de la nouvelle base. Cette ligne de
+repérage est ajoutée après cette copie ; les805sources de code testées restent
+identiques. HEAD local/distant et master revérifiés sans mutation à12:43UTC.
+
+**Prochaine action :** une décision de reprise sûre est nécessaire après les
+validations indépendantes : copie de laboratoire/base/fichiers et ports distincts
+validés, ou redémarrage par le propriétaire après préservation. La question
+asynchrone reste sans réponse enregistrée à ce point. Ne pas ignorer la garde du
+lanceur, réutiliser3002, forcer l'ancien processus ni réémettre les objets F18.
+La restauration finale/rejeu de l'incident et les18parcours restent bloquants.
+Correctifs non publiés, campagne NON LIVRÉE, pilote NON QUALIFIÉ.
+
 ## Reprise droits fins / Robi — 18 octobre 2026 — EN COURS, NON LIVRÉ
 
 ### Relevé courant après restauration finale du18octobre09:47UTC

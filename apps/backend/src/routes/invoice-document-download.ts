@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { Router } from 'express'
+import { createTrackedRouter as Router } from '../lib/tracked-router'
 import { z } from 'zod'
 import { DocumentLinkError, downloadInvoiceDocument } from '../lib/invoice-document-links'
 

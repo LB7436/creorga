@@ -20,6 +20,9 @@ let inspectionQueue: Promise<void> = Promise.resolve()
 let closing = false
 let shutdown: Promise<void> | null = null
 
+/** Diagnostic privé sans noms de fichiers ni contenu des archives. */
+export function backupActivitySnapshot() { return Object.freeze({ frozen: closing, activeOperations: running.size }) }
+
 /** Un échec PostgreSQL ne peut jamais produire une archive annoncée complète. */
 export function runFullBackup(dataDir = DATA_DIR): Promise<string> {
   if (closing) return Promise.reject(new Error('Sauvegarde différée : arrêt du service en cours.'))

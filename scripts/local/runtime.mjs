@@ -4,11 +4,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
 import { startStaticHost, closeStaticHost } from './static-host.mjs'
 import { startRuntimeControl } from './runtime-control.mjs'
-import { LOCAL_BIND_HOST, LOCAL_API_PORT, LOCAL_WEB_ORIGIN, LOCAL_BROWSER_ORIGINS, LOCAL_FRONTENDS, assertLocalInstallationManifest } from './local-origin-policy.mjs'
+import { LOCAL_BIND_HOST, LOCAL_API_PORT, LOCAL_WEB_ORIGIN, LOCAL_BROWSER_ORIGINS, LOCAL_FRONTENDS,
+  localArtifactDirectory, localContext, assertLocalInstallationManifest } from './local-origin-policy.mjs'
 
 // Entrée unique : API + quatre interfaces statiques dans un seul processus Node.
 // PostgreSQL est géré séparément. Aucun seed, install, reset ou migration au boot.
 const profile = process.argv.includes('--full') ? 'full' : 'business'
+const artifactDirectory = localArtifactDirectory(profile)
+const backendDirectory = localArtifactDirectory(profile, { backend: true })
 const root = path.resolve(fileURLToPath(new URL('../..', import.meta.url)))
 const runtimeDirectory = process.env.CREORGA_RUNTIME_DIR
 if (!runtimeDirectory || !path.isAbsolute(runtimeDirectory)) throw Error('CREORGA_RUNTIME_DIR absolu requis : aucune nouvelle arborescence de données créée implicitement.')
@@ -17,6 +20,12 @@ process.chdir(runtimeDirectory)
 let database
 try { database = new URL(process.env.DATABASE_URL) } catch { throw Error('DATABASE_URL privée requise avant le lancement local.') }
 if (!['127.0.0.1', 'localhost', '[::1]'].includes(database.hostname) || !['postgres:', 'postgresql:'].includes(database.protocol)) throw Error('Le lanceur local refuse une base distante.')
+const context = localContext()
+const guardedDatabase = { 'f18-isolated': ['15450', '/creorga_f18_local'], 'f18-recovery': ['25450', '/creorga_f18_recovery'] }[context.name]
+if (guardedDatabase && (database.hostname !== '127.0.0.1' || database.port !== guardedDatabase[0]
+  || database.pathname !== guardedDatabase[1] || database.search !== '' || database.hash !== '')) {
+  throw Error(`Le contexte ${context.name} exige la base 127.0.0.1:${guardedDatabase[0]}${guardedDatabase[1]} sans paramètres ni fragment.`)
+}
 if (process.env.EMAIL_TEST_ONLY !== 'true') throw Error('EMAIL_TEST_ONLY=true requis dans cette installation de laboratoire.')
 if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) throw Error('Secrets privés de session requis ; aucune valeur de démonstration créée.')
 Object.assign(process.env, {
@@ -30,29 +39,55 @@ Object.assign(process.env, {
 })
 const apps = LOCAL_FRONTENDS
 for (const [app] of apps) {
-  const directory = path.join(root, 'apps', app, `dist-${profile}`)
+  const directory = path.join(root, 'apps', app, artifactDirectory)
   await access(path.join(directory, 'index.html'))
   const installation = JSON.parse(await readFile(path.join(directory, 'local-installation.json'), 'utf8'))
   assertLocalInstallationManifest(installation, profile)
 }
-const proof = JSON.parse(await readFile(path.join(root, 'apps/web', `dist-${profile}`, 'profile-manifest.json'), 'utf8'))
+const proof = JSON.parse(await readFile(path.join(root, 'apps/web', artifactDirectory, 'profile-manifest.json'), 'utf8'))
 if (proof.profile !== profile || (profile === 'business' && proof.gameModuleCount !== 0)) throw Error('Compilation de profil incohérente : relancer build:business ou build:full.')
-await access(path.join(root, 'apps/backend/dist/src/index.js'))
+const backendEntry = path.join(root, 'apps/backend', backendDirectory, 'src/index.js')
+await access(backendEntry)
+if (localContext().name !== 'default') {
+  const installation = JSON.parse(await readFile(path.join(root, 'apps/backend', backendDirectory, 'local-installation.json'), 'utf8'))
+  assertLocalInstallationManifest(installation, profile)
+}
 register('./extensionless-esm.mjs', import.meta.url)
 const servers = []
-let backend, control, stopping
-const closeFrontends = () => Promise.all(servers.map(closeStaticHost))
+let backend, control, stopping, shutdownDiagnostic
+const logActivity = phase => {
+  try {
+    const activity = backend?.getBackendActivityDiagnostics?.()
+    console.log('[CréOrga] Activité arrêt', JSON.stringify({ phase, available: !!activity, ...activity }))
+  } catch { console.error('[CréOrga] Compteurs d’activité indisponibles ; aucun état réussi déduit.') }
+}
+const closeFrontends = () => Promise.all(servers.map(closeStaticHost)).catch(error => {
+  shutdownDiagnostic ||= { stage: 'frontends', reason: 'FRONTEND_CLOSE_FAILED' }
+  console.error('[CréOrga] Arrêt non confirmé', JSON.stringify(shutdownDiagnostic))
+  throw error
+})
 // Aucun SIGKILL de secours : un arrêt ambigu reste à diagnostiquer, pas « réussi ».
 const shutdown = () => stopping ??= (async () => {
-  if (!backend?.shutdownBackend) throw Error('Arrêt coordonné indisponible')
-  await Promise.all([closeFrontends(), backend.shutdownBackend()])
+  if (!backend?.shutdownBackend) {
+    shutdownDiagnostic ||= { stage: 'runtime', reason: 'BACKEND_NOT_AVAILABLE' }
+    throw Error('Arrêt coordonné indisponible')
+  }
+  logActivity('before')
+  try {
+    await Promise.all([closeFrontends(), backend.shutdownBackend().catch(error => {
+      shutdownDiagnostic ||= backend.getBackendShutdownDiagnostic?.() || { stage: 'runtime', reason: 'UNSPECIFIED_FAILURE' }
+      throw error
+    })])
+  } finally { logActivity('settled') }
 })()
 try {
-  for (const [app, port] of apps) servers.push(await startStaticHost({ directory: path.join(root, 'apps', app, `dist-${profile}`), port }))
-  backend = await import(pathToFileURL(path.join(root, 'apps/backend/dist/src/index.js')).href)
+  for (const [app, port] of apps) servers.push(await startStaticHost({ directory: path.join(root, 'apps', app, artifactDirectory), port, apiPort: LOCAL_API_PORT }))
+  backend = await import(pathToFileURL(backendEntry).href)
   await backend.backendReady
   if (process.env.CREORGA_CONTROL_FILE) {
-    control = await startRuntimeControl({ descriptorPath: process.env.CREORGA_CONTROL_FILE, onShutdown: shutdown })
+    control = await startRuntimeControl({ descriptorPath: process.env.CREORGA_CONTROL_FILE, onShutdown: shutdown,
+      getShutdownDiagnostic: () => shutdownDiagnostic || backend.getBackendShutdownDiagnostic?.(),
+    })
   }
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
     void shutdown().then(() => control?.close()).catch(() => {
