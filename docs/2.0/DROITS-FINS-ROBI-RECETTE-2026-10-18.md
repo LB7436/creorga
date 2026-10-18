@@ -12,10 +12,12 @@ GitHub Actions déduite du push, le workflow ne cible pas la branche2.0.
 **Code correctif validé, campagne partielle.** Les suites finales ci-dessous incluent
 le drain HTTP et les derniers correctifs d'inventaire. Les preuves de08:38 restent
 dans l'[instantané antérieur au drain](preuves/droits-robi-avant-drain-2026-10-18.json).
-Après disparition de l'ancien PID13784 à la suite de la fermeture manuelle de Chrome,
+Après disparition de l'ancien PID13784, constatée après l'annonce de fermeture de Chrome,
 deux nouveaux cycles officiels ont confirmé STOPPED avec trois onglets ouverts,
 PID disparus et ports libres. Aucun processus n'a été coupé par l'agent.
 La publication du code ne qualifie pas les parcours encore non exécutés.
+Le geste Windows du propriétaire et la causalité exacte de cette disparition
+n'ont pas été observés ; le navigateur a signalé une reconnexion/un redémarrage.
 
 ## 1. Ce qui a été implémenté
 
@@ -143,7 +145,7 @@ Nouvelle copie finale après le second arrêt confirmé : **18 octobre09:47:14.5
 
 Les **27 dumps récupérés** ont encore leurs tailles et SHA attendus, index SHA `0a966a2baac58179529017d6d7af2344e9cb1e0aa4131ea09176e511805b1358`. Ce contrôle n'est pas 27 restaurations. Les deux noms de dumps anciennement supprimés restent non identifiés. Gel de toute suppression automatique inchangé, aucune archive supprimée.
 
-Raccourci Bureau existant vérifié en lecture seule : cible PowerShell et lanceur officiel métier, SHA `5c62aea646c4cef22305808d827b2c51165e7d8c9f72b7b17d2e205be27e0371`. Pas de double clic natif attesté. Après les deux échecs historiques et la fermeture manuelle de Chrome par le propriétaire, nouveaux démarrages officiels09:38:15(3,127s) et09:44:51(3,404s), PG/cache chauds. **Deux arrêts propres confirmés**, PID31284 puis1644 absents et cinq ports libres aux contrôles09:44:32 et09:45:59UTC, les trois onglets de recette étant restés ouverts. Le stock5kg, le refus EMPLOYEE et le bon reçu63,00 ont été rechargés après reprise. Le code ne garantit pas l'arrêt après un abandon HTTP incertain décrit plus haut. Aucun kill ; seules les trois pages isolées de recette ont ensuite été fermées par l'outil officiel. Profil arrêté en fin de contrôle, PostgreSQL conservé.
+Raccourci Bureau existant vérifié en lecture seule : cible PowerShell et lanceur officiel métier, SHA `5c62aea646c4cef22305808d827b2c51165e7d8c9f72b7b17d2e205be27e0371`. Pas de double clic natif attesté. Après les deux échecs historiques et la disparition observée de l'ancien processus après l'annonce de fermeture de Chrome, nouveaux démarrages officiels09:38:15(3,127s) et09:44:51(3,404s), PG/cache chauds. **Deux arrêts propres confirmés**, PID31284 puis1644 absents et cinq ports libres aux contrôles09:44:32 et09:45:59UTC, les trois onglets de recette étant restés ouverts. Le stock5kg, le refus EMPLOYEE et le bon reçu63,00 ont été rechargés après reprise. Le code ne garantit pas l'arrêt après un abandon HTTP incertain décrit plus haut. Aucun kill ; seules les trois pages isolées de recette ont ensuite été fermées par l'outil officiel. Profil arrêté en fin de contrôle, PostgreSQL conservé.
 
 Repos : 11 échantillons avant et après, services du profil + descendants + PG, navigateur non inclus : working sets moyens **1 438,43 → 1 327,90 MiB**, maximum de processus **31 → 23**, CPU normalisé arrondi **0 %** et somme des moteurs GPU **0**, allocation GPU dédiée exposée **118,24 MiB** aux deux relevés. **Nombre d'onglets différent, redémarrage et cache chaud : aucune causalité ni gain énergétique démontré**. Pages partagées potentiellement comptées deux fois. Deux sauvegardes UI inchangées de la même table : **35,6 et 29,8 ms, un échantillon chacune**, ni p95 ni comparaison valable avec l'ancien lot à 2,42 s. Charge et profil SQL prolongés NOT RUN.
 

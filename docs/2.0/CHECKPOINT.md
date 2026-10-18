@@ -37,7 +37,9 @@ Windows testées : `127fa535ef8844e11c549ac5a3bf719393b0763028305c3c285ea6717500
   AES-GCM/clé séparée,23,954s cache chaud(nonRTO). Archive SHA
   `f88bf3e0048876104b7575375d5d62f17b625d9dfd5a164538be6fcb2c91efee`.
   Copies v1/v2 et27copies récupérées conservées ; tailles/SHA de ces27 égaux.
-- Ancien PID13784 disparu après fermeture manuelle de Chrome par le propriétaire.
+- Ancien PID13784 constaté disparu après l'annonce de fermeture de Chrome par le
+  propriétaire. Le geste Windows et sa causalité exacte ne sont pas observés ;
+  l'outil navigateur signale ensuite une reconnexion/un redémarrage.
   Drain HTTP corrigé,19tests ciblés sur Node22.19 et22.23.3. Deux nouvelles relances
   officielles puis STOPPED, PID absents/ports libres, trois onglets laissés ouverts.
   Rechargement après reprise confirmé. **Limite :** un abandon prématuré de réponse
